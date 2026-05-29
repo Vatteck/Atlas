@@ -4,7 +4,7 @@
 
 **Goal:** Wire real package manager backends and build all six Tier 1 UI features (real-time terminal output, progress indicators, package detail view, batch operations, Update All, and activity log) so bauh can serve as a primary daily-use package manager.
 
-**Architecture:** A `WebviewProcessWatcher` class bridges the existing `ProcessWatcher` interface to the pywebview JS API via `window.evaluate_js()`, allowing all existing gem backends (Arch/AUR, Flatpak, Snap, AppImage, Web) to stream output, progress, and status to the frontend without modification. `BauhApi` (the pywebview JS bridge) stores serialized `SoftwarePackage` objects in a server-side registry keyed by opaque ID strings, so the frontend only handles plain JSON and never holds Python objects. An activity log is persisted to `~/.cache/bauh/activity.jsonl`.
+**Architecture:** A `WebviewProcessWatcher` class bridges the existing `ProcessWatcher` interface to the pywebview JS API via `window.evaluate_js()`, allowing all existing gem backends (Arch/AUR, Flatpak, Snap, AppImage, Web) to stream output, progress, and status to the frontend without modification. `AtlasApi` (the pywebview JS bridge) stores serialized `SoftwarePackage` objects in a server-side registry keyed by opaque ID strings, so the frontend only handles plain JSON and never holds Python objects. An activity log is persisted to `~/.cache/bauh/activity.jsonl`.
 
 **Tech Stack:** Python 3.14, pywebview ≥ 4.0, Vanilla HTML/CSS/JS (no build step), existing `GenericSoftwareManager` + gem backends unchanged.
 
@@ -18,9 +18,9 @@
 - Modify: `bauh/view/web/api.py`
 - New: `bauh/view/web/watcher.py`
 
-**Context:** `BauhApi` currently returns hardcoded mock lists. `GenericSoftwareManager` is already initialized and passed to `BauhApi.__init__` in `app.py`. The manager's methods block on the calling thread (they use internal `Thread` objects internally), so all `BauhApi` methods must run manager calls in a background thread to avoid freezing the pywebview GTK event loop. pywebview's `js_api` methods **can** return values synchronously — pywebview serializes the return value to JSON and resolves the JS Promise on the main thread. However, long-running calls (>200ms) must be dispatched to a thread and use `window.evaluate_js()` to push results back, otherwise the webview freezes.
+**Context:** `AtlasApi` currently returns hardcoded mock lists. `GenericSoftwareManager` is already initialized and passed to `AtlasApi.__init__` in `app.py`. The manager's methods block on the calling thread (they use internal `Thread` objects internally), so all `AtlasApi` methods must run manager calls in a background thread to avoid freezing the pywebview GTK event loop. pywebview's `js_api` methods **can** return values synchronously — pywebview serializes the return value to JSON and resolves the JS Promise on the main thread. However, long-running calls (>200ms) must be dispatched to a thread and use `window.evaluate_js()` to push results back, otherwise the webview freezes.
 
-The manager stores deserialized `SoftwarePackage` subclass instances. These cannot be serialized to JSON directly. A `pkg_registry` dict (`{str_id -> SoftwarePackage}`) in `BauhApi` maps opaque IDs to packages so the frontend can reference them in install/uninstall calls.
+The manager stores deserialized `SoftwarePackage` subclass instances. These cannot be serialized to JSON directly. A `pkg_registry` dict (`{str_id -> SoftwarePackage}`) in `AtlasApi` maps opaque IDs to packages so the frontend can reference them in install/uninstall calls.
 
 **Step 1: Write `bauh/view/web/watcher.py`**
 
@@ -89,7 +89,7 @@ from bauh.view.core.controller import GenericSoftwareManager
 from bauh.view.web.watcher import WebviewWatcher
 
 
-class BauhApi:
+class AtlasApi:
 
     def __init__(self, manager: GenericSoftwareManager, logger: logging.Logger):
         self.manager = manager
@@ -282,11 +282,11 @@ git commit -m "feat: wire real GenericSoftwareManager backends to web UI"
 - Modify: `bauh/view/web/style.css`
 - Modify: `bauh/view/web/main.js`
 
-**Context:** pywebview exposes `window.evaluate_js(js_string)` on the `webview.Window` object. This can be called from any Python thread to push data to the frontend. `BauhApi` needs a reference to the `webview.Window` instance to call `evaluate_js`. The window is created in `app.py` — pass it into `BauhApi` after creation via a `set_window(window)` method called inside the `pywebviewready` handler (or just pass it at construction time using `webview.start()`'s `func` parameter — pass as `started` callback). The cleanest approach: call `api.set_window(window)` from `app.py` after `webview.create_window()`.
+**Context:** pywebview exposes `window.evaluate_js(js_string)` on the `webview.Window` object. This can be called from any Python thread to push data to the frontend. `AtlasApi` needs a reference to the `webview.Window` instance to call `evaluate_js`. The window is created in `app.py` — pass it into `AtlasApi` after creation via a `set_window(window)` method called inside the `pywebviewready` handler (or just pass it at construction time using `webview.start()`'s `func` parameter — pass as `started` callback). The cleanest approach: call `api.set_window(window)` from `app.py` after `webview.create_window()`.
 
 `WebviewWatcher.print()` will call `window.evaluate_js("terminalAppend(" + json.dumps(msg) + ")")` directly.
 
-**Step 1: Add `set_window` to `BauhApi` and pass window in `app.py`**
+**Step 1: Add `set_window` to `AtlasApi` and pass window in `app.py`**
 
 In `bauh/view/web/api.py`, add:
 ```python
@@ -360,7 +360,7 @@ class WebviewWatcher(ProcessWatcher):
         self._push(f"showToast({escaped_title}, {escaped_body}, '{level}')")
 ```
 
-**Step 3: Wire watcher into install/uninstall/update in `BauhApi`**
+**Step 3: Wire watcher into install/uninstall/update in `AtlasApi`**
 
 Update all three operation methods to construct `WebviewWatcher(self.logger, self.window, pkg_id)` and call `terminalOpen()` before the operation starts:
 
@@ -653,7 +653,7 @@ git commit -m "feat: loading state spinners on package action buttons"
 - Modify: `bauh/view/web/style.css`
 - Modify: `bauh/view/web/main.js`
 
-**Context:** Clicking a package card (not the action button) opens a detail modal/drawer showing full package info from `BauhApi.get_info()`. The `get_info` method already exists from Task 1; it calls `GenericSoftwareManager.get_info(pkg)` which returns a raw `dict` of attributes. Structure varies by gem — Flatpak returns different keys than AUR. The detail view should render all keys as a generic key-value table, plus the fixed fields (`name`, `version`, `description`, `publisher`, `size`, `categories`) from the serialized package.
+**Context:** Clicking a package card (not the action button) opens a detail modal/drawer showing full package info from `AtlasApi.get_info()`. The `get_info` method already exists from Task 1; it calls `GenericSoftwareManager.get_info(pkg)` which returns a raw `dict` of attributes. Structure varies by gem — Flatpak returns different keys than AUR. The detail view should render all keys as a generic key-value table, plus the fixed fields (`name`, `version`, `description`, `publisher`, `size`, `categories`) from the serialized package.
 
 **Step 1: Add detail modal HTML to `index.html`**
 
@@ -857,7 +857,7 @@ git commit -m "feat: package detail modal with extended info from backend"
 
 **Context:** "Update All" calls `GenericSoftwareManager.list_updates()` to get all updatable packages then calls `get_upgrade_requirements()` + `upgrade()` in one shot. Batch select allows checking multiple cards then triggering a bulk install/uninstall. The batch UI needs: a multi-select mode toggle, checkboxes on cards, a floating action bar at the bottom showing `N selected — [Uninstall Selected] [Update Selected]`.
 
-**Step 1: Add `update_all` and `batch_update` to `BauhApi`**
+**Step 1: Add `update_all` and `batch_update` to `AtlasApi`**
 
 ```python
 def update_all(self) -> dict:
@@ -1092,7 +1092,7 @@ def read_recent(limit: int = 100) -> List[dict]:
     return entries
 ```
 
-**Step 2: Call `activity_log.record()` in `BauhApi` after each operation**
+**Step 2: Call `activity_log.record()` in `AtlasApi` after each operation**
 
 In `api.py`, import `activity_log` and add a `record()` call at the end of `install()`, `uninstall()`, `update()`, `update_all()`:
 

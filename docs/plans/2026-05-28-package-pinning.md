@@ -23,8 +23,8 @@ Extend the dictionary returned by `_serialize_pkg` to include pinning properties
 'supports_pinning': pkg.supports_ignored_updates() if hasattr(pkg, 'supports_ignored_updates') else False,
 ```
 
-**Step 2: Add `pin_update` and `unpin_update` to `BauhApi`**
-Add the following methods to the `BauhApi` class:
+**Step 2: Add `pin_update` and `unpin_update` to `AtlasApi`**
+Add the following methods to the `AtlasApi` class:
 ```python
     def pin_update(self, pkg_id: str) -> dict:
         pkg = self._get_pkg(pkg_id)
@@ -167,13 +167,13 @@ Add `pin_update` and `unpin_update` methods to `mockApi`:
 - Modify: [test_api.py](file:///home/vatteck/git/bauh/tests/view/web/test_api.py)
 
 **Step 1: Add unit tests**
-Implement `BauhApiPinTest` to verify success and failure of `pin_update` and `unpin_update` methods:
+Implement `AtlasApiPinTest` to verify success and failure of `pin_update` and `unpin_update` methods:
 ```python
-class BauhApiPinTest(unittest.TestCase):
+class AtlasApiPinTest(unittest.TestCase):
     def setUp(self):
         self.manager = Mock()
         self.logger = Mock()
-        self.api = BauhApi(self.manager, self.logger)
+        self.api = AtlasApi(self.manager, self.logger)
         
         self.pkg = Mock()
         self.pkg.name = "test-pin-pkg"

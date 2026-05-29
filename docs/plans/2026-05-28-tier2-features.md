@@ -4,7 +4,7 @@
 
 **Goal:** Add five power-user features to the web UI — disk usage breakdown, orphan cleanup, package pinning/hold, export/import package manifests, and global keyboard shortcuts.
 
-**Architecture:** All new Python bridge methods follow the same pattern as Tier 1: registered on `BauhApi`, return `{'status': 'ok', 'data': ...}` or `{'status': 'error', 'message': ...}`. Frontend consumes them via `pyApiCall()`. `fill_sizes()` is called per-view as a lazy enrichment pass, not on every list render. Package pinning maps directly to the existing `ignore_update()` / `revert_ignored_update()` abstract methods already implemented in Arch and AppImage gems. Orphan detection filters `read_installed` results by `pkg.orphan == True` (Arch only). Export/import serializes the installed package list to JSON with enough fields to reconstruct a machine.
+**Architecture:** All new Python bridge methods follow the same pattern as Tier 1: registered on `AtlasApi`, return `{'status': 'ok', 'data': ...}` or `{'status': 'error', 'message': ...}`. Frontend consumes them via `pyApiCall()`. `fill_sizes()` is called per-view as a lazy enrichment pass, not on every list render. Package pinning maps directly to the existing `ignore_update()` / `revert_ignored_update()` abstract methods already implemented in Arch and AppImage gems. Orphan detection filters `read_installed` results by `pkg.orphan == True` (Arch only). Export/import serializes the installed package list to JSON with enough fields to reconstruct a machine.
 
 **Tech Stack:** Python 3.14, pywebview ≥ 4.0, Vanilla HTML/CSS/JS, existing `GenericSoftwareManager`, `SoftwareManager` abstract API.
 
@@ -24,7 +24,7 @@
 
 **Step 1: Add `get_disk_usage` to `api.py`**
 
-Add the following method to `BauhApi` in `bauh/view/web/api.py`:
+Add the following method to `AtlasApi` in `bauh/view/web/api.py`:
 
 ```python
 def get_disk_usage(self) -> dict:

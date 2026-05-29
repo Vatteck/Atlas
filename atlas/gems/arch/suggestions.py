@@ -42,7 +42,7 @@ class RepositorySuggestionsDownloader(Thread):
         self.http_client = http_client
         self._taskman: Optional[TaskManager] = None
         self.create_config = create_config
-        self._file_url = file_url if file_url else 'https://raw.githubusercontent.com/vinifmor/bauh-files' \
+        self._file_url = file_url if file_url else 'https://raw.githubusercontent.com/Vatteck/atlas-files' \
                                                    '/master/arch/suggestions.txt'
         self.task_id = 'arch.suggs'
 

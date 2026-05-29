@@ -7,14 +7,14 @@ DESCRIPTION = (
     "Graphical interface to manage Linux applications (AppImage, Arch / AUR, Flatpak, Snap and Web)"
 )
 
-AUTHOR = "Vinicius Moreira"
-AUTHOR_EMAIL = "vinicius_fmoreira@hotmail.com"
+AUTHOR = "Vatteck"
+AUTHOR_EMAIL = "vatteck@github.com"
 NAME = 'atlas'
 URL = "https://github.com/vinifmor/" + NAME
 
 file_dir = os.path.dirname(os.path.abspath(__file__))
 
-if os.getenv('BAUH_SETUP_NO_REQS'):
+if os.getenv('ATLAS_SETUP_NO_REQS'):
     requirements = []
 else:
     with open(f'{file_dir}/requirements.txt', 'r') as f:

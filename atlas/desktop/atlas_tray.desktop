@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Applications (bauh-tray)
+Name=Applications (atlas-tray)
 Name[pt]=Aplicativos (bauh-bandeja)
 Name[es]=Aplicaciones (bauh-bandeja)
 Name[ca]=Aplicacions (bauh-safata)
@@ -17,5 +17,5 @@ Comment[de]=Anwendungen installieren und entfernen (AppImage, Arch, Flatpak, Sna
 Comment[ca]=Instal·lar i eliminar aplicacions (AppImage, Arch, Flatpak, Snap, Web)
 Comment[ru]=Установка и удаление приложений (AppImage, Arch, Flatpak, Snap, Web)
 Comment[tr]=Uygulama yükle/kaldır (AppImage, Arch, Flatpak, Snap, Web)
-Exec=/usr/bin/bauh-tray
+Exec=/usr/bin/atlas-tray
 Icon=bauh

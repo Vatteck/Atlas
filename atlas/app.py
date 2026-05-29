@@ -111,9 +111,9 @@ def main(tray: bool = False):
 
         # Launch pywebview Native Window
         import webview
-        from atlas.view.webview.api import BauhApi
+        from atlas.view.webview.api import AtlasApi
         
-        api = BauhApi(manager, logger)
+        api = AtlasApi(manager, logger)
         
         html_path = 'file://' + os.path.abspath(os.path.join(os.path.dirname(__file__), 'view', 'web', 'index.html'))
         

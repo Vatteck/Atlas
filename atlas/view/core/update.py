@@ -21,7 +21,7 @@ def check_for_update(logger: logging.Logger, http_client: HttpClient, i18n: I18n
     logger.info("Checking for updates")
 
     try:
-        releases = http_client.get_json('https://api.github.com/repos/vinifmor/bauh/releases')
+        releases = http_client.get_json('https://api.github.com/repos/Vatteck/Atlas/releases')
 
         if releases:
             latest = None

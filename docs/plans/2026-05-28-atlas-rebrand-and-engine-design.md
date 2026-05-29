@@ -48,7 +48,7 @@ To achieve maximum performance and sub-second launch times, we will re-engineer 
 ### Performance Refactorings:
 1. **Lazy Backend Preparation:**
    - Currently, `GenericSoftwareManager.prepare()` eagerly initializes all package gems (Arch, Flatpak, Snap, AppImage) at boot, causing significant blocking and wait time.
-   - We will modify `GenericSoftwareManager` or `BauhApi` (now `AtlasApi`) to initialize gems lazily when their respective views are requested, or query only enabled gems configured in `~/.config/atlaspm/config.yml`.
+   - We will modify `GenericSoftwareManager` or `AtlasApi` (now `AtlasApi`) to initialize gems lazily when their respective views are requested, or query only enabled gems configured in `~/.config/atlaspm/config.yml`.
 2. **Asynchronous ThreadPoolExecutor:**
    - Standardize all thread spawns in `api.py` (now `api.py` under `atlas/view/webview/`) using a shared `ThreadPoolExecutor` or `asyncio` execution model to streamline concurrent API requests and prevent UI freezes.
 

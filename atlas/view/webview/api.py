@@ -11,7 +11,7 @@ from atlas.view.webview.activity_log import record_activity, get_activity_log
 from atlas.view.webview.export import write_manifest, read_manifest
 
 
-class BauhApi:
+class AtlasApi:
 
     def __init__(self, manager: GenericSoftwareManager, logger: logging.Logger):
         self.manager = manager
@@ -26,7 +26,7 @@ class BauhApi:
 
     def set_window(self, window):
         self.window = window
-        self.logger.info("pywebview window reference linked in BauhApi")
+        self.logger.info("pywebview window reference linked in AtlasApi")
 
     def _prepare_manager(self):
         try:
