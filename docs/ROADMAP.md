@@ -178,15 +178,17 @@ so the migration's value is on the record. Speedup claims without a number don't
 The boundary lessons above point away from more Rust and toward pure-Python wins that
 have no marshalling cost and bigger UX impact. From the original rebrand design doc:
 
-### Faster launch — lazy gem init + concurrency *(in progress)*
-**Goal:** sub-second startup; UI never blocks.
+### Faster launch — lazy gem init + concurrency ✅ *(already implemented)*
+Verified 2026-05-29 — this was largely done already:
 
-- **Lazy gem preparation:** `GenericSoftwareManager.prepare()` currently initializes all
-  gems eagerly at boot. Initialize only *enabled* gems, and only when their view is first
-  requested.
-- **Shared executor:** standardize background work in `AtlasApi` on one
-  `ThreadPoolExecutor` (or asyncio) instead of ad-hoc threads, so concurrent requests
-  don't freeze the UI.
+- ✅ **Lazy gem preparation:** `GenericSoftwareManager.prepare()` only runs the config
+  step eagerly; managers are prepared on first use via `_ensure_prepared`/`_can_work`
+  (per-manager locks). Tested in `tests/view/webview/test_lazy_load.py`.
+- ✅ **Background prepare off the UI thread:** `AtlasApi` uses a shared
+  `ThreadPoolExecutor(max_workers=5)` and submits `_prepare_manager`.
+- ⚠️ **Optional remainder:** the controller still spawns ad-hoc `Thread(...)` for
+  search/read-installed/suggestions. Routing those through a shared pool is low-value /
+  higher-risk — only do it with a measured reason.
 
-These need a baseline measurement (launch time, time-to-first-view) the same way the Rust
-work did — capture before/after numbers, no unmeasured claims.
+Still worth doing: a **launch-time baseline** (manually run `atlas`, measure
+time-to-window and time-to-first-view). There's no automated GUI test.

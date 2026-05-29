@@ -19,10 +19,19 @@ parsers in (Phase 2 category).
 
 ## Next (per ROADMAP, hot paths first)
 
-**In progress: Python-side startup wins (option 2)** — lazy gem init + shared executor
-for faster launch (from the original rebrand design doc). No PyO3 cost; likely the
-biggest real UX impact. The Rust migration has reached its sensible end: only
-`map_srcinfo` earns its keep (see below).
+**Both planned tracks are essentially complete.** The Rust migration reached its sensible
+end (only `map_srcinfo` earns its keep). And the Python-side startup wins (option 2) turn
+out to be **already implemented + unit-tested** (verified 2026-05-29):
+- `GenericSoftwareManager.prepare()` is lazy (only the config step is eager);
+  per-manager lazy prep via `_ensure_prepared`/`_can_work` (per-manager locks).
+- `AtlasApi` runs prepare off the UI thread via a shared `ThreadPoolExecutor(max_workers=5)`.
+- Covered by `tests/view/webview/test_lazy_load.py`.
+
+Remaining, optional & low-value: route the controller's ad-hoc `Thread(...)` spawns
+(search / read-installed / suggestions) through a shared pool. Marginal benefit, real
+risk — only do it with a measured reason. **Recommended instead:** manually launch
+`atlas` to confirm real startup behavior and capture a launch-time baseline (no automated
+GUI test exists).
 
 The Rust migration verdict (after measuring everything): the PyO3 boundary only pays off
 for **CPU-bound ops with small results**. `map_srcinfo` qualifies (~2×). The dependency
