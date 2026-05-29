@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 pub mod sys;
 pub mod pacman;
 pub mod aur;
-
+pub mod resolver;
 
 const KNOWN_LIST_FIELDS: &[&str] = &[
     "validpgpkeys", "checkdepends", "checkdepends_x86_64", "checkdepends_i686",
