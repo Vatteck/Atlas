@@ -1,0 +1,11 @@
+include LICENSE CHANGELOG.md README.md requirements.txt
+recursive-include atlas/desktop *
+recursive-exclude atlas/desktop *.orig
+recursive-include atlas/view/resources *
+recursive-include atlas/view/webview *
+recursive-exclude atlas/view/resources *.orig
+recursive-include atlas/gems/*/resources *
+recursive-exclude atlas/gems/*/resources *.orig
+recursive-exclude linux_dist *
+recursive-exclude venv *
+recursive-exclude .venv *

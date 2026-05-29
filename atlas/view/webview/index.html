@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atlas - Application Manager</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <img src="../resources/img/logo.svg" alt="Atlas logo" class="logo" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgZmlsbD0iJobsNzZmMSIgdmlld0JveD0iMCAwIDE2IDE2Ij48cGF0aCBkPSJNOCAwYTggOCAwIDEgMCAwIDE2QTggOCAwIDAgMCA4IDB6bTEuNSAxMS41di0xYTEuNSAxLjUgMCAwIDAtMyAwdjFhLjUuNSAwIDAgMS0xIDB2LTFhMi41IDIuNSAwIDAgMSA1IDB2MWEuNS41IDAgMCAxLTEgMHptMC00LjVhMS41IDEuNSAwIDEgMS0zIDAgMS41IDEuNSAwIDAgMSAzIDB6Ii8+PC9zdmc+';">
+                <h1>Atlas</h1>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-view="dashboard">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                    Dashboard
+                </button>
+                <button class="nav-item" data-view="installed">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    Installed
+                </button>
+                <button class="nav-item" data-view="updates">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    Updates <span class="badge" id="updates-badge">0</span>
+                </button>
+                <button class="nav-item" data-view="disk">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4l3 3"></path></svg>
+                    Disk
+                </button>
+                <button class="nav-item" data-view="activity">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                    Activity
+                </button>
+                <button class="nav-item" data-view="settings">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    Settings
+                </button>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button id="export-btn" class="btn btn-outline" style="font-size:12px; width:100%; margin-bottom:8px;" title="Export installed packages to ~/atlas-manifest.json">⬆ Export</button>
+                <button id="import-btn" class="btn btn-outline" style="font-size:12px; width:100%; margin-bottom:8px;" title="Install packages from ~/atlas-manifest.json">⬇ Import</button>
+                <button id="theme-toggle" class="icon-button" aria-label="Toggle theme">
+                    <svg class="icon dark-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                    <svg class="icon light-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                </button>
+                <button id="shortcuts-help-btn" class="icon-button" style="margin-left: 8px; font-weight: bold; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;" aria-label="Keyboard shortcuts" title="Show keyboard shortcuts">?</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="content">
+            <!-- Topbar / Search -->
+            <header class="topbar">
+                <div class="search-container">
+                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <input type="text" id="search-input" placeholder="Search for applications (AppImage, Flatpak, AUR, Web)..." autocomplete="off">
+                </div>
+                <button id="refresh-btn" type="button" class="icon-button" aria-label="Refresh package listings" title="Refresh package listings" style="margin-left: 8px;">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                    </svg>
+                </button>
+                <div class="filters">
+                    <button id="update-all-btn" class="btn btn-primary hidden">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                        </svg>
+                        Update All
+                    </button>
+                    <button id="cleanup-orphans-btn" class="btn btn-danger hidden">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6l-1 14H6L5 6"></path>
+                            <path d="M10 11v6M14 11v6"></path>
+                        </svg>
+                        Cleanup Orphans
+                    </button>
+                    <button id="select-mode-btn" class="btn btn-secondary" style="margin-right: 8px;">Select</button>
+
+                    <select id="type-filter" class="styled-select">
+                        <option value="all">All Types</option>
+                        <option value="appimage">AppImage</option>
+                        <option value="flatpak">Flatpak</option>
+                        <option value="snap">Snap</option>
+                        <option value="aur">AUR</option>
+                        <option value="web">Web App</option>
+                    </select>
+                </div>
+            </header>
+
+            <!-- Loading State -->
+            <div id="loading-state" class="state-container hidden">
+                <div class="spinner"></div>
+                <p>Loading applications...</p>
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="state-container hidden">
+                <svg class="icon empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                <h2>No applications found</h2>
+                <p>Try adjusting your search or filters.</p>
+            </div>
+
+            <!-- Package Grid -->
+            <div class="packages-grid" id="packages-grid">
+                <!-- Javascript will inject package cards here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Terminal Slide-out Panel -->
+    <div id="terminal-panel" class="terminal-panel hidden">
+        <div class="terminal-header">
+            <div class="terminal-header-left">
+                <span class="terminal-title" id="terminal-title">Operation</span>
+                <span class="terminal-status" id="terminal-status"></span>
+            </div>
+            <button class="terminal-close" id="terminal-close" aria-label="Close terminal">✕</button>
+        </div>
+        <div class="terminal-progress-bar">
+            <div class="terminal-progress-fill" id="terminal-progress-fill" style="width:0%"></div>
+        </div>
+        <div class="terminal-substatus" id="terminal-substatus"></div>
+        <div class="terminal-output" id="terminal-output"></div>
+        <div class="terminal-footer">
+            <span id="terminal-done-msg" class="hidden"></span>
+        </div>
+    </div>
+    <div id="terminal-overlay" class="terminal-overlay hidden"></div>
+
+    <!-- Package Detail Modal -->
+    <div id="detail-modal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-header-left">
+                    <img id="detail-icon" class="modal-icon" src="" alt="">
+                    <div>
+                        <h2 id="detail-name"></h2>
+                        <div id="detail-meta" class="modal-meta"></div>
+                    </div>
+                </div>
+                <button class="modal-close" id="modal-close" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+                <p id="detail-description" class="modal-description"></p>
+                <div class="detail-section">
+                    <h3>Details</h3>
+                    <table id="detail-table" class="detail-table"></table>
+                </div>
+            </div>
+            <div class="modal-footer" id="modal-footer"></div>
+        </div>
+    </div>
+
+    <!-- Batch Operations Floating Action Bar -->
+    <div id="batch-bar" class="batch-bar hidden">
+        <span id="batch-count">0 selected</span>
+        <div class="batch-actions">
+            <button class="btn btn-danger" id="batch-uninstall-btn">Uninstall Selected</button>
+            <button class="btn btn-secondary" id="batch-cancel-btn">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Notification Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="main.js"></script>
+</body>
+</html>
