@@ -9,7 +9,7 @@ import requests
 from atlas.api.http import HttpClient
 from atlas.gems.arch import AUR_INDEX_FILE, git
 from atlas.gems.arch.exceptions import PackageNotFoundException
-from atlas.gems.arch.atlas_rs import map_srcinfo
+from atlas.gems.arch.srcinfo import map_srcinfo
 
 URL_INFO = 'https://aur.archlinux.org/rpc/?v=5&type=info&'
 URL_SRC_INFO = 'https://aur.archlinux.org/cgit/aur.git/plain/.SRCINFO?h='

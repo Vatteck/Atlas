@@ -60,7 +60,10 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
   `from atlas.gems.arch import atlas_rs`.
 - **Native pacman info parser wired** into `pacman.py:map_updates_data` (`-Si` path) +
   `parse_pacman_info` PyO3 fn + parity test. Modest ~1.2× (see gaps/lesson).
-- Rust tests 14, full Python suite 176 — all green.
+- **map_srcinfo fallback restored** (`atlas/gems/arch/srcinfo.py`): native-first via
+  `native.load()` with the original pure-Python parser as fallback; `aur.py` now imports
+  from there. Closes the last native path with no fallback. Parity-tested (incl. `fields`).
+- Rust tests 14, full Python suite 182 — all green.
 
 ---
 
@@ -70,6 +73,9 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
   `atlas/gems/arch/native.py`; run with `ATLAS_RS_DEBUG=1` to log native failures, or
   `ATLAS_DISABLE_RS=1` to force the Python path. (Default behaviour still falls back
   silently.)
+- ~~**`map_srcinfo` had no Python fallback.**~~ Fixed: `atlas/gems/arch/srcinfo.py`
+  wraps native with the original Python parser; a missing `.so` no longer breaks the
+  Arch gem at import. (Native and Python verified to agree, including `fields` cases.)
 - ~~**Native `deps_data` schema mismatch.**~~ Fixed: Rust now emits the canonical
   short-key schema (`d/p/r/v/s/ds/c/des`) via `PacmanPackage::to_deps_data` /
   `AurPackageRaw::to_deps_data`; pacman.rs now parses Description/Download/Installed
@@ -104,6 +110,9 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Decision log (append-only; newest first)
 
+- **2026-05-29** — Restored a Python fallback for `map_srcinfo` (`srcinfo.py`); it was the
+  only native function with none, so a missing `.so` would have broken the Arch gem.
+  Native↔Python parity verified (incl. `fields`).
 - **2026-05-29** — Wired native pacman `-Si` parser into `map_updates_data` (parity-tested,
   ~1.2×). Fixed the critical dormant-native import bug (bare `import atlas_rs` never
   resolved). Disabled the non-faithful native `map_missing_deps`. Chose the pacman-parser
