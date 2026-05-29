@@ -401,7 +401,27 @@ class DependenciesAnalyser:
                          aur_index: Iterable[str], deps_checked: Set[str], deps_data: Dict[str, dict],
                          sort: bool, watcher: ProcessWatcher, choose_providers: bool = True,
                          automatch_providers: bool = False, prefer_repository_provider: bool = False) -> Optional[List[Tuple[str, str]]]:
+        try:
+            import atlas_rs
+            import json
+
+            packages = list(pkgs_data.keys())
+            native_res = atlas_rs.map_missing_deps(
+                packages,
+                automatch_providers,
+                prefer_repository_provider
+            )
+
+            if native_res["status"] == "success":
+                for pkg, raw_json in native_res["deps_data"].items():
+                    deps_data[pkg] = json.loads(raw_json)
+                return native_res["dependencies"]
+        except Exception:
+            pass
+
         sorted_deps = []  # it will hold the proper order to install the missing dependencies
+
+
 
         missing_deps, repo_missing, aur_missing = set(), set(), set()
 
