@@ -19,17 +19,15 @@ parsers in (Phase 2 category).
 
 ## Next (per ROADMAP, hot paths first)
 
-Open options, in rough priority:
-1. **Rework native `map_missing_deps` into a faithful drop-in** (accept caller context
-   instead of re-deriving from live pacman/AUR) — currently disabled, see gaps. The one
-   remaining path with a high speedup ceiling, but large/risky.
-2. **Shift to Python-side wins** (no PyO3 cost): lazy gem init + shared ThreadPoolExecutor
-   for sub-second launch (from the original rebrand design doc). Likely bigger UX impact.
-3. **`needs_providers`** correctness path (resolve() only ever returns `success`).
+**In progress: Python-side startup wins (option 2)** — lazy gem init + shared executor
+for faster launch (from the original rebrand design doc). No PyO3 cost; likely the
+biggest real UX impact. The Rust migration has reached its sensible end: only
+`map_srcinfo` earns its keep (see below).
 
-Before any new native parse port: results that are large structured dicts barely benefit
-(~1.2×); small-result ops (like map_srcinfo, ~2×) are the better targets. The native
-pacman info parser was tried and **reverted** for this reason (see decision log).
+The Rust migration verdict (after measuring everything): the PyO3 boundary only pays off
+for **CPU-bound ops with small results**. `map_srcinfo` qualifies (~2×). The dependency
+resolver (I/O+UI-bound) and the pacman info parser (marshalling-bound) did not and were
+removed. Don't re-attempt them without reading the decision log.
 
 See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
@@ -39,15 +37,13 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 - Rebrand bauh → Atlas (namespaces, config paths `~/.config/atlaspm` etc., UI strings).
 - Qt5 UI purged; pywebview front-end (`atlas/view/webview/`) in place.
-- `atlas_rs` build pipeline (PyO3 + setuptools-rust), installed at
-  `atlas.gems.arch.atlas_rs`.
-- `SysInterface` abstraction (`rust/src/sys.rs`) for mockable shell/HTTP.
-- `map_srcinfo` — native `.SRCINFO`/pacman field parser.
-- Native pacman `-Si`/`-Qi` info parser (`rust/src/pacman.rs`).
-- Synchronous AUR RPC client (`rust/src/aur.rs`).
-- Recursive DFS dependency resolver + topological sort + provider matching
-  (`rust/src/resolver.rs`), exposed as `map_missing_deps`, wired into
-  `dependencies.py` behind a Python fallback.
+- `atlas_rs` build pipeline (PyO3 + setuptools-rust, `debug=False`), installed at
+  `atlas.gems.arch.atlas_rs`. Crate is now `lib.rs` only; deps trimmed to just `pyo3`
+  (`.so` ~621 KB, down from 3.6 MB).
+- `map_srcinfo` — native `.SRCINFO`/pacman field parser (~2×), with a Python fallback
+  in `srcinfo.py`. **The only surviving native function.**
+- **Native dependency resolver removed** (`resolver.rs`/`aur.rs`/`pacman.rs`/`sys.rs` +
+  `map_missing_deps`): I/O+UI-bound, not a useful Rust target (2026-05-29).
 - Documentation set: ARCHITECTURE, ROADMAP, DEVELOPMENT, atlas_rs-API; cross-agent
   onboarding (AGENTS.md / CLAUDE.md / GEMINI.md) + this baton.
 - **Phase 0 complete:** boundary instrumentation (`native.py` switches), `deps_data`
@@ -63,7 +59,10 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 - **map_srcinfo fallback restored** (`atlas/gems/arch/srcinfo.py`): native-first via
   `native.load()` with the original pure-Python parser as fallback; `aur.py` now imports
   from there. Closes the last native path with no fallback. Parity-tested (incl. `fields`).
-- Rust tests 14, full Python suite 182 — all green.
+- **Native resolver retired** (2026-05-29): removed the 4 dead Rust modules +
+  `map_missing_deps` and trimmed Cargo deps. `map_srcinfo` still passes; full suite green.
+- Full Python suite 183 — all green. (cargo test: 0 — `map_srcinfo` is covered by the
+  Python parity test `test_srcinfo.py`.)
 
 ---
 
@@ -76,28 +75,15 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 - ~~**`map_srcinfo` had no Python fallback.**~~ Fixed: `atlas/gems/arch/srcinfo.py`
   wraps native with the original Python parser; a missing `.so` no longer breaks the
   Arch gem at import. (Native and Python verified to agree, including `fields` cases.)
-- ~~**Native `deps_data` schema mismatch.**~~ Fixed: Rust now emits the canonical
-  short-key schema (`d/p/r/v/s/ds/c/des`) via `PacmanPackage::to_deps_data` /
-  `AurPackageRaw::to_deps_data`; pacman.rs now parses Description/Download/Installed
-  sizes. Verified end-to-end. See `docs/plans/2026-05-28-deps-data-schema-fix-*`.
-- **Native `map_missing_deps` disabled (not a faithful drop-in).** It re-derives the
-  graph from live pacman/AUR and ignores the caller's pre-fetched inputs (pkgs_data,
-  provided_map, remote_*_map, aur_index, deps_data), so wiring it in changed behavior
-  and broke mocked tests. `dependencies.py` now always uses Python; the Rust resolver
-  stays unit-tested for a future rework that accepts caller context.
-- **Lesson — large structured results barely benefit from Rust.** The native pacman
-  parser measured ~1.2× (PyO3 result-marshalling + list→set conversion dominate) and was
-  reverted. Small-result parsers (map_srcinfo ~2×) are the better targets. Weigh result
-  size before porting any per-package parser.
-- **`needs_providers` not wired to Python.** `resolver.rs` produces
-  `choices`/`providers_repos`, but `lib.rs:map_missing_deps` only serializes
-  `status`/`dependencies`/`deps_data`, AND `resolve()` never actually returns a
-  non-success status (provider auto-matching is unimplemented). (Moot while the native
-  resolver is disabled, but relevant when it's reworked.)
-- **AUR `d` approximation:** the resolver's AUR path uses the RPC `Depends` field
-  directly rather than replicating Python's `extract_required_dependencies`.
-- **`deps_data` crosses as JSON strings**, not nested dicts (caller must `json.loads`).
-  Known wart; candidate for native `PyDict` conversion later.
+- **Don't re-attempt a native dependency resolver.** Removed 2026-05-29. The Python
+  `map_missing_deps` is I/O-bound (pacman/AUR), recursive, and UI-coupled (watcher
+  provider choices) — not CPU. A native port needs Rust→Python callbacks and isn't
+  faster. The prototype also re-derived everything, ignoring caller context.
+- **Lesson — only port CPU-bound ops with small results.** The native pacman info parser
+  measured only ~1.2× (PyO3 result-marshalling + list→set conversion dominate when
+  returning many dicts) and was reverted; the resolver was I/O-bound. `map_srcinfo`
+  (~2×, one compact dict) is the shape that works. Weigh CPU-vs-I/O and result size
+  before any new native path.
 - **Rebuild reminder:** editing `rust/src/*` requires `pip install -e .` to take effect.
   If that fails with a `rust/target/debug/incremental/... does not exist` error, build
   with `CARGO_INCREMENTAL=0` (Cargo's incremental dirs churn during setuptools' walk).
@@ -111,6 +97,12 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Decision log (append-only; newest first)
 
+- **2026-05-29** — Retired the native dependency resolver: removed `resolver.rs`,
+  `aur.rs`, `pacman.rs`, `sys.rs`, the `map_missing_deps` PyO3 fn, and the `serde`/
+  `serde_json`/`ureq`/`regex` deps. Reason: I/O+UI-bound, not a viable Rust target (a
+  faithful drop-in needs Rust→Python callbacks for pacman/AUR/watcher and wouldn't be
+  faster). `lib.rs` is now `map_srcinfo` only; `.so` 3.6 MB → 621 KB. Migration verdict:
+  port only CPU-bound ops with small results. Pivoting to Python-side startup wins.
 - **2026-05-29** — Reverted the native pacman info parser (~1.2×, marshalling-bound) to
   cut maintenance surface; kept the `_parse_info_output_py` extraction + test. Confirms
   the rule: only port parsers with small results.

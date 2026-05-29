@@ -401,13 +401,10 @@ class DependenciesAnalyser:
                          aur_index: Iterable[str], deps_checked: Set[str], deps_data: Dict[str, dict],
                          sort: bool, watcher: ProcessWatcher, choose_providers: bool = True,
                          automatch_providers: bool = False, prefer_repository_provider: bool = False) -> Optional[List[Tuple[str, str]]]:
-        # NOTE: the native atlas_rs.map_missing_deps is intentionally NOT wired in here.
-        # It re-derives the whole dependency graph from live `pacman`/AUR calls and
-        # ignores this method's pre-fetched inputs (pkgs_data, provided_map,
-        # remote_*_map, aur_index, deps_data), so it is not a faithful drop-in: it would
-        # discard caller context, perform real I/O, and bypass mocked data in tests.
-        # The Rust resolver stays available (and unit-tested) for a future rework that
-        # accepts this context. See docs/STATUS.md "Known gaps".
+        # This stays pure Python by design. The work here is dominated by live pacman/AUR
+        # I/O, recursion, and watcher-driven provider choices (UI) — not CPU — so a native
+        # port would need Rust->Python callbacks and gain nothing. A native resolver was
+        # prototyped and removed (2026-05-29). See docs/STATUS.md "Decision log".
         sorted_deps = []  # it will hold the proper order to install the missing dependencies
 
 

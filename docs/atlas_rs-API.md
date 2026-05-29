@@ -1,26 +1,29 @@
 # `atlas_rs` — Native Module API Reference
 
-`atlas_rs` is the Rust/PyO3 extension that backs Atlas's hot paths. It is built from
-`rust/` and installed as **`atlas.gems.arch.atlas_rs`** (see `setup.py`). For the
-design rationale and the boundary rules, read [ARCHITECTURE.md §3](./ARCHITECTURE.md).
+`atlas_rs` is the Rust/PyO3 extension that backs Atlas's one CPU-bound hot path. It is
+built from `rust/` and installed as **`atlas.gems.arch.atlas_rs`** (see `setup.py`). For
+the design rationale and boundary rules, read [ARCHITECTURE.md §3](./ARCHITECTURE.md).
 
-> **Status:** early. Two functions are exposed today. Every function has a Python
-> fallback on the consuming side, so callers must tolerate the module being absent or a
-> call raising.
+> **Status:** deliberately minimal. After measuring (see [ROADMAP.md](./ROADMAP.md) and
+> [STATUS.md](./STATUS.md)), the only native function that earns its keep is
+> `map_srcinfo` (~2× on a small, CPU-bound result). The earlier native dependency
+> resolver and pacman-info parser were removed — they were I/O-bound or
+> marshalling-bound, so the PyO3 boundary erased the benefit.
 
 ---
 
 ## Importing
 
+Always import via the qualified path, and through the `srcinfo` wrapper which adds the
+Python fallback:
+
 ```python
-try:
-    import atlas_rs
-except ImportError:
-    atlas_rs = None     # fall back to the pure-Python path
+from atlas.gems.arch.srcinfo import map_srcinfo   # native-first, Python fallback
 ```
 
-The module is also importable as `from atlas.gems.arch import atlas_rs` depending on how
-it was built/installed; the bare `import atlas_rs` is what the current call sites use.
+A bare `import atlas_rs` does **not** resolve at runtime (the module installs as
+`atlas.gems.arch.atlas_rs`). `atlas/gems/arch/native.py` centralizes loading
+(`native.load()`) and honours `ATLAS_DISABLE_RS` / `ATLAS_RS_DEBUG`.
 
 ---
 
@@ -33,117 +36,47 @@ Parses pacman/`.SRCINFO`-style `key = value` text into a dict, handling repeated
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
 | `string` | `str` | — | The raw `key = value` text to parse. |
-| `pkgname` | `Optional[str]` | `None` | When the text contains multiple `pkgname` blocks, restrict the merge to this package. Ignored when only one package is present. |
+| `pkgname` | `Optional[str]` | `None` | When the text has multiple `pkgname` blocks, restrict the merge to this package. Ignored when only one package is present. |
 | `fields` | `Optional[Set[str]]` | `None` | If given, only these keys are collected. `None` = collect everything. |
 
 ### Returns
-`Dict[str, Union[str, List[str]]]` — scalar fields come back as `str`; known list
-fields (and any key that appears more than once) come back as a `list`.
+`Dict[str, Union[str, List[str]]]` — scalar fields as `str`; known list fields (and any
+key appearing more than once) as a `list`. List values are de-duplicated, so **order is
+not preserved** for list fields. List-field keys are in `KNOWN_LIST_FIELDS` in
+`rust/src/lib.rs` (`depends*`, `makedepends*`, `provides`, `conflicts`, `source*`, etc.).
 
-Keys treated as list fields regardless of count include:
-`depends*`, `makedepends*`, `checkdepends*`, `optdepends*`, `provides`, `conflicts`,
-`source*`, `sha256sums*`, `sha512sums*`, `validpgpkeys` (and their `_x86_64` / `_i686`
-arch variants). See `KNOWN_LIST_FIELDS` in `rust/src/lib.rs`.
-
-### Notes
-- List values are de-duplicated (backed by a `HashSet`), so **order is not preserved**
-  for list fields. Don't rely on ordering of e.g. `depends`.
-
----
-
-## `map_missing_deps(packages, automatch_providers=False, prefer_repository_provider=False)`
-
-Resolves the full set of missing dependencies for the given packages: shells out to
-pacman, queries the AUR RPC, walks the dependency graph (recursive DFS with cycle
-detection), and returns them in topological install order — all inside Rust, in one
-call.
-
-### Parameters
-| Name | Type | Default | Description |
-|------|------|---------|-------------|
-| `packages` | `List[str]` | — | Target package names to resolve dependencies for. |
-| `automatch_providers` | `bool` | `False` | Auto-select a provider when its name matches the required (virtual) package exactly. |
-| `prefer_repository_provider` | `bool` | `False` | When choosing among providers, prefer official-repo packages over AUR. |
-
-### Returns — success
-```python
-{
-  "status": "success",
-  "dependencies": [            # topologically sorted install order
-    ["dep1", "extra"],         # (package_name, repository)
-    ["dep2", "aur"],
-  ],
-  "deps_data": {
-    "dep1": "<json string>",   # ⚠ JSON-encoded string, not a nested dict
-  },
-}
-```
-
-`deps_data` values are **JSON strings** and must be decoded by the caller
-(`json.loads(...)`). Each decodes to a per-package record:
-
-| Key | Meaning |
-|-----|---------|
-| `ds` | download size (bytes) |
-| `s` | installed size (bytes) |
-| `v` | version (e.g. `"1.0-1"`) |
-| `c` | conflicts (or `null`) |
-| `p` | provides (list) |
-| `d` | depends (list) |
-| `r` | repository |
-| `des` | description |
-
-### Returns — provider choice needed *(designed, not yet wired)*
-The internal `ResolutionResult` struct (`rust/src/resolver.rs`) carries a
-`needs_providers` shape:
-```python
-{
-  "status": "needs_providers",
-  "choices": { "virtual_pkg": ["pkg_a", "pkg_b"] },
-  "providers_repos": { "pkg_a": "extra", "pkg_b": "aur" },
-}
-```
-⚠️ **Gap:** `map_missing_deps` in `rust/src/lib.rs` currently only serializes
-`status`, `dependencies`, and `deps_data` into the returned dict — it does **not** yet
-copy `choices` / `providers_repos` out. Until that's added, the native path can't
-surface provider choices to Python, so the consuming code must treat any non-`"success"`
-status as "fall back to Python." Wiring these fields through is a tracked follow-up.
-
-### Caller contract
-The consumer (`atlas/gems/arch/dependencies.py:404`) uses the native result **only** on
-`status == "success"`, decodes `deps_data` via `json.loads`, returns
-`native_res["dependencies"]`, and otherwise falls through to the pure-Python resolver.
-On **any** exception it silently falls back. See ARCHITECTURE §3.2 for why the fallback
-exists and the plan to make swallowed errors visible (`ATLAS_RS_DEBUG`).
+### Fallback
+`atlas/gems/arch/srcinfo.py` wraps this: it tries native via `native.load()` and falls
+back to `_map_srcinfo_py` (the original pure-Python parser) if the module is unavailable
+or `ATLAS_DISABLE_RS` is set. Native and Python outputs are parity-tested
+(`tests/gems/arch/test_srcinfo.py`), including `fields` cases.
 
 ---
 
-## Internal modules (not exposed to Python)
+## History (removed native paths)
 
-These back the public functions and are where new native logic is added:
+Kept here so the next agent doesn't re-attempt them without reading why:
 
-| Module | Responsibility |
-|--------|----------------|
-| `sys.rs` | `SysInterface` trait (`run_command`, `http_get`) + `LiveSys`; the seam mocked in tests. |
-| `pacman.rs` | Native parsing of `pacman -Si` / `-Qi` (multiline records). |
-| `aur.rs` | Synchronous AUR RPC client (`ureq` + `serde_json`), batched `GET` to `/rpc/v5/info`. |
-| `resolver.rs` | `DependencyResolver`: DFS traversal, cycle detection, provider matching, topological sort; returns `ResolutionResult`. |
+- **`map_missing_deps` / dependency resolver** (`resolver.rs`, `aur.rs`, `pacman.rs`,
+  `sys.rs`) — removed 2026-05-29. The Python `DependenciesAnalyser.map_missing_deps` is
+  dominated by live pacman/AUR I/O, recursion, and watcher-driven provider choices (UI),
+  not CPU. A faithful native drop-in would require Rust→Python callbacks and would not be
+  faster. The prototype also ignored the caller's pre-fetched data and re-fetched it.
+- **`parse_pacman_info`** — removed 2026-05-29. A native `pacman -Si` parser measured
+  only ~1.2× because it returns many per-package dicts; PyO3 result-marshalling plus the
+  list→set conversion dominated. Parser ports only pay off for *small* results.
 
-All system access goes through `SysInterface`, so resolver/parsing logic is unit-tested
-without a live system or network. Add new I/O by extending the trait, not by calling
-`std::process` / `ureq` from logic code.
+The lesson (also in STATUS.md and benchmarks/README.md): **only port CPU-bound
+operations that return small results.**
 
 ---
 
 ## Adding a new exposed function
 
-1. Implement the logic in a module under `rust/src/`, taking `&impl SysInterface`.
-2. Add a `#[pyfunction]` wrapper in `lib.rs` that builds a `LiveSys`, calls the logic,
-   and converts the result to Python types (return a `dict` with a `status`
-   discriminator for anything structured).
-3. Register it in the `#[pymodule] fn atlas_rs(...)` block via `wrap_pyfunction!`.
-4. On the Python side, call it behind the existing implementation as a fallback.
-5. Document the signature and payload schema in this file.
-
-See [DEVELOPMENT.md §6](./DEVELOPMENT.md) for the full workflow and
-[ROADMAP.md](./ROADMAP.md) for what to add next (hot paths first).
+1. Implement it in `rust/src/lib.rs` as a `#[pyfunction]` and register it in the
+   `#[pymodule]` block.
+2. On the Python side, call it behind a fallback via `native.load()` (see `srcinfo.py`
+   as the template).
+3. Benchmark it on a **release** build (`benchmarks/`) and only keep it if it's a
+   meaningful, measured win on a small result.
+4. Document the signature here.

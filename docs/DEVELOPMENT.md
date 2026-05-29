@@ -105,10 +105,13 @@ python -m unittest discover -s tests
 
 ### Rust
 ```bash
-cargo test --manifest-path rust/Cargo.toml
+cargo test --manifest-path rust/Cargo.toml   # (currently 0 tests — see below)
 ```
-Rust logic is written against the `SysInterface` trait (`rust/src/sys.rs`) so tests use
-a **mocked** implementation — no live `pacman` or network required.
+The crate is now minimal (`lib.rs` → `map_srcinfo` only). `map_srcinfo` is verified
+from Python via `tests/gems/arch/test_srcinfo.py`, which checks native output against the
+pure-Python fallback (a faithful-port parity test). New native functions should follow
+the same pattern: a Python parity test against their fallback, plus a release-build
+benchmark.
 
 ### Comparing native vs Python paths
 ```bash
@@ -130,13 +133,17 @@ app stays shippable throughout:
    boundary and the exact payload schema.
 2. **Implementation plan** — `docs/plans/YYYY-MM-DD-<feature>-implementation.md`:
    task-by-task, with the verify/commit steps for each task.
-3. **Baseline** — capture a Python benchmark for the workload you're speeding up.
-4. **Implement in Rust** against `SysInterface`; no direct I/O in logic code.
-5. **Unit-test** with a mocked `SysInterface`.
-6. **Expose** via PyO3 in `rust/src/lib.rs` and register in the `#[pymodule]`.
-7. **Wire in** on the Python side **behind the existing fallback** — do not delete the
-   Python implementation in the same change.
-8. **Verify** identical results native vs Python on a real system; record the speedup.
+3. **Baseline + sanity check** — capture a Python benchmark, and confirm the work is
+   CPU-bound with a *small* result. If it's I/O-bound or returns a large structured
+   payload, **don't** port it (the boundary will eat the gain — see the migration verdict
+   in [ROADMAP.md](./ROADMAP.md)).
+4. **Implement in Rust** (keep any I/O at the Python boundary; pass data in, parsed
+   result out).
+5. **Expose** via PyO3 in `rust/src/lib.rs` and register in the `#[pymodule]`.
+6. **Wire in** on the Python side **behind a fallback** via `native.load()` (see
+   `srcinfo.py`) — do not delete the Python implementation in the same change.
+7. **Verify** with a Python parity test (native vs fallback) and a release benchmark;
+   record the speedup. Keep it only if it's a measured, meaningful win.
 
 See the full checklist in [ROADMAP.md](./ROADMAP.md#per-migration-checklist).
 
@@ -145,8 +152,8 @@ See the full checklist in [ROADMAP.md](./ROADMAP.md#per-migration-checklist).
 ## 7. Code style
 
 - **Python:** [PEP 8](https://www.python.org/dev/peps/pep-0008/).
-- **Rust:** `cargo fmt`; keep I/O behind `SysInterface`; prefer single-pass / zero-copy
-  parsing for hot paths.
+- **Rust:** `cargo fmt`; keep I/O at the Python boundary (pass data in, result out);
+  prefer single-pass / zero-copy parsing.
 - **Commits:** conventional prefixes already in use (`feat:`, `fix:`, `refactor:`,
   `docs:`, `chore:`, `test:`). Keep one logical change per commit.
 
@@ -160,4 +167,4 @@ See the full checklist in [ROADMAP.md](./ROADMAP.md#per-migration-checklist).
 | `ImportError: atlas_rs` but app still works | `.so` not built/installed; you're silently on the Python fallback. |
 | Native path "works but slow" | A Rust exception is being swallowed by the fallback — run with `ATLAS_RS_DEBUG=1`. |
 | `.so` for wrong Python version | Rebuild against your active interpreter (the filename encodes the ABI). |
-| Tests need a real system | Use the mocked `SysInterface`; don't call live `pacman`/network in unit tests. |
+| Tests need a real system | Mock `run_cmd` / inputs; assert via the Python parity test, not live `pacman`/network. |

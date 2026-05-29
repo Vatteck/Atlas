@@ -1,9 +1,16 @@
 # Atlas Rust Migration Roadmap
 
-This is the forward plan for moving Atlas's engine from pure Python to a Python+Rust
-hybrid. The strategy is **hot paths first**: we rewrite the slowest, most
-CPU/IO-heavy operations into `atlas_rs` for the biggest perceived speedup, while
-keeping the application shippable at every step.
+> **⚠️ VERDICT (2026-05-29): the Rust migration has reached its sensible end.** After
+> measuring each candidate, only **`map_srcinfo`** earns its keep (~2×, CPU-bound, small
+> result). The dependency resolver (I/O+UI-bound) and the pacman info parser
+> (marshalling-bound) were prototyped and **removed**. The rule that survived: *port only
+> CPU-bound operations that return a small result.* The Rust-porting phases below (1–6)
+> are kept for the record but are **not being pursued**; focus has shifted to Python-side
+> wins (see "Python-side work" at the end). Read [STATUS.md](./STATUS.md) for current state.
+
+This was the forward plan for moving Atlas's engine from pure Python to a Python+Rust
+hybrid. The strategy was **hot paths first**: rewrite the slowest CPU/IO-heavy operations
+into `atlas_rs`, keeping the app shippable at every step.
 
 Read [ARCHITECTURE.md](./ARCHITECTURE.md) first — especially §3 (the Python↔Rust
 boundary), which this roadmap assumes.
@@ -32,13 +39,11 @@ boundary), which this roadmap assumes.
 
 - ✅ Rebrand bauh → Atlas (namespaces, config paths, UI strings).
 - ✅ Qt5 UI purged; pywebview front-end in place.
-- ✅ `atlas_rs` scaffolding: PyO3 + setuptools-rust build, `SysInterface` abstraction.
-- ✅ `map_srcinfo` — native `.SRCINFO`/pacman field parser.
-- ✅ Native pacman `-Si`/`-Qi` info parser (`pacman.rs`).
-- ✅ Synchronous AUR RPC client (`aur.rs`).
-- ✅ Recursive DFS dependency resolver with topological sort + provider matching
-  (`resolver.rs`), exposed as `map_missing_deps`, wired into `dependencies.py` with a
-  Python fallback.
+- ✅ `atlas_rs` scaffolding: PyO3 + setuptools-rust build (`debug=False`).
+- ✅ `map_srcinfo` — native `.SRCINFO`/pacman field parser (~2×), with Python fallback.
+- ❌ Native pacman info parser, AUR RPC client, and DFS dependency resolver were built,
+  measured, and **removed** (2026-05-29) — I/O-bound or marshalling-bound. See the
+  VERDICT banner above and [STATUS.md](./STATUS.md).
 
 ---
 
@@ -165,3 +170,23 @@ so the migration's value is on the record. Speedup claims without a number don't
 | Build fragility (setuptools-rust, ABI) | Pin toolchain; the fallback keeps Atlas runnable even if the `.so` is missing. |
 | Premature shared-core abstraction | Don't generalize until a second real consumer exists (Phase 5 gate). |
 | Scope creep into a full rewrite | Hot paths only; non-hot Python code stays Python indefinitely if it isn't a bottleneck. |
+
+---
+
+## Python-side work (the new focus)
+
+The boundary lessons above point away from more Rust and toward pure-Python wins that
+have no marshalling cost and bigger UX impact. From the original rebrand design doc:
+
+### Faster launch — lazy gem init + concurrency *(in progress)*
+**Goal:** sub-second startup; UI never blocks.
+
+- **Lazy gem preparation:** `GenericSoftwareManager.prepare()` currently initializes all
+  gems eagerly at boot. Initialize only *enabled* gems, and only when their view is first
+  requested.
+- **Shared executor:** standardize background work in `AtlasApi` on one
+  `ThreadPoolExecutor` (or asyncio) instead of ad-hoc threads, so concurrent requests
+  don't freeze the UI.
+
+These need a baseline measurement (launch time, time-to-first-view) the same way the Rust
+work did — capture before/after numbers, no unmeasured claims.

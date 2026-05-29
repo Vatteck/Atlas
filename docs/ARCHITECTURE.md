@@ -94,7 +94,7 @@ Arch gem is the largest and the current focus of the Rust migration:
 | `controller.py` | Arch `SoftwareManager` implementation | ~192 KB |
 | `updates.py` | Update detection / planning | ~42 KB |
 | `pacman.py` | pacman CLI wrapper + output parsing | ~38 KB |
-| `dependencies.py` | Dependency graph resolution (now Rust-backed) | ~31 KB |
+| `dependencies.py` | Dependency graph resolution (pure Python; I/O+UI-bound) | ~31 KB |
 | `worker.py` | Background index/sync workers | ~25 KB |
 | `aur.py` | AUR RPC client | ~8.5 KB |
 | `sorting.py`, `mapper.py`, `download.py`, ... | Supporting logic | — |
@@ -104,14 +104,13 @@ Arch gem is the largest and the current focus of the Rust migration:
 ### 2.5 Native engine — `atlas_rs` (Rust, in `rust/`)
 - Cargo crate `atlas_rs`, `crate-type = ["cdylib"]`, built via **setuptools-rust** as a
   PyO3 extension module and installed at `atlas.gems.arch.atlas_rs` (see `setup.py`).
-- Current modules:
-  - `lib.rs` — PyO3 entry point; exposes `map_srcinfo` and `map_missing_deps`.
-  - `sys.rs` — `SysInterface` trait (`run_command`, `http_get`) + `LiveSys` impl;
-    mockable for tests.
-  - `pacman.rs` — native pacman info parser (`-Si` / `-Qi` multiline parsing).
-  - `aur.rs` — synchronous AUR RPC client (`ureq` + `serde_json`).
-  - `resolver.rs` — recursive DFS dependency resolution with cycle detection,
-    provider auto-matching, and topological sort.
+  `setup.py` pins `debug=False` so installs are optimized (release).
+- `lib.rs` is the only module. It exposes a single function: **`map_srcinfo`**
+  (`.SRCINFO`/pacman field parser, ~2× vs Python — a small, CPU-bound result).
+- Deliberately minimal: a native dependency resolver and a native `pacman -Si` parser
+  were prototyped and **removed** after measurement (I/O-bound and marshalling-bound
+  respectively). See [atlas_rs-API.md](./atlas_rs-API.md) and the engine lesson below.
+- Crate deps: just `pyo3` (the `serde`/`ureq`/`regex` deps went with the removed code).
 
 ---
 
@@ -120,57 +119,45 @@ Arch gem is the largest and the current focus of the Rust migration:
 This is the most important contract in the codebase, so it gets its own section.
 
 ### 3.1 Design principle: coarse-grained calls
-Cross-language calls are not free. The boundary is drawn so Python hands Rust an
-**entire task** and gets back a finished result, rather than Rust calling back into
-Python in a tight loop. `map_missing_deps` is the template: Python passes the target
-package list and flags; Rust shells out to pacman, hits the AUR RPC, builds the graph,
-sorts it, and returns the complete resolution in one call.
+Cross-language calls are not free. Hand Rust an **entire task** and get a finished
+result back; never have Rust call into Python in a tight loop. `map_srcinfo` is the
+template: Python passes one `.SRCINFO` string, Rust parses it in a single pass and
+returns the parsed dict.
 
 ### 3.2 The fallback pattern (strangler fig)
-Every Rust-backed function keeps its pure-Python implementation as a fallback. The
-Rust path is tried first; on **any** failure it silently falls through to Python.
-Example from `atlas/gems/arch/dependencies.py:404`:
+Every native function is reached through `atlas/gems/arch/native.py` and keeps a
+pure-Python fallback. `native.load()` returns the module or `None` (when the build is
+missing or `ATLAS_DISABLE_RS` is set); the caller tries native, then falls back. Example
+from `atlas/gems/arch/srcinfo.py`:
 
 ```python
-def map_missing_deps(self, ...):
-    try:
-        import atlas_rs
-        import json
-        native_res = atlas_rs.map_missing_deps(packages, automatch_providers,
-                                               prefer_repository_provider)
-        if native_res["status"] == "success":
-            for pkg, raw_json in native_res["deps_data"].items():
-                deps_data[pkg] = json.loads(raw_json)
-            return native_res["dependencies"]
-    except Exception:
-        pass
-    # ... original pure-Python resolution continues here ...
+def map_srcinfo(string, pkgname=None, fields=None):
+    atlas_rs = native.load(logger)          # None if disabled/unavailable
+    if atlas_rs is not None:
+        try:
+            return atlas_rs.map_srcinfo(string, pkgname, fields)
+        except Exception:
+            native.report_failure(logger, 'map_srcinfo')   # logged under ATLAS_RS_DEBUG
+    return _map_srcinfo_py(string, pkgname, fields)         # pure-Python fallback
 ```
 
-This lets Atlas ship and run even where the extension failed to build or a new Rust
-path has a regression. **Rule: never delete the Python fallback in the same change
-that introduces the Rust path.** Remove fallbacks only once a path is proven, and as
-a deliberate, separate step.
+This keeps Atlas working even if the extension failed to build. **Rules:** never delete a
+fallback in the same change that adds the native path; import the module by its qualified
+name (a bare `import atlas_rs` does **not** resolve at runtime); and surface native
+failures with `ATLAS_RS_DEBUG=1` rather than swallowing them silently.
 
-> ⚠️ The blanket `except Exception: pass` hides real Rust bugs as "slow but works."
-> During development, log the exception (gated behind a debug flag) so regressions in
-> the native path are visible. See ROADMAP "harden the boundary."
+### 3.3 What belongs in Rust — the hard-won rule
+Only port operations that are **CPU-bound and return a small result.** Two prototypes
+were removed after measurement proved otherwise:
+- a native **dependency resolver** — the work is live pacman/AUR I/O + recursion +
+  watcher-driven (UI) provider choices, not CPU; a faithful port needs Rust→Python
+  callbacks and gains nothing.
+- a native **`pacman -Si` parser** — only ~1.2× because it returns ~100 per-package
+  dicts, so PyO3 result-marshalling dominates the parse win.
 
-### 3.3 Data interchange conventions
-- Inputs are plain Python types (`List[str]`, `bool`).
-- Structured results cross as a `dict` with a `status` discriminator
-  (`"success"` / `"needs_providers"`). See [atlas_rs-API.md](./atlas_rs-API.md) for
-  the full payload schemas.
-- Nested per-package data is currently serialized as **JSON strings** inside the dict
-  (`deps_data[pkg] = json.loads(raw_json)`), trading a serialize/parse step for a
-  simpler PyO3 conversion. This is a known wart — a candidate for native `PyDict`
-  conversion later.
-
-### 3.4 Provider choices stay in Python
-When dependency resolution hits an ambiguous virtual package with multiple providers
-and auto-matching is off, Rust returns `status: "needs_providers"` with the choices
-and their repos, and **Python collects the user's decision** (the UI is Python's job).
-The boundary deliberately does not pull UI concerns into Rust.
+`map_srcinfo` survives because its result is one compact dict. Before adding a native
+path, ask: is it CPU-bound, and is the result small? If not, keep it in Python. See
+[ROADMAP.md](./ROADMAP.md) and [STATUS.md](./STATUS.md) for the measurements.
 
 ---
 
@@ -217,7 +204,7 @@ atlas/
 
 rust/
 ├── Cargo.toml              # atlas_rs crate
-└── src/                    # lib.rs, sys.rs, pacman.rs, aur.rs, resolver.rs
+└── src/                    # lib.rs (map_srcinfo only)
 
 docs/
 ├── ARCHITECTURE.md         # this file
