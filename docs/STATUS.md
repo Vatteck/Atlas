@@ -92,10 +92,14 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
   run). Remaining log noise is expected: first-run (no cache/db), no-root (`pacman -Sy`
   can't sync), harmless pywebview GTK `window.native.*` warnings, and `atlas-files`
   download failures.
-- **`atlas-files` repo content:** the app downloads suggestions/categories/AppImage dbs
-  from `github.com/Vatteck/atlas-files`. The URLs are now correct (rebrand fixed), but
-  that repo must actually exist + be populated for downloads to succeed — a publishing
-  task on the maintainer's side, not a code bug.
+- ~~**`atlas-files` repo content.**~~ Resolved: `github.com/Vatteck/atlas-files` exists
+  (cloned from `bauh-files`) and **all 10 download paths return 200** (verified
+  2026-05-29, both `master` and `main` serve content). Content is package-manager-
+  agnostic with no `bauh`/`vinifmor` self-references, so it works for Atlas as-is. The
+  earlier launch-log download failures were just timing (predated the repo).
+  *Optional later:* curate Atlas-specific suggestions/categories instead of bauh's
+  defaults, and refresh the (possibly dated) electron/nativefier versions in
+  `web/env/v2/environment.yml`.
 
 - ~~**Silent fallback hides Rust bugs.**~~ Addressed: native calls now go through
   `atlas/gems/arch/native.py`; run with `ATLAS_RS_DEBUG=1` to log native failures, or
