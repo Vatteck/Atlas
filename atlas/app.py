@@ -72,7 +72,6 @@ def main(tray: bool = False):
         widget.show()
         sys.exit(app.exec_())
     else:
-        from atlas.manage import new_manage_panel
         # We still initialize the backend managers
         from atlas.api import user
         from atlas.api.abstract.context import ApplicationContext
@@ -118,7 +117,7 @@ def main(tray: bool = False):
         html_path = 'file://' + os.path.abspath(os.path.join(os.path.dirname(__file__), 'view', 'web', 'index.html'))
         
         window = webview.create_window(
-            'bauh', 
+            'Atlas', 
             html_path,
             js_api=api,
             width=1000,
