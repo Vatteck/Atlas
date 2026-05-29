@@ -87,9 +87,15 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
   The webview GUI still pulls in PyQt5 through these. Decide later whether to fully
   de-Qt or keep PyQt5 as an optional dep. Verify each is actually reachable before
   removing.
-- **App run-status:** `atlas` (GUI) and `atlas-cli` import and `atlas-cli --help` runs.
-  The pywebview GUI has **not** been launched end-to-end in this environment (needs a
-  display). Manual `atlas` launch still recommended.
+- **App run-status:** ✅ GUI confirmed working (user launched `python -m atlas.app` on
+  2026-05-29 — window loads, lazy gem init fires, background prepare ~10ms, suggestions
+  run). Remaining log noise is expected: first-run (no cache/db), no-root (`pacman -Sy`
+  can't sync), harmless pywebview GTK `window.native.*` warnings, and `atlas-files`
+  download failures.
+- **`atlas-files` repo content:** the app downloads suggestions/categories/AppImage dbs
+  from `github.com/Vatteck/atlas-files`. The URLs are now correct (rebrand fixed), but
+  that repo must actually exist + be populated for downloads to succeed — a publishing
+  task on the maintainer's side, not a code bug.
 
 - ~~**Silent fallback hides Rust bugs.**~~ Addressed: native calls now go through
   `atlas/gems/arch/native.py`; run with `ATLAS_RS_DEBUG=1` to log native failures, or
@@ -120,6 +126,9 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Decision log (append-only; newest first)
 
+- **2026-05-29** — GUI confirmed working end-to-end. Fixed 6 rebrand-leftover URLs still
+  pointing at `vinifmor/...` (→ `Vatteck/...`): appimage dbs, arch categories + gpg
+  servers, appimage app repo, setup.py + pyproject repository URL.
 - **2026-05-29** — Ran the app for the first time; found `atlas-tray` broken (dead Qt
   imports the rebrand purge missed). Removed the broken tray + orphaned `manage.py` +
   `new_qt_application`/`set_theme` + the `atlas-tray` entry point and `--tray` arg.

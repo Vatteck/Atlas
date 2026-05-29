@@ -11,7 +11,7 @@ DESCRIPTION = (
 AUTHOR = "Vatteck"
 AUTHOR_EMAIL = "vatteck@github.com"
 NAME = 'atlas'
-URL = "https://github.com/vinifmor/" + NAME
+URL = "https://github.com/Vatteck/" + NAME
 
 file_dir = os.path.dirname(os.path.abspath(__file__))
 

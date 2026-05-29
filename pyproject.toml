@@ -40,7 +40,7 @@ atlas = "atlas.app:main"
 atlas-cli = "atlas.cli.app:main"
 
 [project.urls]
-Repository = "https://github.com/vinifmor/atlas"
+Repository = "https://github.com/Vatteck/atlas"
 
 [tool.setuptools]
 license-files = ["LICENSE"]

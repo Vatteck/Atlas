@@ -1092,7 +1092,7 @@ class AppImageManager(SoftwareManager, SettingsController):
     @property
     def app_repository(self) -> str:
         if self._app_repository is None:
-            self._app_repository = f"https://github.com/vinifmor/{self.context.app_name}"
+            self._app_repository = f"https://github.com/Vatteck/{self.context.app_name}"
 
         return self._app_repository
 
