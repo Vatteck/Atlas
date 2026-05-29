@@ -9,96 +9,14 @@ import requests
 from atlas.api.http import HttpClient
 from atlas.gems.arch import AUR_INDEX_FILE, git
 from atlas.gems.arch.exceptions import PackageNotFoundException
+from atlas.gems.arch.atlas_rs import map_srcinfo
 
 URL_INFO = 'https://aur.archlinux.org/rpc/?v=5&type=info&'
 URL_SRC_INFO = 'https://aur.archlinux.org/cgit/aur.git/plain/.SRCINFO?h='
 URL_SEARCH = 'https://aur.archlinux.org/rpc/?v=5&type=search&arg='
 URL_INDEX = 'https://aur.archlinux.org/packages.gz'
 
-RE_SRCINFO_KEYS = re.compile(r'(\w+)\s+=\s+(.+)\n')
 RE_SPLIT_DEP = re.compile(r'[<>]?=')
-
-KNOWN_LIST_FIELDS = ('validpgpkeys',
-                     'checkdepends',
-                     'checkdepends_x86_64',
-                     'checkdepends_i686',
-                     'depends',
-                     'depends_x86_64',
-                     'depends_i686',
-                     'optdepends',
-                     'optdepends_x86_64',
-                     'optdepends_i686',
-                     'sha256sums',
-                     'sha256sums_x86_64',
-                     'sha512sums',
-                     'sha512sums_x86_64',
-                     'source',
-                     'source_x86_64',
-                     'source_i686',
-                     'makedepends',
-                     'makedepends_x86_64',
-                     'makedepends_i686',
-                     'provides',
-                     'conflicts')
-
-
-def map_srcinfo(string: str, pkgname: Optional[str], fields: Set[str] = None) -> dict:
-    subinfos, subinfo = [], {}
-
-    key_fields = {'pkgname', 'pkgbase'}
-
-    for field in RE_SRCINFO_KEYS.findall(string):
-        key = field[0].strip()
-        val = field[1].strip()
-
-        if subinfo and key in key_fields:
-            subinfos.append(subinfo)
-            subinfo = {key: val}
-        elif not fields or key in fields:
-            if key not in subinfo:
-                subinfo[key] = {val} if key in KNOWN_LIST_FIELDS else val
-            else:
-                if not isinstance(subinfo[key], set):
-                    subinfo[key] = {subinfo[key]}
-
-                subinfo[key].add(val)
-
-    if subinfo:
-        subinfos.append(subinfo)
-
-    pkgnames = {s['pkgname'] for s in subinfos if 'pkgname' in s}
-    return merge_subinfos(subinfos=subinfos,
-                          pkgname=None if (not pkgname or len(pkgnames) == 1 or pkgname not in pkgnames) else pkgname,
-                          fields=fields)
-
-
-def merge_subinfos(subinfos: List[dict], pkgname: Optional[str] = None, fields: Optional[Set[str]] = None) -> dict:
-    info = {}
-    for subinfo in subinfos:
-        if not pkgname or subinfo.get('pkgname') in {None, pkgname}:
-            for key, val in subinfo.items():
-                if not fields or key in fields:
-                    current_val = info.get(key)
-
-                    if current_val is None:
-                        info[key] = val
-                    else:
-                        if not isinstance(current_val, set):
-                            current_val = {current_val}
-                            info[key] = current_val
-
-                        if isinstance(val, set):
-                            current_val.update(val)
-                        else:
-                            current_val.add(val)
-
-    for field in info.keys():
-        val = info.get(field)
-
-        if isinstance(val, set):
-            info[field] = [*val]
-
-    return info
 
 
 class AURClient:

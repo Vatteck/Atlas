@@ -161,7 +161,7 @@ class RepositorySuggestionsDownloader(Thread):
         res = self.http_client.get(self._file_url)
 
         suggestions = None
-        if res.status_code == 200 and res.text:
+        if res and res.status_code == 200 and res.text:
             self.taskman.update_progress(self.task_id, progress=50, substatus=None)
             suggestions = parse(res.text, self._log, 'Arch')
 
@@ -170,8 +170,11 @@ class RepositorySuggestionsDownloader(Thread):
             else:
                 self._log.warning(f"Could not parse any Arch suggestion from {self._file_suggestions_ts}")
         else:
-            self._log.warning(f"Could not retrieve Arch suggestions. "
-                              f"Response (status={res.status_code}, text={res.text})")
+            if res:
+                self._log.warning(f"Could not retrieve Arch suggestions. "
+                                  f"Response (status={res.status_code}, text={res.text})")
+            else:
+                self._log.warning("Could not retrieve Arch suggestions. Connection failed or no response.")
 
         self.taskman.update_progress(self.task_id, progress=100, substatus=None)
         self.taskman.finish_task(self.task_id)

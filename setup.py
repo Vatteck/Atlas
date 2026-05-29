@@ -2,6 +2,7 @@
 import os
 
 from setuptools import setup, find_packages
+from setuptools_rust import Binding, RustExtension
 
 DESCRIPTION = (
     "Graphical interface to manage Linux applications (AppImage, Arch / AUR, Flatpak, Snap and Web)"
@@ -54,5 +55,7 @@ setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8'
-    ]
+    ],
+    rust_extensions=[RustExtension("atlas.gems.arch.atlas_rs", path="rust/Cargo.toml", binding=Binding.PyO3)],
+    zip_safe=False
 )
