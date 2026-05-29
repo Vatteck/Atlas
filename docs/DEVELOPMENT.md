@@ -49,6 +49,13 @@ pip install -e .            # builds the .so and installs Atlas in editable mode
 Re-run after any change to `rust/src/*`. The compiled artifact lands at
 `atlas/gems/arch/atlas_rs.cpython-<ver>-<arch>-linux-gnu.so`.
 
+> **Build profile matters.** `setup.py` pins `debug=False`, so installs build *release*
+> (optimized) Rust. This is deliberate: a debug `atlas_rs` was measured ~4× slower than
+> the Python it replaced, while release is ~2× faster. If you build by hand for
+> benchmarking, use `cargo build --release`. If `pip install -e .` fails with a
+> `rust/target/.../incremental ... does not exist` error, prefix it with
+> `CARGO_INCREMENTAL=0`.
+
 ### 3b. Iterating on Rust alone
 For fast compile feedback without reinstalling the Python package:
 

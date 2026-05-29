@@ -56,6 +56,10 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8'
     ],
-    rust_extensions=[RustExtension("atlas.gems.arch.atlas_rs", path="rust/Cargo.toml", binding=Binding.PyO3)],
+    # debug=False forces an optimized (release) build even for editable installs.
+    # Without it, `pip install -e .` builds debug Rust, which is ~8x slower and was
+    # measured slower than the pure-Python implementation it replaced.
+    rust_extensions=[RustExtension("atlas.gems.arch.atlas_rs", path="rust/Cargo.toml",
+                                   binding=Binding.PyO3, debug=False)],
     zip_safe=False
 )

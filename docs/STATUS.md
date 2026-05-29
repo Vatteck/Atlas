@@ -19,15 +19,13 @@ piece and is wired in.
 
 ## Next (per ROADMAP, hot paths first)
 
-1. **Phase 0 — harden & instrument the boundary** *(in progress)*
-   - ✅ `ATLAS_RS_DEBUG` (surface swallowed Rust errors) and `ATLAS_DISABLE_RS`
-     (force Python) switches, via `atlas/gems/arch/native.py`; wired into
-     `dependencies.py:map_missing_deps`. Tested in `tests/gems/arch/test_native.py`.
-   - ⬜ Stand up a benchmark harness (start from `rust/test_rs.py`) to quote real
-     speedups (native vs `ATLAS_DISABLE_RS=1`).
-   - ⬜ Expand `resolver.rs` / `pacman.rs` unit tests with mocked `SysInterface`.
-2. **Phase 1 — native Arch update detection** (`updates.py`), pulling in a native
-   version-compare + dependency-expression primitive first.
+**Phase 0 is complete.** Next is **Phase 1 — native Arch update detection**
+(`updates.py`), pulling in a native version-compare + dependency-expression primitive
+first. Capture a Python baseline benchmark before starting (release build only!).
+
+Optional correctness follow-up (not perf): implement provider auto-matching + the
+`needs_providers` return path so `resolve()` can handle ambiguous virtual packages
+(currently it only ever returns `success`).
 
 See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
@@ -48,6 +46,9 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
   `dependencies.py` behind a Python fallback.
 - Documentation set: ARCHITECTURE, ROADMAP, DEVELOPMENT, atlas_rs-API; cross-agent
   onboarding (AGENTS.md / CLAUDE.md / GEMINI.md) + this baton.
+- **Phase 0 complete:** boundary instrumentation (`native.py` switches), `deps_data`
+  schema fix, benchmark harness (`benchmarks/bench_srcinfo.py`), and the release-build
+  fix (`setup.py debug=False`). Rust tests 13, Python arch tests 73, all green.
 
 ---
 
@@ -73,6 +74,9 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 - **Rebuild reminder:** editing `rust/src/*` requires `pip install -e .` to take effect.
   If that fails with a `rust/target/debug/incremental/... does not exist` error, build
   with `CARGO_INCREMENTAL=0` (Cargo's incremental dirs churn during setuptools' walk).
+- ~~**Debug builds are slower than Python.**~~ Fixed via `setup.py debug=False` (installs
+  are now release). The benchmark proved a debug `atlas_rs` runs ~4× *slower* than the
+  Python it replaced; release runs ~2× faster. **Always benchmark a release build.**
 - Large Python files to read in sections, not whole: `controller.py` (~192 KB),
   `updates.py` (~42 KB), `pacman.py` (~38 KB).
 
@@ -80,6 +84,10 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Decision log (append-only; newest first)
 
+- **2026-05-28** — Phase 0 closed with a benchmark (`benchmarks/bench_srcinfo.py`). It
+  revealed `pip install -e .` shipped a *debug* `atlas_rs` (~4× slower than Python);
+  pinned `setup.py debug=False` → release builds, native now ~2× faster. Lesson encoded:
+  always measure release builds.
 - **2026-05-28** — Fixed native `deps_data` schema: Rust emits canonical short keys via
   per-source `to_deps_data()`; pacman.rs parses Description/Download/Installed sizes.
   Rust tests 4→13; verified end-to-end on a real package. Plans under `docs/plans/`.

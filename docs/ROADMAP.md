@@ -64,20 +64,21 @@ impact. We do high-impact/low-effort first, defer high-effort/low-impact.
 
 ## Phased plan
 
-### Phase 0 — Harden & instrument the boundary  *(do this next)*
+### Phase 0 — Harden & instrument the boundary  ✅ *(complete, 2026-05-28)*
 **Goal:** make the native path trustworthy and measurable before adding more of it.
 
-- Replace blanket `except Exception: pass` in `dependencies.py` with logging gated on a
-  debug flag (e.g. `ATLAS_RS_DEBUG`), so native regressions surface instead of silently
-  degrading to Python.
-- Add an env switch to force Python-only (`ATLAS_DISABLE_RS=1`) for A/B testing and bug
-  triage.
-- Stand up a tiny benchmark harness (`rust/test_rs.py` is a starting point) that times
-  Rust vs Python on a fixed package set, so every later phase can quote a real number.
-- Expand `resolver.rs` / `pacman.rs` unit tests using mocked `SysInterface`.
+- ✅ Replaced blanket `except Exception: pass` with logging gated on `ATLAS_RS_DEBUG`
+  (via `atlas/gems/arch/native.py`), so native regressions surface.
+- ✅ Added `ATLAS_DISABLE_RS=1` to force Python-only for A/B testing and triage.
+- ✅ Benchmark harness `benchmarks/bench_srcinfo.py` (deterministic A/B vs the original
+  Python parser).
+- ✅ Expanded `resolver.rs` / `pacman.rs` unit tests with mocked `SysInterface`
+  (cargo tests 4 → 13).
+- ➕ (bonus) Fixed a `deps_data` schema mismatch that crashed the native success path,
+  and a build bug where `pip install -e .` shipped a *debug* extension.
 
-**Done when:** you can run the same resolution through both paths, see a logged error
-on any Rust failure, and quote a speedup factor.
+**Key finding:** a debug `atlas_rs` ran ~4× **slower** than Python; the release build
+runs ~2× **faster**. `setup.py` now pins `debug=False`. **Always benchmark release.**
 
 ### Phase 1 — Native Arch update detection  *(P1, P3)*
 **Goal:** make "check for updates" near-instant on Arch.
