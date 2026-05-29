@@ -149,8 +149,40 @@ fn map_srcinfo(py: Python, string: &str, pkgname: Option<&str>, fields: Option<H
     Ok(dict.into())
 }
 
+#[pyfunction]
+#[pyo3(signature = (packages, automatch_providers=false, prefer_repository_provider=false))]
+fn map_missing_deps(
+    py: Python,
+    packages: Vec<String>,
+    automatch_providers: bool,
+    prefer_repository_provider: bool
+) -> PyResult<PyObject> {
+    let sys = sys::LiveSys;
+    let resolver = resolver::DependencyResolver::new(&sys);
+    
+    let result = resolver.resolve(packages, automatch_providers, prefer_repository_provider)
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?;
+        
+    let dict = PyDict::new(py);
+    dict.set_item("status", result.status)?;
+    
+    let deps_list = PyList::new(py, result.dependencies.into_iter().map(|(n, r)| (n, r)));
+    dict.set_item("dependencies", deps_list)?;
+    
+    let data_dict = PyDict::new(py);
+    for (k, v) in result.deps_data {
+        let val_str = serde_json::to_string(&v).unwrap();
+        data_dict.set_item(k, val_str)?;
+    }
+    dict.set_item("deps_data", data_dict)?;
+    
+    Ok(dict.into())
+}
+
 #[pymodule]
 fn atlas_rs(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(map_srcinfo, m)?)?;
+    m.add_function(wrap_pyfunction!(map_missing_deps, m)?)?;
     Ok(())
 }
+
