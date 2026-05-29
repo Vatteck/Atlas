@@ -1,6 +1,6 @@
-use crate::sys::SysInterface;
-use crate::pacman::Pacman;
 use crate::aur::AurClient;
+use crate::pacman::Pacman;
+use crate::sys::SysInterface;
 
 use std::collections::{HashMap, HashSet};
 
@@ -52,7 +52,15 @@ impl<'a, S: SysInterface> DependencyResolver<'a, S> {
 
         for target in targets {
             let (name, _, _) = Self::split_dep(&target);
-            self.dfs(&name, &mut visited, &mut path, &mut resolved, &mut data, automatch_providers, prefer_repo)?;
+            self.dfs(
+                &name,
+                &mut visited,
+                &mut path,
+                &mut resolved,
+                &mut data,
+                automatch_providers,
+                prefer_repo,
+            )?;
         }
 
         Ok(ResolutionResult {
@@ -97,10 +105,18 @@ impl<'a, S: SysInterface> DependencyResolver<'a, S> {
             if let Some(info) = info_map.get(pkg) {
                 for dep in &info.depends {
                     let (dep_name, _, _) = Self::split_dep(dep);
-                    self.dfs(&dep_name, visited, path, resolved, data, automatch_providers, prefer_repo)?;
+                    self.dfs(
+                        &dep_name,
+                        visited,
+                        path,
+                        resolved,
+                        data,
+                        automatch_providers,
+                        prefer_repo,
+                    )?;
                 }
                 resolved.push((pkg.to_string(), info.repository.clone()));
-                data.insert(pkg.to_string(), info.to_deps_data());
+                data.insert(pkg.to_string(), info.to_deps_data(true));
                 path.pop();
                 visited.insert(pkg.to_string());
                 return Ok(());
@@ -113,7 +129,15 @@ impl<'a, S: SysInterface> DependencyResolver<'a, S> {
                 let deps = info.depends.clone().unwrap_or_default();
                 for dep in &deps {
                     let (dep_name, _, _) = Self::split_dep(dep);
-                    self.dfs(&dep_name, visited, path, resolved, data, automatch_providers, prefer_repo)?;
+                    self.dfs(
+                        &dep_name,
+                        visited,
+                        path,
+                        resolved,
+                        data,
+                        automatch_providers,
+                        prefer_repo,
+                    )?;
                 }
                 resolved.push((pkg.to_string(), "aur".to_string()));
                 data.insert(pkg.to_string(), info.to_deps_data());
@@ -138,7 +162,11 @@ mod tests {
     fn test_split_dep() {
         assert_eq!(
             DependencyResolver::<MockSys>::split_dep("yakuake>=24.0.0"),
-            ("yakuake".to_string(), Some(">=".to_string()), Some("24.0.0".to_string()))
+            (
+                "yakuake".to_string(),
+                Some(">=".to_string()),
+                Some("24.0.0".to_string())
+            )
         );
         assert_eq!(
             DependencyResolver::<MockSys>::split_dep("bash"),
@@ -149,17 +177,25 @@ mod tests {
     #[test]
     fn test_resolver_success() {
         let sys = MockSys::new();
-        
+
         // Mock pacman check_installed for yakuake and konsole (they are missing, i.e., not installed)
         sys.commands.borrow_mut().insert(
             "pacman -Qq yakuake".to_string(),
-            Ok((1, "".to_string(), "error: package 'yakuake' was not found\n".to_string()))
+            Ok((
+                1,
+                "".to_string(),
+                "error: package 'yakuake' was not found\n".to_string(),
+            )),
         );
         sys.commands.borrow_mut().insert(
             "pacman -Qq konsole".to_string(),
-            Ok((1, "".to_string(), "error: package 'konsole' was not found\n".to_string()))
+            Ok((
+                1,
+                "".to_string(),
+                "error: package 'konsole' was not found\n".to_string(),
+            )),
         );
-        
+
         // Mock pacman -Si for yakuake and konsole
         let mock_yakuake_si = r#"Repository      : extra
 Name            : yakuake
@@ -176,15 +212,17 @@ Validated By    : SHA-256 Sum
 
         sys.commands.borrow_mut().insert(
             "pacman -Si yakuake".to_string(),
-            Ok((0, mock_yakuake_si.to_string(), "".to_string()))
+            Ok((0, mock_yakuake_si.to_string(), "".to_string())),
         );
         sys.commands.borrow_mut().insert(
             "pacman -Si konsole".to_string(),
-            Ok((0, mock_konsole_si.to_string(), "".to_string()))
+            Ok((0, mock_konsole_si.to_string(), "".to_string())),
         );
 
         let resolver = DependencyResolver::new(&sys);
-        let res = resolver.resolve(vec!["yakuake".to_string()], false, false).unwrap();
+        let res = resolver
+            .resolve(vec!["yakuake".to_string()], false, false)
+            .unwrap();
 
         assert_eq!(res.status, "success");
         // Topological order: konsole should be first, then yakuake!
@@ -200,15 +238,22 @@ Validated By    : SHA-256 Sum
         let yakuake_data = &res.deps_data["yakuake"];
         assert_eq!(yakuake_data["r"], "extra");
         assert_eq!(yakuake_data["v"], "24.02.2-1");
-        assert!(yakuake_data["d"].as_array().unwrap()
-            .iter().any(|v| v == "konsole"));
+        assert!(yakuake_data["d"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v == "konsole"));
     }
 
     /// Helper: register a not-installed `pacman -Qq` result for a package.
     fn mock_not_installed(sys: &MockSys, pkg: &str) {
         sys.commands.borrow_mut().insert(
             format!("pacman -Qq {}", pkg),
-            Ok((1, String::new(), format!("error: package '{}' was not found\n", pkg))),
+            Ok((
+                1,
+                String::new(),
+                format!("error: package '{}' was not found\n", pkg),
+            )),
         );
     }
 
@@ -218,7 +263,9 @@ Validated By    : SHA-256 Sum
             "Repository      : extra\nName            : {}\nVersion         : 1.0-1\nDepends On      : {}\nValidated By    : SHA-256 Sum\n",
             pkg, depends
         );
-        sys.commands.borrow_mut().insert(format!("pacman -Si {}", pkg), Ok((0, si, String::new())));
+        sys.commands
+            .borrow_mut()
+            .insert(format!("pacman -Si {}", pkg), Ok((0, si, String::new())));
     }
 
     #[test]
@@ -230,7 +277,9 @@ Validated By    : SHA-256 Sum
         );
 
         let resolver = DependencyResolver::new(&sys);
-        let res = resolver.resolve(vec!["vim".to_string()], false, false).unwrap();
+        let res = resolver
+            .resolve(vec!["vim".to_string()], false, false)
+            .unwrap();
 
         assert_eq!(res.status, "success");
         assert!(res.dependencies.is_empty());
@@ -252,9 +301,14 @@ Validated By    : SHA-256 Sum
         );
 
         let resolver = DependencyResolver::new(&sys);
-        let res = resolver.resolve(vec!["yay".to_string()], false, false).unwrap();
+        let res = resolver
+            .resolve(vec!["yay".to_string()], false, false)
+            .unwrap();
 
-        assert_eq!(res.dependencies, vec![("yay".to_string(), "aur".to_string())]);
+        assert_eq!(
+            res.dependencies,
+            vec![("yay".to_string(), "aur".to_string())]
+        );
         assert_eq!(res.deps_data["yay"]["r"], "aur");
     }
 
@@ -267,7 +321,9 @@ Validated By    : SHA-256 Sum
         mock_repo_pkg(&sys, "b", "a");
 
         let resolver = DependencyResolver::new(&sys);
-        let res = resolver.resolve(vec!["a".to_string()], false, false).unwrap();
+        let res = resolver
+            .resolve(vec!["a".to_string()], false, false)
+            .unwrap();
 
         // Both resolved exactly once despite the a <-> b cycle.
         assert_eq!(res.dependencies.len(), 2);
@@ -287,10 +343,16 @@ Validated By    : SHA-256 Sum
         mock_repo_pkg(&sys, "base", "None");
 
         let resolver = DependencyResolver::new(&sys);
-        let res = resolver.resolve(vec!["top".to_string()], false, false).unwrap();
+        let res = resolver
+            .resolve(vec!["top".to_string()], false, false)
+            .unwrap();
 
         let names: Vec<&str> = res.dependencies.iter().map(|(n, _)| n.as_str()).collect();
-        assert_eq!(names.iter().filter(|&&n| n == "base").count(), 1, "base must appear once");
+        assert_eq!(
+            names.iter().filter(|&&n| n == "base").count(),
+            1,
+            "base must appear once"
+        );
         // base must come before both consumers, and top must be last (post-order)
         let pos = |n: &str| names.iter().position(|&x| x == n).unwrap();
         assert!(pos("base") < pos("left") && pos("base") < pos("right"));
@@ -310,8 +372,13 @@ Validated By    : SHA-256 Sum
         for (input, (name, op, ver)) in cases {
             assert_eq!(
                 DependencyResolver::<MockSys>::split_dep(input),
-                (name.to_string(), op.map(String::from), ver.map(String::from)),
-                "input: {}", input
+                (
+                    name.to_string(),
+                    op.map(String::from),
+                    ver.map(String::from)
+                ),
+                "input: {}",
+                input
             );
         }
     }

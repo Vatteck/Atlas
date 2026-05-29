@@ -25,7 +25,8 @@ impl SysInterface for LiveSys {
         for &(k, v) in params {
             request = request.query(k, v);
         }
-        request.call()
+        request
+            .call()
             .map_err(|e| e.to_string())?
             .into_string()
             .map_err(|e| e.to_string())
@@ -60,7 +61,11 @@ impl SysInterface for MockSys {
         let mut key = url.to_string();
         if !params.is_empty() {
             key.push('?');
-            let query = params.iter().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<_>>().join("&");
+            let query = params
+                .iter()
+                .map(|(k, v)| format!("{}={}", k, v))
+                .collect::<Vec<_>>()
+                .join("&");
             key.push_str(&query);
         }
         if let Some(res) = self.http.borrow().get(&key) {

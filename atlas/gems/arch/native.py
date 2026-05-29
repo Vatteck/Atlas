@@ -51,7 +51,10 @@ def load(logger: Optional[logging.Logger] = None):
         return None
 
     try:
-        import atlas_rs
+        # The extension is installed as atlas.gems.arch.atlas_rs (see setup.py). A bare
+        # `import atlas_rs` only resolves if that directory happens to be on sys.path,
+        # which it is NOT in normal runtime — so it must be imported by its real path.
+        from atlas.gems.arch import atlas_rs
         return atlas_rs
     except Exception:
         if _RS_DEBUG and logger is not None:

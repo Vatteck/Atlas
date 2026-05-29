@@ -23,6 +23,20 @@ class NativeFlagTest(TestCase):
 
 class NativeLoadTest(TestCase):
 
+    @staticmethod
+    def _failing_import():
+        """Context manager that makes `from atlas.gems.arch import atlas_rs` raise,
+        regardless of whether the real module is already cached as a package attribute."""
+        import builtins
+        real_import = builtins.__import__
+
+        def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == 'atlas.gems.arch' and 'atlas_rs' in (fromlist or ()):
+                raise ImportError("simulated: atlas_rs unavailable")
+            return real_import(name, globals, locals, fromlist, level)
+
+        return patch('builtins.__import__', side_effect=fake_import)
+
     def test_load__returns_none_when_disabled(self):
         with patch.object(native, '_RS_DISABLED', True):
             self.assertIsNone(native.load())
@@ -31,8 +45,7 @@ class NativeLoadTest(TestCase):
         logger = MagicMock()
         with patch.object(native, '_RS_DISABLED', False), \
                 patch.object(native, '_RS_DEBUG', True), \
-                patch.dict('sys.modules', {'atlas_rs': None}):
-            # sys.modules[name] = None makes "import atlas_rs" raise ImportError
+                self._failing_import():
             self.assertIsNone(native.load(logger))
         logger.warning.assert_called_once()
         self.assertTrue(logger.warning.call_args.kwargs.get('exc_info'))
@@ -41,7 +54,7 @@ class NativeLoadTest(TestCase):
         logger = MagicMock()
         with patch.object(native, '_RS_DISABLED', False), \
                 patch.object(native, '_RS_DEBUG', False), \
-                patch.dict('sys.modules', {'atlas_rs': None}):
+                self._failing_import():
             self.assertIsNone(native.load(logger))
         logger.warning.assert_not_called()
 

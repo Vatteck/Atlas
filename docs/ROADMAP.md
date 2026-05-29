@@ -93,12 +93,17 @@ runs ~2× **faster**. `setup.py` now pins `debug=False`. **Always benchmark rele
 **Done when:** update detection is measurably faster and returns identical results to
 the Python path on a real system.
 
-### Phase 2 — Native pacman parsing consolidation  *(P2)*
+### Phase 2 — Native pacman parsing consolidation  *(P2, in progress)*
 **Goal:** route all pacman output parsing through `pacman.rs`.
 
-- Inventory every `pacman.py` call site that parses output; migrate the parsers (search
-  results, `-Qq` installed sets, file lists) into Rust.
-- Keep `pacman.py` as the thin Python orchestration layer that calls native parsers.
+- ✅ `map_updates_data` (`pacman -Si`) now uses native `parse_pacman_info` behind a
+  fallback (parity-tested). **But only ~1.2× faster** — PyO3 result-marshalling dominates
+  when returning many per-package dicts (2026-05-29).
+- ⚠️ **Lesson before doing more here:** parser ports only pay off for *small* results
+  (`map_srcinfo` ~2×). Per-package dict results barely beat Python. Prefer porting
+  parsers whose result is compact, or do the parse+consume in one coarse Rust op.
+- Remaining candidates (search results, `-Qq` installed sets, file lists) — evaluate
+  result size first; some may not be worth it.
 
 ### Phase 3 — AUR index & search  *(P4, P5)*
 **Goal:** fast suggestions/search and final consolidation of sorting.

@@ -35,10 +35,18 @@ impl AurPackageRaw {
             }
         }
 
-        let depends: BTreeSet<String> = self.depends.clone().unwrap_or_default()
-            .into_iter().collect();
-        let conflicts: BTreeSet<String> = self.conflicts.clone().unwrap_or_default()
-            .into_iter().collect();
+        let depends: BTreeSet<String> = self
+            .depends
+            .clone()
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        let conflicts: BTreeSet<String> = self
+            .conflicts
+            .clone()
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
 
         serde_json::json!({
             "r": "aur",
@@ -79,9 +87,12 @@ impl<'a, S: SysInterface> AurClient<'a, S> {
         for name in names {
             params.push(("arg[]", *name));
         }
-        let response_str = self.sys.http_get("https://aur.archlinux.org/rpc/v5/info", &params)?;
-        let parsed: AurRpcResponse = serde_json::from_str(&response_str).map_err(|e| e.to_string())?;
-        
+        let response_str = self
+            .sys
+            .http_get("https://aur.archlinux.org/rpc/v5/info", &params)?;
+        let parsed: AurRpcResponse =
+            serde_json::from_str(&response_str).map_err(|e| e.to_string())?;
+
         let mut map = HashMap::new();
         for pkg in parsed.results {
             map.insert(pkg.name.clone(), pkg);
@@ -113,7 +124,7 @@ mod tests {
 
         sys.http.borrow_mut().insert(
             "https://aur.archlinux.org/rpc/v5/info?arg[]=yakuake-git".to_string(),
-            Ok(mock_json.to_string())
+            Ok(mock_json.to_string()),
         );
 
         let client = AurClient::new(&sys);
@@ -123,7 +134,10 @@ mod tests {
         let pkg = pkgs.get("yakuake-git").unwrap();
         assert_eq!(pkg.name, "yakuake-git");
         assert_eq!(pkg.version, "24.02.2.r10.g12345");
-        assert_eq!(pkg.depends, Some(vec!["konsole".to_string(), "kxmlgui".to_string()]));
+        assert_eq!(
+            pkg.depends,
+            Some(vec!["konsole".to_string(), "kxmlgui".to_string()])
+        );
         assert_eq!(pkg.provides, Some(vec!["yakuake".to_string()]));
     }
 
@@ -147,14 +161,27 @@ mod tests {
         assert!(data["ds"].is_null());
         assert!(data["des"].is_null());
 
-        let conflicts: Vec<&str> = data["c"].as_array().unwrap()
-            .iter().map(|v| v.as_str().unwrap()).collect();
+        let conflicts: Vec<&str> = data["c"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
         assert_eq!(conflicts, vec!["yakuake"]);
 
-        let provides: Vec<&str> = data["p"].as_array().unwrap()
-            .iter().map(|v| v.as_str().unwrap()).collect();
+        let provides: Vec<&str> = data["p"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
         for expected in ["yakuake-git", "yakuake-git=24.02.2.r10", "yakuake"] {
-            assert!(provides.contains(&expected), "missing provide: {} in {:?}", expected, provides);
+            assert!(
+                provides.contains(&expected),
+                "missing provide: {} in {:?}",
+                expected,
+                provides
+            );
         }
     }
 

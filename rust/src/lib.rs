@@ -2,17 +2,34 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use std::collections::{HashMap, HashSet};
 
-pub mod sys;
-pub mod pacman;
 pub mod aur;
+pub mod pacman;
 pub mod resolver;
+pub mod sys;
 
 const KNOWN_LIST_FIELDS: &[&str] = &[
-    "validpgpkeys", "checkdepends", "checkdepends_x86_64", "checkdepends_i686",
-    "depends", "depends_x86_64", "depends_i686", "optdepends", "optdepends_x86_64",
-    "optdepends_i686", "sha256sums", "sha256sums_x86_64", "sha512sums",
-    "sha512sums_x86_64", "source", "source_x86_64", "source_i686",
-    "makedepends", "makedepends_x86_64", "makedepends_i686", "provides", "conflicts"
+    "validpgpkeys",
+    "checkdepends",
+    "checkdepends_x86_64",
+    "checkdepends_i686",
+    "depends",
+    "depends_x86_64",
+    "depends_i686",
+    "optdepends",
+    "optdepends_x86_64",
+    "optdepends_i686",
+    "sha256sums",
+    "sha256sums_x86_64",
+    "sha512sums",
+    "sha512sums_x86_64",
+    "source",
+    "source_x86_64",
+    "source_i686",
+    "makedepends",
+    "makedepends_x86_64",
+    "makedepends_i686",
+    "provides",
+    "conflicts",
 ];
 
 #[derive(Debug, Clone)]
@@ -23,13 +40,16 @@ enum Val {
 
 #[pyfunction]
 #[pyo3(signature = (string, pkgname=None, fields=None))]
-fn map_srcinfo(py: Python, string: &str, pkgname: Option<&str>, fields: Option<HashSet<String>>) -> PyResult<PyObject> {
+fn map_srcinfo(
+    py: Python,
+    string: &str,
+    pkgname: Option<&str>,
+    fields: Option<HashSet<String>>,
+) -> PyResult<PyObject> {
     let mut subinfos: Vec<HashMap<String, Val>> = Vec::new();
     let mut subinfo: HashMap<String, Val> = HashMap::new();
 
-    let is_list_field = |key: &str| -> bool {
-        KNOWN_LIST_FIELDS.contains(&key)
-    };
+    let is_list_field = |key: &str| -> bool { KNOWN_LIST_FIELDS.contains(&key) };
 
     for line in string.lines() {
         let line = line.trim();
@@ -48,8 +68,9 @@ fn map_srcinfo(py: Python, string: &str, pkgname: Option<&str>, fields: Option<H
 
             if fields.is_none() || fields.as_ref().unwrap().contains(key) {
                 let s_val = val.to_string();
-                
-                subinfo.entry(key.to_string())
+
+                subinfo
+                    .entry(key.to_string())
                     .and_modify(|e| match e {
                         Val::Single(s) => {
                             let mut set = HashSet::new();
@@ -117,17 +138,23 @@ fn map_srcinfo(py: Python, string: &str, pkgname: Option<&str>, fields: Option<H
                                 let mut set = HashSet::new();
                                 set.insert(s.clone());
                                 match &val {
-                                    Val::Single(v) => { set.insert(v.clone()); },
-                                    Val::Multiple(vs) => { set.extend(vs.clone()); }
+                                    Val::Single(v) => {
+                                        set.insert(v.clone());
+                                    }
+                                    Val::Multiple(vs) => {
+                                        set.extend(vs.clone());
+                                    }
                                 }
                                 *e = Val::Multiple(set);
                             }
-                            Val::Multiple(set) => {
-                                match &val {
-                                    Val::Single(v) => { set.insert(v.clone()); },
-                                    Val::Multiple(vs) => { set.extend(vs.clone()); }
+                            Val::Multiple(set) => match &val {
+                                Val::Single(v) => {
+                                    set.insert(v.clone());
                                 }
-                            }
+                                Val::Multiple(vs) => {
+                                    set.extend(vs.clone());
+                                }
+                            },
                         })
                         .or_insert(val);
                 }
@@ -149,33 +176,83 @@ fn map_srcinfo(py: Python, string: &str, pkgname: Option<&str>, fields: Option<H
     Ok(dict.into())
 }
 
+/// Recursively convert a serde_json::Value into native Python objects so callers get a
+/// real dict/list/scalar tree (no json.loads needed).
+fn value_to_py(py: Python, v: &serde_json::Value) -> PyObject {
+    match v {
+        serde_json::Value::Null => py.None(),
+        serde_json::Value::Bool(b) => b.into_py(py),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                i.into_py(py)
+            } else if let Some(u) = n.as_u64() {
+                u.into_py(py)
+            } else {
+                n.as_f64().unwrap_or(0.0).into_py(py)
+            }
+        }
+        serde_json::Value::String(s) => s.into_py(py),
+        serde_json::Value::Array(arr) => {
+            let list = PyList::empty(py);
+            for item in arr {
+                list.append(value_to_py(py, item)).expect("PyList append");
+            }
+            list.into()
+        }
+        serde_json::Value::Object(map) => {
+            let dict = PyDict::new(py);
+            for (k, val) in map {
+                dict.set_item(k, value_to_py(py, val))
+                    .expect("PyDict set_item");
+            }
+            dict.into()
+        }
+    }
+}
+
+/// Parse `pacman -Si` / `-Qi` output into `{name: {d,p,r,v,s,ds,c,des}}`. Pure function:
+/// Python captures the command output (keeping its own root/logging handling) and hands
+/// the string here for fast native parsing. `description` gates the `des` field, mirroring
+/// `pacman.py:map_updates_data`.
+#[pyfunction]
+#[pyo3(signature = (output, description=false))]
+fn parse_pacman_info(py: Python, output: &str, description: bool) -> PyResult<PyObject> {
+    let parsed = pacman::parse_info_output(output);
+    let dict = PyDict::new(py);
+    for (name, pkg) in parsed {
+        dict.set_item(name, value_to_py(py, &pkg.to_deps_data(description)))?;
+    }
+    Ok(dict.into())
+}
+
 #[pyfunction]
 #[pyo3(signature = (packages, automatch_providers=false, prefer_repository_provider=false))]
 fn map_missing_deps(
     py: Python,
     packages: Vec<String>,
     automatch_providers: bool,
-    prefer_repository_provider: bool
+    prefer_repository_provider: bool,
 ) -> PyResult<PyObject> {
     let sys = sys::LiveSys;
     let resolver = resolver::DependencyResolver::new(&sys);
-    
-    let result = resolver.resolve(packages, automatch_providers, prefer_repository_provider)
+
+    let result = resolver
+        .resolve(packages, automatch_providers, prefer_repository_provider)
         .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?;
-        
+
     let dict = PyDict::new(py);
     dict.set_item("status", result.status)?;
-    
+
     let deps_list = PyList::new(py, result.dependencies.into_iter().map(|(n, r)| (n, r)));
     dict.set_item("dependencies", deps_list)?;
-    
+
     let data_dict = PyDict::new(py);
     for (k, v) in result.deps_data {
         let val_str = serde_json::to_string(&v).unwrap();
         data_dict.set_item(k, val_str)?;
     }
     dict.set_item("deps_data", data_dict)?;
-    
+
     Ok(dict.into())
 }
 
@@ -183,6 +260,6 @@ fn map_missing_deps(
 fn atlas_rs(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(map_srcinfo, m)?)?;
     m.add_function(wrap_pyfunction!(map_missing_deps, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_pacman_info, m)?)?;
     Ok(())
 }
-

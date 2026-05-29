@@ -12,7 +12,10 @@ from colorama import Fore
 from atlas.commons import system
 from atlas.commons.system import run_cmd, new_subprocess, new_root_subprocess, SystemProcess, SimpleProcess
 from atlas.commons.util import size_to_byte
+from atlas.gems.arch import native
 from atlas.gems.arch.exceptions import PackageNotFoundException, PackageInHoldException
+
+logger = logging.getLogger(__name__)
 
 RE_DEPS = re.compile(r'[\w\-_]+:[\s\w_\-.]+\s+\[\w+]')
 RE_OPTDEPS = re.compile(r'[\w._\-]+\s*:')
@@ -622,6 +625,107 @@ def list_download_data(pkgs: Iterable[str]) -> List[Dict[str, str]]:
     return res
 
 
+def _native_data_as_sets(data: dict) -> dict:
+    """Convert the native parser's list fields back to sets so the dict is type-identical
+    to the pure-Python result (which uses sets for p/d/c; None stays None)."""
+    for key in ('p', 'd', 'c'):
+        value = data.get(key)
+        if isinstance(value, list):
+            data[key] = set(value)
+    return data
+
+
+def _parse_info_output_py(output: str, description: bool = False) -> Dict[str, Dict[str, object]]:
+    """Pure-Python parser for `pacman -Si`/`-Qi` output. Returns {name: {ds,s,v,c,p,d,r,des}}.
+    This is the fallback for (and the reference baseline against) the native
+    atlas_rs.parse_pacman_info."""
+    res = {}
+    latest_name = None
+    data = {'ds': None, 's': None, 'v': None, 'c': None, 'p': None, 'd': None, 'r': None, 'des': None}
+    latest_field = None
+
+    for l in output.split('\n'):
+        if l:
+            if l[0] != ' ':
+                line = l.strip()
+                field_sep_idx = line.index(':')
+                field = line[0:field_sep_idx].strip()
+                val = line[field_sep_idx + 1:].strip()
+
+                if field == 'Repository':
+                    data['r'] = val
+                    latest_field = 'r'
+                elif field == 'Name':
+                    latest_name = val
+                    latest_field = 'n'
+                elif field == 'Version':
+                    data['v'] = val.split('=')[0]
+                    latest_field = 'v'
+                elif description and field == 'Description':
+                    data['des'] = val
+                    latest_field = 'des'
+                elif field == 'Provides':
+                    latest_field = 'p'
+                    data['p'] = {latest_name, '{}={}'.format(latest_name, data['v'])}
+                    if val != 'None':
+                        for w in val.split(' '):
+                            if w:
+                                word = w.strip()
+                                data['p'].add(word)
+
+                                word_split = word.split('=')
+
+                                if word_split[0] != word:
+                                    data['p'].add(word_split[0])
+                elif field == 'Depends On':
+                    val = val.strip()
+
+                    if val == 'None':
+                        data['d'] = None
+                    else:
+                        data['d'] = {w.strip() for w in val.split(' ') if w}
+                        latest_field = 'd'
+                elif field == 'Conflicts With':
+                    if val == 'None':
+                        data['c'] = None
+                    else:
+                        data['c'] = {w.strip() for w in val.split(' ') if w}
+
+                    latest_field = 'c'
+                elif field == 'Download Size':
+                    size = val.split(' ')
+                    data['ds'] = size_to_byte(size[0], size[1])
+                    latest_field = 'ds'
+                elif field == 'Installed Size':
+                    size = val.split(' ')
+                    data['s'] = size_to_byte(size[0], size[1])
+                    latest_field = 's'
+                elif latest_name and latest_field == 's':
+                    res[latest_name] = data
+                    latest_name = None
+                    latest_field = None
+                    data = {'ds': None, 's': None, 'c': None, 'p': None, 'd': None,
+                            'r': None, 'v': None, 'des': None}
+                else:
+                    latest_field = None
+
+            elif latest_field and latest_field in ('p', 'c', 'd'):
+                if latest_field == 'p':
+                    for w in l.split(' '):
+                        if w:
+                            word = w.strip()
+                            data['p'].add(word)
+
+                            word_split = word.split('=')
+
+                            if word_split[0] != word:
+                                data['p'].add(word_split[0])
+                else:
+                    data[latest_field].update((w.strip() for w in l.split(' ') if w))
+
+    return res
+
+
 def map_updates_data(pkgs: Iterable[str], files: bool = False, description: bool = False) -> Optional[Dict[str, Dict[str, object]]]:
     if pkgs:
         if files:
@@ -629,91 +733,21 @@ def map_updates_data(pkgs: Iterable[str], files: bool = False, description: bool
         else:
             output = run_cmd('pacman -Si {}'.format(' '.join(pkgs)))
 
+        # Native fast parse for the `pacman -Si` path; falls back to the Python parser
+        # below on any problem or when disabled via ATLAS_DISABLE_RS. The files=True
+        # (`pacman -Qi -p`) path stays on Python for now (different output shape).
+        if output and not files:
+            atlas_rs = native.load(logger)
+            if atlas_rs is not None:
+                try:
+                    parsed = atlas_rs.parse_pacman_info(output, description)
+                    return {name: _native_data_as_sets(data) for name, data in parsed.items()}
+                except Exception:
+                    native.report_failure(logger, 'parse_pacman_info')
+
         res = {}
         if output:
-            latest_name = None
-            data = {'ds': None, 's': None, 'v': None, 'c': None, 'p': None, 'd': None, 'r': None, 'des': None}
-            latest_field = None
-
-            for l in output.split('\n'):
-                if l:
-                    if l[0] != ' ':
-                        line = l.strip()
-                        field_sep_idx = line.index(':')
-                        field = line[0:field_sep_idx].strip()
-                        val = line[field_sep_idx + 1:].strip()
-
-                        if field == 'Repository':
-                            data['r'] = val
-                            latest_field = 'r'
-                        elif field == 'Name':
-                            latest_name = val
-                            latest_field = 'n'
-                        elif field == 'Version':
-                            data['v'] = val.split('=')[0]
-                            latest_field = 'v'
-                        elif description and field == 'Description':
-                            data['des'] = val
-                            latest_field = 'des'
-                        elif field == 'Provides':
-                            latest_field = 'p'
-                            data['p'] = {latest_name, '{}={}'.format(latest_name, data['v'])}
-                            if val != 'None':
-                                for w in val.split(' '):
-                                    if w:
-                                        word = w.strip()
-                                        data['p'].add(word)
-
-                                        word_split = word.split('=')
-
-                                        if word_split[0] != word:
-                                            data['p'].add(word_split[0])
-                        elif field == 'Depends On':
-                            val = val.strip()
-
-                            if val == 'None':
-                                data['d'] = None
-                            else:
-                                data['d'] = {w.strip() for w in val.split(' ') if w}
-                                latest_field = 'd'
-                        elif field == 'Conflicts With':
-                            if val == 'None':
-                                data['c'] = None
-                            else:
-                                data['c'] = {w.strip() for w in val.split(' ') if w}
-
-                            latest_field = 'c'
-                        elif field == 'Download Size':
-                            size = val.split(' ')
-                            data['ds'] = size_to_byte(size[0], size[1])
-                            latest_field = 'ds'
-                        elif field == 'Installed Size':
-                            size = val.split(' ')
-                            data['s'] = size_to_byte(size[0], size[1])
-                            latest_field = 's'
-                        elif latest_name and latest_field == 's':
-                            res[latest_name] = data
-                            latest_name = None
-                            latest_field = None
-                            data = {'ds': None, 's': None, 'c': None, 'p': None, 'd': None,
-                                    'r': None, 'v': None, 'des': None}
-                        else:
-                            latest_field = None
-
-                    elif latest_field and latest_field in ('p', 'c', 'd'):
-                        if latest_field == 'p':
-                            for w in l.split(' '):
-                                if w:
-                                    word = w.strip()
-                                    data['p'].add(word)
-
-                                    word_split = word.split('=')
-
-                                    if word_split[0] != word:
-                                        data['p'].add(word_split[0])
-                        else:
-                            data[latest_field].update((w.strip() for w in l.split(' ') if w))
-
+            res = _parse_info_output_py(output, description)
         return res
 
 
