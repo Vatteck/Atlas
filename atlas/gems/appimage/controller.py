@@ -1021,10 +1021,10 @@ class AppImageManager(SoftwareManager, SettingsController):
 
             if de_path and os.path.exists(de_path):
                 with open(de_path) as f:
-                    bauh_entry = f.read()
+                    atlas_entry = f.read()
 
-                if bauh_entry:
-                    comments = re.compile(r'Comment(\[\w+])?\s*=\s*(.+)').findall(bauh_entry)
+                if atlas_entry:
+                    comments = re.compile(r'Comment(\[\w+])?\s*=\s*(.+)').findall(atlas_entry)
 
                     if comments:
                         locale = f'{self.i18n.current_key}' if self.i18n.current_key != self.i18n.default_key else None

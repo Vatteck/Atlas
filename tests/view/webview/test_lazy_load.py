@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 from concurrent.futures import Future
 
 from atlas.view.core.controller import GenericSoftwareManager
-from atlas.view.webview.api import BauhApi
+from atlas.view.webview.api import AtlasApi
 from atlas.api.abstract.handler import TaskManager
 from atlas.api.abstract.controller import SearchResult
 
@@ -54,18 +54,18 @@ class TestLazyLoadAndThreadPool(unittest.TestCase):
         manager._can_work(mock_sub_manager)
         mock_sub_manager.prepare.assert_not_called()
 
-    def test_bauh_api_uses_threadpool_executor(self):
+    def test_atlas_api_uses_threadpool_executor(self):
         manager = Mock()
         logger = Mock()
 
-        # Initialize BauhApi and verify that ThreadPoolExecutor is used to schedule background tasks
+        # Initialize AtlasApi and verify that ThreadPoolExecutor is used to schedule background tasks
         with patch('atlas.view.webview.api.ThreadPoolExecutor') as mock_executor_cls:
             mock_executor = Mock()
             mock_executor_cls.return_value = mock_executor
             mock_future = Mock(spec=Future)
             mock_executor.submit.return_value = mock_future
 
-            api = BauhApi(manager, logger)
+            api = AtlasApi(manager, logger)
 
             # Ensure the ThreadPoolExecutor was instantiated and self._prepare_manager was submitted
             mock_executor_cls.assert_called_once_with(max_workers=5)

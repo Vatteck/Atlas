@@ -1,1 +1,1 @@
-# Bauh web view tests package
+# Atlas web view tests package

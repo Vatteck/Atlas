@@ -1,14 +1,14 @@
 import unittest
 import json
 from unittest.mock import Mock, patch, mock_open
-from atlas.view.webview.api import BauhApi
+from atlas.view.webview.api import AtlasApi
 
 
-class BauhApiOrphansTest(unittest.TestCase):
+class AtlasApiOrphansTest(unittest.TestCase):
     def setUp(self):
         self.manager = Mock()
         self.logger = Mock()
-        self.api = BauhApi(self.manager, self.logger)
+        self.api = AtlasApi(self.manager, self.logger)
 
     def test_get_orphans_success(self):
         # Prepare mock packages
@@ -92,11 +92,11 @@ class BauhApiOrphansTest(unittest.TestCase):
         self.assertIn(pkg_id2, self.api.pkg_registry)
 
 
-class BauhApiPinTest(unittest.TestCase):
+class AtlasApiPinTest(unittest.TestCase):
     def setUp(self):
         self.manager = Mock()
         self.logger = Mock()
-        self.api = BauhApi(self.manager, self.logger)
+        self.api = AtlasApi(self.manager, self.logger)
         
         self.pkg = Mock()
         self.pkg.name = "test-pin-pkg"
@@ -135,11 +135,11 @@ class BauhApiPinTest(unittest.TestCase):
         self.assertIn("Unpin failed", res['message'])
 
 
-class BauhApiExportImportTest(unittest.TestCase):
+class AtlasApiExportImportTest(unittest.TestCase):
     def setUp(self):
         self.manager = Mock()
         self.logger = Mock()
-        self.api = BauhApi(self.manager, self.logger)
+        self.api = AtlasApi(self.manager, self.logger)
 
     @patch('atlas.view.webview.export.open', new_callable=mock_open)
     @patch('atlas.view.webview.export.os.path.exists', return_value=True)

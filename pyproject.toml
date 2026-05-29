@@ -9,7 +9,7 @@ license = {file = "LICENSE"}
 requires-python = ">=3.6"
 dynamic = ["version"]
 readme = "README.md"
-authors = [{name = "Vinicius Moreira", email = "vinicius_fmoreira@hotmail.com"}]
+authors = [{name = "Vatteck", email = "vatteck@github.com"}]
 classifiers = [
         'Topic :: Utilities',
         'Programming Language :: Python',

@@ -3,26 +3,26 @@ script:
   - rm -rf AppDir appimage-builder-cache *.AppImage *.zsync |true
   - mkdir -p AppDir/usr/share/icons/hicolor/scalable/apps
   - mkdir -p AppDir/usr/share/applications
-  - wget https://github.com/vinifmor/bauh/archive/${BAUH_VERSION}.tar.gz || exit 1
-  - tar -xf ${BAUH_VERSION}.tar.gz || exit 1
-  - cd bauh-${BAUH_VERSION} || exit 1
+  - wget https://github.com/Vatteck/Atlas/archive/${ATLAS_VERSION}.tar.gz || exit 1
+  - tar -xf ${ATLAS_VERSION}.tar.gz || exit 1
+  - cd atlas-${ATLAS_VERSION} || exit 1
   - rm setup.cfg setup.py requirements.txt || exit 1  # removing the outdated installation files
   - python3 -m build --wheel --no-isolation || exit 1
   - python3 -m installer --destdir=../AppDir --prefix=/usr dist/*.whl || exit 1
-  - test -e ../AppDir/usr/bin/bauh || exit 1
-  - cp bauh/view/resources/img/logo.svg ../AppDir/usr/share/icons/hicolor/scalable/apps/bauh.svg || exit 1
-  - cp bauh/desktop/bauh.desktop ../AppDir/usr/share/applications || exit 1
+  - test -e ../AppDir/usr/bin/atlas || exit 1
+  - cp atlas/view/resources/img/logo.svg ../AppDir/usr/share/icons/hicolor/scalable/apps/atlas.svg || exit 1
+  - cp atlas/desktop/atlas.desktop ../AppDir/usr/share/applications || exit 1
 
 AppDir:
   path: ./AppDir
 
   app_info:
-    id: bauh
-    name: bauh
-    icon: bauh
-    version: !ENV ${BAUH_VERSION}
+    id: atlas
+    name: atlas
+    icon: atlas
+    version: !ENV ${ATLAS_VERSION}
     exec: /usr/bin/python3
-    exec_args: "$APPDIR/usr/bin/bauh $@"
+    exec_args: "$APPDIR/usr/bin/atlas $@"
 
   apt:
     arch: amd64
@@ -94,7 +94,7 @@ AppDir:
       use_host_x: true
 
 AppImage:
-  update-information: 'gh-releases-zsync|vinifmor|bauh|latest|bauh-*x86_64.AppImage.zsync'
+  update-information: 'gh-releases-zsync|vinifmor|atlas|latest|atlas-*x86_64.AppImage.zsync'
   sign-key: None
   arch: x86_64
 
