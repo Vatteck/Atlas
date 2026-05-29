@@ -114,7 +114,7 @@ def main(tray: bool = False):
         
         api = AtlasApi(manager, logger)
         
-        html_path = 'file://' + os.path.abspath(os.path.join(os.path.dirname(__file__), 'view', 'web', 'index.html'))
+        html_path = 'file://' + os.path.abspath(os.path.join(os.path.dirname(__file__), 'view', 'webview', 'index.html'))
         
         window = webview.create_window(
             'Atlas', 
