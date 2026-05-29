@@ -37,7 +37,6 @@ web = [
 
 [project.scripts]
 atlas = "atlas.app:main"
-atlas-tray = "atlas.app:tray"
 atlas-cli = "atlas.cli.app:main"
 
 [project.urls]

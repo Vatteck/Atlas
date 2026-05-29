@@ -13,7 +13,6 @@ def read() -> Namespace:
                         help='It forces loading software suggestions after the initialization process')
 
     exclusive_args = parser.add_mutually_exclusive_group()
-    exclusive_args.add_argument('--tray', action="store_true", help='If {} should be attached to the system tray.'.format(__app_name__))
     exclusive_args.add_argument('--settings', action="store_true", help="Display only the settings panel")
     exclusive_args.add_argument('--reset', action="store_true", help='Remove all configuration and cache files')
 

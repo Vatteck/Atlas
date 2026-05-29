@@ -77,6 +77,20 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Known gaps / gotchas (don't get burned)
 
+- **Tray mode is gone (was broken).** The rebrand purged Qt but left `tray.py`/`manage.py`
+  importing the deleted `atlas.view.qt.*` — `atlas-tray` crashed on launch. Removed them +
+  the `atlas-tray` entry point + `--tray` arg + `context.new_qt_application`/`set_theme`
+  (2026-05-29). README roadmap notes a non-Qt tray could be reintroduced.
+- **Residual PyQt5 coupling remains** (not yet cleaned): `view/core/settings.py`
+  (`qt_style` property), `view/util/util.py` (`QCoreApplication.exit()`),
+  `stylesheet.py`, and `app.py`'s optional HDPI block, plus `pyqt5` in pyproject deps.
+  The webview GUI still pulls in PyQt5 through these. Decide later whether to fully
+  de-Qt or keep PyQt5 as an optional dep. Verify each is actually reachable before
+  removing.
+- **App run-status:** `atlas` (GUI) and `atlas-cli` import and `atlas-cli --help` runs.
+  The pywebview GUI has **not** been launched end-to-end in this environment (needs a
+  display). Manual `atlas` launch still recommended.
+
 - ~~**Silent fallback hides Rust bugs.**~~ Addressed: native calls now go through
   `atlas/gems/arch/native.py`; run with `ATLAS_RS_DEBUG=1` to log native failures, or
   `ATLAS_DISABLE_RS=1` to force the Python path. (Default behaviour still falls back
@@ -106,6 +120,10 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Decision log (append-only; newest first)
 
+- **2026-05-29** — Ran the app for the first time; found `atlas-tray` broken (dead Qt
+  imports the rebrand purge missed). Removed the broken tray + orphaned `manage.py` +
+  `new_qt_application`/`set_theme` + the `atlas-tray` entry point and `--tray` arg.
+  `context.py` no longer needs PyQt5. README/STATUS updated; tray reintro is roadmapped.
 - **2026-05-29** — Retired the native dependency resolver: removed `resolver.rs`,
   `aur.rs`, `pacman.rs`, `sys.rs`, the `map_missing_deps` PyO3 fn, and the `serde`/
   `serde_json`/`ureq`/`regex` deps. Reason: I/O+UI-bound, not a viable Rust target (a

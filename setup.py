@@ -42,7 +42,6 @@ setup(
     entry_points={
         "console_scripts": [
             "{name}={name}.app:main".format(name=NAME),
-            "{name}-tray={name}.app:tray".format(name=NAME),
             "{name}-cli={name}.cli.app:main".format(name=NAME)
         ]
     },

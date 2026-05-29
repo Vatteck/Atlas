@@ -9,7 +9,6 @@ It currently supports the following formats: AppImage, Arch Linux packages (incl
 - **Unified Management Panel:** Search, install, uninstall, upgrade, downgrade, and launch your applications across multiple formats from one place.
 - **Optimized Engine:** Lazy loading of package backends for faster startup and reduced memory footprint.
 - **System Backup:** Integrates with [Timeshift](https://github.com/teejee2008/timeshift) to provide a simple and safe backup process before applying changes to your system.
-- **Tray Mode:** Launches attached to the system tray and publishes notifications for software updates.
 
 ## Supported types
 
@@ -28,6 +27,8 @@ It currently supports the following formats: AppImage, Arch Linux packages (incl
 ## Roadmap
 - Rewrite the GUI to a modern, elegant web-based front-end.
 - Modernize the background engine for optimal speed and concurrency.
+- Re-introduce tray mode (the legacy Qt tray was removed in the rebrand; a non-Qt
+  implementation is planned).
 - Add advanced container sandboxing ("Vault").
 - Expand support for additional formats.
 
