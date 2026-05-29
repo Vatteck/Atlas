@@ -2,6 +2,9 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use std::collections::{HashMap, HashSet};
 
+pub mod sys;
+
+
 const KNOWN_LIST_FIELDS: &[&str] = &[
     "validpgpkeys", "checkdepends", "checkdepends_x86_64", "checkdepends_i686",
     "depends", "depends_x86_64", "depends_i686", "optdepends", "optdepends_x86_64",
