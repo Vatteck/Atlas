@@ -58,12 +58,20 @@ class AtlasApi:
             return ''
         return icon_url
 
+    def _get_pkg_id(self, pkg) -> str:
+        try:
+            pkg_type = pkg.get_type() or pkg.gem_name
+        except Exception:
+            pkg_type = getattr(pkg, 'gem_name', 'unknown') or 'unknown'
+        return f"{pkg_type}:{pkg.name}"
+
     def _serialize_pkg(self, pkg) -> dict:
-        pkg_id = str(id(pkg))
+        pkg_id = self._get_pkg_id(pkg)
         with self._registry_lock:
             if len(self.pkg_registry) > 2000:
                 self.pkg_registry.clear()
             self.pkg_registry[pkg_id] = pkg
+
         
         try:
             publisher = pkg.get_publisher() or ''
@@ -98,7 +106,30 @@ class AtlasApi:
 
     def _get_pkg(self, pkg_id: str):
         with self._registry_lock:
-            return self.pkg_registry.get(pkg_id)
+            pkg = self.pkg_registry.get(pkg_id)
+            if pkg:
+                return pkg
+        
+        # Self-healing fallback: find package dynamically by name and type if not registered
+        if ":" in pkg_id:
+            pkg_type, name = pkg_id.split(":", 1)
+            try:
+                res = self.manager.search(words=name)
+                candidates = (res.installed or []) + (res.new or [])
+                for candidate in candidates:
+                    try:
+                        cand_type = candidate.get_type() or candidate.gem_name
+                    except Exception:
+                        cand_type = getattr(candidate, 'gem_name', 'unknown') or 'unknown'
+                    
+                    if cand_type == pkg_type and candidate.name == name:
+                        with self._registry_lock:
+                            self.pkg_registry[pkg_id] = candidate
+                        return candidate
+            except Exception:
+                pass
+        return None
+
 
     def pin_update(self, pkg_id: str) -> dict:
         pkg = self._get_pkg(pkg_id)
@@ -376,10 +407,11 @@ class AtlasApi:
 
             with self._registry_lock:
                 for pkg in pkgs:
-                    self.pkg_registry[str(id(pkg))] = pkg
+                    self.pkg_registry[self._get_pkg_id(pkg)] = pkg
 
             for pkg in pkgs:
-                pkg_id = str(id(pkg))
+                pkg_id = self._get_pkg_id(pkg)
+
 
                 try:
                     pkg_type = pkg.get_type() or pkg.gem_name
