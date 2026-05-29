@@ -176,55 +176,6 @@ fn map_srcinfo(
     Ok(dict.into())
 }
 
-/// Recursively convert a serde_json::Value into native Python objects so callers get a
-/// real dict/list/scalar tree (no json.loads needed).
-fn value_to_py(py: Python, v: &serde_json::Value) -> PyObject {
-    match v {
-        serde_json::Value::Null => py.None(),
-        serde_json::Value::Bool(b) => b.into_py(py),
-        serde_json::Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                i.into_py(py)
-            } else if let Some(u) = n.as_u64() {
-                u.into_py(py)
-            } else {
-                n.as_f64().unwrap_or(0.0).into_py(py)
-            }
-        }
-        serde_json::Value::String(s) => s.into_py(py),
-        serde_json::Value::Array(arr) => {
-            let list = PyList::empty(py);
-            for item in arr {
-                list.append(value_to_py(py, item)).expect("PyList append");
-            }
-            list.into()
-        }
-        serde_json::Value::Object(map) => {
-            let dict = PyDict::new(py);
-            for (k, val) in map {
-                dict.set_item(k, value_to_py(py, val))
-                    .expect("PyDict set_item");
-            }
-            dict.into()
-        }
-    }
-}
-
-/// Parse `pacman -Si` / `-Qi` output into `{name: {d,p,r,v,s,ds,c,des}}`. Pure function:
-/// Python captures the command output (keeping its own root/logging handling) and hands
-/// the string here for fast native parsing. `description` gates the `des` field, mirroring
-/// `pacman.py:map_updates_data`.
-#[pyfunction]
-#[pyo3(signature = (output, description=false))]
-fn parse_pacman_info(py: Python, output: &str, description: bool) -> PyResult<PyObject> {
-    let parsed = pacman::parse_info_output(output);
-    let dict = PyDict::new(py);
-    for (name, pkg) in parsed {
-        dict.set_item(name, value_to_py(py, &pkg.to_deps_data(description)))?;
-    }
-    Ok(dict.into())
-}
-
 #[pyfunction]
 #[pyo3(signature = (packages, automatch_providers=false, prefer_repository_provider=false))]
 fn map_missing_deps(
@@ -260,6 +211,5 @@ fn map_missing_deps(
 fn atlas_rs(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(map_srcinfo, m)?)?;
     m.add_function(wrap_pyfunction!(map_missing_deps, m)?)?;
-    m.add_function(wrap_pyfunction!(parse_pacman_info, m)?)?;
     Ok(())
 }

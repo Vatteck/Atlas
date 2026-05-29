@@ -1,6 +1,12 @@
 # Implementation: native pacman info parser + dormant-native fix
 
-Companion to `2026-05-29-native-pacman-info-parser-design.md`. Status: **done**.
+Companion to `2026-05-29-native-pacman-info-parser-design.md`.
+
+> **Status: the native parser was REVERTED (2026-05-29).** It worked and was
+> parity-tested but measured only ~1.2× (result-marshalling-bound), not worth two
+> parsers — see the lesson below. **The two bug fixes found while doing it REMAIN in
+> place**: the dormant-native import fix and the `map_missing_deps` disable. The clean
+> `_parse_info_output_py` extraction (+ its test `test_pacman_info.py`) was also kept.
 
 ## What shipped
 

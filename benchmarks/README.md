@@ -41,28 +41,14 @@ python benchmarks/bench_srcinfo.py --iters 50000 --repeats 8
 With a **debug** build the same workloads run ~0.22–0.26× (Rust ~4× *slower*) — the
 reason the release-build rule above exists.
 
-## bench_pacman_info.py
+## Lesson recorded: native pacman info parser (reverted 2026-05-29)
 
-A/B for `pacman -Si` output parsing (the CPU half of `map_updates_data`), native
-`atlas_rs.parse_pacman_info` vs the real `pacman._parse_info_output_py`. Verifies
-equivalent output first.
-
-```bash
-python benchmarks/bench_pacman_info.py --packages 100 --iters 300 --repeats 4
-```
-
-### Result on record (release build, 2026-05-29)
-
-| description | packages | python | rust | speedup |
-|-------------|---------:|-------:|-----:|--------:|
-| True  | 100 | ~3060 µs | ~2400 µs | **~1.27×** |
-| False | 100 | ~2890 µs | ~2380 µs | **~1.21×** |
-
-**Lesson:** only ~1.2×, much less than `map_srcinfo`'s ~2×. The native path returns ~100
-structured dicts, so PyO3 result-marshalling (building nested dicts) plus the Python
-list→set conversion dominate the parse win. Parsing ports pay off when the *result* is
-small; when it's a big structured payload, the boundary eats the gain. Weigh this before
-porting more per-package parsers.
+A native `pacman -Si` parser was wired into `map_updates_data` and measured only
+**~1.2×** vs Python (vs `map_srcinfo`'s ~2×). Returning ~100 structured dicts made PyO3
+result-marshalling + the list→set conversion dominate the parse win, so it was reverted
+to cut the maintenance surface. **Takeaway:** parser ports pay off only when the *result*
+is small; large structured payloads lose most of the gain at the boundary. Weigh result
+size before porting any per-package parser.
 
 ## Not yet benchmarked
 

@@ -12,10 +12,7 @@ from colorama import Fore
 from atlas.commons import system
 from atlas.commons.system import run_cmd, new_subprocess, new_root_subprocess, SystemProcess, SimpleProcess
 from atlas.commons.util import size_to_byte
-from atlas.gems.arch import native
 from atlas.gems.arch.exceptions import PackageNotFoundException, PackageInHoldException
-
-logger = logging.getLogger(__name__)
 
 RE_DEPS = re.compile(r'[\w\-_]+:[\s\w_\-.]+\s+\[\w+]')
 RE_OPTDEPS = re.compile(r'[\w._\-]+\s*:')
@@ -625,20 +622,8 @@ def list_download_data(pkgs: Iterable[str]) -> List[Dict[str, str]]:
     return res
 
 
-def _native_data_as_sets(data: dict) -> dict:
-    """Convert the native parser's list fields back to sets so the dict is type-identical
-    to the pure-Python result (which uses sets for p/d/c; None stays None)."""
-    for key in ('p', 'd', 'c'):
-        value = data.get(key)
-        if isinstance(value, list):
-            data[key] = set(value)
-    return data
-
-
 def _parse_info_output_py(output: str, description: bool = False) -> Dict[str, Dict[str, object]]:
-    """Pure-Python parser for `pacman -Si`/`-Qi` output. Returns {name: {ds,s,v,c,p,d,r,des}}.
-    This is the fallback for (and the reference baseline against) the native
-    atlas_rs.parse_pacman_info."""
+    """Parse `pacman -Si`/`-Qi` output into {name: {ds,s,v,c,p,d,r,des}}."""
     res = {}
     latest_name = None
     data = {'ds': None, 's': None, 'v': None, 'c': None, 'p': None, 'd': None, 'r': None, 'des': None}
@@ -732,18 +717,6 @@ def map_updates_data(pkgs: Iterable[str], files: bool = False, description: bool
             output = run_cmd('pacman -Qi -p {}'.format(' '.join(pkgs)))
         else:
             output = run_cmd('pacman -Si {}'.format(' '.join(pkgs)))
-
-        # Native fast parse for the `pacman -Si` path; falls back to the Python parser
-        # below on any problem or when disabled via ATLAS_DISABLE_RS. The files=True
-        # (`pacman -Qi -p`) path stays on Python for now (different output shape).
-        if output and not files:
-            atlas_rs = native.load(logger)
-            if atlas_rs is not None:
-                try:
-                    parsed = atlas_rs.parse_pacman_info(output, description)
-                    return {name: _native_data_as_sets(data) for name, data in parsed.items()}
-                except Exception:
-                    native.report_failure(logger, 'parse_pacman_info')
 
         res = {}
         if output:

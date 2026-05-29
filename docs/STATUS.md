@@ -20,18 +20,16 @@ parsers in (Phase 2 category).
 ## Next (per ROADMAP, hot paths first)
 
 Open options, in rough priority:
-1. **Decide the fate of the native pacman parser.** It's wired + parity-tested but only
-   ~1.2× faster (PyO3 result-marshalling dominates when returning many dicts). Either
-   accept it (it's correct, behind a fallback) or revert to reduce maintenance. A
-   Rust-side PySet builder might push it higher but is likely not worth it.
-2. **Rework native `map_missing_deps` into a faithful drop-in** (accept caller context
-   instead of re-deriving from live pacman/AUR) — currently disabled, see gaps.
+1. **Rework native `map_missing_deps` into a faithful drop-in** (accept caller context
+   instead of re-deriving from live pacman/AUR) — currently disabled, see gaps. The one
+   remaining path with a high speedup ceiling, but large/risky.
+2. **Shift to Python-side wins** (no PyO3 cost): lazy gem init + shared ThreadPoolExecutor
+   for sub-second launch (from the original rebrand design doc). Likely bigger UX impact.
 3. **`needs_providers`** correctness path (resolve() only ever returns `success`).
-4. **Phase 1 — native Arch update detection** (note: version-compare is NOT the hot path;
-   see decision log 2026-05-29).
 
 Before any new native parse port: results that are large structured dicts barely benefit
-(~1.2×); small-result ops (like map_srcinfo, ~2×) are the better targets.
+(~1.2×); small-result ops (like map_srcinfo, ~2×) are the better targets. The native
+pacman info parser was tried and **reverted** for this reason (see decision log).
 
 See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
@@ -58,8 +56,10 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 - **Native import fix (critical):** `native.load()` imported bare `atlas_rs`, which never
   resolves at runtime → the native path was dormant in production. Now imports
   `from atlas.gems.arch import atlas_rs`.
-- **Native pacman info parser wired** into `pacman.py:map_updates_data` (`-Si` path) +
-  `parse_pacman_info` PyO3 fn + parity test. Modest ~1.2× (see gaps/lesson).
+- **Native pacman info parser: tried then reverted.** Wired into `map_updates_data` and
+  parity-tested, but only ~1.2× (marshalling-bound), so reverted to cut maintenance.
+  Kept the clean `_parse_info_output_py` extraction (+ its correctness test). Lesson
+  recorded in `benchmarks/README.md` and the roadmap.
 - **map_srcinfo fallback restored** (`atlas/gems/arch/srcinfo.py`): native-first via
   `native.load()` with the original pure-Python parser as fallback; `aur.py` now imports
   from there. Closes the last native path with no fallback. Parity-tested (incl. `fields`).
@@ -85,9 +85,10 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
   provided_map, remote_*_map, aur_index, deps_data), so wiring it in changed behavior
   and broke mocked tests. `dependencies.py` now always uses Python; the Rust resolver
   stays unit-tested for a future rework that accepts caller context.
-- **Native pacman parser is only ~1.2× (lesson).** Returning many structured dicts makes
-  PyO3 result-marshalling + the list→set conversion dominate the parse win. Small-result
-  parsers (map_srcinfo ~2×) are the better Rust targets. Weigh this before porting more.
+- **Lesson — large structured results barely benefit from Rust.** The native pacman
+  parser measured ~1.2× (PyO3 result-marshalling + list→set conversion dominate) and was
+  reverted. Small-result parsers (map_srcinfo ~2×) are the better targets. Weigh result
+  size before porting any per-package parser.
 - **`needs_providers` not wired to Python.** `resolver.rs` produces
   `choices`/`providers_repos`, but `lib.rs:map_missing_deps` only serializes
   `status`/`dependencies`/`deps_data`, AND `resolve()` never actually returns a
@@ -110,6 +111,9 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Decision log (append-only; newest first)
 
+- **2026-05-29** — Reverted the native pacman info parser (~1.2×, marshalling-bound) to
+  cut maintenance surface; kept the `_parse_info_output_py` extraction + test. Confirms
+  the rule: only port parsers with small results.
 - **2026-05-29** — Restored a Python fallback for `map_srcinfo` (`srcinfo.py`); it was the
   only native function with none, so a missing `.so` would have broken the Arch gem.
   Native↔Python parity verified (incl. `fields`).

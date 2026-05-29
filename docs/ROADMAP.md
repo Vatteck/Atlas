@@ -93,17 +93,16 @@ runs ~2× **faster**. `setup.py` now pins `debug=False`. **Always benchmark rele
 **Done when:** update detection is measurably faster and returns identical results to
 the Python path on a real system.
 
-### Phase 2 — Native pacman parsing consolidation  *(P2, in progress)*
-**Goal:** route all pacman output parsing through `pacman.rs`.
+### Phase 2 — Native pacman parsing consolidation  *(P2, on hold — see lesson)*
+**Goal:** route pacman output parsing through `pacman.rs` *where it pays off*.
 
-- ✅ `map_updates_data` (`pacman -Si`) now uses native `parse_pacman_info` behind a
-  fallback (parity-tested). **But only ~1.2× faster** — PyO3 result-marshalling dominates
-  when returning many per-package dicts (2026-05-29).
-- ⚠️ **Lesson before doing more here:** parser ports only pay off for *small* results
-  (`map_srcinfo` ~2×). Per-package dict results barely beat Python. Prefer porting
-  parsers whose result is compact, or do the parse+consume in one coarse Rust op.
-- Remaining candidates (search results, `-Qq` installed sets, file lists) — evaluate
-  result size first; some may not be worth it.
+- ❌ `map_updates_data` (`pacman -Si`) was wired to a native parser and **reverted**: only
+  ~1.2× (PyO3 result-marshalling dominates when returning many per-package dicts), not
+  worth two implementations (2026-05-29).
+- ⚠️ **Lesson:** parser ports only pay off for *small* results (`map_srcinfo` ~2×).
+  Per-package dict results barely beat Python. Only revisit candidates here (search
+  results, `-Qq` sets, file lists) if their result is compact, or fold parse+consume into
+  one coarse Rust op that returns a small answer.
 
 ### Phase 3 — AUR index & search  *(P4, P5)*
 **Goal:** fast suggestions/search and final consolidation of sorting.
