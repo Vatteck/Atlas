@@ -104,12 +104,13 @@ Rust logic is written against the `SysInterface` trait (`rust/src/sys.rs`) so te
 a **mocked** implementation — no live `pacman` or network required.
 
 ### Comparing native vs Python paths
-Use the toggle conventions from the roadmap (Phase 0):
 ```bash
 ATLAS_DISABLE_RS=1 atlas-cli ...      # force the pure-Python path (A/B + triage)
 ATLAS_RS_DEBUG=1   atlas-cli ...      # surface native-path errors instead of silent fallback
 ```
-(These switches are being introduced in Phase 0 — see [ROADMAP.md](./ROADMAP.md).)
+These switches are implemented in `atlas/gems/arch/native.py` and honoured by every
+native call site. Default behaviour (no env set) is unchanged: try native, fall back
+silently on any problem.
 
 ---
 

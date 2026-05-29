@@ -6,7 +6,7 @@ from typing import Set, List, Tuple, Dict, Iterable, Optional, Generator, Patter
 
 from atlas.api.abstract.handler import ProcessWatcher
 from atlas.commons.version_util import match_required_version
-from atlas.gems.arch import pacman, message, sorting, confirmation
+from atlas.gems.arch import pacman, message, sorting, confirmation, native
 from atlas.gems.arch.aur import AURClient
 from atlas.gems.arch.exceptions import PackageNotFoundException
 from atlas.view.util.translation import I18n
@@ -401,23 +401,27 @@ class DependenciesAnalyser:
                          aur_index: Iterable[str], deps_checked: Set[str], deps_data: Dict[str, dict],
                          sort: bool, watcher: ProcessWatcher, choose_providers: bool = True,
                          automatch_providers: bool = False, prefer_repository_provider: bool = False) -> Optional[List[Tuple[str, str]]]:
-        try:
-            import atlas_rs
-            import json
+        atlas_rs = native.load(self._log)
+        if atlas_rs is not None:
+            try:
+                import json
 
-            packages = list(pkgs_data.keys())
-            native_res = atlas_rs.map_missing_deps(
-                packages,
-                automatch_providers,
-                prefer_repository_provider
-            )
+                packages = list(pkgs_data.keys())
+                native_res = atlas_rs.map_missing_deps(
+                    packages,
+                    automatch_providers,
+                    prefer_repository_provider
+                )
 
-            if native_res["status"] == "success":
-                for pkg, raw_json in native_res["deps_data"].items():
-                    deps_data[pkg] = json.loads(raw_json)
-                return native_res["dependencies"]
-        except Exception:
-            pass
+                status = native_res["status"]
+                if status == "success":
+                    for pkg, raw_json in native_res["deps_data"].items():
+                        deps_data[pkg] = json.loads(raw_json)
+                    return native_res["dependencies"]
+
+                native.report_non_success(self._log, "map_missing_deps", status)
+            except Exception:
+                native.report_failure(self._log, "map_missing_deps")
 
         sorted_deps = []  # it will hold the proper order to install the missing dependencies
 

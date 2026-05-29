@@ -19,12 +19,13 @@ piece and is wired in.
 
 ## Next (per ROADMAP, hot paths first)
 
-1. **Phase 0 — harden & instrument the boundary** *(do this before adding more Rust)*
-   - Replace the silent `except Exception: pass` in `atlas/gems/arch/dependencies.py`
-     with logging gated on `ATLAS_RS_DEBUG`.
-   - Add an `ATLAS_DISABLE_RS=1` switch to force the Python path for A/B + triage.
-   - Stand up a benchmark harness (start from `rust/test_rs.py`) to quote real speedups.
-   - Expand `resolver.rs` / `pacman.rs` unit tests with mocked `SysInterface`.
+1. **Phase 0 — harden & instrument the boundary** *(in progress)*
+   - ✅ `ATLAS_RS_DEBUG` (surface swallowed Rust errors) and `ATLAS_DISABLE_RS`
+     (force Python) switches, via `atlas/gems/arch/native.py`; wired into
+     `dependencies.py:map_missing_deps`. Tested in `tests/gems/arch/test_native.py`.
+   - ⬜ Stand up a benchmark harness (start from `rust/test_rs.py`) to quote real
+     speedups (native vs `ATLAS_DISABLE_RS=1`).
+   - ⬜ Expand `resolver.rs` / `pacman.rs` unit tests with mocked `SysInterface`.
 2. **Phase 1 — native Arch update detection** (`updates.py`), pulling in a native
    version-compare + dependency-expression primitive first.
 
@@ -52,8 +53,10 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Known gaps / gotchas (don't get burned)
 
-- **Silent fallback hides Rust bugs.** `dependencies.py:~419` swallows all exceptions, so
-  a broken native path degrades to "slow but works" with no signal. Fix in Phase 0.
+- ~~**Silent fallback hides Rust bugs.**~~ Addressed: native calls now go through
+  `atlas/gems/arch/native.py`; run with `ATLAS_RS_DEBUG=1` to log native failures, or
+  `ATLAS_DISABLE_RS=1` to force the Python path. (Default behaviour still falls back
+  silently.)
 - **`needs_providers` not wired to Python.** `resolver.rs` produces
   `choices`/`providers_repos`, but `lib.rs:map_missing_deps` only serializes
   `status`/`dependencies`/`deps_data`. The native path therefore only handles
@@ -68,6 +71,9 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Decision log (append-only; newest first)
 
+- **2026-05-28** — Phase 0 instrumentation: all native (`atlas_rs`) calls route through
+  `atlas/gems/arch/native.py` with `ATLAS_RS_DEBUG` / `ATLAS_DISABLE_RS` switches.
+  Default still falls back silently; switches add visibility + an escape hatch.
 - **2026-05-28** — Adopted AGENTS.md as the single canonical agent manual; CLAUDE.md and
   GEMINI.md are thin redirects to avoid drift across Claude/Codex/Gemini.
 - **2026-05-28** — Migration strategy fixed as **strangler-fig, hot paths first**: Rust
