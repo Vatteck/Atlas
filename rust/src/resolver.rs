@@ -100,7 +100,7 @@ impl<'a, S: SysInterface> DependencyResolver<'a, S> {
                     self.dfs(&dep_name, visited, path, resolved, data, automatch_providers, prefer_repo)?;
                 }
                 resolved.push((pkg.to_string(), info.repository.clone()));
-                data.insert(pkg.to_string(), serde_json::to_value(info).unwrap());
+                data.insert(pkg.to_string(), info.to_deps_data());
                 path.pop();
                 visited.insert(pkg.to_string());
                 return Ok(());
@@ -116,7 +116,7 @@ impl<'a, S: SysInterface> DependencyResolver<'a, S> {
                     self.dfs(&dep_name, visited, path, resolved, data, automatch_providers, prefer_repo)?;
                 }
                 resolved.push((pkg.to_string(), "aur".to_string()));
-                data.insert(pkg.to_string(), serde_json::to_value(info).unwrap());
+                data.insert(pkg.to_string(), info.to_deps_data());
                 path.pop();
                 visited.insert(pkg.to_string());
                 return Ok(());
@@ -195,5 +195,124 @@ Validated By    : SHA-256 Sum
                 ("yakuake".to_string(), "extra".to_string())
             ]
         );
+
+        // deps_data must use the canonical short-key schema
+        let yakuake_data = &res.deps_data["yakuake"];
+        assert_eq!(yakuake_data["r"], "extra");
+        assert_eq!(yakuake_data["v"], "24.02.2-1");
+        assert!(yakuake_data["d"].as_array().unwrap()
+            .iter().any(|v| v == "konsole"));
+    }
+
+    /// Helper: register a not-installed `pacman -Qq` result for a package.
+    fn mock_not_installed(sys: &MockSys, pkg: &str) {
+        sys.commands.borrow_mut().insert(
+            format!("pacman -Qq {}", pkg),
+            Ok((1, String::new(), format!("error: package '{}' was not found\n", pkg))),
+        );
+    }
+
+    /// Helper: register a repo `pacman -Si` result with the given deps.
+    fn mock_repo_pkg(sys: &MockSys, pkg: &str, depends: &str) {
+        let si = format!(
+            "Repository      : extra\nName            : {}\nVersion         : 1.0-1\nDepends On      : {}\nValidated By    : SHA-256 Sum\n",
+            pkg, depends
+        );
+        sys.commands.borrow_mut().insert(format!("pacman -Si {}", pkg), Ok((0, si, String::new())));
+    }
+
+    #[test]
+    fn test_resolver_target_already_installed() {
+        let sys = MockSys::new();
+        sys.commands.borrow_mut().insert(
+            "pacman -Qq vim".to_string(),
+            Ok((0, "vim\n".to_string(), String::new())),
+        );
+
+        let resolver = DependencyResolver::new(&sys);
+        let res = resolver.resolve(vec!["vim".to_string()], false, false).unwrap();
+
+        assert_eq!(res.status, "success");
+        assert!(res.dependencies.is_empty());
+        assert!(res.deps_data.is_empty());
+    }
+
+    #[test]
+    fn test_resolver_aur_fallback() {
+        let sys = MockSys::new();
+        mock_not_installed(&sys, "yay");
+        // not in any repo -> empty -Si output forces the AUR path
+        sys.commands.borrow_mut().insert(
+            "pacman -Si yay".to_string(),
+            Ok((0, String::new(), String::new())),
+        );
+        sys.http.borrow_mut().insert(
+            "https://aur.archlinux.org/rpc/v5/info?arg[]=yay".to_string(),
+            Ok(r#"{"results":[{"Name":"yay","Version":"12.0-1"}]}"#.to_string()),
+        );
+
+        let resolver = DependencyResolver::new(&sys);
+        let res = resolver.resolve(vec!["yay".to_string()], false, false).unwrap();
+
+        assert_eq!(res.dependencies, vec![("yay".to_string(), "aur".to_string())]);
+        assert_eq!(res.deps_data["yay"]["r"], "aur");
+    }
+
+    #[test]
+    fn test_resolver_cycle_terminates() {
+        let sys = MockSys::new();
+        mock_not_installed(&sys, "a");
+        mock_not_installed(&sys, "b");
+        mock_repo_pkg(&sys, "a", "b");
+        mock_repo_pkg(&sys, "b", "a");
+
+        let resolver = DependencyResolver::new(&sys);
+        let res = resolver.resolve(vec!["a".to_string()], false, false).unwrap();
+
+        // Both resolved exactly once despite the a <-> b cycle.
+        assert_eq!(res.dependencies.len(), 2);
+        let names: Vec<&str> = res.dependencies.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(names.contains(&"a") && names.contains(&"b"));
+    }
+
+    #[test]
+    fn test_resolver_diamond_shared_dep_once() {
+        let sys = MockSys::new();
+        for p in ["top", "left", "right", "base"] {
+            mock_not_installed(&sys, p);
+        }
+        mock_repo_pkg(&sys, "top", "left right");
+        mock_repo_pkg(&sys, "left", "base");
+        mock_repo_pkg(&sys, "right", "base");
+        mock_repo_pkg(&sys, "base", "None");
+
+        let resolver = DependencyResolver::new(&sys);
+        let res = resolver.resolve(vec!["top".to_string()], false, false).unwrap();
+
+        let names: Vec<&str> = res.dependencies.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names.iter().filter(|&&n| n == "base").count(), 1, "base must appear once");
+        // base must come before both consumers, and top must be last (post-order)
+        let pos = |n: &str| names.iter().position(|&x| x == n).unwrap();
+        assert!(pos("base") < pos("left") && pos("base") < pos("right"));
+        assert_eq!(names.last(), Some(&"top"));
+    }
+
+    #[test]
+    fn test_split_dep_all_operators() {
+        let cases = [
+            ("pkg>=1.0", ("pkg", Some(">="), Some("1.0"))),
+            ("pkg<=1.0", ("pkg", Some("<="), Some("1.0"))),
+            ("pkg==1.0", ("pkg", Some("=="), Some("1.0"))),
+            ("pkg>1.0", ("pkg", Some(">"), Some("1.0"))),
+            ("pkg<1.0", ("pkg", Some("<"), Some("1.0"))),
+            ("pkg=1.0", ("pkg", Some("="), Some("1.0"))),
+        ];
+        for (input, (name, op, ver)) in cases {
+            assert_eq!(
+                DependencyResolver::<MockSys>::split_dep(input),
+                (name.to_string(), op.map(String::from), ver.map(String::from)),
+                "input: {}", input
+            );
+        }
     }
 }

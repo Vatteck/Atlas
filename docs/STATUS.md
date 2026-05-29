@@ -57,13 +57,22 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
   `atlas/gems/arch/native.py`; run with `ATLAS_RS_DEBUG=1` to log native failures, or
   `ATLAS_DISABLE_RS=1` to force the Python path. (Default behaviour still falls back
   silently.)
+- ~~**Native `deps_data` schema mismatch.**~~ Fixed: Rust now emits the canonical
+  short-key schema (`d/p/r/v/s/ds/c/des`) via `PacmanPackage::to_deps_data` /
+  `AurPackageRaw::to_deps_data`; pacman.rs now parses Description/Download/Installed
+  sizes. Verified end-to-end. See `docs/plans/2026-05-28-deps-data-schema-fix-*`.
 - **`needs_providers` not wired to Python.** `resolver.rs` produces
   `choices`/`providers_repos`, but `lib.rs:map_missing_deps` only serializes
-  `status`/`dependencies`/`deps_data`. The native path therefore only handles
-  `status == "success"`; everything else must fall back. See atlas_rs-API.md.
+  `status`/`dependencies`/`deps_data`, AND `resolve()` never actually returns a
+  non-success status (provider auto-matching is unimplemented). The native path only
+  handles `status == "success"`; everything else falls back. See atlas_rs-API.md.
+- **AUR `d` approximation:** the resolver's AUR path uses the RPC `Depends` field
+  directly rather than replicating Python's `extract_required_dependencies`.
 - **`deps_data` crosses as JSON strings**, not nested dicts (caller must `json.loads`).
   Known wart; candidate for native `PyDict` conversion later.
 - **Rebuild reminder:** editing `rust/src/*` requires `pip install -e .` to take effect.
+  If that fails with a `rust/target/debug/incremental/... does not exist` error, build
+  with `CARGO_INCREMENTAL=0` (Cargo's incremental dirs churn during setuptools' walk).
 - Large Python files to read in sections, not whole: `controller.py` (~192 KB),
   `updates.py` (~42 KB), `pacman.py` (~38 KB).
 
@@ -71,6 +80,9 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Decision log (append-only; newest first)
 
+- **2026-05-28** — Fixed native `deps_data` schema: Rust emits canonical short keys via
+  per-source `to_deps_data()`; pacman.rs parses Description/Download/Installed sizes.
+  Rust tests 4→13; verified end-to-end on a real package. Plans under `docs/plans/`.
 - **2026-05-28** — Phase 0 instrumentation: all native (`atlas_rs`) calls route through
   `atlas/gems/arch/native.py` with `ATLAS_RS_DEBUG` / `ATLAS_DISABLE_RS` switches.
   Default still falls back silently; switches add visibility + an escape hatch.

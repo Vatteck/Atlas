@@ -1,5 +1,5 @@
 use crate::sys::SysInterface;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct PacmanPackage {
@@ -9,8 +9,72 @@ pub struct PacmanPackage {
     pub depends: Vec<String>,
     pub provides: Vec<String>,
     pub conflicts: Vec<String>,
-    pub download_size: u64,
-    pub installed_size: u64,
+    pub description: Option<String>,
+    pub download_size: Option<f64>,
+    pub installed_size: Option<f64>,
+}
+
+/// Convert a human-readable size (e.g. `12.5`, `"MiB"`) to bytes, mirroring
+/// `atlas.commons.util.size_to_byte`: base 1024 when the unit ends in `ib`,
+/// otherwise 1000; `b` is bits (÷8) and `B` is bytes.
+pub fn size_to_byte(num: f64, unit: &str) -> f64 {
+    let lower = unit.trim().to_lowercase();
+
+    if unit == "b" {
+        return num / 8.0;
+    }
+    if unit == "B" {
+        return num;
+    }
+
+    let base: f64 = if lower.ends_with("ib") { 1024.0 } else { 1000.0 };
+
+    match lower.chars().next() {
+        Some('k') => num * base,
+        Some('m') => num * base.powi(2),
+        Some('g') => num * base.powi(3),
+        Some('t') => num * base.powi(4),
+        _ => num * base.powi(5),
+    }
+}
+
+impl PacmanPackage {
+    /// Emit the canonical `deps_data` schema consumed by the Python side
+    /// (`d`/`p`/`r`/`v`/`s`/`ds`/`c`/`des`). See
+    /// `docs/plans/2026-05-28-deps-data-schema-fix-design.md`.
+    pub fn to_deps_data(&self) -> serde_json::Value {
+        // Version with any `=constraint` suffix stripped, matching pacman.py.
+        let v_clean = self.version.split('=').next().unwrap_or("").to_string();
+
+        // Provides always carries the package's own name and name=version.
+        let mut provides: BTreeSet<String> = BTreeSet::new();
+        provides.insert(self.name.clone());
+        provides.insert(format!("{}={}", self.name, v_clean));
+        for p in &self.provides {
+            provides.insert(p.clone());
+            if let Some((base, _)) = p.split_once('=') {
+                provides.insert(base.to_string());
+            }
+        }
+
+        let depends: BTreeSet<String> = self.depends.iter().cloned().collect();
+        let conflicts: BTreeSet<String> = self.conflicts.iter().cloned().collect();
+
+        serde_json::json!({
+            "r": self.repository,
+            "v": v_clean,
+            "d": depends.into_iter().collect::<Vec<_>>(),
+            "p": provides.into_iter().collect::<Vec<_>>(),
+            "c": if conflicts.is_empty() {
+                serde_json::Value::Null
+            } else {
+                serde_json::json!(conflicts.into_iter().collect::<Vec<_>>())
+            },
+            "s": self.installed_size,
+            "ds": self.download_size,
+            "des": self.description,
+        })
+    }
 }
 
 pub struct Pacman<'a, S: SysInterface> {
@@ -65,6 +129,19 @@ impl<'a, S: SysInterface> Pacman<'a, S> {
                             .unwrap_or_else(Vec::new)
                     };
 
+                    let parse_size = |f_name: &str| -> Option<f64> {
+                        let val = fields.get(f_name)?;
+                        let mut it = val.split_whitespace();
+                        let num = it.next()?.replace(',', ".");
+                        let unit = it.next().unwrap_or("B");
+                        let num: f64 = num.parse().ok()?;
+                        Some(size_to_byte(num, unit))
+                    };
+
+                    let description = fields.get("Description")
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty());
+
                     let pkg = PacmanPackage {
                         name: name.clone(),
                         repository: fields.get("Repository").cloned().unwrap_or_default(),
@@ -72,8 +149,9 @@ impl<'a, S: SysInterface> Pacman<'a, S> {
                         depends: parse_list("Depends On"),
                         provides: parse_list("Provides"),
                         conflicts: parse_list("Conflicts With"),
-                        download_size: 0,
-                        installed_size: 0,
+                        description,
+                        download_size: parse_size("Download Size"),
+                        installed_size: parse_size("Installed Size"),
                     };
                     res.insert(name, pkg);
                 }
@@ -123,10 +201,13 @@ mod tests {
         let raw_si = r#"Repository      : extra
 Name            : yakuake
 Version         : 24.02.2-1
+Description     : A drop-down terminal emulator
 Provides        : None
 Depends On      : konsole  kwayland
                   kxmlgui
 Conflicts With  : None
+Download Size   : 1024.00 KiB
+Installed Size  : 2.00 MiB
 Validated By    : SHA-256 Sum
 
 Repository      : extra
@@ -145,9 +226,59 @@ Validated By    : SHA-256 Sum
         assert_eq!(yakuake.repository, "extra");
         assert_eq!(yakuake.version, "24.02.2-1");
         assert_eq!(yakuake.depends, vec!["konsole", "kwayland", "kxmlgui"]);
+        assert_eq!(yakuake.description.as_deref(), Some("A drop-down terminal emulator"));
+        assert_eq!(yakuake.download_size, Some(1024.0 * 1024.0));
+        assert_eq!(yakuake.installed_size, Some(2.0 * 1024.0 * 1024.0));
 
         let konsole = pkgs.get("konsole").unwrap();
         assert_eq!(konsole.depends.len(), 0);
+        assert_eq!(konsole.download_size, None);
     }
 
+    #[test]
+    fn test_size_to_byte() {
+        assert_eq!(size_to_byte(1.0, "B"), 1.0);
+        assert_eq!(size_to_byte(1.0, "KiB"), 1024.0);
+        assert_eq!(size_to_byte(1.0, "MiB"), 1024.0 * 1024.0);
+        assert_eq!(size_to_byte(1.0, "kB"), 1000.0);
+        assert_eq!(size_to_byte(1.0, "MB"), 1_000_000.0);
+        assert_eq!(size_to_byte(8.0, "b"), 1.0);
+    }
+
+    #[test]
+    fn test_to_deps_data_schema() {
+        let pkg = PacmanPackage {
+            name: "yakuake".to_string(),
+            repository: "extra".to_string(),
+            version: "24.02.2-1".to_string(),
+            depends: vec!["konsole".to_string(), "kxmlgui".to_string()],
+            provides: vec!["dropdown-terminal".to_string(), "yakuake-abi=2".to_string()],
+            conflicts: vec![],
+            description: Some("Terminal".to_string()),
+            download_size: Some(1024.0),
+            installed_size: Some(2048.0),
+        };
+
+        let data = pkg.to_deps_data();
+
+        assert_eq!(data["r"], "extra");
+        assert_eq!(data["v"], "24.02.2-1");
+        assert_eq!(data["des"], "Terminal");
+        assert_eq!(data["s"], 2048.0);
+        assert_eq!(data["ds"], 1024.0);
+        // conflicts empty -> null
+        assert!(data["c"].is_null());
+
+        let depends: Vec<&str> = data["d"].as_array().unwrap()
+            .iter().map(|v| v.as_str().unwrap()).collect();
+        assert_eq!(depends, vec!["konsole", "kxmlgui"]);
+
+        // provides must include name, name=version, raw provides, and base of versioned provide
+        let provides: Vec<&str> = data["p"].as_array().unwrap()
+            .iter().map(|v| v.as_str().unwrap()).collect();
+        for expected in ["yakuake", "yakuake=24.02.2-1", "dropdown-terminal",
+                         "yakuake-abi=2", "yakuake-abi"] {
+            assert!(provides.contains(&expected), "missing provide: {} in {:?}", expected, provides);
+        }
+    }
 }
