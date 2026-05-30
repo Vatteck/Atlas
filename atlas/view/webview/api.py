@@ -1,9 +1,12 @@
+import json
 import logging
 import threading
 import traceback
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
+from atlas.api.abstract.controller import SoftwareAction
+from atlas.commons.system import validate_root_password
 from atlas.commons.view_utils import get_human_size_str
 from atlas.view.core.controller import GenericSoftwareManager
 from atlas.view.webview.watcher import WebviewWatcher
@@ -19,7 +22,15 @@ class AtlasApi:
         self.pkg_registry = {}  # opaque_id -> SoftwarePackage
         self._registry_lock = threading.Lock()
         self.window = None
-        
+
+        # Root-password broker (see docs/plans/2026-05-30-root-password-flow-design.md).
+        # A validated password is cached for the session so we don't re-prompt for every
+        # sub-operation; the modal hands it back via submit_root_password().
+        self._root_password = None
+        self._pwd_lock = threading.Lock()
+        self._pwd_event = threading.Event()
+        self._pwd_submitted = None
+
         # Prepare the managers in a background thread to prevent GUI lockup using ThreadPoolExecutor
         self._executor = ThreadPoolExecutor(max_workers=5)
         self._prepare_future = self._executor.submit(self._prepare_manager)
@@ -27,6 +38,76 @@ class AtlasApi:
     def set_window(self, window):
         self.window = window
         self.logger.info("pywebview window reference linked in AtlasApi")
+
+    # ------------------------------------------------------------------ #
+    # Root-password broker
+    # ------------------------------------------------------------------ #
+    def submit_root_password(self, password):
+        """js_api callback: the password modal calls this with the entered value
+        (or null when the user cancels)."""
+        self._pwd_submitted = password
+        self._pwd_event.set()
+        return {'status': 'ok'}
+
+    def _prompt_root_password_once(self, message: str) -> Optional[str]:
+        """Show the modal and block this worker thread until the user submits/cancels.
+
+        pywebview dispatches each js_api call on its own thread, so blocking here is
+        safe — submit_root_password() fires from a separate worker and releases us."""
+        if not self.window:
+            return None
+
+        self._pwd_submitted = None
+        self._pwd_event.clear()
+        try:
+            self.window.evaluate_js(f"showPasswordModal({json.dumps(message)})")
+        except Exception as e:
+            self.logger.error(f"Could not show password modal: {e}")
+            return None
+
+        # Long timeout so a forgotten prompt can't wedge the worker forever.
+        if not self._pwd_event.wait(timeout=300):
+            self.logger.warning("Root password prompt timed out")
+            return None
+
+        return self._pwd_submitted
+
+    def acquire_root_password(self, action: SoftwareAction, pkg) -> Tuple[bool, Optional[str]]:
+        """Resolve the root password needed for `action` on `pkg`.
+
+        Returns (proceed, password):
+          - (True, None)  → the operation needs no root.
+          - (True, pwd)   → a validated password (cached for the session).
+          - (False, None) → the user cancelled; the caller must abort.
+        """
+        try:
+            if not self.manager.requires_root(action, pkg):
+                return True, None
+        except Exception as e:
+            self.logger.warning(f"requires_root check failed, assuming root needed: {e}")
+
+        pwd = self.ensure_root_password()
+        return (True, pwd) if pwd is not None else (False, None)
+
+    def ensure_root_password(self) -> Optional[str]:
+        """Return a validated root password (cached for the session), prompting if
+        needed. Returns None if the user cancels or the prompt times out. Used both by
+        acquire_root_password() and by WebviewWatcher when a gem requests it directly."""
+        with self._pwd_lock:
+            if self._root_password is not None and validate_root_password(self._root_password):
+                return self._root_password
+
+            message = 'Root privileges are required. Enter your password:'
+            for _ in range(3):
+                pwd = self._prompt_root_password_once(message)
+                if pwd is None:
+                    return None  # cancelled / timed out
+                if validate_root_password(pwd):
+                    self._root_password = pwd
+                    return pwd
+                message = 'Incorrect password. Try again:'
+
+            return None
 
     def _prepare_manager(self):
         try:
@@ -220,10 +301,14 @@ class AtlasApi:
             return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
         try:
             self.logger.info(f"Installing package: {pkg.name}")
+            proceed, root_password = self.acquire_root_password(SoftwareAction.INSTALL, pkg)
+            if not proceed:
+                self.logger.info(f"Install of {pkg.name} cancelled (no root password)")
+                return {'status': 'cancelled'}
             if self.window:
                 self.window.evaluate_js(f"terminalOpen('Installing {pkg.name}')")
-            watcher = WebviewWatcher(self.logger, self.window)
-            result = self.manager.install(pkg, root_password=None, disk_loader=None, handler=watcher)
+            watcher = WebviewWatcher(self.logger, self.window, self)
+            result = self.manager.install(pkg, root_password=root_password, disk_loader=None, handler=watcher)
             success = result.success if result else False
             if self.window:
                 self.window.evaluate_js(f"terminalSetDone({str(success).lower()})")
@@ -246,10 +331,14 @@ class AtlasApi:
             return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
         try:
             self.logger.info(f"Uninstalling package: {pkg.name}")
+            proceed, root_password = self.acquire_root_password(SoftwareAction.UNINSTALL, pkg)
+            if not proceed:
+                self.logger.info(f"Uninstall of {pkg.name} cancelled (no root password)")
+                return {'status': 'cancelled'}
             if self.window:
                 self.window.evaluate_js(f"terminalOpen('Uninstalling {pkg.name}')")
-            watcher = WebviewWatcher(self.logger, self.window)
-            result = self.manager.uninstall(pkg, root_password=None, handler=watcher)
+            watcher = WebviewWatcher(self.logger, self.window, self)
+            result = self.manager.uninstall(pkg, root_password=root_password, handler=watcher)
             success = result.success if result else False
             if self.window:
                 self.window.evaluate_js(f"terminalSetDone({str(success).lower()})")
@@ -272,11 +361,15 @@ class AtlasApi:
             return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
         try:
             self.logger.info(f"Updating package: {pkg.name}")
+            proceed, root_password = self.acquire_root_password(SoftwareAction.UPGRADE, pkg)
+            if not proceed:
+                self.logger.info(f"Update of {pkg.name} cancelled (no root password)")
+                return {'status': 'cancelled'}
             if self.window:
                 self.window.evaluate_js(f"terminalOpen('Updating {pkg.name}')")
-            watcher = WebviewWatcher(self.logger, self.window)
-            reqs = self.manager.get_upgrade_requirements([pkg], root_password=None, watcher=watcher)
-            success = self.manager.upgrade(reqs, root_password=None, handler=watcher)
+            watcher = WebviewWatcher(self.logger, self.window, self)
+            reqs = self.manager.get_upgrade_requirements([pkg], root_password=root_password, watcher=watcher)
+            success = self.manager.upgrade(reqs, root_password=root_password, handler=watcher)
             if self.window:
                 self.window.evaluate_js(f"terminalSetDone({str(bool(success)).lower()})")
             
@@ -318,14 +411,26 @@ class AtlasApi:
                 return {'status': 'error', 'message': 'No valid packages specified for uninstall'}
                 
             self.logger.info(f"Prepared batch uninstall for: {[p.name for p in pkgs]}")
-            watcher = WebviewWatcher(self.logger, self.window)
-            
+
+            # Acquire a password if any of the selected packages needs root; cache covers the rest.
+            root_password = None
+            for pkg in pkgs:
+                proceed, pwd = self.acquire_root_password(SoftwareAction.UNINSTALL, pkg)
+                if not proceed:
+                    self.logger.info("Batch uninstall cancelled (no root password)")
+                    return {'status': 'cancelled'}
+                if pwd is not None:
+                    root_password = pwd
+                    break
+
+            watcher = WebviewWatcher(self.logger, self.window, self)
+
             success = True
             for idx, pkg in enumerate(pkgs):
                 if self.window:
                     self.window.evaluate_js(f"terminalOpen('Uninstalling {pkg.name} ({idx+1}/{len(pkgs)})')")
                 
-                res = self.manager.uninstall(pkg, root_password=None, handler=watcher)
+                res = self.manager.uninstall(pkg, root_password=root_password, handler=watcher)
                 pkg_success = res.success if res else False
                 
                 # Record individual activity
@@ -353,23 +458,36 @@ class AtlasApi:
             if self.window:
                 self.window.evaluate_js("terminalOpen('Checking for system updates...')")
             
-            watcher = WebviewWatcher(self.logger, self.window)
+            watcher = WebviewWatcher(self.logger, self.window, self)
             installed_res = self.manager.read_installed()
             upgradable = [p for p in (installed_res.installed or []) if p.update]
-            
+
             if not upgradable:
                 self.logger.info("No updates available.")
                 if self.window:
                     self.window.evaluate_js("terminalSetStatus('No updates available')")
                     self.window.evaluate_js("terminalSetDone(true)")
                 return {'status': 'ok', 'success': True, 'message': 'No updates available'}
-            
+
+            # Acquire a password if any upgradable package needs root; cache covers the rest.
+            root_password = None
+            for pkg in upgradable:
+                proceed, pwd = self.acquire_root_password(SoftwareAction.UPGRADE, pkg)
+                if not proceed:
+                    self.logger.info("Update All cancelled (no root password)")
+                    if self.window:
+                        self.window.evaluate_js("terminalSetDone(false)")
+                    return {'status': 'cancelled'}
+                if pwd is not None:
+                    root_password = pwd
+                    break
+
             self.logger.info(f"Found {len(upgradable)} packages to upgrade: {[p.name for p in upgradable]}")
             if self.window:
                 self.window.evaluate_js(f"terminalSetStatus('Upgrading {len(upgradable)} packages...')")
-                
-            reqs = self.manager.get_upgrade_requirements(upgradable, root_password=None, watcher=watcher)
-            success = self.manager.upgrade(reqs, root_password=None, handler=watcher)
+
+            reqs = self.manager.get_upgrade_requirements(upgradable, root_password=root_password, watcher=watcher)
+            success = self.manager.upgrade(reqs, root_password=root_password, handler=watcher)
             
             if self.window:
                 self.window.evaluate_js(f"terminalSetDone({str(bool(success)).lower()})")
@@ -504,10 +622,10 @@ class AtlasApi:
             if self.window:
                 self.window.evaluate_js(f"terminalOpen('Importing {len(to_install)} packages from manifest...')")
                 
-            watcher = WebviewWatcher(self.logger, self.window)
+            watcher = WebviewWatcher(self.logger, self.window, self)
             installed_count = 0
             failed_list = []
-            
+
             for p in to_install:
                 name = p.get('name')
                 pkg_type = p.get('type', 'unknown')
@@ -524,7 +642,16 @@ class AtlasApi:
                 if match:
                     try:
                         self.logger.info(f"Import installing: {match.name}")
-                        install_res = self.manager.install(match, root_password=None, disk_loader=None, handler=watcher)
+                        proceed, root_password = self.acquire_root_password(SoftwareAction.INSTALL, match)
+                        if not proceed:
+                            self.logger.info("Import cancelled (no root password)")
+                            if self.window:
+                                self.window.evaluate_js("terminalSetDone(false)")
+                            return {'status': 'cancelled',
+                                    'data': {'installed': installed_count,
+                                             'skipped': skipped_count,
+                                             'failed': failed_list}}
+                        install_res = self.manager.install(match, root_password=root_password, disk_loader=None, handler=watcher)
                         success = install_res.success if install_res else False
                         if success:
                             installed_count += 1

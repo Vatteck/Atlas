@@ -743,6 +743,22 @@ body {
     background: var(--bg-surface-hover);
 }
 
+/* Root password modal */
+.password-modal-content { width: 420px; }
+.password-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 14px;
+    font-size: 14px;
+    color: var(--text-primary);
+    background: var(--bg-surface-hover);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    outline: none;
+    transition: border var(--transition-fast);
+}
+.password-input:focus { border-color: var(--accent, #6366f1); }
+
 /* Floating Batch Bar (Task 5) */
 .batch-bar {
     position: fixed;

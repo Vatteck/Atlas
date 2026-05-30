@@ -7,9 +7,10 @@ from atlas.api.abstract.view import MessageType
 
 class WebviewWatcher(ProcessWatcher):
 
-    def __init__(self, logger: logging.Logger, window=None):
+    def __init__(self, logger: logging.Logger, window=None, api=None):
         self.logger = logger
         self.window = window
+        self.api = api  # AtlasApi, for the shared root-password broker
         self._stop = False
 
     def _push(self, js: str):
@@ -43,13 +44,16 @@ class WebviewWatcher(ProcessWatcher):
 
     def request_root_password(self) -> Tuple[bool, str]:
         self.logger.info("Root password requested by process watcher")
-        if self.window:
+        # Delegate to AtlasApi's broker: it shows the HTML password modal, validates,
+        # and caches the password for the session. window.prompt is unsupported in
+        # WebKitGTK, so the old evaluate_js("window.prompt(...)") path never worked.
+        if self.api is not None:
             try:
-                password = self.window.evaluate_js("window.prompt('Root privileges required. Enter your password:')")
-                if password is not None:
-                    return True, password
+                pwd = self.api.ensure_root_password()
+                if pwd:
+                    return True, pwd
             except Exception as e:
-                self.logger.error(f"Error evaluating root password prompt: {e}")
+                self.logger.error(f"Error requesting root password: {e}")
         return False, ''
 
     def request_confirmation(self, title: str, body: Optional[str], **kwargs) -> bool:

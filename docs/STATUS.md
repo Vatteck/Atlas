@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §8). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-05-29
+**Last updated:** 2026-05-30
 **Version:** 0.10.7
 **Working branch:** `master` (use short-lived branches for larger features; run `git branch` to see what's active)
 
@@ -13,9 +13,10 @@
 
 ## Current focus
 
-Migrating the **Arch Linux engine hot paths to Rust** (`atlas_rs` via PyO3), hot paths
-first, behind Python fallbacks. Phase 0 (instrument/measure) done; now wiring proven
-parsers in (Phase 2 category).
+**Fixing the webview's privileged-operation flow.** The Rust migration is parked at its
+sensible end (only `map_srcinfo`). Now closing functional gaps in the pywebview GUI — the
+first being **root-password handling for installs/updates** (implemented 2026-05-30,
+awaiting GUI verification). See [plans/2026-05-30-root-password-flow-design.md](plans/2026-05-30-root-password-flow-design.md).
 
 ## Next (per ROADMAP, hot paths first)
 
@@ -44,6 +45,15 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Done
 
+- **Root-password flow for the webview (2026-05-30):** `api.py` passed
+  `root_password=None` to every privileged op → Arch/AUR installs ran unprivileged and
+  failed. Added a session-scoped broker on `AtlasApi` (`acquire_root_password` /
+  `ensure_root_password` / `submit_root_password`) + an HTML password modal
+  (`#password-modal` in `index.html`, `showPasswordModal` in `main.js`) replacing the
+  broken `window.prompt` path, plus `validate_root_password()` in `commons/system.py`
+  (`sudo -k -S -v`). Wired into install/uninstall/update/update_all/batch_uninstall/
+  import; `WebviewWatcher` now delegates `request_root_password` to the broker. 3 new
+  tests in `test_api.py`. **Needs GUI verification (can't be driven headless).**
 - Rebrand bauh → Atlas (namespaces, config paths `~/.config/atlaspm` etc., UI strings).
 - Qt5 UI purged; pywebview front-end (`atlas/view/webview/`) in place.
 - `atlas_rs` build pipeline (PyO3 + setuptools-rust, `debug=False`), installed at
@@ -76,6 +86,17 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 ---
 
 ## Known gaps / gotchas (don't get burned)
+
+- **WebKitGTK has no `window.prompt`/`confirm`/`alert`.** They return `null`, so the
+  watcher's old `evaluate_js("window.prompt(...)")` never collected a password. The fix is
+  an HTML modal + a `js_api` callback (`submit_root_password`) that unblocks the waiting
+  worker thread via a `threading.Event`. `WebviewWatcher.request_confirmation`/
+  `request_reboot`/`show_message` still use `window.confirm`/`alert` — same problem, not
+  yet fixed (they fall back to "confirm"=True). Convert them to HTML modals next.
+- **Root password requires the GUI to drive it; can't verify headless.** The broker shows
+  a modal and blocks a pywebview worker thread on a `threading.Event`. Relies on pywebview
+  dispatching each `js_api` call on its own thread (true for the GTK backend). User must
+  confirm install/cancel/wrong-password behaviour in the running GUI.
 
 - **Tray mode is gone (was broken).** The rebrand purged Qt but left `tray.py`/`manage.py`
   importing the deleted `atlas.view.qt.*` — `atlas-tray` crashed on launch. Removed them +
@@ -130,6 +151,12 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Decision log (append-only; newest first)
 
+- **2026-05-30** — Fixed Arch/AUR "no root access" installs. Root cause: `api.py`
+  hardcoded `root_password=None` and the only prompt path used `window.prompt` (dead in
+  WebKitGTK). Added a session-cached root-password broker on `AtlasApi` + HTML modal +
+  `validate_root_password` (`sudo -k -S -v`), wired into all privileged ops, and pointed
+  `WebviewWatcher.request_root_password` at the broker. Design:
+  `plans/2026-05-30-root-password-flow-design.md`. Awaiting GUI verification.
 - **2026-05-29** — GUI confirmed working end-to-end. Fixed 6 rebrand-leftover URLs still
   pointing at `vinifmor/...` (→ `Vatteck/...`): appimage dbs, arch categories + gpg
   servers, appimage app repo, setup.py + pyproject repository URL.

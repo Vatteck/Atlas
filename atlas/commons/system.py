@@ -309,6 +309,28 @@ def new_root_subprocess(cmd: Iterable[str], root_password: Optional[str], cwd: s
                             env=gen_env(global_interpreter, lang, extra_paths), shell=shell)
 
 
+def validate_root_password(password: str, timeout: int = 15) -> bool:
+    """Return True if `password` is the current user's valid sudo password.
+
+    Runs `sudo -k -S -v`: `-k` invalidates any cached sudo timestamp so we always
+    do a real password check, `-S` reads the password from stdin, `-v` just updates
+    (validates) credentials without running a command. This lets a wrong password
+    fail fast at the prompt instead of mid-transaction.
+    """
+    if not isinstance(password, str):
+        return False
+
+    try:
+        proc = subprocess.run(['sudo', '-k', '-S', '-v'],
+                              input=f'{password}\n'.encode(),
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                              env=gen_env(USE_GLOBAL_INTERPRETER, DEFAULT_LANG),
+                              timeout=timeout)
+        return proc.returncode == 0
+    except Exception:
+        return False
+
+
 def notify_user(msg: str, app_name: str, icon_path: str):
     os.system("notify-send -a {} {} '{}'".format(app_name, "-i {}".format(icon_path) if icon_path else '', msg))
 

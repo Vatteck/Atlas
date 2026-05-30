@@ -173,6 +173,29 @@
         </div>
     </div>
 
+    <!-- Root Password Modal -->
+    <div id="password-modal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content password-modal-content">
+            <div class="modal-header">
+                <div class="modal-header-left">
+                    <div>
+                        <h2>Authentication required</h2>
+                        <div id="password-message" class="modal-meta"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-body">
+                <input type="password" id="password-input" class="password-input"
+                       autocomplete="off" placeholder="Password" />
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="password-cancel-btn">Cancel</button>
+                <button class="btn btn-primary" id="password-submit-btn">Authenticate</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Notification Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 

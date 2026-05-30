@@ -239,7 +239,10 @@ class AtlasApiExportImportTest(unittest.TestCase):
         install_res = Mock()
         install_res.success = True
         self.manager.install.return_value = install_res
-        
+
+        # Flatpak (user) install needs no root -> broker returns (True, None)
+        self.manager.requires_root.return_value = False
+
         # Setup self.api.window mock to prevent None error or call js
         self.api.window = Mock()
         
@@ -267,5 +270,68 @@ class AtlasApiExportImportTest(unittest.TestCase):
         self.assertEqual(res['data']['installed'], 0)
         self.assertEqual(res['data']['skipped'], 1)
         self.assertEqual(res['data']['failed'], [])
+
+
+class AtlasApiRootPasswordTest(unittest.TestCase):
+    def setUp(self):
+        self.manager = Mock()
+        self.logger = Mock()
+        self.api = AtlasApi(self.manager, self.logger)
+        self.api.window = Mock()  # evaluate_js -> Mock, harmless
+
+    def test_no_root_needed_returns_none_without_prompt(self):
+        from atlas.api.abstract.controller import SoftwareAction
+        self.manager.requires_root.return_value = False
+        proceed, pwd = self.api.acquire_root_password(SoftwareAction.SEARCH, None)
+        self.assertTrue(proceed)
+        self.assertIsNone(pwd)
+        self.api.window.evaluate_js.assert_not_called()  # no modal shown
+
+    @patch('atlas.view.webview.api.validate_root_password')
+    def test_valid_password_is_cached(self, mock_validate):
+        from atlas.api.abstract.controller import SoftwareAction
+        import threading
+        self.manager.requires_root.return_value = True
+        mock_validate.side_effect = lambda pwd, **k: pwd == 'secret'
+
+        # Simulate the modal submitting the password once the prompt is shown.
+        def poll_and_submit():
+            import time
+            for _ in range(100):
+                if self.api.window.evaluate_js.called:
+                    self.api.submit_root_password('secret')
+                    return
+                time.sleep(0.02)
+        threading.Thread(target=poll_and_submit, daemon=True).start()
+
+        proceed, pwd = self.api.acquire_root_password(SoftwareAction.INSTALL, None)
+        self.assertTrue(proceed)
+        self.assertEqual(pwd, 'secret')
+
+        # Second call reuses the cache (validate succeeds) without prompting again.
+        self.api.window.evaluate_js.reset_mock()
+        proceed2, pwd2 = self.api.acquire_root_password(SoftwareAction.INSTALL, None)
+        self.assertTrue(proceed2)
+        self.assertEqual(pwd2, 'secret')
+        self.api.window.evaluate_js.assert_not_called()
+
+    @patch('atlas.view.webview.api.validate_root_password')
+    def test_cancel_returns_false(self, mock_validate):
+        from atlas.api.abstract.controller import SoftwareAction
+        import threading, time
+        self.manager.requires_root.return_value = True
+        mock_validate.return_value = False
+
+        def poll_and_cancel():
+            for _ in range(50):
+                if self.api.window.evaluate_js.called:
+                    self.api.submit_root_password(None)
+                    return
+                time.sleep(0.02)
+        threading.Thread(target=poll_and_cancel, daemon=True).start()
+
+        proceed, pwd = self.api.acquire_root_password(SoftwareAction.INSTALL, None)
+        self.assertFalse(proceed)
+        self.assertIsNone(pwd)
 
 

@@ -206,6 +206,44 @@ document.getElementById('terminal-close').addEventListener('click', () => {
     fetchPackages(); // refresh packages list
 });
 
+// --- Root password modal ---------------------------------------------------
+// Python (AtlasApi._prompt_root_password_once) calls showPasswordModal(); the user's
+// answer is sent back via pyApiCall('submit_root_password', value | null), which
+// unblocks the waiting worker thread. window.prompt is unsupported in WebKitGTK, so
+// this HTML modal replaces it.
+let passwordResolved = false;
+
+function submitPassword(value) {
+    if (passwordResolved) return;
+    passwordResolved = true;
+    document.getElementById('password-modal').classList.add('hidden');
+    pyApiCall('submit_root_password', value);
+}
+
+window.showPasswordModal = (message) => {
+    passwordResolved = false;
+    const modal = document.getElementById('password-modal');
+    const input = document.getElementById('password-input');
+    document.getElementById('password-message').textContent = message || 'Enter your password:';
+    input.value = '';
+    modal.classList.remove('hidden');
+    setTimeout(() => input.focus(), 50);
+};
+
+document.getElementById('password-submit-btn').addEventListener('click', () => {
+    submitPassword(document.getElementById('password-input').value);
+});
+document.getElementById('password-cancel-btn').addEventListener('click', () => {
+    submitPassword(null);
+});
+document.getElementById('password-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        submitPassword(document.getElementById('password-input').value);
+    } else if (e.key === 'Escape') {
+        submitPassword(null);
+    }
+});
+
 // Fallback placeholder icon (Base64 encoded SVG)
 const ICON_PLACEHOLDER = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgZmlsbD0iIzY0NzQ4YiIgdmlld0JveD0iMCAwIDI0IDI0Ij48cmVjdCB4PSIzIiB5PSIzIiB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHJ4PSIyIiByeT0iMiI+PC9yZWN0Pjwvc3ZnPg==';
 
@@ -767,7 +805,11 @@ window.installApp = async (id, btn = null) => {
     showToast('Installing', 'Installation started in background', 'info');
     try {
         const result = await pyApiCall('install', id);
-        if (result && result.success) {
+        if (result && result.status === 'cancelled') {
+            operationInProgress = false;
+            showToast('Cancelled', 'Authentication cancelled', 'info');
+            if (btn) btn.classList.remove('loading');
+        } else if (result && result.success) {
             showToast('Success', 'Application installed successfully', 'success');
             packageCache = {}; // Wipe cache
         } else {
@@ -787,7 +829,11 @@ window.uninstallApp = async (id, btn = null) => {
     showToast('Uninstalling', 'Uninstallation started', 'info');
     try {
         const result = await pyApiCall('uninstall', id);
-        if (result && result.success) {
+        if (result && result.status === 'cancelled') {
+            operationInProgress = false;
+            showToast('Cancelled', 'Authentication cancelled', 'info');
+            if (btn) btn.classList.remove('loading');
+        } else if (result && result.success) {
             showToast('Success', 'Application uninstalled', 'success');
             packageCache = {}; // Wipe cache
         } else {
@@ -807,7 +853,11 @@ window.updateApp = async (id, btn = null) => {
     showToast('Updating', 'Update started', 'info');
     try {
         const result = await pyApiCall('update', id);
-        if (result && result.success) {
+        if (result && result.status === 'cancelled') {
+            operationInProgress = false;
+            showToast('Cancelled', 'Authentication cancelled', 'info');
+            if (btn) btn.classList.remove('loading');
+        } else if (result && result.success) {
             showToast('Success', 'Application updated', 'success');
             packageCache = {}; // Wipe cache
         } else {
