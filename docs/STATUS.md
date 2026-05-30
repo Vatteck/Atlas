@@ -45,6 +45,13 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Done
 
+- **All watcher dialogs are now HTML modals (2026-05-30):** converted
+  `request_confirmation`/`request_reboot`/`show_message` off the dead
+  `window.confirm`/`alert` to blocking HTML modals (`#confirm-modal`, `#message-modal` +
+  `showConfirmModal`/`showMessageModal` in `main.js`), mirroring the password modal.
+  AtlasApi gained `prompt_confirmation`/`prompt_message` + `submit_confirmation`/
+  `submit_message_ack` callbacks; the watcher delegates and strips HTML from gem text via
+  `_clean()`. Caveat: rich `components` aren't rendered (text only). 4 new tests.
 - **Root-password flow for the webview (2026-05-30):** `api.py` passed
   `root_password=None` to every privileged op → Arch/AUR installs ran unprivileged and
   failed. Added a session-scoped broker on `AtlasApi` (`acquire_root_password` /
@@ -87,12 +94,16 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Known gaps / gotchas (don't get burned)
 
-- **WebKitGTK has no `window.prompt`/`confirm`/`alert`.** They return `null`, so the
-  watcher's old `evaluate_js("window.prompt(...)")` never collected a password. The fix is
-  an HTML modal + a `js_api` callback (`submit_root_password`) that unblocks the waiting
-  worker thread via a `threading.Event`. `WebviewWatcher.request_confirmation`/
-  `request_reboot`/`show_message` still use `window.confirm`/`alert` — same problem, not
-  yet fixed (they fall back to "confirm"=True). Convert them to HTML modals next.
+- **WebKitGTK has no `window.prompt`/`confirm`/`alert`.** They return `null`/no-op, so the
+  watcher's old `evaluate_js("window.prompt/confirm/alert(...)")` never worked. **All four
+  are now HTML modals** (password, confirm, message) that block the worker thread on a
+  `threading.Event` and resolve via `js_api` callbacks (`submit_root_password`,
+  `submit_confirmation`, `submit_message_ack`). Never reintroduce a `window.*` dialog.
+- **`request_confirmation` does not render rich `components`.** The webview confirm modal
+  shows only title/body text (mirroring the old behaviour). Gems that pass
+  `MultipleSelectComponent`/inputs (e.g. arch mirror refresh, snap setup) lose those
+  controls — the user just gets a yes/no on the text. Rendering components is a TODO if a
+  flow needs it.
 - **Root password requires the GUI to drive it; can't verify headless.** The broker shows
   a modal and blocks a pywebview worker thread on a `threading.Event`. Relies on pywebview
   dispatching each `js_api` call on its own thread (true for the GTK backend). User must
@@ -151,6 +162,11 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Decision log (append-only; newest first)
 
+- **2026-05-30** — Converted the remaining `window.confirm`/`alert` watcher dialogs
+  (`request_confirmation`/`request_reboot`/`show_message`) to blocking HTML modals, reusing
+  the password-broker pattern (evaluate_js → worker blocks on Event → `js_api` callback
+  resolves). Rich `components` are intentionally not rendered yet (text only). Same root
+  cause as the password fix: WebKitGTK has no native JS dialogs.
 - **2026-05-30** — Fixed Arch/AUR "no root access" installs. Root cause: `api.py`
   hardcoded `root_password=None` and the only prompt path used `window.prompt` (dead in
   WebKitGTK). Added a session-cached root-password broker on `AtlasApi` + HTML modal +

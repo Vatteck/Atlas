@@ -244,6 +244,66 @@ document.getElementById('password-input').addEventListener('keydown', (e) => {
     }
 });
 
+// --- Confirmation modal ----------------------------------------------------
+// Python (AtlasApi.prompt_confirmation) calls showConfirmModal(); the choice is sent
+// back via submit_confirmation(bool), unblocking the waiting worker thread. Replaces
+// window.confirm, which WebKitGTK does not support.
+let confirmResolved = false;
+
+function resolveConfirm(value) {
+    if (confirmResolved) return;
+    confirmResolved = true;
+    document.getElementById('confirm-modal').classList.add('hidden');
+    pyApiCall('submit_confirmation', value);
+}
+
+window.showConfirmModal = (opts) => {
+    opts = opts || {};
+    confirmResolved = false;
+    document.getElementById('confirm-title').textContent = opts.title || 'Confirm';
+    document.getElementById('confirm-message').textContent = opts.message || '';
+    const acceptBtn = document.getElementById('confirm-accept-btn');
+    const denyBtn = document.getElementById('confirm-deny-btn');
+    acceptBtn.textContent = opts.confirmLabel || 'Yes';
+    denyBtn.textContent = opts.denyLabel || 'No';
+    denyBtn.style.display = (opts.showDeny === false) ? 'none' : 'block';
+    document.getElementById('confirm-modal').classList.remove('hidden');
+    setTimeout(() => acceptBtn.focus(), 50);
+};
+
+document.getElementById('confirm-accept-btn').addEventListener('click', () => resolveConfirm(true));
+document.getElementById('confirm-deny-btn').addEventListener('click', () => resolveConfirm(false));
+document.getElementById('confirm-modal').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') resolveConfirm(false);
+});
+
+// --- Message modal ---------------------------------------------------------
+// Python (AtlasApi.prompt_message) calls showMessageModal(); OK acks via
+// submit_message_ack(). Replaces window.alert.
+let messageResolved = false;
+
+function resolveMessage() {
+    if (messageResolved) return;
+    messageResolved = true;
+    document.getElementById('message-modal').classList.add('hidden');
+    pyApiCall('submit_message_ack');
+}
+
+window.showMessageModal = (opts) => {
+    opts = opts || {};
+    messageResolved = false;
+    document.getElementById('message-title').textContent = opts.title || 'Notice';
+    document.getElementById('message-body').textContent = opts.message || '';
+    const okBtn = document.getElementById('message-ok-btn');
+    document.getElementById('message-modal').classList.remove('hidden');
+    setTimeout(() => okBtn.focus(), 50);
+};
+
+document.getElementById('message-ok-btn').addEventListener('click', resolveMessage);
+document.getElementById('message-modal').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' || e.key === 'Enter') resolveMessage();
+});
+
 // Fallback placeholder icon (Base64 encoded SVG)
 const ICON_PLACEHOLDER = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgZmlsbD0iIzY0NzQ4YiIgdmlld0JveD0iMCAwIDI0IDI0Ij48cmVjdCB4PSIzIiB5PSIzIiB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHJ4PSIyIiByeT0iMiI+PC9yZWN0Pjwvc3ZnPg==';
 

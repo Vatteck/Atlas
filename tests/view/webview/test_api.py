@@ -335,3 +335,40 @@ class AtlasApiRootPasswordTest(unittest.TestCase):
         self.assertIsNone(pwd)
 
 
+class AtlasApiDialogTest(unittest.TestCase):
+    def setUp(self):
+        self.manager = Mock()
+        self.logger = Mock()
+        self.api = AtlasApi(self.manager, self.logger)
+        self.api.window = Mock()
+
+    def _answer(self, fn):
+        import threading, time
+
+        def poll():
+            for _ in range(100):
+                if self.api.window.evaluate_js.called:
+                    fn()
+                    return
+                time.sleep(0.02)
+        threading.Thread(target=poll, daemon=True).start()
+
+    def test_confirmation_accept(self):
+        self._answer(lambda: self.api.submit_confirmation(True))
+        self.assertTrue(self.api.prompt_confirmation('T', 'body', 'Yes', 'No'))
+
+    def test_confirmation_deny(self):
+        self._answer(lambda: self.api.submit_confirmation(False))
+        self.assertFalse(self.api.prompt_confirmation('T', 'body'))
+
+    def test_confirmation_no_window_defaults_true(self):
+        self.api.window = None
+        self.assertTrue(self.api.prompt_confirmation('T', 'body'))
+
+    def test_message_blocks_until_ack(self):
+        self._answer(self.api.submit_message_ack)
+        # Returns once acked; if it didn't block/return, the test would hang then time out.
+        self.api.prompt_message('Title', 'Body', 'error')
+        self.assertTrue(self.api._message_event.is_set())
+
+

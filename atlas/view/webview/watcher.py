@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import Optional, Tuple
 from atlas.api.abstract.handler import ProcessWatcher
 from atlas.api.abstract.view import MessageType
@@ -56,37 +57,47 @@ class WebviewWatcher(ProcessWatcher):
                 self.logger.error(f"Error requesting root password: {e}")
         return False, ''
 
-    def request_confirmation(self, title: str, body: Optional[str], **kwargs) -> bool:
+    def request_confirmation(self, title: str, body: Optional[str],
+                             confirmation_label: str = None, deny_label: str = None,
+                             deny_button: bool = True, **kwargs) -> bool:
         self.logger.info(f"Confirmation requested: {title} - {body}")
-        if self.window:
+        # Delegate to AtlasApi's HTML modal; window.confirm is dead in WebKitGTK.
+        if self.api is not None:
             try:
-                msg = f"{title}\n\n{body}" if body else title
-                # Strip HTML tags if any (basic clean)
-                import re
-                clean_msg = re.sub('<[^<]+?>', '', msg)
-                confirmed = self.window.evaluate_js(f"window.confirm({json.dumps(clean_msg)})")
-                return bool(confirmed)
+                return self.api.prompt_confirmation(title=self._clean(title),
+                                                    body=self._clean(body),
+                                                    confirmation_label=confirmation_label,
+                                                    deny_label=deny_label,
+                                                    deny_button=deny_button)
             except Exception as e:
-                self.logger.error(f"Error evaluating confirmation dialog: {e}")
+                self.logger.error(f"Error requesting confirmation: {e}")
         return True
 
     def request_reboot(self, msg: str) -> bool:
         self.logger.info(f"Reboot requested: {msg}")
-        if self.window:
+        if self.api is not None:
             try:
-                confirmed = self.window.evaluate_js(f"window.confirm('Reboot requested: {json.dumps(msg)}\\n\\nReboot now?')")
-                return bool(confirmed)
+                return self.api.prompt_confirmation(title='Reboot required',
+                                                    body=self._clean(msg),
+                                                    confirmation_label='Reboot now',
+                                                    deny_label='Later')
             except Exception as e:
-                self.logger.error(f"Error evaluating reboot dialog: {e}")
+                self.logger.error(f"Error requesting reboot: {e}")
         return False
 
     def show_message(self, title: str, body: str, type_: MessageType = MessageType.INFO):
         self.logger.info(f"Message: {title} - {body}")
-        if self.window:
+        if self.api is not None:
             try:
-                msg = f"{title}\\n\\n{body}"
-                import re
-                clean_msg = re.sub('<[^<]+?>', '', msg)
-                self.window.evaluate_js(f"window.alert({json.dumps(clean_msg)})")
+                type_name = type_.name.lower() if isinstance(type_, MessageType) else 'info'
+                self.api.prompt_message(title=self._clean(title), body=self._clean(body),
+                                        type_=type_name)
             except Exception as e:
-                self.logger.error(f"Error showing message alert: {e}")
+                self.logger.error(f"Error showing message: {e}")
+
+    @staticmethod
+    def _clean(text: Optional[str]) -> str:
+        """Strip basic HTML tags so gem messages (which use <b>, <br/>) read cleanly."""
+        if not text:
+            return ''
+        return re.sub('<[^<]+?>', '', text)

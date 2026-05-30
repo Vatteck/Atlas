@@ -75,8 +75,10 @@ Delegate to the broker so the in-gem call sites (flatpak system install
 `controller.py:481`, arch snap-setup `controller.py:3512`) also work. The watcher gets an
 optional `api` reference; `request_root_password()` returns `(True, pwd)` from
 `api.acquire...`/prompt, or `(False, '')` on cancel. Drop the `window.prompt` path. The
-`request_confirmation`/`request_reboot`/`show_message` dialogs (also `window.*`) are out
-of scope here but flagged — they have safe fallbacks (`confirm`→True) for now.
+`request_confirmation`/`request_reboot`/`show_message` dialogs (also `window.*`) were
+**also converted** in a follow-up commit, reusing this broker pattern
+(`prompt_confirmation`/`prompt_message` + `submit_confirmation`/`submit_message_ack`).
+Rich `components` are not rendered (text only).
 
 ### 5. HTML modal + JS — `index.html` / `main.js`
 

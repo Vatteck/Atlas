@@ -196,6 +196,43 @@
         </div>
     </div>
 
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content password-modal-content">
+            <div class="modal-header">
+                <div class="modal-header-left">
+                    <div><h2 id="confirm-title"></h2></div>
+                </div>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-message" class="modal-description"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="confirm-deny-btn">No</button>
+                <button class="btn btn-primary" id="confirm-accept-btn">Yes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Modal -->
+    <div id="message-modal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content password-modal-content">
+            <div class="modal-header">
+                <div class="modal-header-left">
+                    <div><h2 id="message-title"></h2></div>
+                </div>
+            </div>
+            <div class="modal-body">
+                <p id="message-body" class="modal-description"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="message-ok-btn">OK</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Notification Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 

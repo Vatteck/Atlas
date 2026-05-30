@@ -31,6 +31,14 @@ class AtlasApi:
         self._pwd_event = threading.Event()
         self._pwd_submitted = None
 
+        # Confirmation / message dialogs (same blocking-modal pattern as the password
+        # broker). WebKitGTK has no window.confirm/alert, so these route through HTML
+        # modals that call back via submit_confirmation() / submit_message_ack().
+        self._dialog_lock = threading.Lock()
+        self._confirm_event = threading.Event()
+        self._confirm_result = False
+        self._message_event = threading.Event()
+
         # Prepare the managers in a background thread to prevent GUI lockup using ThreadPoolExecutor
         self._executor = ThreadPoolExecutor(max_workers=5)
         self._prepare_future = self._executor.submit(self._prepare_manager)
@@ -108,6 +116,75 @@ class AtlasApi:
                 message = 'Incorrect password. Try again:'
 
             return None
+
+    # ------------------------------------------------------------------ #
+    # Confirmation / message dialogs
+    # ------------------------------------------------------------------ #
+    def submit_confirmation(self, confirmed):
+        """js_api callback: the confirm modal calls this with True/False."""
+        self._confirm_result = bool(confirmed)
+        self._confirm_event.set()
+        return {'status': 'ok'}
+
+    def submit_message_ack(self):
+        """js_api callback: the message modal's OK button calls this."""
+        self._message_event.set()
+        return {'status': 'ok'}
+
+    def prompt_confirmation(self, title: str, body: Optional[str],
+                            confirmation_label: Optional[str] = None,
+                            deny_label: Optional[str] = None,
+                            deny_button: bool = True) -> bool:
+        """Show a blocking confirmation modal; return the user's choice.
+
+        Note: rich `components` (select lists etc.) are not rendered — only the
+        title/body text — mirroring the previous window.confirm behaviour. If the modal
+        can't be shown, default to True so non-critical confirmations don't block work."""
+        if not self.window:
+            return True
+
+        with self._dialog_lock:
+            self._confirm_result = False
+            self._confirm_event.clear()
+            payload = json.dumps({
+                'title': title or '',
+                'message': body or '',
+                'confirmLabel': confirmation_label or 'Yes',
+                'denyLabel': deny_label or 'No',
+                'showDeny': bool(deny_button),
+            })
+            try:
+                self.window.evaluate_js(f"showConfirmModal({payload})")
+            except Exception as e:
+                self.logger.error(f"Could not show confirmation modal: {e}")
+                return True
+
+            if not self._confirm_event.wait(timeout=300):
+                self.logger.warning(f"Confirmation '{title}' timed out; defaulting to deny")
+                return False
+
+            return self._confirm_result
+
+    def prompt_message(self, title: str, body: str, type_: str = 'info'):
+        """Show a blocking informational modal; returns once the user dismisses it."""
+        if not self.window:
+            return
+
+        with self._dialog_lock:
+            self._message_event.clear()
+            payload = json.dumps({
+                'title': title or '',
+                'message': body or '',
+                'type': type_ or 'info',
+            })
+            try:
+                self.window.evaluate_js(f"showMessageModal({payload})")
+            except Exception as e:
+                self.logger.error(f"Could not show message modal: {e}")
+                return
+
+            # Don't wedge a worker forever if the user never clicks OK.
+            self._message_event.wait(timeout=300)
 
     def _prepare_manager(self):
         try:
