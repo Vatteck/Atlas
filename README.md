@@ -1,5 +1,7 @@
 # Atlas
 
+[![CI](https://github.com/Vatteck/atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/Vatteck/atlas/actions/workflows/ci.yml)
+
 **Atlas** is an Arch-focused, all-in-one graphical package manager for Linux. Search,
 install, update, downgrade, and remove software from the **official Arch repos, the AUR,
 Flatpak, and AppImage** — all from one modern interface.
