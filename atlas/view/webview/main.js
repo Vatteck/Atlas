@@ -180,8 +180,57 @@ function rankAur(packages) {
     return out;
 }
 
+// Per-source color used for the letter-avatar fallback icon (most AUR/repo packages have
+// no icon_url, so a colored initial reads far better than identical gray squares).
+const SOURCE_COLORS = {
+    arch_repo: '#1793d1', aur: '#d97706', flatpak: '#4a86cf', appimage: '#5b6472', web: '#6366f1',
+};
+function letterAvatar(pkg) {
+    const bg = SOURCE_COLORS[normalizeType(pkg.type)] || '#6366f1';
+    let ch = ((pkg.name || '?').trim()[0] || '?').toUpperCase();
+    if (!/[A-Z0-9]/.test(ch)) ch = '?';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48">`
+        + `<rect width="48" height="48" rx="11" fill="${bg}"/>`
+        + `<text x="24" y="25" font-family="sans-serif" font-size="24" font-weight="600" fill="#ffffff" `
+        + `text-anchor="middle" dominant-baseline="central">${ch}</text></svg>`;
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+
+// Name-relevance for search ranking: exact > prefix > name-contains > description-only.
+function relevanceScore(name, q) {
+    const n = (name || '').toLowerCase();
+    if (!q) return 0;
+    if (n === q) return 4;
+    if (n.startsWith(q)) return 3;
+    if (n.includes(q)) return 2;
+    return 1; // only matched on description/other fields
+}
+
+// Sort search results so name matches lead, then installed, then AUR sanity (non-VCS,
+// not-out-of-date, more votes). Reorders across sources, which is what you want for search.
+function sortByRelevance(packages, query) {
+    const q = (query || '').toLowerCase();
+    return (packages || []).map((p, i) => [p, i]).sort((a, b) => {
+        const pa = a[0], pb = b[0];
+        const ra = relevanceScore(pa.name, q), rb = relevanceScore(pb.name, q);
+        if (ra !== rb) return rb - ra;
+        if (!!pa.installed !== !!pb.installed) return pa.installed ? -1 : 1;
+        const va = aurVariant(pa.name).kind === 'vcs' ? 1 : 0;
+        const vb = aurVariant(pb.name).kind === 'vcs' ? 1 : 0;
+        if (va !== vb) return va - vb;
+        const oa = pa.out_of_date ? 1 : 0, ob = pb.out_of_date ? 1 : 0;
+        if (oa !== ob) return oa - ob;
+        const sa = typeof pa.votes === 'number' ? pa.votes : -1;
+        const sb = typeof pb.votes === 'number' ? pb.votes : -1;
+        if (sa !== sb) return sb - sa;
+        return a[1] - b[1]; // stable
+    }).map(pair => pair[0]);
+}
+
 function renderFiltered() {
-    renderPackages(rankAur(filterByType(currentPackages, typeFilter.value)));
+    const filtered = filterByType(currentPackages, typeFilter.value);
+    const query = searchInput.value.trim();
+    renderPackages(query ? sortByRelevance(filtered, query) : rankAur(filtered));
 }
 
 const MAX_CACHE_ENTRIES = 30;
@@ -537,7 +586,7 @@ function renderPackages(packages) {
         card.innerHTML = `
             <div class="package-header">
                 <input type="checkbox" class="pkg-checkbox" ${isChecked} onclick="event.stopPropagation();">
-                <img src="${getIconSrc(pkg.icon_url)}" data-src="${escapeHtml(getIconDataSrc(pkg.icon_url))}" class="package-icon" alt="${escapeHtml(pkg.name)} icon" loading="lazy" decoding="async">
+                <img src="${(pkg.icon_url && pkg.icon_url.startsWith('data:')) ? pkg.icon_url : letterAvatar(pkg)}" data-src="${escapeHtml(getIconDataSrc(pkg.icon_url))}" class="package-icon" alt="${escapeHtml(pkg.name)} icon" loading="lazy" decoding="async">
                 <div class="package-info">
                     <h3 class="package-title" title="${escapeHtml(pkg.name)}">${escapeHtml(pkg.name)}</h3>
                     <div class="package-publisher">
@@ -556,15 +605,15 @@ function renderPackages(packages) {
                             return `<span class="tag ${escapeHtml(src)}" title="${escapeHtml(sourceLabel(pkg.type))}">${escapeHtml(sourceLabel(pkg.type))}</span>`;
                         }
                         const v = aurVariant(pkg.name);
-                        const tags = [`<span class="tag aur" title="AUR — community-maintained, less vetted than the official repo">AUR ⚠</span>`];
-                        tags.push(`<span class="tag variant variant-${escapeHtml(v.kind)}" title="AUR build type: ${escapeHtml(v.label)}">${escapeHtml(v.label)}</span>`);
-                        if (typeof pkg.votes === 'number') {
-                            tags.push(`<span class="tag votes" title="AUR votes">▲ ${pkg.votes}</span>`);
-                        }
+                        const votesStr = (typeof pkg.votes === 'number') ? ` · ▲${pkg.votes}` : '';
+                        // One condensed pill: "AUR · source · ▲81" (amber conveys the
+                        // less-vetted trust level; tooltip explains). Out-of-date stays a
+                        // separate red flag since it's a real warning.
+                        let out = `<span class="tag aur" title="AUR — community-maintained, less vetted than the official repo. Build: ${escapeHtml(v.label)}">AUR · ${escapeHtml(v.label)}${escapeHtml(votesStr)}</span>`;
                         if (pkg.out_of_date) {
-                            tags.push(`<span class="tag ood" title="Flagged out-of-date on the AUR">out of date</span>`);
+                            out += `<span class="tag ood" title="Flagged out-of-date on the AUR">out of date</span>`;
                         }
-                        return tags.join('');
+                        return out;
                     })()}
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center;">

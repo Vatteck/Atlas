@@ -46,6 +46,15 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Done
 
+- **Search-result declutter (2026-06-01):** four tweaks in `main.js`/`style.css` —
+  (1) **letter-avatar fallback icons** (`letterAvatar()`): icon-less packages (most
+  AUR/repo) now get a colored initial keyed to the source instead of identical gray
+  squares; (2) **condensed AUR badge** — the three pills collapsed into one
+  `AUR · source · ▲81` (out-of-date stays a separate red flag); (3) **name-match ranking**
+  for search (`sortByRelevance()`: exact > prefix > name-contains > description-only), so
+  description-only matches sink; (4) **tighter grid** (300px min cols, smaller gaps/padding,
+  full-bleed icons). Note: most "duplicate-looking" search results are genuinely *different*
+  packages, so Phase 2a grouping won't dedupe them — this was the actual fix.
 - **AUR variants ranked + badged — Phase 2b (2026-06-01):** AUR ships base/`-bin`/`-git`
   etc. as distinct packages; they stay separate cards (different build choices) but are now
   legible. `_serialize_pkg` exposes `votes`/`popularity`/`maintainer`/`out_of_date`/

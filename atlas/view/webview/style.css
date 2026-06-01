@@ -248,19 +248,19 @@ body {
 /* Grid Layout */
 .packages-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 24px;
-    padding: 32px;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    padding: 24px;
 }
 
 .package-card {
     background-color: var(--bg-surface);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
-    padding: 20px;
+    padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
     box-shadow: var(--shadow-sm);
     transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
     cursor: default;
@@ -295,9 +295,9 @@ body {
     width: 48px;
     height: 48px;
     border-radius: var(--radius-sm);
-    object-fit: cover;
+    object-fit: contain;
     background-color: var(--bg-surface-hover);
-    padding: 8px;
+    flex-shrink: 0;
 }
 
 .package-info {
@@ -368,11 +368,9 @@ body {
     border: 1px solid rgba(217, 119, 6, 0.35);
 }
 [data-theme="dark"] .tag.aur { color: #f0a83c; }
-/* AUR build-type badge (source / binary / git…) — neutral, with VCS in caution amber to
-   match the "less stable" connotation of -git. */
-.tag.variant { color: var(--text-secondary); background-color: var(--bg-surface-hover); text-transform: none; }
-.tag.variant-vcs { color: #b26a00; background-color: rgba(217, 119, 6, 0.12); }
-.tag.votes { color: var(--text-secondary); background-color: var(--bg-surface-hover); text-transform: none; letter-spacing: 0; }
+/* The AUR pill carries build kind + votes inline ("AUR · source · ▲81"); allow mixed case
+   and normal spacing so the dot-separated text stays readable. */
+.tag.aur { text-transform: none; letter-spacing: 0; }
 .tag.ood { color: #c0392b; background-color: rgba(192, 57, 43, 0.12); text-transform: none; }
 .tag.flatpak { color: #4a86cf; background-color: rgba(74, 134, 207, 0.1); }
 .tag.snap { color: #e95420; background-color: rgba(233, 84, 32, 0.1); }
