@@ -1,5 +1,6 @@
 import faulthandler
 import locale
+import logging
 import os
 import sys
 import traceback
@@ -88,6 +89,18 @@ def main():
     # Launch pywebview Native Window
     import webview
     from atlas.view.webview.api import AtlasApi
+
+    # Drop only pywebview's harmless "Error while processing window.native.* : unable to get
+    # the value" lines (a few GTK window internals it can't expose to JS). This is a targeted
+    # filter — every other pywebview log record (including real errors on any desktop) still
+    # comes through, so it doesn't hide anything debuggable.
+    class _PywebviewNativeNoiseFilter(logging.Filter):
+        def filter(self, record):
+            msg = record.getMessage()
+            return not ('Error while processing window.native.' in msg
+                        and 'unable to get the value' in msg)
+
+    logging.getLogger('pywebview').addFilter(_PywebviewNativeNoiseFilter())
 
     api = AtlasApi(manager, logger)
 
