@@ -37,6 +37,7 @@ class AtlasApi:
         self._dialog_lock = threading.Lock()
         self._confirm_event = threading.Event()
         self._confirm_result = False
+        self._confirm_selections = None  # per-component selections from the modal
         self._message_event = threading.Event()
 
         # Prepare the managers in a background thread to prevent GUI lockup using ThreadPoolExecutor
@@ -120,9 +121,12 @@ class AtlasApi:
     # ------------------------------------------------------------------ #
     # Confirmation / message dialogs
     # ------------------------------------------------------------------ #
-    def submit_confirmation(self, confirmed):
-        """js_api callback: the confirm modal calls this with True/False."""
+    def submit_confirmation(self, confirmed, selections=None):
+        """js_api callback: the confirm modal calls this with True/False and, when the
+        modal rendered input components, the per-component selections (a list parallel to
+        the components that were sent — see WebviewWatcher._serialize_components)."""
         self._confirm_result = bool(confirmed)
+        self._confirm_selections = selections
         self._confirm_event.set()
         return {'status': 'ok'}
 
@@ -134,17 +138,22 @@ class AtlasApi:
     def prompt_confirmation(self, title: str, body: Optional[str],
                             confirmation_label: Optional[str] = None,
                             deny_label: Optional[str] = None,
-                            deny_button: bool = True) -> bool:
-        """Show a blocking confirmation modal; return the user's choice.
+                            deny_button: bool = True,
+                            components: Optional[list] = None) -> Tuple[bool, Optional[list]]:
+        """Show a blocking confirmation modal; return ``(confirmed, selections)``.
 
-        Note: rich `components` (select lists etc.) are not rendered — only the
-        title/body text — mirroring the previous window.confirm behaviour. If the modal
-        can't be shown, default to True so non-critical confirmations don't block work."""
+        `components` is an already-serialized list of input components (checkbox lists,
+        single-select combos/radios, forms) produced by
+        `WebviewWatcher._serialize_components`. The modal renders them and returns the
+        per-component selections, which the watcher applies back onto the original
+        component objects. If the modal can't be shown, default to confirmed=True so
+        non-critical confirmations don't block work."""
         if not self.window:
-            return True
+            return True, None
 
         with self._dialog_lock:
             self._confirm_result = False
+            self._confirm_selections = None
             self._confirm_event.clear()
             payload = json.dumps({
                 'title': title or '',
@@ -152,18 +161,19 @@ class AtlasApi:
                 'confirmLabel': confirmation_label or 'Yes',
                 'denyLabel': deny_label or 'No',
                 'showDeny': bool(deny_button),
+                'components': components or [],
             })
             try:
                 self.window.evaluate_js(f"showConfirmModal({payload})")
             except Exception as e:
                 self.logger.error(f"Could not show confirmation modal: {e}")
-                return True
+                return True, None
 
             if not self._confirm_event.wait(timeout=300):
                 self.logger.warning(f"Confirmation '{title}' timed out; defaulting to deny")
-                return False
+                return False, None
 
-            return self._confirm_result
+            return self._confirm_result, self._confirm_selections
 
     def prompt_message(self, title: str, body: str, type_: str = 'info'):
         """Show a blocking informational modal; returns once the user dismisses it."""

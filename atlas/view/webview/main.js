@@ -246,15 +246,108 @@ document.getElementById('password-input').addEventListener('keydown', (e) => {
 
 // --- Confirmation modal ----------------------------------------------------
 // Python (AtlasApi.prompt_confirmation) calls showConfirmModal(); the choice is sent
-// back via submit_confirmation(bool), unblocking the waiting worker thread. Replaces
-// window.confirm, which WebKitGTK does not support.
+// back via submit_confirmation(bool, selections), unblocking the waiting worker thread.
+// Replaces window.confirm, which WebKitGTK does not support. Input components (optdep
+// checklists, missing-deps lists, provider choices) are rendered into #confirm-components
+// and the per-component selections are returned for the gem code to read.
 let confirmResolved = false;
+let confirmComponents = [];
 
 function resolveConfirm(value) {
     if (confirmResolved) return;
     confirmResolved = true;
+    const selections = value ? collectComponentSelections(confirmComponents) : null;
     document.getElementById('confirm-modal').classList.add('hidden');
-    pyApiCall('submit_confirmation', value);
+    pyApiCall('submit_confirmation', value, selections);
+}
+
+// Build the DOM for a serialized component and return its selection-reader closure.
+function renderConfirmComponent(comp, container) {
+    if (comp.kind === 'text') {
+        const p = document.createElement('div');
+        p.className = 'confirm-component-text';
+        p.innerHTML = comp.html || '';
+        container.appendChild(p);
+        return () => null;
+    }
+
+    const wrap = document.createElement('div');
+    wrap.className = 'confirm-component';
+    if (comp.label) {
+        const lbl = document.createElement('div');
+        lbl.className = 'confirm-component-label';
+        lbl.textContent = comp.label;
+        wrap.appendChild(lbl);
+    }
+
+    if (comp.kind === 'form') {
+        const childReaders = (comp.components || []).map(c => renderConfirmComponent(c, wrap));
+        container.appendChild(wrap);
+        return () => childReaders.map(r => r());
+    }
+
+    if (comp.kind === 'singleselect' && comp.selectType === 'combo') {
+        const sel = document.createElement('select');
+        sel.className = 'confirm-select';
+        (comp.options || []).forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = String(o.oi);
+            opt.textContent = o.label;
+            if (o.tooltip) opt.title = o.tooltip;
+            if (o.selected) opt.selected = true;
+            sel.appendChild(opt);
+        });
+        wrap.appendChild(sel);
+        container.appendChild(wrap);
+        return () => (sel.value === '' ? null : parseInt(sel.value, 10));
+    }
+
+    // checkbox list (multiselect) or radio list (singleselect)
+    const isMulti = comp.kind === 'multiselect';
+    const inputType = isMulti ? 'checkbox' : 'radio';
+    const groupName = 'confirm-opt-' + Math.random().toString(36).slice(2);
+    const inputs = [];
+    (comp.options || []).forEach(o => {
+        const row = document.createElement('label');
+        row.className = 'confirm-option';
+        if (o.tooltip) row.title = o.tooltip;
+        const input = document.createElement('input');
+        input.type = inputType;
+        input.name = groupName;
+        input.value = String(o.oi);
+        input.checked = !!o.selected;
+        if (o.readOnly) input.disabled = true;
+        const span = document.createElement('span');
+        span.textContent = o.label;
+        row.appendChild(input);
+        row.appendChild(span);
+        wrap.appendChild(row);
+        inputs.push(input);
+    });
+    container.appendChild(wrap);
+
+    if (isMulti) {
+        return () => inputs.filter(i => i.checked).map(i => parseInt(i.value, 10));
+    }
+    return () => {
+        const checked = inputs.find(i => i.checked);
+        return checked ? parseInt(checked.value, 10) : null;
+    };
+}
+
+function renderConfirmComponents(components) {
+    const host = document.getElementById('confirm-components');
+    host.innerHTML = '';
+    confirmComponents = [];
+    (components || []).forEach(comp => {
+        const reader = renderConfirmComponent(comp, host);
+        confirmComponents.push({ reader });
+    });
+    host.style.display = (components && components.length) ? 'block' : 'none';
+}
+
+function collectComponentSelections(comps) {
+    return comps.map(c => c.reader());
 }
 
 window.showConfirmModal = (opts) => {
@@ -262,6 +355,7 @@ window.showConfirmModal = (opts) => {
     confirmResolved = false;
     document.getElementById('confirm-title').textContent = opts.title || 'Confirm';
     document.getElementById('confirm-message').textContent = opts.message || '';
+    renderConfirmComponents(opts.components);
     const acceptBtn = document.getElementById('confirm-accept-btn');
     const denyBtn = document.getElementById('confirm-deny-btn');
     acceptBtn.textContent = opts.confirmLabel || 'Yes';

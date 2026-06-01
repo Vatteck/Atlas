@@ -759,6 +759,51 @@ body {
 }
 .password-input:focus { border-color: var(--accent, #6366f1); }
 
+/* Confirmation modal — rendered input components (optdeps, missing deps, providers) */
+#confirm-modal .modal-content { width: 560px; max-width: 92vw; }
+#confirm-components {
+    margin-top: 12px;
+    max-height: 320px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    background: var(--bg-surface-hover);
+}
+.confirm-component { margin-bottom: 10px; }
+.confirm-component:last-child { margin-bottom: 0; }
+.confirm-component-label {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
+.confirm-component-text { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+.confirm-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 4px;
+    font-size: 13px;
+    color: var(--text-primary);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+}
+.confirm-option:hover { background: var(--bg-surface); }
+.confirm-option input { cursor: pointer; flex-shrink: 0; }
+.confirm-option input:disabled { cursor: default; }
+.confirm-select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: var(--text-primary);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    outline: none;
+}
+
 /* Floating Batch Bar (Task 5) */
 .batch-bar {
     position: fixed;

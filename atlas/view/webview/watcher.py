@@ -1,9 +1,10 @@
 import json
 import logging
 import re
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from atlas.api.abstract.handler import ProcessWatcher
-from atlas.api.abstract.view import MessageType
+from atlas.api.abstract.view import MessageType, MultipleSelectComponent, SingleSelectComponent, \
+    ViewContainer, TextComponent, SelectViewType
 
 
 class WebviewWatcher(ProcessWatcher):
@@ -57,18 +58,26 @@ class WebviewWatcher(ProcessWatcher):
                 self.logger.error(f"Error requesting root password: {e}")
         return False, ''
 
-    def request_confirmation(self, title: str, body: Optional[str],
+    def request_confirmation(self, title: str, body: Optional[str], components: Optional[list] = None,
                              confirmation_label: str = None, deny_label: str = None,
                              deny_button: bool = True, **kwargs) -> bool:
         self.logger.info(f"Confirmation requested: {title} - {body}")
         # Delegate to AtlasApi's HTML modal; window.confirm is dead in WebKitGTK.
+        # Input components (optdep checklist, missing-deps list, provider choices) are
+        # serialized for the modal to render and the user's selections are applied back
+        # onto the original component objects so the gem code reads them as before.
         if self.api is not None:
             try:
-                return self.api.prompt_confirmation(title=self._clean(title),
-                                                    body=self._clean(body),
-                                                    confirmation_label=confirmation_label,
-                                                    deny_label=deny_label,
-                                                    deny_button=deny_button)
+                confirmed, selections = self.api.prompt_confirmation(
+                    title=self._clean(title),
+                    body=self._clean(body),
+                    confirmation_label=confirmation_label,
+                    deny_label=deny_label,
+                    deny_button=deny_button,
+                    components=self._serialize_components(components))
+                if confirmed and components:
+                    self._apply_selections(components, selections)
+                return confirmed
             except Exception as e:
                 self.logger.error(f"Error requesting confirmation: {e}")
         return True
@@ -77,10 +86,11 @@ class WebviewWatcher(ProcessWatcher):
         self.logger.info(f"Reboot requested: {msg}")
         if self.api is not None:
             try:
-                return self.api.prompt_confirmation(title='Reboot required',
-                                                    body=self._clean(msg),
-                                                    confirmation_label='Reboot now',
-                                                    deny_label='Later')
+                confirmed, _ = self.api.prompt_confirmation(title='Reboot required',
+                                                            body=self._clean(msg),
+                                                            confirmation_label='Reboot now',
+                                                            deny_label='Later')
+                return confirmed
             except Exception as e:
                 self.logger.error(f"Error requesting reboot: {e}")
         return False
@@ -101,3 +111,68 @@ class WebviewWatcher(ProcessWatcher):
         if not text:
             return ''
         return re.sub('<[^<]+?>', '', text)
+
+    # ------------------------------------------------------------------ #
+    # Component (de)serialization for the confirmation modal
+    # ------------------------------------------------------------------ #
+    # The modal can render checkbox lists (MultipleSelectComponent), single-select
+    # combos/radios (SingleSelectComponent) and forms (ViewContainer, e.g. provider
+    # choices). Each component is serialized in order; the modal returns a parallel list
+    # of selections (option indices) that _apply_selections writes back so callers like
+    # arch confirmation.request_optional_deps / request_providers read the chosen values.
+
+    @classmethod
+    def _serialize_components(cls, components: Optional[list]) -> List[dict]:
+        return [cls._serialize_component(c) for c in components] if components else []
+
+    @classmethod
+    def _serialize_component(cls, comp) -> dict:
+        if isinstance(comp, MultipleSelectComponent):
+            values = comp.values or set()
+            return {'kind': 'multiselect',
+                    'label': cls._clean(comp.label) if comp.label else '',
+                    'options': [cls._serialize_option(o, i, o in values) for i, o in enumerate(comp.options)]}
+
+        if isinstance(comp, SingleSelectComponent):
+            return {'kind': 'singleselect',
+                    'label': cls._clean(comp.label) if comp.label else '',
+                    'selectType': 'combo' if comp.type == SelectViewType.COMBO else 'radio',
+                    'options': [cls._serialize_option(o, i, comp.value is o) for i, o in enumerate(comp.options)]}
+
+        if isinstance(comp, ViewContainer):  # FormComponent / PanelComponent
+            return {'kind': 'form',
+                    'label': cls._clean(getattr(comp, 'label', '') or ''),
+                    'components': cls._serialize_components(comp.components)}
+
+        if isinstance(comp, TextComponent):
+            return {'kind': 'text', 'html': comp.value or ''}
+
+        # Unknown component: emit a placeholder so the selection arrays stay aligned.
+        return {'kind': 'text', 'html': cls._clean(getattr(comp, 'label', '') or '')}
+
+    @classmethod
+    def _serialize_option(cls, opt, idx: int, selected: bool) -> dict:
+        return {'oi': idx,
+                'label': cls._clean(opt.label) if opt.label else '',
+                'tooltip': cls._clean(opt.tooltip) if opt.tooltip else None,
+                'selected': bool(selected),
+                'readOnly': bool(getattr(opt, 'read_only', False))}
+
+    @classmethod
+    def _apply_selections(cls, components: Optional[list], selections):
+        if not components or not selections:
+            return
+        for comp, sel in zip(components, selections):
+            cls._apply_selection(comp, sel)
+
+    @classmethod
+    def _apply_selection(cls, comp, sel):
+        if sel is None:
+            return
+        if isinstance(comp, MultipleSelectComponent):
+            comp.values = {comp.options[i] for i in sel if isinstance(i, int) and 0 <= i < len(comp.options)}
+        elif isinstance(comp, SingleSelectComponent):
+            if isinstance(sel, int) and 0 <= sel < len(comp.options):
+                comp.value = comp.options[sel]
+        elif isinstance(comp, ViewContainer):
+            cls._apply_selections(comp.components, sel)

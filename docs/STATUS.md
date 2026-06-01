@@ -45,6 +45,13 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Done
 
+- **Confirm modal now renders input components (2026-06-01):** installing e.g. `gimp`
+  showed the optdep prompt and the missing-deps prompt but **no list** — the modal only
+  rendered title/body text. The confirm modal now renders checkbox lists, single-select
+  radios/combos and forms, and round-trips the selections back into the gem's component
+  objects (watcher `_serialize_components`/`_apply_selections`, JS `renderConfirmComponents`
+  + `submit_confirmation(confirmed, selections)`). Fixes optdep selection, missing-deps
+  display, and AUR provider choice. Tests: `tests/view/webview/test_watcher.py`.
 - **Arch install reported "failed" though the package installed (2026-06-01):** installing
   e.g. `gimp` ran pacman successfully but the op reported **failed**. Two independent bugs,
   both fixed:
@@ -115,15 +122,15 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
   are now HTML modals** (password, confirm, message) that block the worker thread on a
   `threading.Event` and resolve via `js_api` callbacks (`submit_root_password`,
   `submit_confirmation`, `submit_message_ack`). Never reintroduce a `window.*` dialog.
-- **`request_confirmation` does not render rich `components`.** The webview confirm modal
-  shows only title/body text (mirroring the old behaviour). Gems that pass
-  `MultipleSelectComponent`/inputs (e.g. arch mirror refresh, snap setup, **arch optional
-  deps**) lose those controls — the user just gets a yes/no on the text. This is now the
-  **highest-value TODO**: it's not just cosmetic — `suggest_optdep_select=True` means an
-  Arch install pre-selects every optdep and the user can't deselect, so accepting tries to
-  pull them all (and may trigger un-renderable provider-choice sub-modals). We stopped that
-  from *failing* the install (see Done 2026-06-01), but rendering the optdep checklist is
-  the real fix.
+- **`request_confirmation` renders input components (2026-06-01).** The confirm modal now
+  renders `MultipleSelectComponent` (checkbox list), `SingleSelectComponent` (radio or
+  combo), `FormComponent`, and `TextComponent`, and returns the user's selections. The
+  watcher serializes the component tree (`_serialize_components`) and applies the returned
+  option-index selections back onto the original objects (`_apply_selections`) so arch's
+  `request_optional_deps` / `confirm_missing_deps` / `request_providers` read the choices
+  as before. Covered by `tests/view/webview/test_watcher.py`. Not yet rendered: option
+  icons (decorative; repo/aur svgs are skipped) and component types outside the four above
+  (none are used in confirmation flows today).
 - **Root password requires the GUI to drive it; can't verify headless.** The broker shows
   a modal and blocks a pywebview worker thread on a `threading.Event`. Relies on pywebview
   dispatching each `js_api` call on its own thread (true for the GTK backend). User must

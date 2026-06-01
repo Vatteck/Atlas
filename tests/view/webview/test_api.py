@@ -355,15 +355,28 @@ class AtlasApiDialogTest(unittest.TestCase):
 
     def test_confirmation_accept(self):
         self._answer(lambda: self.api.submit_confirmation(True))
-        self.assertTrue(self.api.prompt_confirmation('T', 'body', 'Yes', 'No'))
+        confirmed, selections = self.api.prompt_confirmation('T', 'body', 'Yes', 'No')
+        self.assertTrue(confirmed)
+        self.assertIsNone(selections)
 
     def test_confirmation_deny(self):
         self._answer(lambda: self.api.submit_confirmation(False))
-        self.assertFalse(self.api.prompt_confirmation('T', 'body'))
+        confirmed, _ = self.api.prompt_confirmation('T', 'body')
+        self.assertFalse(confirmed)
 
     def test_confirmation_no_window_defaults_true(self):
         self.api.window = None
-        self.assertTrue(self.api.prompt_confirmation('T', 'body'))
+        confirmed, selections = self.api.prompt_confirmation('T', 'body')
+        self.assertTrue(confirmed)
+        self.assertIsNone(selections)
+
+    def test_confirmation_returns_component_selections(self):
+        # the modal hands back per-component selections; prompt_confirmation surfaces them
+        self._answer(lambda: self.api.submit_confirmation(True, [[0, 2]]))
+        confirmed, selections = self.api.prompt_confirmation(
+            'T', 'body', components=[{'kind': 'multiselect', 'options': []}])
+        self.assertTrue(confirmed)
+        self.assertEqual([[0, 2]], selections)
 
     def test_message_blocks_until_ack(self):
         self._answer(self.api.submit_message_ack)
