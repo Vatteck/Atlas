@@ -48,6 +48,17 @@ the hot Arch paths moving to **Rust (via PyO3)**.
 Snap, Debian, and Web are kept for completeness but are off by default on this Arch-focused
 build. Re-enable any of them under **Settings → Package types**.
 
+## Install (Arch package)
+
+A `-git` PKGBUILD lives at [`linux_dist/arch/PKGBUILD`](linux_dist/arch/PKGBUILD):
+
+```bash
+git clone https://github.com/Vatteck/atlas.git
+cd atlas/linux_dist/arch
+makepkg -si       # builds and installs; pulls deps from the official repos
+atlas             # launch
+```
+
 ## Install & run (from source)
 
 Atlas needs Python, a system webview (GTK + WebKit), and a Rust toolchain to build the
