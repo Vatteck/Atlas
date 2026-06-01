@@ -2,13 +2,11 @@
 
 **This is the canonical context file for any AI agent working on Atlas** (Claude Code,
 Codex/GPT, Antigravity/Gemini, Cursor, etc.). `CLAUDE.md` and `GEMINI.md` just point
-here. Read this top to bottom before writing code. It takes ~2 minutes and keeps you on
-the project's trajectory.
+here. Read it top to bottom before writing code — it keeps you on the project's trajectory.
 
 > Atlas is **vibecoded across multiple agents**. You will not have the previous agent's
 > memory. These docs *are* the memory. Trust them, keep them current, and follow the
-> guardrails — they exist because the project's value depends on staying consistent
-> across handoffs.
+> guardrails — the project's value depends on staying consistent across handoffs.
 
 ---
 
@@ -17,11 +15,9 @@ the project's trajectory.
 1. **This file** (guardrails + workflow). ← you are here
 2. **[`docs/STATUS.md`](docs/STATUS.md)** — the live baton: what just shipped, what's
    next, known gaps. *Always read this to know where the project actually is right now.*
-3. **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** — the system map and the
-   Python↔Rust boundary rules.
-4. **[`docs/ROADMAP.md`](docs/ROADMAP.md)** — what gets built next and in what order.
+3. **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** — the system map.
+4. **[`docs/ROADMAP.md`](docs/ROADMAP.md)** — what gets built next.
 5. **[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)** — build / run / test commands.
-6. **[`docs/atlas_rs-API.md`](docs/atlas_rs-API.md)** — the native module surface.
 
 Do not start coding until you've read 1–4. If the user's request conflicts with the
 roadmap, say so and ask — don't silently go off-plan.
@@ -30,39 +26,36 @@ roadmap, say so and ask — don't silently go off-plan.
 
 ## 2. What Atlas is (the 30-second version)
 
-- Atlas (formerly **bauh**) is an All-In-One Linux package manager GUI: AppImage,
-  Arch/AUR, Debian, Flatpak, Snap, native Web apps.
-- It's a **Python application** (`atlas/`) with a **pywebview** front-end, undergoing two
-  transitions: Qt5 → webview UI (done), and pure-Python engine → **Rust hot paths via
-  PyO3** (in progress, the `atlas_rs` crate in `rust/`).
-- The active work is rewriting the **Arch dependency/engine hot paths in Rust**, hot
-  paths first, one strangler-fig step at a time.
+- Atlas (a fork of **[bauh](https://github.com/vinifmor/bauh)**) is an **Arch-focused**
+  all-in-one package manager GUI. Primary sources: **official Arch repos, AUR, Flatpak,
+  AppImage**. (Snap, Debian, and native Web apps still exist as gems but are **off by
+  default** — re-enable in Settings.)
+- It is a **pure-Python application** (`atlas/`) with a **pywebview** front-end
+  (`atlas/view/webview/`) and one backend "gem" per package type (`atlas/gems/<type>/`).
+- Two past transitions are **done**: Qt5 → pywebview UI, and a Rust-hot-paths experiment
+  that was **removed** (see §3.2 and the Rust verdict in ROADMAP) — Atlas is plain Python
+  again, no native extension.
 
 ---
 
 ## 3. Golden rules (the guardrails) — do not violate without explicit user sign-off
 
-1. **Strangler fig, never big-bang.** Add a Rust path *behind* the existing Python
-   implementation. Try Rust first, fall back to Python on any failure.
-2. **Never delete a Python fallback in the same change that adds its Rust path.**
-   Fallbacks are removed later, deliberately, only once the native path is proven.
-3. **Keep the Python↔Rust boundary coarse.** Hand Rust a whole task; get one finished
-   result back. No Rust→Python callback loops, no chatty fine-grained calls.
-4. **Hot paths only.** We migrate slow, CPU/IO-heavy code. Non-bottleneck Python stays
-   Python — do not rewrite things just because you can.
-5. **No I/O in Rust logic.** Shell/HTTP access goes through the `SysInterface` trait
-   (`rust/src/sys.rs`) so logic stays unit-testable with mocks. Extend the trait; don't
-   call `std::process`/`ureq` from logic code.
-6. **Plan before non-trivial work.** Any backend/Rust change gets a design doc + an
-   implementation plan in `docs/plans/` *before* implementation (see §5).
-7. **Do not reintroduce Qt.** The Qt5 UI was purged. The UI is pywebview
-   (`atlas/view/webview/`). Anything importing Qt forms/widgets is dead.
-8. **Verify, don't assume.** This codebase carries inaccurate-sounding legacy strings.
+1. **Arch-focused.** The four first-class sources are Arch repo, AUR, Flatpak, AppImage.
+   Keep Arch and AUR visibly distinct (AUR is community-maintained / less vetted). Don't
+   re-enable Snap/Debian/Web by default.
+2. **Don't reintroduce Rust (or Qt) without sign-off.** The Qt5 UI was purged (UI is
+   pywebview). The Rust `atlas_rs` extension was removed because a package manager is
+   I/O-bound, not CPU-bound — only port to a native lang if you have a *measured*
+   CPU-bound hot path with a small result, and get the user's OK first.
+3. **Strangler-fig risky changes.** For a behavioural rewrite, add the new path, keep the
+   old one as a fallback, prove the new one, then remove the old — in separate steps.
+4. **Plan before non-trivial work.** Backend/engine changes get a short design +
+   implementation note in `docs/plans/YYYY-MM-DD-<feature>.md` *before* you implement.
+5. **Verify, don't assume.** This codebase carries inaccurate-sounding legacy strings.
    Before acting on a file/function/flag, confirm it still exists and does what you think.
-9. **Measure migrations.** A Rust rewrite that isn't measurably faster isn't worth two
-   implementations. Capture a baseline; quote the speedup.
-10. **Update the baton.** Before you finish a session, update `docs/STATUS.md` (see §8).
-    This is how the next agent — maybe a different model — picks up cleanly.
+6. **Measure.** Don't add complexity (caches, threads, native code) without a measured
+   reason; quote the before/after.
+7. **Update the baton.** Before you finish a session, update `docs/STATUS.md` (see §7).
 
 ---
 
@@ -70,46 +63,27 @@ roadmap, say so and ask — don't silently go off-plan.
 
 ```
 atlas/                      Python application
-  app.py                    entry points: main (GUI), tray, cli
+  app.py                    entry points: main (GUI), cli
   api/abstract/             SoftwareManager ABC + shared contracts
   view/core/controller.py   GenericSoftwareManager (orchestrator)
-  view/webview/             pywebview front-end + AtlasApi bridge
+  view/webview/             pywebview front-end: index.html, main.js, style.css, api.py, watcher.py
   gems/<type>/              one backend per package type (arch is the focus)
-  commons/                  shared utilities (version_util, ...)
-rust/                       atlas_rs crate (PyO3): lib.rs, sys.rs, pacman.rs, aur.rs, resolver.rs
-docs/                       ARCHITECTURE, ROADMAP, DEVELOPMENT, atlas_rs-API, STATUS, plans/
+  commons/                  shared utilities (version_util, config, system, ...)
+docs/                       ARCHITECTURE, ROADMAP, DEVELOPMENT, STATUS, plans/
 ```
-Full detail in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Runtime data (suggestions, categories, AppImage DB, web env) lives in the separate
+**[Vatteck/atlas-files](https://github.com/Vatteck/atlas-files)** repo, fetched from its
+`main` branch. Full detail in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ---
 
-## 5. The migration workflow (follow this for every backend/Rust change)
-
-1. Write `docs/plans/YYYY-MM-DD-<feature>-design.md` — state the boundary + payload schema.
-2. Write `docs/plans/YYYY-MM-DD-<feature>-implementation.md` — task-by-task, with the
-   verify + commit step for each task.
-3. Capture a Python baseline benchmark for the workload you're speeding up.
-4. Implement Rust logic against `SysInterface`.
-5. Add Rust unit tests with a mocked `SysInterface`.
-6. Expose via PyO3 in `rust/src/lib.rs` and register in the `#[pymodule]` block.
-7. Wire into the owning Python module **behind the existing fallback**.
-8. Verify identical results native vs Python on a real system; record the speedup.
-9. (Later, separately) remove the Python fallback once proven.
-
-The full checklist is in [`docs/ROADMAP.md`](docs/ROADMAP.md#per-migration-checklist).
-
----
-
-## 6. Build / run / test (quick reference)
+## 5. Build / run / test (quick reference)
 
 ```bash
-# setup
+# system deps (Arch): python gtk3 webkit2gtk python-gobject git
 python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt setuptools-rust
-
-# build the Rust extension (rerun after editing rust/src/*)
-pip install -e .                                  # builds atlas_rs into atlas/gems/arch/
-cargo check --manifest-path rust/Cargo.toml       # fast Rust type-check during iteration
+pip install -r requirements.txt
+pip install -e .                  # plain setuptools — no Rust/cargo
 
 # run
 atlas --logs            # GUI    (or: python -m atlas.app --logs)
@@ -117,54 +91,48 @@ atlas-cli               # CLI
 
 # test
 python -m pytest
-cargo test --manifest-path rust/Cargo.toml        # uses a mocked SysInterface
 ```
 
-⚠️ If you edit `rust/src/*` and don't rerun `pip install -e .`, your changes won't take
-effect and Atlas will silently keep using the old `.so` (or the Python fallback). Full
-notes + pitfalls in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+The webview is **WebKitGTK** — it has no native `window.prompt/confirm/alert`; all dialogs
+are HTML modals driven from `atlas/view/webview/`. Full notes in
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ---
 
-## 7. Conventions
+## 6. Conventions
 
-- **Python:** PEP 8. **Rust:** `cargo fmt`.
-- **Commits:** conventional prefixes already in use — `feat:`, `fix:`, `refactor:`,
-  `docs:`, `chore:`, `test:`. One logical change per commit.
-- **Structured Rust→Python results:** a `dict` with a `status` discriminator
-  (`"success"` / `"needs_providers"` / ...). See the API doc.
-- **Branch:** work lands on `master`; spin up a short-lived branch for a larger feature
-  and merge it back when done. Check `git branch` for what's currently active rather than
-  assuming — branch names in docs go stale fast.
+- **Python:** PEP 8.
+- **Commits:** conventional prefixes — `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`,
+  `test:`. One logical change per commit. End commit messages with the
+  `Co-Authored-By:` trailer.
+- **Branches:** Atlas app work lands on `master`; the `atlas-files` repo uses `main`. Check
+  `git branch` rather than assuming — branch names in docs go stale.
 
 ---
 
-## 8. Session-end handoff protocol (do this before you stop)
+## 7. Session-end handoff protocol (do this before you stop)
 
 You are probably handing off to a different agent that won't remember this session.
-Leave the baton in good shape:
 
 1. Update **[`docs/STATUS.md`](docs/STATUS.md)**: move finished items to "Done", set the
-   new "Current focus" and "Next", and add any new gotcha to "Known gaps".
-2. If you started a feature, ensure its `docs/plans/` design + implementation docs reflect
-   reality (update them if you deviated).
-3. Make sure the tree builds (`cargo check` + `pip install -e .`) and tests pass, or note
-   clearly in STATUS.md what's broken and why.
+   new "Current focus"/"Next", add any new gotcha to "Known gaps".
+2. If you started a feature, make sure its `docs/plans/` note reflects what you actually did.
+3. Make sure the tree imports and tests pass (`python -m pytest`), or note clearly in
+   STATUS.md what's broken and why.
 4. Commit with a clear message. Don't leave half-applied edits without a note.
 
-If you only did exploration/answered a question and changed no code, you don't need to
-touch STATUS.md.
+If you only answered a question / changed no code, you don't need to touch STATUS.md.
 
 ---
 
-## 9. Known sharp edges (read before touching the Arch engine)
+## 8. Known sharp edges
 
-These are real and easy to trip on — also tracked in `docs/STATUS.md`:
+Tracked in more detail in `docs/STATUS.md`:
 
-- The native `map_missing_deps` fallback uses `except Exception: pass`, which **hides
-  Rust bugs as "slow but works."** Run with the debug switch (being added in Roadmap
-  Phase 0) before trusting the native path.
-- `map_missing_deps` does **not yet wire `choices`/`providers_repos`** out to Python, so
-  the native path only handles `status == "success"`. See `docs/atlas_rs-API.md`.
-- `controller.py` (~192 KB), `updates.py` (~42 KB), `pacman.py` (~38 KB) are large; read
-  the relevant section, don't try to hold the whole file in your head.
+- **WebKitGTK has no native JS dialogs.** `window.prompt/confirm/alert` no-op; everything
+  is HTML modals that block a pywebview worker thread on a `threading.Event` and resolve
+  via `js_api` callbacks. Never reintroduce a `window.*` dialog.
+- **Large files — read in sections:** `view/core/controller.py` (~192 KB), `gems/arch/
+  controller.py`, `updates.py` (~42 KB), `pacman.py` (~38 KB).
+- **Settings are webview-native.** The GUI uses `AtlasApi.get_app_settings`/
+  `save_app_settings`, *not* the old Qt-era `GenericSettingsManager` tree.

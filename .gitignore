@@ -19,7 +19,6 @@ linux_dist/appimage/*.gz.*
 linux_dist/appimage/atlas-*
 
 # Rust build artifacts
-rust/target/
 *.so
 *.dylib
 *.dll

@@ -1,8 +1,14 @@
 # Atlas Architecture
 
-Atlas (formerly **bauh**) is an All-In-One graphical package manager for Linux. It
-manages AppImage, Arch/AUR, Debian, Flatpak, Snap, and native Web applications behind
-a single interface.
+> **Note (2026-06-01): Atlas is pure Python.** The Rust `atlas_rs` extension and the
+> Python↔Rust boundary described later in this doc were **removed** — a package manager is
+> I/O-bound, so the native path wasn't worth its toolchain. Treat any Rust / `atlas_rs` /
+> `SysInterface` references below as historical. The UI is **pywebview**, and Atlas is
+> **Arch-focused** (Arch/AUR/Flatpak/AppImage on by default; Snap/Debian/Web off).
+
+Atlas (a fork of **bauh**) is an Arch-focused graphical package manager for Linux. It
+manages Arch/AUR, Flatpak, and AppImage (plus optional Snap, Debian, and native Web apps)
+behind a single interface.
 
 Atlas is mid-transition along two axes at once:
 

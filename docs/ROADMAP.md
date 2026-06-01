@@ -1,12 +1,15 @@
-# Atlas Rust Migration Roadmap
+# Atlas Rust Migration Roadmap (historical)
 
-> **⚠️ VERDICT (2026-05-29): the Rust migration has reached its sensible end.** After
-> measuring each candidate, only **`map_srcinfo`** earns its keep (~2×, CPU-bound, small
-> result). The dependency resolver (I/O+UI-bound) and the pacman info parser
-> (marshalling-bound) were prototyped and **removed**. The rule that survived: *port only
-> CPU-bound operations that return a small result.* The Rust-porting phases below (1–6)
-> are kept for the record but are **not being pursued**; focus has shifted to Python-side
-> wins (see "Python-side work" at the end). Read [STATUS.md](./STATUS.md) for current state.
+> **⚠️ CLOSED (2026-06-01): the Rust migration was dropped entirely and `atlas_rs` removed.**
+> The verdict from measuring each candidate: a package manager is I/O-bound (pacman / AUR /
+> network / makepkg), so native code rarely helps. Only `map_srcinfo` was ever CPU-bound
+> with a small result (~2×), and even that parses a file in time dwarfed by the build around
+> it — not worth a Rust toolchain + dual implementations. The dependency resolver
+> (I/O+UI-bound) and pacman info parser (marshalling-bound) had already been reverted; the
+> last surviving path (`map_srcinfo`) is now pure Python again. **This whole document is
+> historical** — kept for the rationale. The lesson worth keeping: *only port CPU-bound
+> work with a small result, and only with a measured win.* See [STATUS.md](./STATUS.md) for
+> what's actually next.
 
 This was the forward plan for moving Atlas's engine from pure Python to a Python+Rust
 hybrid. The strategy was **hot paths first**: rewrite the slowest CPU/IO-heavy operations

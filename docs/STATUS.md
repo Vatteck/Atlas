@@ -13,39 +13,43 @@
 
 ## Current focus
 
-**Webview privileged-operation flow — verified working (2026-06-01).** The Rust migration
-is parked at its sensible end (only `map_srcinfo`). The pywebview privileged-op flow is now
-confirmed end-to-end in the GUI: an Arch install (gimp) prompts for the root password,
-renders the optdep checklist and the named missing-deps list, installs the selected optdeps,
-and reports success. See [plans/2026-05-30-root-password-flow-design.md](plans/2026-05-30-root-password-flow-design.md).
+**Modernization + simplification (2026-06-01).** Atlas is now an Arch-focused, **pure-Python**
+pywebview app: the Rust `atlas_rs` extension was dropped (a package manager is I/O-bound;
+the native path wasn't worth the toolchain), and the residual PyQt5 coupling is gone. The
+webview privileged-op flow, source-types UI, settings page, and notifications are all
+working. Remaining modernization items below.
 
-## Next (per ROADMAP, hot paths first)
+## Next
 
-**Both planned tracks are essentially complete.** The Rust migration reached its sensible
-end (only `map_srcinfo` earns its keep). And the Python-side startup wins (option 2) turn
-out to be **already implemented + unit-tested** (verified 2026-05-29):
-- `GenericSoftwareManager.prepare()` is lazy (only the config step is eager);
-  per-manager lazy prep via `_ensure_prepared`/`_can_work` (per-manager locks).
-- `AtlasApi` runs prepare off the UI thread via a shared `ThreadPoolExecutor(max_workers=5)`.
-- Covered by `tests/view/webview/test_lazy_load.py`.
+- **CI** — there is none. Add a GitHub Actions workflow running `pytest` on push/PR (no
+  cargo now). *Highest value — 230+ tests with zero automation.*
+- **Delete the dead Qt-era settings tree** — `view/core/settings.py` (~591 lines,
+  `GenericSettingsManager`) is unreachable now that the webview uses
+  `AtlasApi.get_app_settings`/`save_app_settings`; same for `GenericSoftwareManager.
+  get_settings`/`save_settings` and the dead `ui.qt_style`/`hdpi`/`scale_factor` config keys.
+- **Packaging** — no install path exists (no PKGBUILD/AUR package). A `PKGBUILD` so it's
+  `yay -S`-installable is the main thing that makes Atlas usable by others.
+- Optional: render rich components (icons, etc.) in more dialogs; AUR-suggestion support
+  (currently repo-only — see the suggestions gotcha below).
 
-Remaining, optional & low-value: route the controller's ad-hoc `Thread(...)` spawns
-(search / read-installed / suggestions) through a shared pool. Marginal benefit, real
-risk — only do it with a measured reason. **Recommended instead:** manually launch
-`atlas` to confirm real startup behavior and capture a launch-time baseline (no automated
-GUI test exists).
-
-The Rust migration verdict (after measuring everything): the PyO3 boundary only pays off
-for **CPU-bound ops with small results**. `map_srcinfo` qualifies (~2×). The dependency
-resolver (I/O+UI-bound) and the pacman info parser (marshalling-bound) did not and were
-removed. Don't re-attempt them without reading the decision log.
-
-See [ROADMAP.md](ROADMAP.md) for the full phased plan.
+The Rust verdict (kept as a lesson): native code only pays off for **CPU-bound ops with a
+small result**; Atlas has almost none (it waits on pacman/AUR/network/makepkg). Don't
+re-add a native extension without a measured win. Details in the historical
+[ROADMAP.md](ROADMAP.md).
 
 ---
 
 ## Done
 
+- **Rust (`atlas_rs`) dropped — Atlas is pure-Python (2026-06-01):** removed the native
+  extension entirely (`rust/` crate, the built `.so`, `gems/arch/native.py`, `test_native.py`,
+  setuptools-rust from `setup.py`/`pyproject.toml`). `srcinfo.map_srcinfo` is now the sole
+  (pure-Python) parser. Atlas builds with a plain `pip install -e .` — no cargo, no `.so`.
+  Verdict: a package manager is I/O-bound, so native code didn't earn its keep (only
+  `map_srcinfo` was ever CPU-bound, and imperceptibly so). Also pointed the app's data fetch
+  at `atlas-files@main` and de-Qt'd the app (no PyQt5). Docs updated (AGENTS/ARCHITECTURE/
+  ROADMAP/DEVELOPMENT reflect pure-Python; `atlas_rs-API.md` deleted). Refreshed stale Python
+  classifiers (3.6–3.8 → 3.9–3.13).
 - **Rebrand-leftover sweep (2026-06-01):** removed the runtime/packaging `bauh` leftovers —
   `.desktop` `Name`/`Exec=/usr/bin/bauh`→`atlas` + `Icon=atlas`; deleted the dead
   `atlas_tray.desktop` (tray was purged, `atlas-tray` exec gone); `[bauh]` console log
@@ -279,12 +283,8 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
   returning many dicts) and was reverted; the resolver was I/O-bound. `map_srcinfo`
   (~2×, one compact dict) is the shape that works. Weigh CPU-vs-I/O and result size
   before any new native path.
-- **Rebuild reminder:** editing `rust/src/*` requires `pip install -e .` to take effect.
-  If that fails with a `rust/target/debug/incremental/... does not exist` error, build
-  with `CARGO_INCREMENTAL=0` (Cargo's incremental dirs churn during setuptools' walk).
-- ~~**Debug builds are slower than Python.**~~ Fixed via `setup.py debug=False` (installs
-  are now release). The benchmark proved a debug `atlas_rs` runs ~4× *slower* than the
-  Python it replaced; release runs ~2× faster. **Always benchmark a release build.**
+- ~~**Rust build/debug gotchas.**~~ Obsolete — the Rust extension was removed (2026-06-01);
+  Atlas builds with a plain `pip install -e .`, no cargo.
 - Large Python files to read in sections, not whole: `controller.py` (~192 KB),
   `updates.py` (~42 KB), `pacman.py` (~38 KB).
 
