@@ -21,6 +21,7 @@ RE_DEP_OPERATORS = re.compile(r'[<>=]')
 RE_REPOSITORY_FIELDS = re.compile(r'(Repository|Name|Description|Version|Install Date|Validated By)\s*:\s*(.+)')
 RE_INSTALLED_SIZE = re.compile(r'Installed Size\s*:\s*([0-9,.]+)\s(\w+)\n?', re.IGNORECASE)
 RE_DOWNLOAD_SIZE = re.compile(r'Download Size\s*:\s*([0-9,.]+)\s(\w+)\n?', re.IGNORECASE)
+RE_PKG_NAME = re.compile(r'^Name\s*:\s*(\S+)', re.MULTILINE)
 RE_UPDATE_REQUIRED_FIELDS = re.compile(r'(\bProvides\b|\bInstalled Size\b|\bConflicts With\b)\s*:\s(.+)\n')
 RE_REMOVE_TRANSITIVE_DEPS = re.compile(r'removing\s([\w\-_]+)\s.+required\sby\s([\w\-_]+)\n?')
 RE_AVAILABLE_MIRRORS = re.compile(r'.+\s+OK\s+.+\s+(\d+:\d+)\s+.+(http.+)')
@@ -497,31 +498,42 @@ def is_mirrors_available() -> bool:
     return bool(shutil.which('pacman-mirrors'))
 
 
+def _map_pkg_sizes(output: str, size_re: Pattern) -> Dict[str, float]:  # bytes
+    """Map each package's name to its size by parsing the per-package blocks of
+    `pacman -Si`/`-Qi` output (blocks are separated by a blank line).
+
+    Pairing each size to the ``Name`` field inside its own block is robust when the
+    number of size lines and the number of requested packages disagree — e.g. an
+    optdep name that expands to several package blocks, or a package whose block lacks
+    the size field. The previous positional ``pkgs[idx]`` pairing raised IndexError in
+    those cases (see gimp optdeps)."""
+    sizes: Dict[str, float] = {}
+
+    for block in output.split('\n\n'):
+        name_match = RE_PKG_NAME.search(block)
+        if not name_match:
+            continue
+
+        size_match = size_re.search(block)
+        if size_match:
+            sizes[name_match.group(1)] = size_to_byte(size_match.group(1), size_match.group(2))
+
+    return sizes
+
+
 def map_update_sizes(pkgs: List[str]) -> Dict[str, float]:  # bytes:
     output = run_cmd('pacman -Si {}'.format(' '.join(pkgs)))
-
-    if output:
-        return {pkgs[idx]: size_to_byte(size[0], size[1]) for idx, size in enumerate(RE_INSTALLED_SIZE.findall(output))}
-
-    return {}
+    return _map_pkg_sizes(output, RE_INSTALLED_SIZE) if output else {}
 
 
 def map_download_sizes(pkgs: List[str]) -> Dict[str, float]:  # bytes:
     output = run_cmd('pacman -Si {}'.format(' '.join(pkgs)))
-
-    if output:
-        return {pkgs[idx]: size_to_byte(size[0], size[1]) for idx, size in enumerate(RE_DOWNLOAD_SIZE.findall(output))}
-
-    return {}
+    return _map_pkg_sizes(output, RE_DOWNLOAD_SIZE) if output else {}
 
 
 def get_installed_size(pkgs: List[str]) -> Dict[str, float]:  # bytes
     output = run_cmd('pacman -Qi {}'.format(' '.join(pkgs)))
-
-    if output:
-        return {pkgs[idx]: size_to_byte(size[0], size[1]) for idx, size in enumerate(RE_INSTALLED_SIZE.findall(output))}
-
-    return {}
+    return _map_pkg_sizes(output, RE_INSTALLED_SIZE) if output else {}
 
 
 def upgrade_system(root_password: Optional[str]) -> SimpleProcess:

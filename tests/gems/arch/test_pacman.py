@@ -96,3 +96,47 @@ Required By     : None
         res = pacman.map_optional_deps(('package-test',), remote=False, not_installed=True)
         run_cmd.assert_called_once_with('pacman -Qi package-test')
         self.assertEqual({'package-test': {'pipewire-alsa': '', 'pipewire': ''}}, res)
+
+    # `pacman -Si <names>` prints one block per matching package. A package present in
+    # more than one enabled repo yields multiple blocks, so the number of size lines can
+    # exceed the number of requested names. The old positional pkgs[idx] pairing raised
+    # IndexError in that case (the gimp-optdeps crash); map by Name block instead.
+    _SI_OUTPUT_MORE_BLOCKS_THAN_NAMES = """Repository      : extra
+Name            : gutenprint
+Version         : 5.3.4-5
+Installed Size  : 34.20 MiB
+Download Size   : 6.50 MiB
+
+Repository      : extra
+Name            : ghostscript
+Version         : 10.04.0-1
+Installed Size  : 44.03 MiB
+Download Size   : 16.00 MiB
+
+Repository      : extra-testing
+Name            : ghostscript
+Version         : 10.05.0-1
+Installed Size  : 44.10 MiB
+Download Size   : 16.10 MiB
+"""
+
+    @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value=_SI_OUTPUT_MORE_BLOCKS_THAN_NAMES)
+    def test_map_update_sizes__more_blocks_than_names_does_not_raise(self, run_cmd: Mock):
+        # two names requested, three blocks returned (ghostscript in two repos)
+        sizes = pacman.map_update_sizes(['gutenprint', 'ghostscript'])
+
+        self.assertEqual({'gutenprint', 'ghostscript'}, set(sizes.keys()))
+        self.assertEqual(pacman.size_to_byte('34.20', 'MiB'), sizes['gutenprint'])
+        # last matching block wins; either ghostscript size is acceptable, just not a crash
+        self.assertEqual(pacman.size_to_byte('44.10', 'MiB'), sizes['ghostscript'])
+
+    @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value=_SI_OUTPUT_MORE_BLOCKS_THAN_NAMES)
+    def test_map_download_sizes__maps_by_name_block(self, run_cmd: Mock):
+        sizes = pacman.map_download_sizes(['gutenprint', 'ghostscript'])
+
+        self.assertEqual(pacman.size_to_byte('6.50', 'MiB'), sizes['gutenprint'])
+        self.assertEqual(pacman.size_to_byte('16.10', 'MiB'), sizes['ghostscript'])
+
+    @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value="")
+    def test_map_update_sizes__empty_output(self, run_cmd: Mock):
+        self.assertEqual({}, pacman.map_update_sizes(['gutenprint']))

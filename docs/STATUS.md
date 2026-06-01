@@ -45,16 +45,22 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Done
 
-- **Optional-dep handling no longer fails a successful Arch/AUR install (2026-06-01):**
-  installing e.g. `gimp` ran pacman successfully but the operation reported **failed** and
-  the pkg still showed installed. Cause: `_install_from_repository`/`_install_from_aur`
-  returned the *optdep* result as the whole-install result, and `suggest_optdep_select`
-  defaults to **True** so all optdeps get pre-selected — but the confirm modal can't render
-  the multi-select, so the optdep resolver (`map_missing_deps`) returns `None`/cancelled →
-  `_install_optdeps` returns `False` → install reported failed (line ~2385). Fix: optdeps
-  are optional — both install paths now attempt them in a `try/except` and **always return
-  the main package's result**, matching the code's own intent (`# because the main package
-  installation was successful`). Regression test: `tests/gems/arch/test_install_optdeps.py`.
+- **Arch install reported "failed" though the package installed (2026-06-01):** installing
+  e.g. `gimp` ran pacman successfully but the op reported **failed**. Two independent bugs,
+  both fixed:
+  1. **Root cause (the crash):** `pacman.map_update_sizes`/`map_download_sizes`/
+     `get_installed_size` paired regex size-matches to the requested package names
+     *positionally* (`pkgs[idx]` over `enumerate(RE.findall(output))`). `pacman -Si <names>`
+     prints one block **per matching package**, so a package present in >1 enabled repo
+     (e.g. `extra` + `extra-testing`) yields more size lines than names → `IndexError`
+     (gimp's 7 repo optdeps produced 12 size lines). Fixed by parsing per-package blocks and
+     mapping each block's `Name` → size (`_map_pkg_sizes`). Tests in `test_pacman.py`.
+  2. **Defense in depth:** `_install_from_repository`/`_install_from_aur` returned the
+     *optdep* step's result as the whole-install result, so any optdep failure/cancellation
+     flipped an already-successful main install to "failed". Optdeps are optional — both
+     paths now run them in a `try/except` and always return the main package's result
+     (matching the code's own `# because the main package installation was successful`).
+     Tests in `test_install_optdeps.py`.
 - **All watcher dialogs are now HTML modals (2026-05-30):** converted
   `request_confirmation`/`request_reboot`/`show_message` off the dead
   `window.confirm`/`alert` to blocking HTML modals (`#confirm-modal`, `#message-modal` +
