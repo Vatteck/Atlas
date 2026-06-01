@@ -1,7 +1,8 @@
 # Root-password flow for the webview — design
 
 **Date:** 2026-05-30
-**Status:** implemented (awaiting GUI verification by user)
+**Status:** implemented and verified in the GUI (2026-06-01) — gimp install prompts for
+the password, renders the optdep + missing-deps lists, installs optdeps, reports success.
 **Problem:** Arch/AUR (and any privileged) installs fail with "no root access".
 
 ## Root cause

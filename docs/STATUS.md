@@ -13,10 +13,11 @@
 
 ## Current focus
 
-**Fixing the webview's privileged-operation flow.** The Rust migration is parked at its
-sensible end (only `map_srcinfo`). Now closing functional gaps in the pywebview GUI — the
-first being **root-password handling for installs/updates** (implemented 2026-05-30,
-awaiting GUI verification). See [plans/2026-05-30-root-password-flow-design.md](plans/2026-05-30-root-password-flow-design.md).
+**Webview privileged-operation flow — verified working (2026-06-01).** The Rust migration
+is parked at its sensible end (only `map_srcinfo`). The pywebview privileged-op flow is now
+confirmed end-to-end in the GUI: an Arch install (gimp) prompts for the root password,
+renders the optdep checklist and the named missing-deps list, installs the selected optdeps,
+and reports success. See [plans/2026-05-30-root-password-flow-design.md](plans/2026-05-30-root-password-flow-design.md).
 
 ## Next (per ROADMAP, hot paths first)
 
