@@ -3,7 +3,21 @@ import logging
 import threading
 import traceback
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime
 from typing import List, Optional, Tuple
+
+
+def _json_safe(obj):
+    """Make a value JSON-serializable for the pywebview bridge. get_info() payloads can
+    carry datetimes (e.g. the Arch gem's first_submitted/last_modified, Flathub release
+    dates); pywebview's json.dumps can't encode those, so convert them to ISO strings."""
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat(sep=' ', timespec='minutes') if isinstance(obj, datetime) else obj.isoformat()
+    return obj
 
 from atlas.api.abstract.controller import SoftwareAction
 from atlas.commons.system import validate_root_password
@@ -486,7 +500,7 @@ class AtlasApi:
         try:
             self.logger.info(f"get_info requested for package: {pkg.name}")
             info = self.manager.get_info(pkg)
-            return {'status': 'ok', 'data': info or {}}
+            return {'status': 'ok', 'data': _json_safe(info or {})}
         except Exception as e:
             self.logger.error(f"Error getting info for package {pkg.name}: {e}")
             traceback.print_exc()

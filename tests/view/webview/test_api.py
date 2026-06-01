@@ -1,7 +1,27 @@
 import unittest
 import json
+from datetime import datetime, date
 from unittest.mock import Mock, patch, mock_open
-from atlas.view.webview.api import AtlasApi
+from atlas.view.webview.api import AtlasApi, _json_safe
+
+
+class JsonSafeTest(unittest.TestCase):
+    """get_info() payloads carry datetimes (Arch first_submitted/last_modified, Flathub
+    release dates) that pywebview's json.dumps can't encode — _json_safe converts them."""
+
+    def test_converts_datetime_and_date(self):
+        out = _json_safe({'08_first_submitted': datetime(2024, 5, 1, 13, 30), 'd': date(2024, 5, 1)})
+        self.assertEqual('2024-05-01 13:30', out['08_first_submitted'])
+        self.assertEqual('2024-05-01', out['d'])
+
+    def test_recurses_nested_structures(self):
+        out = _json_safe({'data': {'items': [{'ts': datetime(2024, 1, 2, 3, 4)}]}})
+        self.assertEqual('2024-01-02 03:04', out['data']['items'][0]['ts'])
+
+    def test_passes_through_plain_values_and_is_json_dumpable(self):
+        payload = _json_safe({'a': 1, 'b': 'x', 'c': True, 'd': None, 'e': [1, 2.5]})
+        self.assertEqual({'a': 1, 'b': 'x', 'c': True, 'd': None, 'e': [1, 2.5]}, payload)
+        json.dumps(payload)  # must not raise
 
 
 class AtlasApiOrphansTest(unittest.TestCase):
