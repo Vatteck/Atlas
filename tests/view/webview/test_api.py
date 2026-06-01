@@ -81,6 +81,30 @@ class AppSettingsTest(unittest.TestCase):
         self.assertIsNone(saved['installation_level'])
 
 
+class NotifyTest(unittest.TestCase):
+    def setUp(self):
+        self.manager = Mock()
+        self.api = AtlasApi(self.manager, Mock())
+
+    @patch('atlas.view.util.util.notify_user')
+    def test_notifies_when_enabled(self, mock_notify):
+        self.manager.configman.get_config.return_value = {'system': {'notifications': True}}
+        self.api._notify('gimp installed successfully')
+        mock_notify.assert_called_once_with('gimp installed successfully')
+
+    @patch('atlas.view.util.util.notify_user')
+    def test_silent_when_disabled(self, mock_notify):
+        self.manager.configman.get_config.return_value = {'system': {'notifications': False}}
+        self.api._notify('gimp installed successfully')
+        mock_notify.assert_not_called()
+
+    @patch('atlas.view.util.util.notify_user', side_effect=RuntimeError('boom'))
+    def test_never_raises(self, mock_notify):
+        self.manager.configman.get_config.return_value = {'system': {'notifications': True}}
+        # must not propagate — a notification failure can't break an operation
+        self.api._notify('x')
+
+
 class JsonSafeTest(unittest.TestCase):
     """get_info() payloads carry datetimes (Arch first_submitted/last_modified, Flathub
     release dates) that pywebview's json.dumps can't encode — _json_safe converts them."""

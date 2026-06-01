@@ -46,6 +46,12 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Done
 
+- **Desktop notifications wired up (2026-06-01):** `notify_user` existed and `notify-send`
+  is present, but nothing called it and the `system.notifications` flag controlled nothing.
+  `AtlasApi._notify(msg)` now fires a desktop notification on finished install / uninstall /
+  update / batch-uninstall / update-all, gated on `core_config['system']['notifications']`
+  (the Settings toggle now does something). Failures are swallowed so a notification can
+  never break an operation. Tests: `tests/view/webview/test_api.py::NotifyTest`.
 - **Webview Settings page (focused) (2026-06-01):** the Settings nav was a placeholder with
   no backend — so re-enabling a gem we'd disabled by default was impossible. Built a
   focused, **webview-native** page (not the Qt-era `GenericSettingsManager.get_settings`

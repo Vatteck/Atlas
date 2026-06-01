@@ -427,7 +427,8 @@ class AtlasApi:
             
             # Record Activity
             record_activity('install', pkg.name, pkg.get_type() or pkg.gem_name, success)
-            
+            self._notify(f"{pkg.name} installed successfully" if success else f"Failed to install {pkg.name}")
+
             return {'status': 'ok', 'success': success}
         except Exception as e:
             self.logger.error(f"Error installing package {pkg.name}: {e}")
@@ -457,7 +458,8 @@ class AtlasApi:
             
             # Record Activity
             record_activity('uninstall', pkg.name, pkg.get_type() or pkg.gem_name, success)
-            
+            self._notify(f"{pkg.name} uninstalled" if success else f"Failed to uninstall {pkg.name}")
+
             return {'status': 'ok', 'success': success}
         except Exception as e:
             self.logger.error(f"Error uninstalling package {pkg.name}: {e}")
@@ -487,7 +489,8 @@ class AtlasApi:
             
             # Record Activity
             record_activity('update', pkg.name, pkg.get_type() or pkg.gem_name, bool(success))
-            
+            self._notify(f"{pkg.name} updated" if success else f"Failed to update {pkg.name}")
+
             return {'status': 'ok', 'success': bool(success)}
         except Exception as e:
             self.logger.error(f"Error updating package {pkg.name}: {e}")
@@ -521,6 +524,17 @@ class AtlasApi:
         except Exception as e:
             self.logger.error(f"Could not open URL '{url}': {e}")
             return {'status': 'error', 'message': str(e)}
+
+    def _notify(self, message: str):
+        """Fire a desktop notification for a finished operation, if the user has enabled
+        system notifications. Never let a notification failure affect the operation."""
+        try:
+            if not self.manager.configman.get_config()['system']['notifications']:
+                return
+            from atlas.view.util.util import notify_user
+            notify_user(message)
+        except Exception:
+            self.logger.debug("Desktop notification failed", exc_info=True)
 
     # ------------------------------------------------------------------ #
     # Settings (focused, webview-native — see plans/2026-06-01-webview-settings.md)
@@ -673,7 +687,9 @@ class AtlasApi:
                     
             if self.window:
                 self.window.evaluate_js(f"terminalSetDone({str(success).lower()})")
-                
+
+            self._notify(f"Uninstalled {len(pkgs)} package(s)" if success else "Batch uninstall failed")
+
             return {'status': 'ok', 'success': success}
         except Exception as e:
             self.logger.error(f"Error in batch uninstall: {e}")
@@ -724,7 +740,8 @@ class AtlasApi:
             
             # Record activity for the bulk operation
             record_activity('update_all', f"{len(upgradable)} packages", 'system', bool(success))
-            
+            self._notify("System upgrade finished" if success else "System upgrade failed")
+
             return {'status': 'ok', 'success': bool(success)}
         except Exception as e:
             self.logger.error(f"Error in Update All: {e}")
