@@ -77,6 +77,26 @@ model.
 5. **Detail panel / actions** read the active source's serialized pkg (by id), so no
    action-routing changes are needed beyond passing the selected id.
 
+### Phase 2b — AUR variants (decided 2026-06-01)
+
+AUR `-bin`/`-git`/base/forks are **different build choices** (precompiled binary vs VCS
+HEAD vs tagged source vs a fork), not interchangeable copies, so they are **NOT grouped**
+— each stays its own card. Instead, make them legible and well-ordered (decision: "keep
+all separate, just rank + badge"):
+
+- **Badge** each AUR card with its build kind, derived from the name suffix:
+  `-git/-svn/-hg/-bzr/-cvs/-nightly` → **git/VCS**, `-bin` → **binary**, `-debug` → debug,
+  otherwise **source**. (Variant detection is fine on the front-end from `pkg.name`.)
+- **Rank** AUR results: most-voted/popular first, **demote VCS (`-git` …) and
+  `out_of_date`**, and **never rank a VCS variant first** (decision: "most-voted non-VCS").
+- **Expose the metadata** the ranking/badges need — `_serialize_pkg` currently omits them.
+  Add `votes`, `popularity`, `maintainer`, `out_of_date` (and optionally `package_base`)
+  to the serialized payload (AUR-only; other gems leave them null). Surface votes/maintainer/
+  out-of-date on the card so the choice is informed.
+- Forks (different base name, e.g. `foo` vs `foo-cachyos`) stay fully separate — no
+  base-name grouping. AUR names are unique, so "same name / different maintainer" can't
+  occur; "different maintainer" always means a different package.
+
 ### Out of scope / later
 - Fuzzy / id-normalized matching (strip flatpak vendor prefixes, compare AppImage display
   names to pkg names). Start exact; revisit if too many real dups stay split.
