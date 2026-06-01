@@ -22,6 +22,17 @@ from atlas.gems.appimage.model import AppImage
 from atlas.view.util.translation import I18n
 
 
+def _expiration_hours(config: Optional[dict], section: str, default: int) -> int:
+    """Read <section>.expiration from an AppImage config, tolerating a missing/None config
+    or section. A downloader can run before its config is wired up (self.config is None),
+    in which case we fall back to the default expiration rather than crashing."""
+    try:
+        value = ((config or {}).get(section) or {}).get('expiration')
+        return int(value) if value is not None else default
+    except (TypeError, ValueError):
+        return default
+
+
 class DatabaseUpdater(Thread):
     COMPRESS_FILE_PATH = f'{APPIMAGE_CACHE_DIR}/db.tar.gz'
 
@@ -41,11 +52,7 @@ class DatabaseUpdater(Thread):
     def should_update(self, appimage_config: dict) -> bool:
         ti = time.time()
 
-        try:
-            db_exp = int(appimage_config['database']['expiration'])
-        except ValueError:
-            self.logger.error("Could not parse settings property 'database.expiration': {}".format(appimage_config['database']['expiration']))
-            return True
+        db_exp = _expiration_hours(appimage_config, 'database', 60)
 
         if db_exp <= 0:
             self.logger.info("No expiration time configured for the AppImage database")
@@ -333,12 +340,7 @@ class AppImageSuggestionsDownloader(Thread):
         if self.is_custom_local_file_mapped():
             return False
 
-        try:
-            exp_hours = int(appimage_config['suggestions']['expiration'])
-        except Exception:
-            self.logger.error("An exception happened while trying to parse the AppImage 'suggestions.expiration'")
-            traceback.print_exc()
-            return True
+        exp_hours = _expiration_hours(appimage_config, 'suggestions', 24)
 
         if exp_hours <= 0:
             self.logger.info("The AppImage suggestions cache is disabled")
