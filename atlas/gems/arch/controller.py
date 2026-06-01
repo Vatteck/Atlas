@@ -2135,8 +2135,15 @@ class ArchManager(SoftwareManager, SettingsController):
 
                 self._update_progress(context, 100)
 
-                if self._install_optdeps(context):
-                    return True
+                # Optional deps are optional: their failure/cancellation must not flip
+                # the (already successful) main package install into a failure.
+                try:
+                    self._install_optdeps(context)
+                except Exception:
+                    self.logger.warning("Optional-dependency handling for '{}' failed; the main package was installed successfully".format(context.name))
+                    traceback.print_exc()
+
+                return True
 
         return False
 
@@ -2779,7 +2786,17 @@ class ArchManager(SoftwareManager, SettingsController):
 
         if res and not context.skip_opt_deps:
             self._update_progress(context, 100)
-            return self._install_optdeps(context)
+            # Optional dependencies are optional: a failure or cancellation while
+            # handling them must NOT flip the (already successful) main package
+            # install into a reported failure. The webview confirmation modal cannot
+            # yet render the optdep multi-select, so the optdep resolver may return
+            # None/cancelled (see docs/STATUS.md) — that used to surface as
+            # "operation failed" even though the package was installed.
+            try:
+                self._install_optdeps(context)
+            except Exception:
+                self.logger.warning("Optional-dependency handling for '{}' failed; the main package was installed successfully".format(context.name))
+                traceback.print_exc()
 
         return res
 

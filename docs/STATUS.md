@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §8). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-05-30
+**Last updated:** 2026-06-01
 **Version:** 0.10.7
 **Working branch:** `master` (use short-lived branches for larger features; run `git branch` to see what's active)
 
@@ -45,6 +45,16 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Done
 
+- **Optional-dep handling no longer fails a successful Arch/AUR install (2026-06-01):**
+  installing e.g. `gimp` ran pacman successfully but the operation reported **failed** and
+  the pkg still showed installed. Cause: `_install_from_repository`/`_install_from_aur`
+  returned the *optdep* result as the whole-install result, and `suggest_optdep_select`
+  defaults to **True** so all optdeps get pre-selected — but the confirm modal can't render
+  the multi-select, so the optdep resolver (`map_missing_deps`) returns `None`/cancelled →
+  `_install_optdeps` returns `False` → install reported failed (line ~2385). Fix: optdeps
+  are optional — both install paths now attempt them in a `try/except` and **always return
+  the main package's result**, matching the code's own intent (`# because the main package
+  installation was successful`). Regression test: `tests/gems/arch/test_install_optdeps.py`.
 - **All watcher dialogs are now HTML modals (2026-05-30):** converted
   `request_confirmation`/`request_reboot`/`show_message` off the dead
   `window.confirm`/`alert` to blocking HTML modals (`#confirm-modal`, `#message-modal` +
@@ -101,9 +111,13 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
   `submit_confirmation`, `submit_message_ack`). Never reintroduce a `window.*` dialog.
 - **`request_confirmation` does not render rich `components`.** The webview confirm modal
   shows only title/body text (mirroring the old behaviour). Gems that pass
-  `MultipleSelectComponent`/inputs (e.g. arch mirror refresh, snap setup) lose those
-  controls — the user just gets a yes/no on the text. Rendering components is a TODO if a
-  flow needs it.
+  `MultipleSelectComponent`/inputs (e.g. arch mirror refresh, snap setup, **arch optional
+  deps**) lose those controls — the user just gets a yes/no on the text. This is now the
+  **highest-value TODO**: it's not just cosmetic — `suggest_optdep_select=True` means an
+  Arch install pre-selects every optdep and the user can't deselect, so accepting tries to
+  pull them all (and may trigger un-renderable provider-choice sub-modals). We stopped that
+  from *failing* the install (see Done 2026-06-01), but rendering the optdep checklist is
+  the real fix.
 - **Root password requires the GUI to drive it; can't verify headless.** The broker shows
   a modal and blocks a pywebview worker thread on a `threading.Event`. Relies on pywebview
   dispatching each `js_api` call on its own thread (true for the GTK backend). User must
