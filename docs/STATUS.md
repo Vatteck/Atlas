@@ -46,6 +46,14 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Done
 
+- **Config merge no longer wiped structured defaults with a null override (2026-06-01):**
+  `commons/util.deep_update` set `source[key] = None` when a cached/partial config had a
+  nested block as null, clobbering the default dict. Callers then did `config['block']
+  ['key']` → `TypeError: 'NoneType' object is not subscriptable` (seen as the AppImage
+  `suggestions.expiration` ERROR+traceback at startup). Now a `None` override is ignored
+  when the default at that key is a dict (and the recursion tolerates a `None` default
+  being overridden by a dict). Affects **all** gem configs via `YAMLConfigManager.get_config`.
+  Tests: `tests/common/test_util.py::DeepUpdateTest`.
 - **Flathub API v1 → v2 migration (2026-06-01):** Flathub retired the v1 REST API
   (`/api/v1/apps/{id}` → **404**), so Flatpak suggestion enrichment, the info panel and
   screenshots all failed (log spam: `Could not retrieve app data … Server response: ?`).

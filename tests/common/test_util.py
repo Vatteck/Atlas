@@ -1,6 +1,34 @@
 from unittest import TestCase
 
-from atlas.commons.util import size_to_byte, sanitize_command_input
+from atlas.commons.util import size_to_byte, sanitize_command_input, deep_update
+
+
+class DeepUpdateTest(TestCase):
+
+    def test_overrides_scalar(self):
+        self.assertEqual({'a': 2}, deep_update({'a': 1}, {'a': 2}))
+
+    def test_merges_nested_dicts(self):
+        merged = deep_update({'db': {'exp': 60, 'keep': True}}, {'db': {'exp': 30}})
+        self.assertEqual({'db': {'exp': 30, 'keep': True}}, merged)
+
+    def test_null_override_does_not_wipe_structured_default(self):
+        # a stale/partial config with `suggestions:` (null) must not clobber the default
+        # dict — that caused config['suggestions']['expiration'] -> NoneType subscript error
+        default = {'suggestions': {'expiration': 24}}
+        merged = deep_update(default, {'suggestions': None})
+        self.assertEqual({'suggestions': {'expiration': 24}}, merged)
+
+    def test_null_override_still_sets_scalar_default(self):
+        # null is a legitimate value when the default isn't a dict
+        self.assertEqual({'proxy': None}, deep_update({'proxy': 'http://x'}, {'proxy': None}))
+
+    def test_dict_override_when_default_is_none(self):
+        # default None being overridden by a dict must recurse without crashing
+        self.assertEqual({'a': {'b': 1}}, deep_update({'a': None}, {'a': {'b': 1}}))
+
+    def test_adds_missing_keys(self):
+        self.assertEqual({'a': 1, 'b': 2}, deep_update({'a': 1}, {'b': 2}))
 
 
 class SizeToByteTest(TestCase):

@@ -26,10 +26,16 @@ class NullLoggerFactory(ABC):
 def deep_update(source: dict, overrides: dict):
     for key, value in overrides.items():
         if isinstance(value, dict):
-            returned = deep_update(source.get(key, {}), value)
+            base = source.get(key)
+            returned = deep_update(base if isinstance(base, dict) else {}, value)
             source[key] = returned
+        elif value is None and isinstance(source.get(key), dict):
+            # A null override (common in stale/partial config files) must not wipe out a
+            # structured default — that left callers doing config['block']['key'] hitting
+            # 'NoneType' is not subscriptable. Keep the template's nested defaults instead.
+            continue
         else:
-            source[key] = overrides[key]
+            source[key] = value
     return source
 
 
