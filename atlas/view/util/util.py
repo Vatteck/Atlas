@@ -3,10 +3,8 @@ import shutil
 import subprocess
 import sys
 import traceback
-from typing import List, Tuple
+from typing import List
 
-from PyQt5.QtCore import QCoreApplication
-from PyQt5.QtGui import QIcon
 from colorama import Fore
 
 from atlas import __app_name__
@@ -17,22 +15,15 @@ from atlas.view.util import resource
 
 
 def notify_user(msg: str, icon_path: str = None):
-    icon_id = icon_path
-
-    if not icon_id:
-        icon_id = get_default_icon()[0]
+    icon_id = icon_path or get_default_icon_path()
 
     os.system("notify-send -a {} {} '{}'".format(__app_name__, "-i {}".format(icon_id) if icon_id else '', msg))
 
 
-def get_default_icon(system: bool = True) -> Tuple[str, QIcon]:
-    if system:
-        system_icon = QIcon.fromTheme(__app_name__)
-        if not system_icon.isNull():
-            return system_icon.name(), system_icon
-
-    path = resource.get_path('img/logo.svg')
-    return path, QIcon(path)
+def get_default_icon_path() -> str:
+    """Icon path for desktop notifications. notify-send resolves an installed themed icon
+    by the app name, falling back to the bundled logo file."""
+    return __app_name__ or resource.get_path('img/logo.png')
 
 
 def restart_app():
@@ -41,7 +32,15 @@ def restart_app():
     restart_cmd = [appimage_path] if appimage_path else [sys.executable, *sys.argv]
 
     subprocess.Popen(restart_cmd)
-    QCoreApplication.exit()
+
+    # Stop the pywebview/GTK main loop so app.py returns from webview.start() and exits;
+    # the freshly Popen'd process takes over. (Replaces the old Qt QCoreApplication.exit().)
+    try:
+        import webview
+        for window in list(getattr(webview, 'windows', []) or []):
+            window.destroy()
+    except Exception:
+        os._exit(0)
 
 
 def get_distro():

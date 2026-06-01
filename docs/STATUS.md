@@ -214,12 +214,17 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
   importing the deleted `atlas.view.qt.*` — `atlas-tray` crashed on launch. Removed them +
   the `atlas-tray` entry point + `--tray` arg + `context.new_qt_application`/`set_theme`
   (2026-05-29). README roadmap notes a non-Qt tray could be reintroduced.
-- **Residual PyQt5 coupling remains** (not yet cleaned): `view/core/settings.py`
-  (`qt_style` property), `view/util/util.py` (`QCoreApplication.exit()`),
-  `stylesheet.py`, and `app.py`'s optional HDPI block, plus `pyqt5` in pyproject deps.
-  The webview GUI still pulls in PyQt5 through these. Decide later whether to fully
-  de-Qt or keep PyQt5 as an optional dep. Verify each is actually reachable before
-  removing.
+- ~~**Residual PyQt5 coupling**~~ **Removed (2026-06-01).** The webview app no longer
+  imports PyQt5: dropped the Qt HDPI block in `app.py`; de-Qt'd `view/util/util.py`
+  (`get_default_icon`→`get_default_icon_path`; `restart_app` now stops the pywebview/GTK
+  loop via `webview.windows[*].destroy()` instead of `QCoreApplication.exit()`); removed
+  the Qt widget-style selector + `QApplication`/`QStyleFactory` import from
+  `view/core/settings.py`; swapped `pyqt5` → `pywebview` in `pyproject.toml` deps (matching
+  requirements.txt). **Verified** by importing `atlas.app` and `atlas.cli.app` with PyQt5
+  forced-absent (`sys.modules['PyQt5']=None`). Leftovers (harmless, not Qt imports): a
+  commented `QApplication` line in the unused `stylesheet.py`, and the now-unused
+  `ui.qt_style`/`hdpi`/`scale_factor` config keys (read only by the dead, webview-unreachable
+  `GenericSettingsManager.get_settings` path).
 - **App run-status:** ✅ GUI confirmed working (user launched `python -m atlas.app` on
   2026-05-29 — window loads, lazy gem init fires, background prepare ~10ms, suggestions
   run). Remaining log noise is expected: first-run (no cache/db), no-root (`pacman -Sy`

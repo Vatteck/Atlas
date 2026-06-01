@@ -54,14 +54,8 @@ def main():
     except Exception:
         traceback.print_exc()
 
-    if bool(app_config['ui']['hdpi']):
-        logger.info("HDPI settings activated")
-        try:
-            from PyQt5.QtCore import QCoreApplication, Qt
-            QCoreApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
-            QCoreApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
-        except ImportError:
-            logger.warning("PyQt5 is not installed; skipped HDPI scaling attributes.")
+    # (HDPI scaling for the old Qt UI was removed — the pywebview/GTK front-end scales via
+    # GDK_SCALE/GDK_DPI_SCALE, and the Qt HDPI attributes did nothing here.)
 
     if bool(args.suggestions):
         logger.info("Forcing loading software suggestions after the initialization process")

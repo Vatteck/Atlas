@@ -5,8 +5,6 @@ from math import floor
 from threading import Thread
 from typing import List, Tuple, Optional, Dict, Type, Iterable
 
-from PyQt5.QtWidgets import QApplication, QStyleFactory
-
 from atlas import ROOT_DIR, __app_name__
 from atlas.api.abstract.context import ApplicationContext
 from atlas.api.abstract.controller import SoftwareManager, SettingsController, SettingsView
@@ -216,31 +214,7 @@ class GenericSettingsManager(SettingsController):
                                            tooltip=self.i18n['core.config.ui.scale_factor.tip'],
                                            min_value=100, max_value=400, step_value=5, value=int(scale * 100))
 
-        if not core_config['ui']['qt_style']:
-            cur_style = QApplication.instance().property('qt_style')
-        else:
-            cur_style = core_config['ui']['qt_style']
-
-        style_opts = [InputOption(label=s.capitalize(), value=s.lower()) for s in QStyleFactory.keys()]
-
-        default_style = [o for o in style_opts if o.value == cur_style]
-
-        if not default_style:
-            if cur_style:
-                default_style = InputOption(label=cur_style, value=cur_style)
-                style_opts.append(default_style)
-            else:
-                default_style = style_opts[0]
-        else:
-            default_style = default_style[0]
-
-        select_style = SingleSelectComponent(label=self.i18n['style'].capitalize(),
-                                             tooltip=self.i18n['core.config.ui.qt_style.tooltip'],
-                                             options=style_opts,
-                                             default_option=default_style,
-                                             type_=SelectViewType.COMBO,
-                                             alignment=ViewComponentAlignment.CENTER,
-                                             id_="style")
+        # (The Qt widget-style selector was removed with the Qt UI — pywebview has no Qt style.)
 
         systheme_tip = self.i18n['core.config.ui.system_theme.tip'].format(app=__app_name__)
         select_system_theme = self._gen_bool_component(label=self.i18n['core.config.ui.system_theme'],
@@ -261,7 +235,7 @@ class GenericSettingsManager(SettingsController):
 
         sub_comps = [FormComponent([select_hdpi, select_ascale, select_scale,
                                     select_dicons, select_system_theme,
-                                    select_style, input_maxd], spaces=False)]
+                                    input_maxd], spaces=False)]
 
         return TabComponent(self.i18n['core.config.tab.ui'].capitalize(),
                             PanelComponent(sub_comps, id_='interface'), None, 'core.ui')
@@ -455,17 +429,6 @@ class GenericSettingsManager(SettingsController):
 
         table_max = ui_form.get_component('table_max', TextInputComponent).get_int_value()
         core_config['ui']['table']['max_displayed'] = table_max
-
-        style = ui_form.get_component('style', SingleSelectComponent).get_selected()
-
-        if core_config['ui']['qt_style']:
-            cur_style = core_config['ui']['qt_style']
-        else:
-            cur_style = QApplication.instance().property('qt_style')
-
-        if style != cur_style:
-            core_config['ui']['qt_style'] = style
-            QApplication.instance().setProperty('qt_style', style)
 
         core_config['ui']['system_theme'] = ui_form.get_component('system_theme', SingleSelectComponent).get_selected()
 
