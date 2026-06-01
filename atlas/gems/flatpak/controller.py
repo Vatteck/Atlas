@@ -20,15 +20,12 @@ from atlas.commons import suggestions
 from atlas.commons.boot import CreateConfigFile
 from atlas.commons.html import strip_html, bold
 from atlas.commons.system import ProcessHandler
-from atlas.gems.flatpak import flatpak, CONFIG_FILE, UPDATES_IGNORED_FILE, FLATPAK_CONFIG_DIR, \
+from atlas.gems.flatpak import flatpak, flathub, CONFIG_FILE, UPDATES_IGNORED_FILE, FLATPAK_CONFIG_DIR, \
     EXPORTS_PATH, \
     get_icon_path, VERSION_1_5, VERSION_1_2, VERSION_1_12
 from atlas.gems.flatpak.config import FlatpakConfigManager
-from atlas.gems.flatpak.constants import FLATHUB_API_URL
 from atlas.gems.flatpak.model import FlatpakApplication
 from atlas.gems.flatpak.worker import FlatpakAsyncDataLoader
-
-DATE_FORMAT = '%Y-%m-%dT%H:%M:%S.000Z'
 RE_INSTALL_REFS = re.compile(r'\d+\)\s+(.+)')
 
 
@@ -376,31 +373,7 @@ class FlatpakManager(SoftwareManager, SettingsController):
 
             return app_info
         else:
-            res = self.http_client.get_json('{}/apps/{}'.format(FLATHUB_API_URL, app.id))
-
-            if res:
-                if res.get('categories'):
-                    res['categories'] = [c.get('name') for c in res['categories']]
-
-                for to_del in ('screenshots', 'iconMobileUrl', 'iconDesktopUrl'):
-                    if res.get(to_del):
-                        del res[to_del]
-
-                for to_strip in ('description', 'currentReleaseDescription'):
-                    if res.get(to_strip):
-                        res[to_strip] = strip_html(res[to_strip])
-
-                for to_date in ('currentReleaseDate', 'inStoreSinceDate'):
-                    if res.get(to_date):
-                        try:
-                            res[to_date] = datetime.strptime(res[to_date], DATE_FORMAT)
-                        except Exception:
-                            self.context.logger.error('Could not convert date string {} as {}'.format(res[to_date], DATE_FORMAT))
-                            pass
-
-                return res
-            else:
-                return {}
+            return flathub.app_info(flathub.get_appstream(self.http_client, app.id))
 
     def get_history(self, pkg: FlatpakApplication, full_commit_str: bool = False) -> PackageHistory:
         pkg.commit = flatpak.get_commit(pkg.id, pkg.branch, pkg.installation)
@@ -686,19 +659,13 @@ class FlatpakManager(SoftwareManager, SettingsController):
         flatpak.run(str(pkg.id))
 
     def get_screenshots(self, pkg: FlatpakApplication) -> Generator[str, None, None]:
-        screenshots_url = f'{FLATHUB_API_URL}/apps/{pkg.id}'
-
         try:
-            res = self.http_client.get_json(screenshots_url)
-
-            if res and res.get('screenshots'):
-                for s in res['screenshots']:
-                    if s.get('imgDesktopUrl'):
-                        yield s['imgDesktopUrl']
+            for url in flathub.screenshot_urls(flathub.get_appstream(self.http_client, pkg.id)):
+                yield url
 
         except Exception as e:
             if e.__class__.__name__ == 'JSONDecodeError':
-                self.context.logger.error("Could not decode json from '{}'".format(screenshots_url))
+                self.context.logger.error("Could not decode Flathub json for '{}'".format(pkg.id))
             else:
                 traceback.print_exc()
 

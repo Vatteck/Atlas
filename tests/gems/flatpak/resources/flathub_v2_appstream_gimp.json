@@ -1,0 +1,81 @@
+{
+  "id": "org.gimp.GIMP",
+  "name": "GNU Image Manipulation Program",
+  "summary": "High-end image creation and manipulation",
+  "description": "<p>\n      GIMP is an acronym for GNU Image Manipulation Program. It is\n      Community-driven Free Software for high-end image creation and manipulation.\n    </p>\n      <p>\n      It has many capabilities. It can be used as a paint program,\n      an expert quality photo retouching program, image composition,\n      an online batch processing system, a mass production image\n      renderer, an image format converter, etc.\n    </p>\n      <p>\n      GIMP is expandable and extensible. It is designed to be\n      augmented with plug-ins and extensions to do just about\n      anything. The advanced scripting interface allows everything\n      from the simplest task to the most complex image manipulation\n      procedures to be easily scripted. GIMP is available for Linux,\n      Microsoft Windows and macOS.\n    </p>\n    ",
+  "developer_name": "The GIMP team",
+  "project_license": "GPL-3.0+ AND LGPL-3.0+",
+  "icon": "https://dl.flathub.org/media/org/gimp/GIMP/ab48223ba11e3bad9493fcda45e9ac04/icons/128x128/org.gimp.GIMP.png",
+  "categories": [
+    "Graphics",
+    "2DGraphics",
+    "RasterGraphics"
+  ],
+  "urls": {
+    "homepage": "https://www.gimp.org/"
+  },
+  "releases": [
+    {
+      "version": "3.2.4",
+      "timestamp": "1776384000",
+      "date": null,
+      "description": "<p>\n        The second bugfix release of the GIMP 3.2 series brings it to quite a stable state again as bugs reports are slowing down.\n        </p>\n          <ul>\n            <li>Bug fixed where GIMP would fail to open some XCF</li>\n            <li>When moving a floating layer or selection with a selection tool, marching ants are now disabled</li>\n            <li>Improved Text tool, especially regarding prioritizing global actions</li>\n            <li>Better temporary folder handling</li>\n            <li>Fill actions now behave accordingly to the target item type</li>\n            <li>Various file formats support improved</li>\n            <li>A new function and a deprecation in the libgimp API for plug-ins</li>\n          </ul>\n        ",
+      "type": "stable"
+    },
+    {
+      "version": "3.2.2",
+      "timestamp": "1774656000",
+      "date": null,
+      "description": "<p>\n        Here we go! The first bugfix release for the GIMP 3.2 series is here.\n        </p>\n          <ul>\n            <li>A bug when group layers became invisible in some conditions when children had effects got fixed</li>\n            <li>More fixes, especially for the new vector and link layer types, as well as non-destructive effects</li>\n            <li>Various file formats support improved</li>\n            <li>Themes fixes and improvements</li>\n            <li>Support for x86 (32-bit) architecture on Windows was dropped</li>\n          </ul>\n        ",
+      "type": "stable"
+    }
+  ],
+  "screenshots": [
+    {
+      "caption": "Scene 4 cut 15 of \"ZeMarmot\" being edited in GIMP. Illustration by Aryeom (CC by-sa 4.0 International)",
+      "sizes": [
+        {
+          "src": "https://dl.flathub.org/media/org/gimp/GIMP/ab48223ba11e3bad9493fcda45e9ac04/screenshots/image-1_orig.png",
+          "width": "1920",
+          "height": "1080",
+          "scale": "1x"
+        },
+        {
+          "src": "https://dl.flathub.org/media/org/gimp/GIMP/ab48223ba11e3bad9493fcda45e9ac04/screenshots/image-1_1248x702@1.png",
+          "width": "1248",
+          "height": "702",
+          "scale": "1x"
+        },
+        {
+          "src": "https://dl.flathub.org/media/org/gimp/GIMP/ab48223ba11e3bad9493fcda45e9ac04/screenshots/image-1_752x423@1.png",
+          "width": "752",
+          "height": "423",
+          "scale": "1x"
+        }
+      ]
+    },
+    {
+      "caption": "Gull on beach photograph being edited in GIMP. Photo by Iana (CC by-sa 4.0 International)",
+      "sizes": [
+        {
+          "src": "https://dl.flathub.org/media/org/gimp/GIMP/ab48223ba11e3bad9493fcda45e9ac04/screenshots/image-2_orig.png",
+          "width": "1920",
+          "height": "1048",
+          "scale": "1x"
+        },
+        {
+          "src": "https://dl.flathub.org/media/org/gimp/GIMP/ab48223ba11e3bad9493fcda45e9ac04/screenshots/image-2_1248x681@1.png",
+          "width": "1248",
+          "height": "681",
+          "scale": "1x"
+        },
+        {
+          "src": "https://dl.flathub.org/media/org/gimp/GIMP/ab48223ba11e3bad9493fcda45e9ac04/screenshots/image-2_752x410@1.png",
+          "width": "752",
+          "height": "410",
+          "scale": "1x"
+        }
+      ]
+    }
+  ]
+}

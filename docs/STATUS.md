@@ -46,6 +46,17 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Done
 
+- **Flathub API v1 → v2 migration (2026-06-01):** Flathub retired the v1 REST API
+  (`/api/v1/apps/{id}` → **404**), so Flatpak suggestion enrichment, the info panel and
+  screenshots all failed (log spam: `Could not retrieve app data … Server response: ?`).
+  Migrated to the v2 AppStream API behind a new `atlas/gems/flatpak/flathub.py` (the only
+  module that knows the v2 endpoints/shape). Mapping highlights: `icon` is now an absolute
+  URL; `categories` is a list of strings (was `[{name}]`); version/notes/date live under
+  `releases[0]`; screenshots are `sizes[].src` (pick widest). Three callers updated
+  (`worker.py`, `controller.get_info`, `controller.get_screenshots`). Pure mappers are
+  unit-tested against a captured payload (`tests/gems/flatpak/test_flathub.py` +
+  `resources/flathub_v2_appstream_gimp.json`). Plan:
+  [plans/2026-06-01-flathub-v2-api-migration.md](plans/2026-06-01-flathub-v2-api-migration.md).
 - **Confirm modal now renders input components (2026-06-01):** installing e.g. `gimp`
   showed the optdep prompt and the missing-deps prompt but **no list** — the modal only
   rendered title/body text. The confirm modal now renders checkbox lists, single-select
