@@ -270,6 +270,13 @@ class AtlasApi:
             'has_history': pkg.has_history() if hasattr(pkg, 'has_history') else False,
             'update_ignored': pkg.is_update_ignored() if hasattr(pkg, 'is_update_ignored') else False,
             'supports_pinning': pkg.supports_ignored_updates() if hasattr(pkg, 'supports_ignored_updates') else False,
+            # AUR metadata (None for non-Arch packages) — used to rank/badge AUR variants
+            # in the webview. See docs/plans/2026-06-01-source-types-and-multisource-cards.md.
+            'votes': getattr(pkg, 'votes', None),
+            'popularity': getattr(pkg, 'popularity', None),
+            'maintainer': getattr(pkg, 'maintainer', None),
+            'out_of_date': bool(getattr(pkg, 'out_of_date', None)),
+            'package_base': getattr(pkg, 'package_base', None),
         }
 
     def _get_pkg(self, pkg_id: str):

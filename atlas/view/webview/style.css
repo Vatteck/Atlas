@@ -366,6 +366,12 @@ body {
     border: 1px solid rgba(217, 119, 6, 0.35);
 }
 [data-theme="dark"] .tag.aur { color: #f0a83c; }
+/* AUR build-type badge (source / binary / git…) — neutral, with VCS in caution amber to
+   match the "less stable" connotation of -git. */
+.tag.variant { color: var(--text-secondary); background-color: var(--bg-surface-hover); text-transform: none; }
+.tag.variant-vcs { color: #b26a00; background-color: rgba(217, 119, 6, 0.12); }
+.tag.votes { color: var(--text-secondary); background-color: var(--bg-surface-hover); text-transform: none; letter-spacing: 0; }
+.tag.ood { color: #c0392b; background-color: rgba(192, 57, 43, 0.12); text-transform: none; }
 .tag.flatpak { color: #4a86cf; background-color: rgba(74, 134, 207, 0.1); }
 .tag.snap { color: #e95420; background-color: rgba(233, 84, 32, 0.1); }
 .tag.appimage { color: #202020; background-color: rgba(32, 32, 32, 0.1); }

@@ -139,8 +139,49 @@ function filterByType(packages, type) {
     return (packages || []).filter(p => normalizeType(p.type) === type);
 }
 
+// --- AUR variants ----------------------------------------------------------
+// AUR ships base / -bin / -git (and friends) as distinct packages. We keep them as
+// separate cards (they're different build choices) but badge + rank them. We also compute
+// the base name now so grouping these under one card later is cheap to switch on.
+const AUR_VCS_SUFFIXES = ['-git', '-svn', '-hg', '-bzr', '-cvs', '-nightly'];
+function aurVariant(name) {
+    const raw = name || '';
+    const n = raw.toLowerCase();
+    for (const suf of AUR_VCS_SUFFIXES) {
+        if (n.endsWith(suf)) return { kind: 'vcs', label: suf.slice(1), base: raw.slice(0, -suf.length) };
+    }
+    if (n.endsWith('-bin')) return { kind: 'binary', label: 'binary', base: raw.slice(0, -4) };
+    if (n.endsWith('-debug')) return { kind: 'debug', label: 'debug', base: raw.slice(0, -6) };
+    return { kind: 'source', label: 'source', base: raw };
+}
+
+// Rank AUR packages among themselves (decision: most-voted non-VCS first). Installed
+// first, then non-VCS before VCS, then not-out-of-date, then by votes/popularity desc.
+// Non-AUR items keep their position (AUR items are reordered only within their own slots),
+// so this never disturbs the official-repo / Flatpak / AppImage ordering.
+function _aurRankKey(p) {
+    const v = aurVariant(p.name);
+    const score = typeof p.votes === 'number' ? p.votes
+                : (typeof p.popularity === 'number' ? p.popularity : -1);
+    return [p.installed ? 0 : 1, v.kind === 'vcs' ? 1 : 0, p.out_of_date ? 1 : 0, -score];
+}
+function rankAur(packages) {
+    const list = packages || [];
+    const idxs = [], items = [];
+    list.forEach((p, i) => { if (normalizeType(p.type) === 'aur') { idxs.push(i); items.push(p); } });
+    if (items.length < 2) return list;
+    items.sort((a, b) => {
+        const ka = _aurRankKey(a), kb = _aurRankKey(b);
+        for (let i = 0; i < ka.length; i++) { if (ka[i] !== kb[i]) return ka[i] - kb[i]; }
+        return 0;
+    });
+    const out = list.slice();
+    idxs.forEach((idx, k) => { out[idx] = items[k]; });
+    return out;
+}
+
 function renderFiltered() {
-    renderPackages(filterByType(currentPackages, typeFilter.value));
+    renderPackages(rankAur(filterByType(currentPackages, typeFilter.value)));
 }
 
 const MAX_CACHE_ENTRIES = 30;
@@ -511,11 +552,19 @@ function renderPackages(packages) {
                 <div class="package-tags">
                     ${(() => {
                         const src = normalizeType(pkg.type);
-                        const isAur = src === 'aur';
-                        const title = isAur
-                            ? 'AUR — community-maintained, less vetted than the official repo'
-                            : sourceLabel(pkg.type);
-                        return `<span class="tag ${escapeHtml(src)}" title="${escapeHtml(title)}">${escapeHtml(sourceLabel(pkg.type))}${isAur ? ' ⚠' : ''}</span>`;
+                        if (src !== 'aur') {
+                            return `<span class="tag ${escapeHtml(src)}" title="${escapeHtml(sourceLabel(pkg.type))}">${escapeHtml(sourceLabel(pkg.type))}</span>`;
+                        }
+                        const v = aurVariant(pkg.name);
+                        const tags = [`<span class="tag aur" title="AUR — community-maintained, less vetted than the official repo">AUR ⚠</span>`];
+                        tags.push(`<span class="tag variant variant-${escapeHtml(v.kind)}" title="AUR build type: ${escapeHtml(v.label)}">${escapeHtml(v.label)}</span>`);
+                        if (typeof pkg.votes === 'number') {
+                            tags.push(`<span class="tag votes" title="AUR votes">▲ ${pkg.votes}</span>`);
+                        }
+                        if (pkg.out_of_date) {
+                            tags.push(`<span class="tag ood" title="Flagged out-of-date on the AUR">out of date</span>`);
+                        }
+                        return tags.join('');
                     })()}
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center;">

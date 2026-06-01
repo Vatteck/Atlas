@@ -46,6 +46,15 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Done
 
+- **AUR variants ranked + badged — Phase 2b (2026-06-01):** AUR ships base/`-bin`/`-git`
+  etc. as distinct packages; they stay separate cards (different build choices) but are now
+  legible. `_serialize_pkg` exposes `votes`/`popularity`/`maintainer`/`out_of_date`/
+  `package_base` (None for non-Arch). `main.js` derives the build kind from the name suffix
+  (`aurVariant()` → source/binary/git/debug, plus the stripped **base name** so future
+  grouping is render-only), badges each AUR card, and ranks AUR results among themselves
+  (`rankAur()`: installed → non-VCS → not-out-of-date → votes desc; **VCS never first**)
+  without disturbing non-AUR ordering. Verified ranking: bin → source → out-of-date → git.
+  Decision to keep them ungrouped (not merged under one card) is in the plan doc.
 - **Source-type filter rework — Phase 1 (2026-06-01):** the type filter was decorative
   (`pkg_type` was passed to the backend but ignored, and nothing filtered client-side).
   Atlas is now Arch-focused: Snap/Debian/Web gems are **off by default**

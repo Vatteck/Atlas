@@ -1,7 +1,9 @@
 # Source types rework + multi-source app cards — design + plan
 
 **Date:** 2026-06-01
-**Status:** Phase 1 implemented (2026-06-01); Phase 2 (multi-source cards) pending
+**Status:** Phase 1 + Phase 2b implemented (2026-06-01); Phase 2a (cross-source cards) pending.
+Phase 2b renders AUR variants flat but already computes base-name + variant kind, so nesting
+them under a grouped card later is a render-only change.
 **Type:** Python (gem enablement) + webview front-end. No Rust.
 
 ## Goal & context
