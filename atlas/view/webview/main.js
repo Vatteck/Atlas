@@ -92,6 +92,7 @@ const modalClose = document.getElementById('modal-close');
 const modalBackdrop = detailModal.querySelector('.modal-backdrop');
 
 let currentPackages = [];
+let currentGroups = [];   // packages collapsed by app name; each card renders one group
 let diskPackages = [];
 let currentView = 'dashboard'; // 'dashboard', 'installed', 'updates', 'activity'
 
@@ -546,44 +547,79 @@ function getIconDataSrc(iconUrl) {
     return ''; // bare filenames, file:// etc — already handled by backend base64 encoding
 }
 
-// Render Package Cards
-function renderPackages(packages) {
-    packagesGrid.innerHTML = '';
-    
-    if (packages.length === 0) {
-        emptyState.classList.remove('hidden');
-        packagesGrid.style.display = 'none';
-        return;
+// --- Multi-source grouping (Phase 2a) --------------------------------------
+// Collapse packages that are the same app offered by different sources (Arch / AUR /
+// Flatpak / AppImage) into one card with a source switcher. Different *names* stay
+// separate (so AUR -bin/-git variants and forks remain their own cards). Order is
+// preserved from the already-ranked input (first occurrence sets the group's position).
+const SOURCE_PREF = { arch_repo: 0, aur: 1, flatpak: 2, appimage: 3 };  // trust/preference order
+function compareSourcePreference(a, b) {
+    if (!!a.installed !== !!b.installed) return a.installed ? -1 : 1;  // installed source wins
+    const pa = SOURCE_PREF[normalizeType(a.type)] ?? 9;
+    const pb = SOURCE_PREF[normalizeType(b.type)] ?? 9;
+    return pa - pb;
+}
+function collapseByName(packages) {
+    const order = [], map = new Map();
+    (packages || []).forEach(p => {
+        const key = (p.name || '').trim().toLowerCase();
+        if (!map.has(key)) { map.set(key, []); order.push(key); }
+        map.get(key).push(p);
+    });
+    return order.map(key => {
+        const sources = map.get(key).slice().sort(compareSourcePreference);
+        return { key, name: sources[0].name, sources };
+    });
+}
+
+// The footer tags/switcher for the active source of a group.
+function sourceBadges(group, activeIdx) {
+    const pkg = group.sources[activeIdx];
+    // Single source: keep the plain tag (with the condensed AUR badge from phase 2b).
+    if (group.sources.length === 1) {
+        const src = normalizeType(pkg.type);
+        if (src !== 'aur') {
+            return `<span class="tag ${escapeHtml(src)}" title="${escapeHtml(sourceLabel(pkg.type))}">${escapeHtml(sourceLabel(pkg.type))}</span>`;
+        }
+        const v = aurVariant(pkg.name);
+        const votesStr = (typeof pkg.votes === 'number') ? ` · ▲${pkg.votes}` : '';
+        let out = `<span class="tag aur" title="AUR — community-maintained, less vetted than the official repo. Build: ${escapeHtml(v.label)}">AUR · ${escapeHtml(v.label)}${escapeHtml(votesStr)}</span>`;
+        if (pkg.out_of_date) out += `<span class="tag ood" title="Flagged out-of-date on the AUR">out of date</span>`;
+        return out;
     }
+    // Multiple sources: clickable switcher pills (the active one is the card's target).
+    const pills = group.sources.map((s, i) => {
+        const t = normalizeType(s.type);
+        const installed = s.installed ? ' • installed' : '';
+        return `<button class="source-pill src-${escapeHtml(t)} ${i === activeIdx ? 'active' : ''}" data-srcidx="${i}" title="${escapeHtml(sourceLabel(s.type))}${installed}">${escapeHtml(sourceLabel(s.type))}</button>`;
+    }).join('');
+    let extra = '';
+    if (normalizeType(pkg.type) === 'aur' && pkg.out_of_date) {
+        extra = `<span class="tag ood" title="Flagged out-of-date on the AUR">out of date</span>`;
+    }
+    return `<div class="source-pills">${pills}</div>${extra}`;
+}
 
-    emptyState.classList.add('hidden');
-    packagesGrid.style.display = 'grid';
+// Inner HTML of a card for the given active source — re-rendered on source switch.
+function cardInnerHTML(group, activeIdx) {
+    const pkg = group.sources[activeIdx];
+    const actionButton = pkg.installed ?
+        (pkg.update_available ?
+            `<button class="btn btn-primary action-btn" data-action="update" data-id="${escapeHtml(pkg.id)}">Update</button>` :
+            `<button class="btn btn-danger action-btn" data-action="uninstall" data-id="${escapeHtml(pkg.id)}">Uninstall</button>`) :
+        `<button class="btn btn-primary action-btn" data-action="install" data-id="${escapeHtml(pkg.id)}">Install</button>`;
 
-    // Optimize: Use DocumentFragment to batch DOM insertions in a single reflow pass
-    const fragment = document.createDocumentFragment();
+    const pinButton = (pkg.installed && pkg.supports_pinning) ?
+        `<button class="btn btn-pin ${pkg.update_ignored ? 'pinned' : ''} action-btn"
+            data-action="${pkg.update_ignored ? 'unpin' : 'pin'}"
+            data-id="${escapeHtml(pkg.id)}"
+            title="${pkg.update_ignored ? 'Click to allow updates' : 'Click to hold (pin) this version'}">
+            ${pkg.update_ignored ? '📌 Pinned' : '📌 Pin'}
+         </button>` : '';
 
-    packages.forEach(pkg => {
-        const card = document.createElement('div');
-        card.className = `package-card ${selectMode ? 'select-mode' : ''} ${selectedPackages.has(pkg.id) ? 'selected' : ''}`;
-        card.dataset.id = pkg.id;
-        
-        const actionButton = pkg.installed ? 
-            (pkg.update_available ? 
-                `<button class="btn btn-primary action-btn" data-action="update" data-id="${escapeHtml(pkg.id)}">Update</button>` :
-                `<button class="btn btn-danger action-btn" data-action="uninstall" data-id="${escapeHtml(pkg.id)}">Uninstall</button>`) :
-            `<button class="btn btn-primary action-btn" data-action="install" data-id="${escapeHtml(pkg.id)}">Install</button>`;
-        
-        const pinButton = (pkg.installed && pkg.supports_pinning) ?
-            `<button class="btn btn-pin ${pkg.update_ignored ? 'pinned' : ''} action-btn"
-                data-action="${pkg.update_ignored ? 'unpin' : 'pin'}"
-                data-id="${escapeHtml(pkg.id)}"
-                title="${pkg.update_ignored ? 'Click to allow updates' : 'Click to hold (pin) this version'}">
-                ${pkg.update_ignored ? '📌 Pinned' : '📌 Pin'}
-             </button>` : '';
+    const isChecked = selectedPackages.has(pkg.id) ? 'checked' : '';
 
-        const isChecked = selectedPackages.has(pkg.id) ? 'checked' : '';
-        
-        card.innerHTML = `
+    return `
             <div class="package-header">
                 <input type="checkbox" class="pkg-checkbox" ${isChecked} onclick="event.stopPropagation();">
                 <img src="${(pkg.icon_url && pkg.icon_url.startsWith('data:')) ? pkg.icon_url : letterAvatar(pkg)}" data-src="${escapeHtml(getIconDataSrc(pkg.icon_url))}" class="package-icon" alt="${escapeHtml(pkg.name)} icon" loading="lazy" decoding="async">
@@ -598,31 +634,39 @@ function renderPackages(packages) {
                 ${escapeHtml(pkg.description || 'No description available for this package.')}
             </div>
             <div class="package-footer">
-                <div class="package-tags">
-                    ${(() => {
-                        const src = normalizeType(pkg.type);
-                        if (src !== 'aur') {
-                            return `<span class="tag ${escapeHtml(src)}" title="${escapeHtml(sourceLabel(pkg.type))}">${escapeHtml(sourceLabel(pkg.type))}</span>`;
-                        }
-                        const v = aurVariant(pkg.name);
-                        const votesStr = (typeof pkg.votes === 'number') ? ` · ▲${pkg.votes}` : '';
-                        // One condensed pill: "AUR · source · ▲81" (amber conveys the
-                        // less-vetted trust level; tooltip explains). Out-of-date stays a
-                        // separate red flag since it's a real warning.
-                        let out = `<span class="tag aur" title="AUR — community-maintained, less vetted than the official repo. Build: ${escapeHtml(v.label)}">AUR · ${escapeHtml(v.label)}${escapeHtml(votesStr)}</span>`;
-                        if (pkg.out_of_date) {
-                            out += `<span class="tag ood" title="Flagged out-of-date on the AUR">out of date</span>`;
-                        }
-                        return out;
-                    })()}
-                </div>
+                <div class="package-tags">${sourceBadges(group, activeIdx)}</div>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     ${pinButton}
                     ${actionButton}
                 </div>
             </div>
         `;
-        
+}
+
+// Render Package Cards (one per app group)
+function renderPackages(packages) {
+    packagesGrid.innerHTML = '';
+    currentGroups = collapseByName(packages);
+
+    if (currentGroups.length === 0) {
+        emptyState.classList.remove('hidden');
+        packagesGrid.style.display = 'none';
+        return;
+    }
+
+    emptyState.classList.add('hidden');
+    packagesGrid.style.display = 'grid';
+
+    // Optimize: Use DocumentFragment to batch DOM insertions in a single reflow pass
+    const fragment = document.createDocumentFragment();
+
+    currentGroups.forEach((group, gi) => {
+        const pkg = group.sources[0];
+        const card = document.createElement('div');
+        card.className = `package-card ${selectMode ? 'select-mode' : ''} ${selectedPackages.has(pkg.id) ? 'selected' : ''}`;
+        card.dataset.id = pkg.id;
+        card.dataset.gi = gi;
+        card.innerHTML = cardInnerHTML(group, 0);
         // Optimize: Clicks are now handled by single event delegation on packagesGrid
         fragment.appendChild(card);
     });
@@ -1274,6 +1318,22 @@ packagesGrid.addEventListener('click', async (e) => {
                 installed: true,
                 update_available: false
             });
+        }
+        return;
+    }
+
+    // 1b. Source-switcher pill: re-target the card to the chosen source.
+    const pill = e.target.closest('.source-pill');
+    if (pill) {
+        e.stopPropagation();
+        const pcard = pill.closest('.package-card');
+        const group = pcard && currentGroups[parseInt(pcard.dataset.gi, 10)];
+        const idx = parseInt(pill.dataset.srcidx, 10);
+        if (group && group.sources[idx]) {
+            pcard.innerHTML = cardInnerHTML(group, idx);
+            pcard.dataset.id = group.sources[idx].id;
+            pcard.classList.toggle('selected', selectedPackages.has(group.sources[idx].id));
+            deferredIconLoad();
         }
         return;
     }

@@ -46,6 +46,16 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Done
 
+- **Multi-source app cards — Phase 2a (2026-06-01):** the same app offered by more than one
+  source is now one card with a source switcher. `main.js` `collapseByName()` groups the
+  (already-ranked) list by exact normalized name; within a group sources sort installed-first
+  then `arch_repo → aur → flatpak → appimage` (`compareSourcePreference`). Multi-source cards
+  render clickable `.source-pill`s (AUR amber) instead of the plain tag; clicking re-renders
+  the card body for that source (`cardInnerHTML`) and re-targets `data-id`, so Install/
+  Uninstall/Update/pin/detail all act on the selected source. Single-source cards are
+  unchanged (keep the phase-2b AUR badge). Different *names* stay separate, so AUR
+  `-bin`/`-git` variants and forks remain their own cards. Verified grouping: an installed
+  Arch app + its AUR/Flatpak siblings collapse with the installed (Arch) source default.
 - **Search-result declutter (2026-06-01):** four tweaks in `main.js`/`style.css` —
   (1) **letter-avatar fallback icons** (`letterAvatar()`): icon-less packages (most
   AUR/repo) now get a colored initial keyed to the source instead of identical gray

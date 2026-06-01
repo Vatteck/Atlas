@@ -345,7 +345,36 @@ body {
 .package-tags {
     display: flex;
     gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
 }
+
+/* Source switcher (multi-source app cards) */
+.source-pills {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    background: var(--bg-surface-hover);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}
+.source-pill {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border: none;
+    border-radius: calc(var(--radius-sm) - 2px);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+.source-pill:hover { color: var(--text-primary); }
+.source-pill.active { background: var(--bg-surface); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+/* AUR switcher pill keeps the amber "less-vetted" cue, stronger when active. */
+.source-pill.src-aur { color: #b26a00; }
+[data-theme="dark"] .source-pill.src-aur { color: #f0a83c; }
+.source-pill.src-aur.active { background: rgba(217, 119, 6, 0.18); }
 
 .tag {
     font-size: 11px;
