@@ -39,6 +39,12 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Dialog component icons (2026-06-01):** the confirm-modal checkbox/radio options (optdep
+  list, missing-deps, AUR provider choice) now show their source/repo/AUR icons. The gem
+  `InputOption.icon_path` (an on-disk SVG) is inlined as a base64 data URI in
+  `_serialize_option` (`watcher._icon_data_uri`, cached) and rendered as a small `<img>` in
+  `main.js`. Combo selects keep text only (native `<option>` can't show images). Tests in
+  `test_watcher.py`.
 - **Rust (`atlas_rs`) dropped — Atlas is pure-Python (2026-06-01):** removed the native
   extension entirely (`rust/` crate, the built `.so`, `gems/arch/native.py`, `test_native.py`,
   setuptools-rust from `setup.py`/`pyproject.toml`). `srcinfo.map_srcinfo` is now the sole

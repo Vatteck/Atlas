@@ -88,6 +88,21 @@ class WatcherComponentSerializationTest(unittest.TestCase):
         serialized = WebviewWatcher._serialize_components([TextComponent(html='<b>hi</b>')])
         self.assertEqual({'kind': 'text', 'html': '<b>hi</b>'}, serialized[0])
 
+    def test_option_icon_inlined_as_data_uri(self):
+        from atlas.commons import resource
+        from atlas.gems.arch import ROOT_DIR
+        opt = _opt('repo-pkg')
+        opt.icon_path = resource.get_path('img/repo.svg', ROOT_DIR)
+        comp = MultipleSelectComponent(label='', options=[opt], default_options=None)
+        serialized = WebviewWatcher._serialize_components([comp])
+        icon = serialized[0]['options'][0]['icon']
+        self.assertTrue(icon and icon.startswith('data:image/svg+xml;base64,'))
+
+    def test_option_without_icon_is_none(self):
+        comp = MultipleSelectComponent(label='', options=[_opt('a')], default_options=None)
+        serialized = WebviewWatcher._serialize_components([comp])
+        self.assertIsNone(serialized[0]['options'][0]['icon'])
+
 
 class WatcherRequestConfirmationTest(unittest.TestCase):
 

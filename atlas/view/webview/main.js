@@ -459,9 +459,16 @@ function renderConfirmComponent(comp, container) {
         input.value = String(o.oi);
         input.checked = !!o.selected;
         if (o.readOnly) input.disabled = true;
+        row.appendChild(input);
+        if (o.icon) {
+            const icon = document.createElement('img');
+            icon.className = 'confirm-option-icon';
+            icon.src = o.icon;
+            icon.alt = '';
+            row.appendChild(icon);
+        }
         const span = document.createElement('span');
         span.textContent = o.label;
-        row.appendChild(input);
         row.appendChild(span);
         wrap.appendChild(row);
         inputs.push(input);

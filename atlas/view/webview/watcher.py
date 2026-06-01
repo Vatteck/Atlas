@@ -1,10 +1,38 @@
+import base64
 import json
 import logging
+import os
 import re
 from typing import Optional, Tuple, List
 from atlas.api.abstract.handler import ProcessWatcher
 from atlas.api.abstract.view import MessageType, MultipleSelectComponent, SingleSelectComponent, \
     ViewContainer, TextComponent, SelectViewType
+
+# Gem option icons are small SVG/PNG files on disk (e.g. arch/aur/repo badges). The webview
+# can't load those paths directly, so inline them as data URIs. Cached — the same few files
+# are reused across many options.
+_ICON_CACHE = {}
+
+
+def _icon_data_uri(path: Optional[str]) -> Optional[str]:
+    if not path:
+        return None
+    if path in _ICON_CACHE:
+        return _ICON_CACHE[path]
+
+    uri = None
+    try:
+        with open(path, 'rb') as f:
+            data = f.read()
+        ext = os.path.splitext(path)[1].lower()
+        mime = {'.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg'}.get(ext)
+        if mime:
+            uri = 'data:{};base64,{}'.format(mime, base64.b64encode(data).decode('ascii'))
+    except Exception:
+        uri = None
+
+    _ICON_CACHE[path] = uri
+    return uri
 
 
 class WebviewWatcher(ProcessWatcher):
@@ -156,7 +184,8 @@ class WebviewWatcher(ProcessWatcher):
                 'label': cls._clean(opt.label) if opt.label else '',
                 'tooltip': cls._clean(opt.tooltip) if opt.tooltip else None,
                 'selected': bool(selected),
-                'readOnly': bool(getattr(opt, 'read_only', False))}
+                'readOnly': bool(getattr(opt, 'read_only', False)),
+                'icon': _icon_data_uri(getattr(opt, 'icon_path', None))}
 
     @classmethod
     def _apply_selections(cls, components: Optional[list], selections):
