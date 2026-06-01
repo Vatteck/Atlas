@@ -373,7 +373,7 @@ class FlatpakManager(SoftwareManager, SettingsController):
 
             return app_info
         else:
-            return flathub.app_info(flathub.get_appstream(self.http_client, app.id))
+            return flathub.app_info(flathub.get_appstream(self.http_client, app.id, logger=self.context.logger))
 
     def get_history(self, pkg: FlatpakApplication, full_commit_str: bool = False) -> PackageHistory:
         pkg.commit = flatpak.get_commit(pkg.id, pkg.branch, pkg.installation)
@@ -660,7 +660,7 @@ class FlatpakManager(SoftwareManager, SettingsController):
 
     def get_screenshots(self, pkg: FlatpakApplication) -> Generator[str, None, None]:
         try:
-            for url in flathub.screenshot_urls(flathub.get_appstream(self.http_client, pkg.id)):
+            for url in flathub.screenshot_urls(flathub.get_appstream(self.http_client, pkg.id, logger=self.context.logger)):
                 yield url
 
         except Exception as e:

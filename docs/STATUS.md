@@ -57,6 +57,9 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
   unit-tested against a captured payload (`tests/gems/flatpak/test_flathub.py` +
   `resources/flathub_v2_appstream_gimp.json`). Plan:
   [plans/2026-06-01-flathub-v2-api-migration.md](plans/2026-06-01-flathub-v2-api-migration.md).
+  Apps not on Flathub (installed from other remotes) now 404 **quietly**: `get_appstream`
+  uses `single_call=True` (one request, no retry, no http-layer WARNING) and logs the miss
+  at DEBUG — no more WARNING spam for e.g. `com.ml4w.*`, `com.nvidia.geforcenow`.
 - **Confirm modal now renders input components (2026-06-01):** installing e.g. `gimp`
   showed the optdep prompt and the missing-deps prompt but **no list** — the modal only
   rendered title/body text. The confirm modal now renders checkbox lists, single-select

@@ -12,11 +12,30 @@ from atlas.commons.html import strip_html
 from atlas.gems.flatpak.constants import FLATHUB_API_URL
 
 
-def get_appstream(http_client, app_id: str) -> Optional[dict]:
-    """Fetch the v2 AppStream component for an app id, or None if unavailable."""
+def get_appstream(http_client, app_id: str, logger=None) -> Optional[dict]:
+    """Fetch the v2 AppStream component for an app id, or None if unavailable.
+
+    Uses a single (non-retried) request: a 404 is a definitive "this app isn't on
+    Flathub" — common for apps installed from other remotes — so retrying is wasteful and
+    a warning is too loud. `single_call=True` also returns before the http client's own
+    "Could not retrieve data" WARNING, keeping the missing-app case quiet (DEBUG)."""
     if not app_id:
         return None
-    return http_client.get_json('{}/appstream/{}'.format(FLATHUB_API_URL, app_id))
+
+    res = http_client.get('{}/appstream/{}'.format(FLATHUB_API_URL, app_id), single_call=True)
+
+    if res is None:  # network error; the http client already logged it
+        return None
+
+    if 200 <= res.status_code < 300:
+        try:
+            return res.json()
+        except ValueError:
+            return None
+
+    if logger is not None:
+        logger.debug("Flathub has no v2 AppStream entry for '%s' (HTTP %s)", app_id, res.status_code)
+    return None
 
 
 def latest_release(data: Optional[dict]) -> dict:

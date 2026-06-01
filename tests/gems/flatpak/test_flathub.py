@@ -20,19 +20,36 @@ class FlathubV2Test(TestCase):
         self.data = _load_fixture()
 
     # --- get_appstream (the only I/O) -------------------------------------
-    def test_get_appstream_hits_v2_appstream_endpoint(self):
+    def test_get_appstream_hits_v2_appstream_endpoint_single_call(self):
         client = Mock()
-        client.get_json.return_value = {'id': 'x'}
+        client.get.return_value = Mock(status_code=200, json=Mock(return_value={'id': 'x'}))
 
         result = flathub.get_appstream(client, 'org.gimp.GIMP')
 
-        client.get_json.assert_called_once_with('https://flathub.org/api/v2/appstream/org.gimp.GIMP')
+        client.get.assert_called_once_with('https://flathub.org/api/v2/appstream/org.gimp.GIMP',
+                                           single_call=True)
         self.assertEqual({'id': 'x'}, result)
+
+    def test_get_appstream_404_returns_none_without_retry(self):
+        # an app not published on Flathub: 404 -> None, no exception, no warning
+        client = Mock()
+        client.get.return_value = Mock(status_code=404)
+        logger = Mock()
+
+        self.assertIsNone(flathub.get_appstream(client, 'com.example.notonflathub', logger=logger))
+        client.get.assert_called_once()
+        logger.warning.assert_not_called()
+        logger.debug.assert_called_once()
+
+    def test_get_appstream_network_error_returns_none(self):
+        client = Mock()
+        client.get.return_value = None  # http client exhausted attempts
+        self.assertIsNone(flathub.get_appstream(client, 'org.gimp.GIMP'))
 
     def test_get_appstream_none_id(self):
         client = Mock()
         self.assertIsNone(flathub.get_appstream(client, ''))
-        client.get_json.assert_not_called()
+        client.get.assert_not_called()
 
     # --- latest_release ---------------------------------------------------
     def test_latest_release_returns_first(self):

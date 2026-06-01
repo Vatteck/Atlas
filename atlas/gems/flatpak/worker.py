@@ -42,10 +42,12 @@ class FlatpakAsyncDataLoader(Thread):
             self.app.status = PackageStatus.LOADING_DATA
 
             try:
-                data = flathub.get_appstream(self.http_client, self.app.id)
+                data = flathub.get_appstream(self.http_client, self.app.id, logger=self.logger)
 
                 if not data:
-                    self.logger.warning("Could not retrieve Flathub data for id '{}'".format(self.app.id))
+                    # Expected for apps not published on Flathub (e.g. other remotes);
+                    # get_appstream already logs the miss at DEBUG.
+                    self.logger.debug("No Flathub data for id '{}'".format(self.app.id))
                 else:
                     release = flathub.latest_release(data)
 
