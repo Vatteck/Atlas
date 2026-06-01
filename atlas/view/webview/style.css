@@ -786,6 +786,17 @@ body {
 .modal-header-left { display: flex; align-items: center; gap: 16px; }
 .modal-icon { width: 48px; height: 48px; border-radius: var(--radius-sm); object-fit: contain; background: var(--bg-surface-hover); padding: 6px; }
 .modal-meta { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+.detail-link {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent, #6366f1);
+    text-decoration: none;
+    cursor: pointer;
+}
+.detail-link:hover { text-decoration: underline; }
+.detail-link.hidden { display: none; }
 .modal-close {
     background: none; border: none; color: var(--text-secondary);
     cursor: pointer; font-size: 18px; padding: 4px 8px; border-radius: 4px;

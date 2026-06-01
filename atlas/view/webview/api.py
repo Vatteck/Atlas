@@ -2,6 +2,7 @@ import json
 import logging
 import threading
 import traceback
+import webbrowser
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 from typing import List, Optional, Tuple
@@ -504,6 +505,18 @@ class AtlasApi:
         except Exception as e:
             self.logger.error(f"Error getting info for package {pkg.name}: {e}")
             traceback.print_exc()
+            return {'status': 'error', 'message': str(e)}
+
+    def open_url(self, url: str) -> dict:
+        """Open an external URL in the user's browser. Routed through Python because a
+        plain link would navigate the pywebview window instead. Only http(s) is allowed."""
+        if not isinstance(url, str) or not url.startswith(('http://', 'https://')):
+            return {'status': 'error', 'message': 'Invalid URL'}
+        try:
+            webbrowser.open(url)
+            return {'status': 'ok'}
+        except Exception as e:
+            self.logger.error(f"Could not open URL '{url}': {e}")
             return {'status': 'error', 'message': str(e)}
 
     def batch_uninstall(self, pkg_ids: List[str]) -> dict:

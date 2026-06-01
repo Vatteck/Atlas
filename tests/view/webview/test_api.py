@@ -5,6 +5,24 @@ from unittest.mock import Mock, patch, mock_open
 from atlas.view.webview.api import AtlasApi, _json_safe
 
 
+class OpenUrlTest(unittest.TestCase):
+    def setUp(self):
+        self.api = AtlasApi(Mock(), Mock())
+
+    @patch('atlas.view.webview.api.webbrowser.open')
+    def test_opens_http_url(self, mock_open):
+        res = self.api.open_url('https://aur.archlinux.org/packages/antigravity')
+        self.assertEqual('ok', res['status'])
+        mock_open.assert_called_once_with('https://aur.archlinux.org/packages/antigravity')
+
+    @patch('atlas.view.webview.api.webbrowser.open')
+    def test_rejects_non_http_scheme(self, mock_open):
+        for bad in ['file:///etc/passwd', 'javascript:alert(1)', '', None, 'aur.archlinux.org']:
+            res = self.api.open_url(bad)
+            self.assertEqual('error', res['status'])
+        mock_open.assert_not_called()
+
+
 class JsonSafeTest(unittest.TestCase):
     """get_info() payloads carry datetimes (Arch first_submitted/last_modified, Flathub
     release dates) that pywebview's json.dumps can't encode — _json_safe converts them."""

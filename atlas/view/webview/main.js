@@ -133,6 +133,17 @@ function sourceLabel(type) {
     return SOURCE_LABELS[normalizeType(type)] || (type || 'Unknown');
 }
 
+// Web page for a package, derived from its source + name. AUR and the official Arch repo
+// are reliable from the name; other sources return null (no link shown).
+function packagePageUrl(pkg) {
+    const name = (pkg && pkg.name || '').trim();
+    if (!name) return null;
+    const t = normalizeType(pkg.type);
+    if (t === 'aur') return `https://aur.archlinux.org/packages/${encodeURIComponent(name)}`;
+    if (t === 'arch_repo') return `https://archlinux.org/packages/?name=${encodeURIComponent(name)}`;
+    return null;
+}
+
 // Client-side type filter: the backend returns every source, the dropdown narrows it here
 // (instant, no refetch). 'all' shows everything.
 function filterByType(packages, type) {
@@ -725,9 +736,22 @@ function openDetailModal(pkg) {
         this.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgZmlsbD0iIzY0NzQ4YiIgdmlld0JveD0iMCAwIDI0IDI0Ij48cmVjdCB4PSIzIiB5PSIzIiB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHJ4PSIyIiByeT0iMiI+PC9yZWN0Pjwvc3ZnPg==';
     };
     document.getElementById('detail-name').textContent = pkg.name;
-    document.getElementById('detail-meta').textContent = `${pkg.type} • v${pkg.version || 'Unknown'}`;
+    document.getElementById('detail-meta').textContent = `${sourceLabel(pkg.type)} • v${pkg.version || 'Unknown'}`;
     document.getElementById('detail-description').textContent = pkg.description || 'No description available for this package.';
-    
+
+    // Link to the package's web page (AUR / official Arch). Routed through open_url so it
+    // opens in the system browser rather than navigating the app window.
+    const linkEl = document.getElementById('detail-link');
+    const pageUrl = packagePageUrl(pkg);
+    if (pageUrl) {
+        linkEl.textContent = (normalizeType(pkg.type) === 'aur') ? 'View on AUR ↗' : 'View package page ↗';
+        linkEl.onclick = (e) => { e.preventDefault(); pyApiCall('open_url', pageUrl); };
+        linkEl.classList.remove('hidden');
+    } else {
+        linkEl.classList.add('hidden');
+        linkEl.onclick = null;
+    }
+
     const table = document.getElementById('detail-table');
     table.innerHTML = `<tr><td colspan="2" style="text-align: center; color: var(--text-secondary);">Loading extended properties...</td></tr>`;
     
