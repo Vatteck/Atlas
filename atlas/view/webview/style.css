@@ -375,6 +375,26 @@ body {
 .source-pill.src-aur { color: #b26a00; }
 [data-theme="dark"] .source-pill.src-aur { color: #f0a83c; }
 .source-pill.src-aur.active { background: rgba(217, 119, 6, 0.18); }
+/* Small dot marking the installed source. */
+.source-pill.installed::after {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 5px;
+    border-radius: 50%;
+    background: #2ecc71;
+    vertical-align: middle;
+}
+/* Inline AUR build/votes detail shown next to the switcher when AUR is selected. */
+.tag.aur-detail {
+    color: #b26a00;
+    background: transparent;
+    text-transform: none;
+    letter-spacing: 0;
+    padding: 4px 4px;
+}
+[data-theme="dark"] .tag.aur-detail { color: #f0a83c; }
 
 .tag {
     font-size: 11px;

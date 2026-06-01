@@ -588,14 +588,21 @@ function sourceBadges(group, activeIdx) {
         return out;
     }
     // Multiple sources: clickable switcher pills (the active one is the card's target).
+    // An installed source gets a small dot so you can see which one you're running.
     const pills = group.sources.map((s, i) => {
         const t = normalizeType(s.type);
-        const installed = s.installed ? ' • installed' : '';
-        return `<button class="source-pill src-${escapeHtml(t)} ${i === activeIdx ? 'active' : ''}" data-srcidx="${i}" title="${escapeHtml(sourceLabel(s.type))}${installed}">${escapeHtml(sourceLabel(s.type))}</button>`;
+        const cls = `source-pill src-${t}${i === activeIdx ? ' active' : ''}${s.installed ? ' installed' : ''}`;
+        const title = `${sourceLabel(s.type)}${s.installed ? ' • installed' : ''}`;
+        return `<button class="${escapeHtml(cls)}" data-srcidx="${i}" title="${escapeHtml(title)}">${escapeHtml(sourceLabel(s.type))}</button>`;
     }).join('');
+    // When the selected source is AUR, surface its build kind + votes (and out-of-date)
+    // inline — the same detail single-source AUR cards show, minus the redundant "AUR".
     let extra = '';
-    if (normalizeType(pkg.type) === 'aur' && pkg.out_of_date) {
-        extra = `<span class="tag ood" title="Flagged out-of-date on the AUR">out of date</span>`;
+    if (normalizeType(pkg.type) === 'aur') {
+        const v = aurVariant(pkg.name);
+        const votesStr = (typeof pkg.votes === 'number') ? ` · ▲${pkg.votes}` : '';
+        extra += `<span class="tag aur-detail" title="AUR build: ${escapeHtml(v.label)}">${escapeHtml(v.label)}${escapeHtml(votesStr)}</span>`;
+        if (pkg.out_of_date) extra += `<span class="tag ood" title="Flagged out-of-date on the AUR">out of date</span>`;
     }
     return `<div class="source-pills">${pills}</div>${extra}`;
 }
