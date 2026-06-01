@@ -141,6 +141,8 @@ function packagePageUrl(pkg) {
     const t = normalizeType(pkg.type);
     if (t === 'aur') return `https://aur.archlinux.org/packages/${encodeURIComponent(name)}`;
     if (t === 'arch_repo') return `https://archlinux.org/packages/?name=${encodeURIComponent(name)}`;
+    // Flatpak's Flathub page is keyed by the appstream id (app_id), not the display name.
+    if (t === 'flatpak' && pkg.app_id) return `https://flathub.org/apps/${encodeURIComponent(pkg.app_id)}`;
     return null;
 }
 
@@ -744,7 +746,10 @@ function openDetailModal(pkg) {
     const linkEl = document.getElementById('detail-link');
     const pageUrl = packagePageUrl(pkg);
     if (pageUrl) {
-        linkEl.textContent = (normalizeType(pkg.type) === 'aur') ? 'View on AUR ↗' : 'View package page ↗';
+        const lt = normalizeType(pkg.type);
+        linkEl.textContent = lt === 'aur' ? 'View on AUR ↗'
+            : lt === 'flatpak' ? 'View on Flathub ↗'
+            : 'View package page ↗';
         linkEl.onclick = (e) => { e.preventDefault(); pyApiCall('open_url', pageUrl); };
         linkEl.classList.remove('hidden');
     } else {

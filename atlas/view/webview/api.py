@@ -292,6 +292,9 @@ class AtlasApi:
             'maintainer': getattr(pkg, 'maintainer', None),
             'out_of_date': bool(getattr(pkg, 'out_of_date', None)),
             'package_base': getattr(pkg, 'package_base', None),
+            # gem-native id (e.g. the Flatpak appstream id 'org.gimp.GIMP') — distinct from
+            # the registry 'id' above (type:name); used to build the Flathub page link.
+            'app_id': getattr(pkg, 'id', None),
         }
 
     def _get_pkg(self, pkg_id: str):
