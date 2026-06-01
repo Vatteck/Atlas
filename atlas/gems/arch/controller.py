@@ -3835,6 +3835,34 @@ class ArchManager(SoftwareManager, SettingsController):
                 if data and (not filter_installed or not data['i']):
                     available_suggestions[n] = data
 
+        # Suggestion names not in the official repos may be AUR packages — resolve them via
+        # the AUR RPC (one batched call) when AUR is enabled, so AUR apps can be suggested.
+        if aur.is_supported(arch_config):
+            aur_candidates = [n for n in name_priority
+                              if n not in ignored_pkgs and n not in available_packages]
+            if aur_candidates:
+                try:
+                    aur_info = self.aur_client.get_info(aur_candidates) or []
+                except Exception:
+                    aur_info = []
+                    self.logger.warning("Could not fetch AUR suggestion data", exc_info=True)
+
+                installed_aur = {}
+                if filter_installed and aur_info:
+                    installed_aur = pacman.map_installed(pkgs=[i['Name'] for i in aur_info if i.get('Name')]) or {}
+
+                for info in aur_info:
+                    name = info.get('Name')
+                    if not name or name in available_suggestions:
+                        continue
+
+                    is_installed = name in installed_aur
+                    if filter_installed and is_installed:
+                        continue
+
+                    available_suggestions[name] = {'v': info.get('Version'), 'r': 'aur',
+                                                   'i': is_installed, 'desc': info.get('Description')}
+
         if not available_suggestions:
             self.logger.info("No Arch package suggestion to return")
             return
@@ -3856,8 +3884,10 @@ class ArchManager(SoftwareManager, SettingsController):
         if thread_fill_ignored_updates:
             thread_fill_ignored_updates.join()
 
-        full_data = pacman.map_packages(names=suggestion_by_priority, remote=filter_installed, not_signed=False,
-                                        skip_ignored=True)
+        # pacman can't resolve AUR names — only query it for repo suggestions.
+        repo_names = [n for n in suggestion_by_priority if available_suggestions[n].get('r') != 'aur']
+        full_data = pacman.map_packages(names=repo_names, remote=filter_installed, not_signed=False,
+                                        skip_ignored=True) if repo_names else {}
 
         if full_data and full_data.get('signed'):
             full_data = full_data['signed']
@@ -3871,10 +3901,7 @@ class ArchManager(SoftwareManager, SettingsController):
         for name in suggestion_by_priority:
             pkg_data = available_suggestions[name]
             pkg_full_data = full_data.get(name)
-            description = None
-
-            if pkg_full_data:
-                description = pkg_full_data.get('description')
+            description = pkg_full_data.get('description') if pkg_full_data else pkg_data.get('desc')
 
             pkg_updates_ignored = pkg_data['i'] and ignored_updates and name in ignored_updates
             pkg = ArchPackage(name=name,
