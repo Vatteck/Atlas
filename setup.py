@@ -2,10 +2,9 @@
 import os
 
 from setuptools import setup, find_packages
-from setuptools_rust import Binding, RustExtension
 
 DESCRIPTION = (
-    "Graphical interface to manage Linux applications (AppImage, Arch / AUR, Flatpak, Snap and Web)"
+    "Arch-focused graphical package manager (Arch/AUR, Flatpak, AppImage)"
 )
 
 AUTHOR = "Vatteck"
@@ -33,7 +32,7 @@ setup(
     long_description=DESCRIPTION,
     author=AUTHOR,
     author_email=AUTHOR_EMAIL,
-    python_requires=">=3.5",
+    python_requires=">=3.9",
     url=URL,
     packages=find_packages(exclude=["tests.*", "tests"]),
     package_data={NAME: ["view/resources/locale/*", "view/resources/img/*", "view/resources/style/*", 'view/resources/style/*/img/*', "gems/*/resources/img/*", "gems/*/resources/locale/*", "desktop/*", "view/webview/*"]},
@@ -50,15 +49,11 @@ setup(
     classifiers=[
         'Topic :: Utilities',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 3.5',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8'
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13'
     ],
-    # debug=False forces an optimized (release) build even for editable installs.
-    # Without it, `pip install -e .` builds debug Rust, which is ~8x slower and was
-    # measured slower than the pure-Python implementation it replaced.
-    rust_extensions=[RustExtension("atlas.gems.arch.atlas_rs", path="rust/Cargo.toml",
-                                   binding=Binding.PyO3, debug=False)],
     zip_safe=False
 )

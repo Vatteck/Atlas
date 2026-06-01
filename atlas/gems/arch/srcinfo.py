@@ -1,20 +1,13 @@
-"""Native-first `.SRCINFO` parsing with a pure-Python fallback.
+"""Pure-Python `.SRCINFO` parser.
 
-`map_srcinfo` was ported to Rust (`atlas_rs.map_srcinfo`) but, unlike the other native
-paths, kept **no** Python fallback — `aur.py` imported it directly. A missing or broken
-native module would therefore break the whole Arch gem at import time. This module
-restores the original pure-Python implementation as a fallback and routes through
-`native.load()` for consistency with the rest of the engine (and so `ATLAS_DISABLE_RS`
-works here too). See `docs/ARCHITECTURE.md` §3 and the strangler-fig rule in AGENTS.md.
+This was briefly ported to Rust (`atlas_rs.map_srcinfo`, ~2×) but the Rust experiment was
+dropped: a package manager is I/O-bound, and parsing one `.SRCINFO` is negligible next to
+the git clone + makepkg build around it, so the native path wasn't worth the toolchain
+dependency. See docs/ROADMAP.md (Rust verdict).
 """
 
-import logging
 import re
 from typing import Optional, Set
-
-from atlas.gems.arch import native
-
-logger = logging.getLogger(__name__)
 
 RE_SRCINFO_KEYS = re.compile(r'(\w+)\s+=\s+(.+)\n')
 
@@ -56,9 +49,8 @@ def _merge_subinfos(subinfos: list, pkgname: Optional[str] = None,
     return info
 
 
-def _map_srcinfo_py(string: str, pkgname: Optional[str], fields: Optional[Set[str]] = None) -> dict:
-    """Pure-Python `.SRCINFO` parser (the original implementation the Rust port replaced).
-    Reference behaviour for, and fallback to, ``atlas_rs.map_srcinfo``."""
+def map_srcinfo(string: str, pkgname: Optional[str] = None, fields: Optional[Set[str]] = None) -> dict:
+    """Parse `.SRCINFO` text into a dict, optionally restricted to one pkgname / a set of fields."""
     subinfos, subinfo = [], {}
     key_fields = {'pkgname', 'pkgbase'}
 
@@ -87,17 +79,3 @@ def _map_srcinfo_py(string: str, pkgname: Optional[str], fields: Optional[Set[st
         pkgname=None if (not pkgname or len(pkgnames) == 1 or pkgname not in pkgnames) else pkgname,
         fields=fields,
     )
-
-
-def map_srcinfo(string: str, pkgname: Optional[str] = None,
-                fields: Optional[Set[str]] = None) -> dict:
-    """Parse `.SRCINFO` text. Uses the native parser when available, else the Python
-    fallback. Honours ATLAS_DISABLE_RS / ATLAS_RS_DEBUG via ``native``."""
-    atlas_rs = native.load(logger)
-    if atlas_rs is not None:
-        try:
-            return atlas_rs.map_srcinfo(string, pkgname, fields)
-        except Exception:
-            native.report_failure(logger, 'map_srcinfo')
-
-    return _map_srcinfo_py(string, pkgname, fields)
