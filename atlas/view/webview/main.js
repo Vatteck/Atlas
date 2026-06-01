@@ -105,6 +105,44 @@ function getCacheKey(view, type, query) {
     return `${view}\0${type}\0${query}`;
 }
 
+// --- Source types ----------------------------------------------------------
+// Atlas is Arch-focused: the only sources are the official repo, the AUR, Flatpak and
+// AppImage. Arch and AUR are always kept distinct (AUR is community-maintained / less
+// vetted). normalizeType() maps a raw backend get_type() value to a canonical token used
+// by both the filter and the card tag.
+function normalizeType(type) {
+    const t = (type || '').toString().trim().toLowerCase();
+    if (t === 'arch_repo' || t === 'arch') return 'arch_repo';
+    if (t === 'aur') return 'aur';
+    if (t === 'flatpak') return 'flatpak';
+    if (t === 'appimage') return 'appimage';
+    return t || 'unknown';
+}
+
+const SOURCE_LABELS = {
+    arch_repo: 'Arch',
+    aur: 'AUR',
+    flatpak: 'Flatpak',
+    appimage: 'AppImage',
+    snap: 'Snap',
+    debian: 'Debian',
+    web: 'Web',
+};
+function sourceLabel(type) {
+    return SOURCE_LABELS[normalizeType(type)] || (type || 'Unknown');
+}
+
+// Client-side type filter: the backend returns every source, the dropdown narrows it here
+// (instant, no refetch). 'all' shows everything.
+function filterByType(packages, type) {
+    if (!type || type === 'all') return packages;
+    return (packages || []).filter(p => normalizeType(p.type) === type);
+}
+
+function renderFiltered() {
+    renderPackages(filterByType(currentPackages, typeFilter.value));
+}
+
 const MAX_CACHE_ENTRIES = 30;
 function writeToCache(key, data) {
     const keys = Object.keys(packageCache);
@@ -471,7 +509,14 @@ function renderPackages(packages) {
             </div>
             <div class="package-footer">
                 <div class="package-tags">
-                    <span class="tag ${escapeHtml(pkg.type.toLowerCase())}">${escapeHtml(pkg.type)}</span>
+                    ${(() => {
+                        const src = normalizeType(pkg.type);
+                        const isAur = src === 'aur';
+                        const title = isAur
+                            ? 'AUR — community-maintained, less vetted than the official repo'
+                            : sourceLabel(pkg.type);
+                        return `<span class="tag ${escapeHtml(src)}" title="${escapeHtml(title)}">${escapeHtml(sourceLabel(pkg.type))}${isAur ? ' ⚠' : ''}</span>`;
+                    })()}
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     ${pinButton}
@@ -892,9 +937,10 @@ async function fetchPackages() {
     }
 
     const query = searchInput.value.trim();
-    const type = typeFilter.value;
 
-    const cacheKey = getCacheKey(currentView, type, query);
+    // Fetch the full (all-types) set; the type filter is applied client-side at render so
+    // switching it is instant and doesn't refetch. Cache key is therefore type-independent.
+    const cacheKey = getCacheKey(currentView, 'all', query);
     if (currentView !== 'activity' && currentView !== 'disk' && packageCache[cacheKey] !== undefined) {
         currentPackages = packageCache[cacheKey];
         loadingState.classList.add('hidden');
@@ -910,19 +956,19 @@ async function fetchPackages() {
                 document.getElementById('updates-badge').textContent = currentPackages.length;
             }
         }
-        renderPackages(currentPackages);
+        renderFiltered();
         return;
     }
 
     let results = [];
     if (query) {
-        results = await pyApiCall('search', query, type);
+        results = await pyApiCall('search', query, 'all');
     } else {
         if (currentView === 'installed') {
-            results = await pyApiCall('get_installed', type);
+            results = await pyApiCall('get_installed', 'all');
             checkOrphans();
         } else if (currentView === 'updates') {
-            results = await pyApiCall('get_updates', type);
+            results = await pyApiCall('get_updates', 'all');
             if (results && results.length > 0) {
                 updateAllBtn.classList.remove('hidden');
             }
@@ -934,7 +980,7 @@ async function fetchPackages() {
             renderDiskView();
             return;
         } else {
-            results = await pyApiCall('get_suggestions', type);
+            results = await pyApiCall('get_suggestions', 'all');
         }
     }
 
@@ -944,8 +990,8 @@ async function fetchPackages() {
 
     loadingState.classList.add('hidden');
     currentPackages = results || [];
-    renderPackages(currentPackages);
-    
+    renderFiltered();
+
     // Update Badge if viewing updates
     if (currentView === 'updates' && !query) {
         document.getElementById('updates-badge').textContent = currentPackages.length;

@@ -448,7 +448,9 @@ class SnapManager(SoftwareManager, SettingsController):
         return res
 
     def is_default_enabled(self) -> bool:
-        return True
+        # Atlas is Arch-focused (official repos, AUR, Flatpak, AppImage). Snap is
+        # Ubuntu-centric and unused on Arch; disabled by default. Re-enable in Settings.
+        return False
 
     def launch(self, pkg: SnapApplication):
         commands = SnapdClient(self.logger).list_commands(pkg.name)

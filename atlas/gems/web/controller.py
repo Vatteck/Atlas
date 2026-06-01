@@ -1141,7 +1141,9 @@ class WebApplicationManager(SoftwareManager, SettingsController):
         pass
 
     def is_default_enabled(self) -> bool:
-        return True
+        # Atlas focuses on the four Arch-relevant sources (official repos, AUR, Flatpak,
+        # AppImage); the native Web-app gem is off by default. Re-enable in Settings.
+        return False
 
     def launch(self, pkg: WebApplication):
         subprocess.Popen(args=[pkg.get_command()], shell=True, env={**os.environ})

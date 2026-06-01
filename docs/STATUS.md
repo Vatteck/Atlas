@@ -46,6 +46,18 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Done
 
+- **Source-type filter rework — Phase 1 (2026-06-01):** the type filter was decorative
+  (`pkg_type` was passed to the backend but ignored, and nothing filtered client-side).
+  Atlas is now Arch-focused: Snap/Debian/Web gems are **off by default**
+  (`is_default_enabled() → False`; still re-enableable in Settings — `_can_work` gates every
+  op on `is_enabled()`), and the filter lists exactly **Arch / AUR / Flatpak / AppImage**.
+  Filtering is now real + client-side (`normalizeType` + `filterByType` in `main.js`): the
+  full set is fetched once and the dropdown narrows it instantly (cache key is now
+  type-independent). Card tags show friendly labels; **AUR is visually distinct** (amber +
+  ⚠ + "less vetted" tooltip) from the trusted official-repo tag. Arch and AUR are always
+  separate. Tests: `tests/gems/test_default_enabled.py`. **Phase 2 (merge multi-source apps
+  into one card with a source switcher) is still pending** — see
+  [plans/2026-06-01-source-types-and-multisource-cards.md](plans/2026-06-01-source-types-and-multisource-cards.md).
 - **Config merge no longer wiped structured defaults with a null override (2026-06-01):**
   `commons/util.deep_update` set `source[key] = None` when a cached/partial config had a
   nested block as null, clobbering the default dict. Callers then did `config['block']

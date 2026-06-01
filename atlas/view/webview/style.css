@@ -356,7 +356,16 @@ body {
     letter-spacing: 0.05em;
 }
 
-.tag.aur { color: #1793d1; background-color: rgba(23, 147, 209, 0.1); }
+/* Official Arch repo — the trusted source (Arch blue). */
+.tag.arch_repo { color: #1793d1; background-color: rgba(23, 147, 209, 0.1); }
+/* AUR — community-maintained / less vetted: amber caution color + subtle outline so it
+   reads as distinct from the trusted official-repo tag. */
+.tag.aur {
+    color: #b26a00;
+    background-color: rgba(217, 119, 6, 0.12);
+    border: 1px solid rgba(217, 119, 6, 0.35);
+}
+[data-theme="dark"] .tag.aur { color: #f0a83c; }
 .tag.flatpak { color: #4a86cf; background-color: rgba(74, 134, 207, 0.1); }
 .tag.snap { color: #e95420; background-color: rgba(233, 84, 32, 0.1); }
 .tag.appimage { color: #202020; background-color: rgba(32, 32, 32, 0.1); }

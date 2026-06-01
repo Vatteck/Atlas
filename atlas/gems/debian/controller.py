@@ -583,7 +583,9 @@ class DebianPackageManager(SoftwareManager, SettingsController):
         return suggestions
 
     def is_default_enabled(self) -> bool:
-        return True
+        # Atlas is Arch-focused; Debian/dpkg is irrelevant on Arch. Disabled by default
+        # (the manager also self-skips when dpkg is absent). Re-enable in Settings.
+        return False
 
     def launch(self, pkg: SoftwarePackage):
         if isinstance(pkg, DebianPackage):
