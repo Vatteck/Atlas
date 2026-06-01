@@ -23,6 +23,64 @@ class OpenUrlTest(unittest.TestCase):
         mock_open.assert_not_called()
 
 
+class AppSettingsTest(unittest.TestCase):
+    def setUp(self):
+        self.manager = Mock()
+        self.api = AtlasApi(self.manager, Mock())
+        # core config
+        self.core = {
+            'gems': None,
+            'suggestions': {'enabled': True, 'by_type': 15},
+            'system': {'notifications': True, 'single_dependency_checking': False},
+            'updates': {'check_interval': 5, 'ask_for_reboot': True},
+            'download': {'icons': True},
+            'store_root_password': True,
+        }
+        self.manager.configman.get_config.return_value = self.core
+
+        # two managers: an arch one (works) and a flatpak one (works) with a config manager
+        def mk(modname, enabled, can_work):
+            m = Mock()
+            m.__module__ = f'atlas.gems.{modname}.controller'
+            m.is_enabled.return_value = enabled
+            m.can_work.return_value = (can_work, None)
+            return m
+        self.arch = mk('arch', True, True)
+        self.flatpak = mk('flatpak', True, True)
+        self.flatpak.configman.get_config.return_value = {'installation_level': 'user'}
+        self.manager.managers = [self.arch, self.flatpak]
+
+    def test_get_app_settings_shape(self):
+        res = self.api.get_app_settings()
+        self.assertEqual('ok', res['status'])
+        data = res['data']
+        ids = {t['id'] for t in data['types']}
+        self.assertEqual({'arch', 'flatpak'}, ids)
+        self.assertTrue(data['flatpak_available'])
+        self.assertEqual('user', data['flatpak_installation_level'])
+        self.assertTrue(data['general']['suggestions_enabled'])
+
+    def test_save_app_settings_writes_gems_and_applies_live(self):
+        res = self.api.save_app_settings({'types': {'arch': True, 'flatpak': False},
+                                          'general': {'suggestions_enabled': False},
+                                          'flatpak_installation_level': 'system'})
+        self.assertEqual('ok', res['status'])
+        # gems list written (enabled only) + general toggle applied
+        self.assertEqual(['arch'], self.core['gems'])
+        self.assertFalse(self.core['suggestions']['enabled'])
+        self.manager.configman.save_config.assert_called_once_with(self.core)
+        # live apply: set_enabled called per manager
+        self.arch.set_enabled.assert_called_once_with(True)
+        self.flatpak.set_enabled.assert_called_once_with(False)
+        # flatpak level persisted
+        self.flatpak.configman.save_config.assert_called_once()
+
+    def test_save_app_settings_invalid_flatpak_level_falls_back_to_ask(self):
+        self.api.save_app_settings({'flatpak_installation_level': 'bogus'})
+        saved = self.flatpak.configman.save_config.call_args[0][0]
+        self.assertIsNone(saved['installation_level'])
+
+
 class JsonSafeTest(unittest.TestCase):
     """get_info() payloads carry datetimes (Arch first_submitted/last_modified, Flathub
     release dates) that pywebview's json.dumps can't encode — _json_safe converts them."""

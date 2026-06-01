@@ -1297,6 +1297,98 @@ if (refreshBtn) {
     });
 }
 
+// --- Settings page ---------------------------------------------------------
+const GENERAL_TOGGLES = [
+    ['suggestions_enabled', 'Show app suggestions', 'Display recommended apps on the dashboard'],
+    ['system_notifications', 'System notifications', 'Notify when long operations finish'],
+    ['ask_for_reboot', 'Ask to reboot after updates', 'Prompt for a reboot when an update needs one'],
+    ['download_icons', 'Download app icons', 'Fetch package icons (uses the network)'],
+    ['store_root_password', 'Remember root password for the session', 'Avoid re-entering it for every privileged action'],
+];
+
+async function renderSettings() {
+    packagesGrid.innerHTML = '<div class="settings-loading">Loading settings…</div>';
+    const data = await pyApiCall('get_app_settings');
+    if (!data) {
+        packagesGrid.innerHTML = '<div class="settings-loading">Could not load settings.</div>';
+        return;
+    }
+
+    const typeRows = (data.types || []).map(t => `
+        <label class="settings-row ${t.can_work ? '' : 'disabled'}">
+            <input type="checkbox" data-type-id="${escapeHtml(t.id)}" ${t.enabled ? 'checked' : ''} ${t.can_work ? '' : 'disabled'}>
+            <span class="settings-row-label">${escapeHtml(t.label)}</span>
+            ${t.can_work ? '' : '<span class="settings-note">not available on this system</span>'}
+        </label>`).join('');
+
+    const level = data.flatpak_installation_level || '';
+    const flatpakSection = data.flatpak_available ? `
+        <section class="settings-section">
+            <h3>Flatpak</h3>
+            <label class="settings-row">
+                <span class="settings-row-label">Install level</span>
+                <select id="settings-flatpak-level" class="styled-select">
+                    <option value="" ${level === '' ? 'selected' : ''}>Ask each time</option>
+                    <option value="system" ${level === 'system' ? 'selected' : ''}>System</option>
+                    <option value="user" ${level === 'user' ? 'selected' : ''}>User</option>
+                </select>
+            </label>
+        </section>` : '';
+
+    const g = data.general || {};
+    const generalRows = GENERAL_TOGGLES.map(([key, label, tip]) => `
+        <label class="settings-row" title="${escapeHtml(tip)}">
+            <input type="checkbox" data-gen-key="${escapeHtml(key)}" ${g[key] ? 'checked' : ''}>
+            <span class="settings-row-label">${escapeHtml(label)}</span>
+        </label>`).join('');
+
+    packagesGrid.innerHTML = `
+        <div class="settings-page">
+            <section class="settings-section">
+                <h3>Package types</h3>
+                <p class="settings-help">Enable the sources Atlas manages. Greyed-out types aren't available on this system.</p>
+                ${typeRows}
+            </section>
+            ${flatpakSection}
+            <section class="settings-section">
+                <h3>General</h3>
+                ${generalRows}
+            </section>
+            <div class="settings-actions">
+                <button id="settings-save-btn" class="btn btn-primary">Save changes</button>
+            </div>
+        </div>`;
+
+    document.getElementById('settings-save-btn').addEventListener('click', saveSettings);
+}
+
+async function saveSettings() {
+    const btn = document.getElementById('settings-save-btn');
+    btn.classList.add('loading');
+
+    const types = {};
+    packagesGrid.querySelectorAll('input[data-type-id]').forEach(el => {
+        types[el.getAttribute('data-type-id')] = el.checked;
+    });
+    const general = {};
+    packagesGrid.querySelectorAll('input[data-gen-key]').forEach(el => {
+        general[el.getAttribute('data-gen-key')] = el.checked;
+    });
+    const payload = { types, general };
+    const levelEl = document.getElementById('settings-flatpak-level');
+    if (levelEl) payload.flatpak_installation_level = levelEl.value;
+
+    const res = await pyApiCall('save_app_settings', payload);
+    btn.classList.remove('loading');
+    if (res && res.status === 'ok') {
+        packageCache = {};  // package-type changes alter what searches/installed return
+        showToast('Saved', 'Settings updated', 'success');
+    } else if (res) {
+        // res === null means pyApiCall already surfaced the backend error toast
+        showToast('Error', res.message || 'Could not save settings', 'error');
+    }
+}
+
 function activateView(viewName) {
     navItems.forEach(n => n.classList.remove('active'));
     const btn = document.querySelector(`.nav-item[data-view="${viewName}"]`);
@@ -1308,11 +1400,10 @@ function activateView(viewName) {
     searchInput.value = ''; // clear search on view change
     
     if (viewName === 'settings') {
-        packagesGrid.innerHTML = '';
         emptyState.classList.add('hidden');
         loadingState.classList.add('hidden');
         packagesGrid.style.display = 'block';
-        packagesGrid.innerHTML = '<div style="padding: 32px; color: var(--text-secondary);">Settings module not yet implemented in Web UI.</div>';
+        renderSettings();
     } else {
         fetchPackages();
     }

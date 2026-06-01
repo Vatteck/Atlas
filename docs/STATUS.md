@@ -46,6 +46,17 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ## Done
 
+- **Webview Settings page (focused) (2026-06-01):** the Settings nav was a placeholder with
+  no backend — so re-enabling a gem we'd disabled by default was impossible. Built a
+  focused, **webview-native** page (not the Qt-era `GenericSettingsManager.get_settings`
+  tree, which imports PyQt5 + shows Qt-only options): `AtlasApi.get_app_settings` /
+  `save_app_settings` talk straight to the config managers. Covers **package-type
+  enable/disable** (writes `core_config['gems']` + live `set_enabled`, so it applies without
+  restart; types that can't work show disabled), **Flatpak install level**, and general
+  toggles (suggestions / notifications / ask-reboot / download icons / store root password).
+  `main.js` `renderSettings()`/`saveSettings()`. Tests:
+  `tests/view/webview/test_api.py::AppSettingsTest`. Plan:
+  [plans/2026-06-01-webview-settings.md](plans/2026-06-01-webview-settings.md).
 - **Multi-source app cards — Phase 2a (2026-06-01):** the same app offered by more than one
   source is now one card with a source switcher. `main.js` `collapseByName()` groups the
   (already-ranked) list by exact normalized name; within a group sources sort installed-first

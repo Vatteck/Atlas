@@ -522,6 +522,112 @@ class AtlasApi:
             self.logger.error(f"Could not open URL '{url}': {e}")
             return {'status': 'error', 'message': str(e)}
 
+    # ------------------------------------------------------------------ #
+    # Settings (focused, webview-native — see plans/2026-06-01-webview-settings.md)
+    # ------------------------------------------------------------------ #
+    _TYPE_LABELS = {'arch': 'Arch & AUR', 'flatpak': 'Flatpak', 'appimage': 'AppImage',
+                    'snap': 'Snap', 'debian': 'Debian', 'web': 'Web apps'}
+
+    @staticmethod
+    def _gem_name(man) -> str:
+        return man.__module__.split('.')[-2]
+
+    def _manager_by_gem(self, gem: str):
+        for man in getattr(self.manager, 'managers', []) or []:
+            if self._gem_name(man) == gem:
+                return man
+        return None
+
+    def get_app_settings(self) -> dict:
+        """Current settings for the webview Settings page: which package types are enabled
+        (with whether each can work on this system), the Flatpak install level, and a few
+        general toggles — read straight from the config managers."""
+        try:
+            core = self.manager.configman.get_config()
+            types = []
+            for man in getattr(self.manager, 'managers', []) or []:
+                gem = self._gem_name(man)
+                try:
+                    can_work = bool(man.can_work()[0])
+                except Exception:
+                    can_work = False
+                types.append({'id': gem,
+                              'label': self._TYPE_LABELS.get(gem, gem.capitalize()),
+                              'enabled': bool(man.is_enabled()),
+                              'can_work': can_work})
+            types.sort(key=lambda t: t['label'].lower())
+
+            flatpak_man = self._manager_by_gem('flatpak')
+            flatpak_level = ''
+            if flatpak_man is not None:
+                try:
+                    flatpak_level = flatpak_man.configman.get_config().get('installation_level') or ''
+                except Exception:
+                    flatpak_level = ''
+
+            return {'status': 'ok', 'data': {
+                'types': types,
+                'flatpak_available': flatpak_man is not None,
+                'flatpak_installation_level': flatpak_level,
+                'general': {
+                    'suggestions_enabled': bool(core['suggestions']['enabled']),
+                    'system_notifications': bool(core['system']['notifications']),
+                    'ask_for_reboot': bool(core['updates']['ask_for_reboot']),
+                    'download_icons': bool(core['download']['icons']),
+                    'store_root_password': bool(core['store_root_password']),
+                },
+            }}
+        except Exception as e:
+            self.logger.error(f"Error reading settings: {e}")
+            traceback.print_exc()
+            return {'status': 'error', 'message': str(e)}
+
+    def save_app_settings(self, settings: dict) -> dict:
+        """Persist the focused settings. Enabled package types are written to the core
+        config's `gems` list and applied live (set_enabled) so the change takes effect
+        without a restart; Flatpak install level + general toggles are written to their
+        config files."""
+        try:
+            settings = settings or {}
+            core = self.manager.configman.get_config()
+            managers = getattr(self.manager, 'managers', []) or []
+
+            # Package types -> core_config['gems'] (list of enabled gem dir names) + live apply.
+            type_states = settings.get('types')
+            if isinstance(type_states, dict):
+                enabled = sorted([gem for gem, on in type_states.items() if on])
+                core['gems'] = enabled
+                for man in managers:
+                    man.set_enabled(self._gem_name(man) in enabled)
+
+            general = settings.get('general') or {}
+            if 'suggestions_enabled' in general:
+                core['suggestions']['enabled'] = bool(general['suggestions_enabled'])
+            if 'system_notifications' in general:
+                core['system']['notifications'] = bool(general['system_notifications'])
+            if 'ask_for_reboot' in general:
+                core['updates']['ask_for_reboot'] = bool(general['ask_for_reboot'])
+            if 'download_icons' in general:
+                core['download']['icons'] = bool(general['download_icons'])
+            if 'store_root_password' in general:
+                core['store_root_password'] = bool(general['store_root_password'])
+
+            self.manager.configman.save_config(core)
+
+            if 'flatpak_installation_level' in settings:
+                flatpak_man = self._manager_by_gem('flatpak')
+                if flatpak_man is not None:
+                    fconf = flatpak_man.configman.get_config()
+                    level = settings.get('flatpak_installation_level') or None
+                    fconf['installation_level'] = level if level in ('system', 'user') else None
+                    flatpak_man.configman.save_config(fconf)
+
+            return {'status': 'ok'}
+        except Exception as e:
+            self.logger.error(f"Error saving settings: {e}")
+            traceback.print_exc()
+            return {'status': 'error', 'message': str(e)}
+
     def batch_uninstall(self, pkg_ids: List[str]) -> dict:
         try:
             self.logger.info(f"Batch uninstall triggered for packages: {pkg_ids}")
