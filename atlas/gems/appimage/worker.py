@@ -302,7 +302,7 @@ class AppImageSuggestionsDownloader(Thread):
         if file_url:
             self._file_url = file_url
         else:
-            self._file_url = f'https://raw.githubusercontent.com/Vatteck/atlas-files/master/appimage/suggestions.txt'
+            self._file_url = f'https://raw.githubusercontent.com/Vatteck/atlas-files/main/appimage/suggestions.txt'
 
     @property
     def cached_file_path(self) -> str:

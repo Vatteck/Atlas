@@ -44,7 +44,7 @@ class DebianSuggestionsDownloader(Thread):
         if file_url:
             self._file_url = file_url
         else:
-            self._file_url = 'https://raw.githubusercontent.com/Vatteck/atlas-files/master/debian/suggestions_v1.txt'
+            self._file_url = 'https://raw.githubusercontent.com/Vatteck/atlas-files/main/debian/suggestions_v1.txt'
 
         self.task_id = 'debian.suggs'
 

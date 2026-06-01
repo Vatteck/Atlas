@@ -562,7 +562,7 @@ class SnapManager(SoftwareManager, SettingsController):
             file_url = self.context.get_suggestion_url(self.__module__)
 
             if not file_url:
-                file_url = 'https://raw.githubusercontent.com/Vatteck/atlas-files/master/snap/suggestions.txt'
+                file_url = 'https://raw.githubusercontent.com/Vatteck/atlas-files/main/snap/suggestions.txt'
 
             self._suggestions_url = file_url
 

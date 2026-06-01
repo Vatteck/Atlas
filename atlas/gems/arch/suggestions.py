@@ -43,7 +43,7 @@ class RepositorySuggestionsDownloader(Thread):
         self._taskman: Optional[TaskManager] = None
         self.create_config = create_config
         self._file_url = file_url if file_url else 'https://raw.githubusercontent.com/Vatteck/atlas-files' \
-                                                   '/master/arch/suggestions.txt'
+                                                   '/main/arch/suggestions.txt'
         self.task_id = 'arch.suggs'
 
     def register_task(self, taskman: Optional[TaskManager]):

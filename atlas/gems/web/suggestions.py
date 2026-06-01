@@ -23,7 +23,7 @@ class SuggestionsManager:
         if file_url:
             self._file_url = file_url
         else:
-            self._file_url = "https://raw.githubusercontent.com/Vatteck/atlas-files/master/web/env/v2/suggestions.yml"
+            self._file_url = "https://raw.githubusercontent.com/Vatteck/atlas-files/main/web/env/v2/suggestions.yml"
         self._cached_file_path = f'{WEB_CACHE_DIR}/suggestions.yml'
         self._cached_file_ts_path = map_timestamp_file(self._cached_file_path)
 

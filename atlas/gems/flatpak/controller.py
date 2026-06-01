@@ -823,7 +823,7 @@ class FlatpakManager(SoftwareManager, SettingsController):
             file_url = self.context.get_suggestion_url(self.__module__)
 
             if not file_url:
-                file_url = 'https://raw.githubusercontent.com/Vatteck/atlas-files/master/flatpak/suggestions.txt'
+                file_url = 'https://raw.githubusercontent.com/Vatteck/atlas-files/main/flatpak/suggestions.txt'
 
             self._suggestions_file_url = file_url
 
