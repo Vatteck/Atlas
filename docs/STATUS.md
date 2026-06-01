@@ -253,13 +253,15 @@ See [ROADMAP.md](ROADMAP.md) for the full phased plan.
   2026-05-29, both `master` and `main` serve content). Content is package-manager-
   agnostic with no `bauh`/`vinifmor` self-references, so it works for Atlas as-is. The
   earlier launch-log download failures were just timing (predated the repo).
-  Suggestion lists curated for Arch (2026-06-01, commit `1dde4b5` in **atlas-files**, local
-  only — **needs `git push`** before the app fetches them, then clear
-  `~/.cache/atlaspm/*/suggestions.*` or wait for expiry): arch += firefox/mpv/keepassxc and
-  mangohud moved out of aur (it's in extra); aur += visual-studio-code-bin/brave-bin/
-  vesktop-bin; appimage − yuzu/citra-nightly (shut down). Names verified via `pacman -Si` /
-  AUR RPC. *Still optional later:* refresh dated electron/nativefier versions in
-  `web/env/v2/environment.yml` (web gem is disabled by default anyway).
+  Suggestion lists curated for Arch (2026-06-01, **pushed** to `atlas-files@main`): arch +=
+  firefox/mpv/keepassxc and mangohud moved out of aur (it's in extra); appimage −
+  yuzu/citra-nightly (shut down). Names verified via `pacman -Si`. Also pointed the app at
+  the `atlas-files` **`main`** branch (was `master`; deleted the redundant remote master) —
+  single source of truth. To see new suggestions immediately: `rm ~/.cache/atlaspm/*/suggestions.*`.
+  **Gotcha discovered:** AUR-only names in suggestions do **not** surface — `list_suggestions`
+  filters against `pacman.map_available_packages()` (official repos only) and reads only
+  `arch/suggestions.txt`. So `atlas-files/aur/suggestions.txt` is unused; my edits there are
+  inert. *Optional future feature:* support AUR suggestions (fetch + resolve AUR names).
 
 - ~~**Silent fallback hides Rust bugs.**~~ Addressed: native calls now go through
   `atlas/gems/arch/native.py`; run with `ATLAS_RS_DEBUG=1` to log native failures, or
