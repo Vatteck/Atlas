@@ -18,4 +18,4 @@ Comment[ca]=Instal·lar i eliminar aplicacions (AppImage, Arch, Flatpak, Snap, W
 Comment[ru]=Установка и удаление приложений (AppImage, Arch, Flatpak, Snap, Web)
 Comment[tr]=Uygulama yükle/kaldır (AppImage, Arch, Flatpak, Snap, Web)
 Exec=/usr/bin/bauh
-Icon=bauh
+Icon=atlas
