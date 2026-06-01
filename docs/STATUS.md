@@ -21,16 +21,14 @@ working. Remaining modernization items below.
 
 ## Next
 
-- **CI** — there is none. Add a GitHub Actions workflow running `pytest` on push/PR (no
-  cargo now). *Highest value — 230+ tests with zero automation.*
-- **Delete the dead Qt-era settings tree** — `view/core/settings.py` (~591 lines,
-  `GenericSettingsManager`) is unreachable now that the webview uses
-  `AtlasApi.get_app_settings`/`save_app_settings`; same for `GenericSoftwareManager.
-  get_settings`/`save_settings` and the dead `ui.qt_style`/`hdpi`/`scale_factor` config keys.
 - **Packaging** — no install path exists (no PKGBUILD/AUR package). A `PKGBUILD` so it's
-  `yay -S`-installable is the main thing that makes Atlas usable by others.
+  `yay -S`-installable is the main thing that makes Atlas usable by others. *Next up.*
 - Optional: render rich components (icons, etc.) in more dialogs; AUR-suggestion support
-  (currently repo-only — see the suggestions gotcha below).
+  (currently repo-only — see the suggestions gotcha below); route the controller's ad-hoc
+  `Thread(...)` spawns through a shared pool (marginal, only with a measured reason).
+
+Done this session: ✅ CI (GitHub Actions, pytest 3.10–3.13), ✅ dropped Rust, ✅ deleted the
+dead Qt-era settings tree, ✅ refreshed stale metadata.
 
 The Rust verdict (kept as a lesson): native code only pays off for **CPU-bound ops with a
 small result**; Atlas has almost none (it waits on pacman/AUR/network/makepkg). Don't

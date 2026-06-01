@@ -18,7 +18,6 @@ from atlas.commons.html import bold
 from atlas.commons.regex import RE_URL
 from atlas.commons.util import sanitize_command_input
 from atlas.view.core.config import CoreConfigManager
-from atlas.view.core.settings import GenericSettingsManager
 from atlas.view.core.update import check_for_update
 from atlas.view.util import resource
 from atlas.view.util.resource import get_path
@@ -53,7 +52,6 @@ class GenericSoftwareManager(SoftwareManager, SettingsController):
         self._managers_prepared_locks = {}
         self.working_managers = []
         self.config = config
-        self.settings_manager: Optional[GenericSettingsManager] = None
         self.http_client = context.http_client
         self.configman = CoreConfigManager()
         self._action_reset: Optional[CustomSoftwareAction] = None
@@ -562,20 +560,8 @@ class GenericSoftwareManager(SoftwareManager, SettingsController):
     def get_working_managers(self):
         return [m for m in self.managers if self._can_work(m)]
 
-    def get_settings(self) -> Optional[Generator[SettingsView, None, None]]:
-        if self.settings_manager is None:
-            self.settings_manager = GenericSettingsManager(managers=self.managers,
-                                                           working_managers=self.working_managers,
-                                                           configman=self.configman,
-                                                           context=self.context)
-        else:
-            self.settings_manager.managers = self.managers
-            self.settings_manager.working_managers = self.working_managers
-
-        yield SettingsView(self, self.settings_manager.get_settings())
-
-    def save_settings(self, component: TabGroupComponent) -> Tuple[bool, Optional[List[str]]]:
-        return self.settings_manager.save_settings(component)
+    # Settings are served webview-natively by AtlasApi.get_app_settings /
+    # save_app_settings; the old Qt-era GenericSettingsManager tree was removed.
 
     def _map_pkgs_by_manager(self, pkgs: List[SoftwarePackage], pkg_filters: list = None) -> Dict[SoftwareManager, List[SoftwarePackage]]:
         by_manager = {}

@@ -43,19 +43,8 @@ def main():
 
     app_config = CoreConfigManager().get_config()
 
-    if bool(app_config['ui']['auto_scale']):
-        os.environ['QT_AUTO_SCREEN_SCALE_FACTOR'] = '1'
-        logger.info("Auto screen scale factor activated")
-
-    try:
-        scale_factor = float(app_config['ui']['scale_factor'])
-        os.environ['QT_SCALE_FACTOR'] = str(scale_factor)
-        logger.info("Scale factor set to {}".format(scale_factor))
-    except Exception:
-        traceback.print_exc()
-
-    # (HDPI scaling for the old Qt UI was removed — the pywebview/GTK front-end scales via
-    # GDK_SCALE/GDK_DPI_SCALE, and the Qt HDPI attributes did nothing here.)
+    # (Display scaling for the old Qt UI was removed — the pywebview/GTK front-end scales
+    # via GDK_SCALE/GDK_DPI_SCALE; the old QT_SCALE_FACTOR/HDPI knobs did nothing here.)
 
     if bool(args.suggestions):
         logger.info("Forcing loading software suggestions after the initialization process")
