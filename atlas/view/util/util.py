@@ -21,9 +21,10 @@ def notify_user(msg: str, icon_path: str = None):
 
 
 def get_default_icon_path() -> str:
-    """Icon path for desktop notifications. notify-send resolves an installed themed icon
-    by the app name, falling back to the bundled logo file."""
-    return __app_name__ or resource.get_path('img/logo.png')
+    """Bundled icon path for desktop notifications. We pass the file path (not the app
+    name) because notify-send would otherwise resolve the themed name 'atlas' to an
+    unrelated system icon (e.g. a Maps app)."""
+    return resource.get_path('img/logo.png')
 
 
 def restart_app():
