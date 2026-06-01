@@ -1151,15 +1151,15 @@ class WebApplicationManager(SoftwareManager, SettingsController):
     def clear_data(self, logs: bool = True):
         if os.path.exists(ENV_PATH):
             if logs:
-                print('[bauh][web] Deleting directory {}'.format(ENV_PATH))
+                print('[atlas][web] Deleting directory {}'.format(ENV_PATH))
 
             try:
                 shutil.rmtree(ENV_PATH)
                 if logs:
-                    print('{}[bauh][web] Directory {} deleted{}'.format(Fore.YELLOW, ENV_PATH, Fore.RESET))
+                    print('{}[atlas][web] Directory {} deleted{}'.format(Fore.YELLOW, ENV_PATH, Fore.RESET))
             except Exception:
                 if logs:
-                    print('{}[bauh][web] An exception has happened when deleting {}{}'.format(Fore.RED, ENV_PATH,
+                    print('{}[atlas][web] An exception has happened when deleting {}{}'.format(Fore.RED, ENV_PATH,
                                                                                               Fore.RESET))
                     traceback.print_exc()
 

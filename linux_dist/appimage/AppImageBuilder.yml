@@ -94,7 +94,7 @@ AppDir:
       use_host_x: true
 
 AppImage:
-  update-information: 'gh-releases-zsync|vinifmor|atlas|latest|atlas-*x86_64.AppImage.zsync'
+  update-information: 'gh-releases-zsync|Vatteck|atlas|latest|atlas-*x86_64.AppImage.zsync'
   sign-key: None
   arch: x86_64
 

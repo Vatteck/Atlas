@@ -721,7 +721,7 @@ class AppImageManager(SoftwareManager, SettingsController):
         return TransactionResult.fail()
 
     def _gen_desktop_entry_path(self, app: AppImage) -> str:
-        return f'{DESKTOP_ENTRIES_DIR}/bauh_appimage_{app.get_clean_name()}.desktop'
+        return f'{DESKTOP_ENTRIES_DIR}/atlas_appimage_{app.get_clean_name()}.desktop'
 
     def is_enabled(self) -> bool:
         return self.enabled
@@ -855,14 +855,14 @@ class AppImageManager(SoftwareManager, SettingsController):
         for f in glob.glob(f'{APPIMAGE_SHARED_DIR}/*.db'):
             try:
                 if logs:
-                    print(f'[bauh][appimage] Deleting {f}')
+                    print(f'[atlas][appimage] Deleting {f}')
                 os.remove(f)
 
                 if logs:
-                    print(f'{Fore.YELLOW}[bauh][appimage] {f} deleted{Fore.RESET}')
+                    print(f'{Fore.YELLOW}[atlas][appimage] {f} deleted{Fore.RESET}')
             except Exception:
                 if logs:
-                    print(f'{Fore.RED}[bauh][appimage] An exception has happened when deleting {f}{Fore.RESET}')
+                    print(f'{Fore.RED}[atlas][appimage] An exception has happened when deleting {f}{Fore.RESET}')
                     traceback.print_exc()
 
     def get_settings(self) -> Optional[Generator[SettingsView, None, None]]:

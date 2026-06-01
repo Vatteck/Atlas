@@ -16,7 +16,7 @@ def check_for_update(logger: logging.Logger, http_client: HttpClient, i18n: I18n
     :param http_client:
     :param i18n:
     :param file_prefix: notification file prefix
-    :return: bauh update warning string or 'None' if no update is available
+    :return: atlas update warning string or 'None' if no update is available
     """
     logger.info("Checking for updates")
 

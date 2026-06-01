@@ -27,7 +27,7 @@ def current_governors() -> Dict[str, Set[int]]:
 
 
 def set_governor(governor: str, root_password: Optional[str], logger: Logger, cpu_idxs: Optional[Set[int]] = None):
-    new_gov_file = f'{TEMP_DIR}/bauh_scaling_governor'
+    new_gov_file = f'{TEMP_DIR}/atlas_scaling_governor'
 
     try:
         Path(TEMP_DIR).mkdir(exist_ok=True, parents=True)

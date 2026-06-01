@@ -9,7 +9,7 @@ _log_lock = threading.Lock()
 
 def record_activity(action: str, pkg_name: str, pkg_type: str, success: bool, error: str = None):
     """
-    Appends an activity log entry to ~/.cache/bauh/activity.jsonl
+    Appends an activity log entry to ~/.cache/atlaspm/activity.jsonl
     """
     entry = {
         'timestamp': datetime.datetime.now().isoformat(),
