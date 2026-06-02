@@ -916,8 +916,11 @@ updateAllBtn.addEventListener('click', async () => {
 });
 
 async function checkOrphans() {
-    const orphans = await pyApiCall('get_orphans');
-    if (orphans && orphans.length > 0) {
+    // Cheap count only (pacman -Qtdq). The full list is fetched on click, so the badge
+    // shows instantly and reliably without a slow read_installed.
+    const res = await pyApiCall('get_orphan_count');
+    const count = (res && typeof res.count === 'number') ? res.count : 0;
+    if (count > 0) {
         cleanupOrphansBtn.classList.remove('hidden');
         cleanupOrphansBtn.innerHTML = `
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;">
@@ -925,9 +928,8 @@ async function checkOrphans() {
                 <path d="M19 6l-1 14H6L5 6"></path>
                 <path d="M10 11v6M14 11v6"></path>
             </svg>
-            Cleanup ${escapeHtml(orphans.length)} Orphan${orphans.length > 1 ? 's' : ''}
+            Cleanup ${escapeHtml(count)} Orphan${count > 1 ? 's' : ''}
         `;
-        cleanupOrphansBtn.dataset.orphanIds = JSON.stringify(orphans.map(pkg => pkg.id));
     } else {
         cleanupOrphansBtn.classList.add('hidden');
     }
@@ -935,18 +937,29 @@ async function checkOrphans() {
 
 cleanupOrphansBtn.addEventListener('click', async () => {
     if (operationInProgress) { showToast('Busy', 'Another operation is already running', 'warning'); return; }
-    const rawIds = cleanupOrphansBtn.dataset.orphanIds;
-    if (!rawIds) return;
-    const ids = JSON.parse(rawIds);
-    if (!ids || ids.length === 0) return;
-    
+
+    // Fetch the real orphan list on demand (the badge only knows the count).
+    const orphans = await pyApiCall('get_orphans');
+    const ids = (orphans || []).map(pkg => pkg.id);
+    if (ids.length === 0) {
+        showToast('Nothing to clean', 'There are no orphan packages to remove', 'info');
+        cleanupOrphansBtn.classList.add('hidden');
+        return;
+    }
+
+    const names = (orphans || []).map(p => p.name).join(', ');
+    const ok = await pyApiCall('prompt_confirmation',
+        'Remove orphans?',
+        `These ${ids.length} package(s) were installed as dependencies and are no longer required:\n\n${names}`,
+        'Remove', 'Cancel');
+    if (!(ok && ok[0])) return;
+
     showToast('Orphan Cleanup', "Removing " + ids.length + " orphaned package(s)...", 'info');
-    
     const result = await pyApiCall('batch_uninstall', ids);
     if (result && result.success) {
         packageCache = {}; // Invalidate cache on orphan cleanup
         showToast('Success', 'Orphaned packages removed successfully', 'success');
-        cleanupOrphansBtn.classList.add('hidden');
+        checkOrphans();
         fetchPackages();
     } else {
         showToast('Error', result ? result.error : 'Orphan cleanup failed', 'error');
@@ -1126,6 +1139,7 @@ async function fetchPackages() {
     loadingState.classList.remove('hidden');
     updateAllBtn.classList.add('hidden'); // hidden by default
     cleanupOrphansBtn.classList.add('hidden'); // hidden by default
+    checkOrphans(); // cheap count; shows the cleanup button on any view when orphans exist
 
     // If batch mode was active, cancel it before view changes or search queries
     if (selectMode) {
@@ -1141,9 +1155,6 @@ async function fetchPackages() {
         currentPackages = packageCache[cacheKey];
         loadingState.classList.add('hidden');
         packagesGrid.style.display = 'block';
-        if (currentView === 'installed') {
-            checkOrphans();
-        }
         if (currentView === 'updates') {
             if (currentPackages.length > 0) {
                 updateAllBtn.classList.remove('hidden');
@@ -1162,7 +1173,6 @@ async function fetchPackages() {
     } else {
         if (currentView === 'installed') {
             results = await pyApiCall('get_installed', 'all');
-            checkOrphans();
         } else if (currentView === 'updates') {
             results = await pyApiCall('get_updates', 'all');
             if (results && results.length > 0) {

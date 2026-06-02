@@ -80,6 +80,14 @@ class GetOrphansTest(unittest.TestCase):
         self.assertEqual([], res['data'])
         self.manager.read_installed.assert_not_called()
 
+    def test_orphan_count_is_cheap(self):
+        arch = self._arch_man({'gjs', 'gutenprint', 'cpptrace'})
+        self.manager.managers = [arch]
+        res = self.api.get_orphan_count()
+        self.assertEqual('ok', res['status'])
+        self.assertEqual(3, res['count'])
+        self.manager.read_installed.assert_not_called()  # count must not read_installed
+
 
 class OpenUrlTest(unittest.TestCase):
     def setUp(self):

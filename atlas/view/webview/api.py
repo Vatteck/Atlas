@@ -412,6 +412,19 @@ class AtlasApi:
             traceback.print_exc()
             return {'status': 'error', 'message': str(e)}
 
+    def get_orphan_count(self) -> dict:
+        """Cheap orphan count for the cleanup button — just `pacman -Qtdq`, no read_installed
+        (which is slow). The full list is fetched via get_orphans() only when cleaning up."""
+        try:
+            arch_man = self._manager_by_gem('arch')
+            count = 0
+            if arch_man is not None and hasattr(arch_man, 'list_orphans'):
+                count = len(arch_man.list_orphans() or ())
+            return {'status': 'ok', 'count': count}
+        except Exception as e:
+            self.logger.error(f"Error counting orphans: {e}")
+            return {'status': 'error', 'message': str(e), 'count': 0}
+
 
     def get_updates(self, pkg_type: str = 'all') -> dict:
         try:
