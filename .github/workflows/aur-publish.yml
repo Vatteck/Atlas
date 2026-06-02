@@ -1,0 +1,38 @@
+name: Publish to AUR
+
+# Auto-publish the atlas-pm-git AUR package whenever the PKGBUILD changes on master.
+# The action regenerates .SRCINFO itself and pushes PKGBUILD + .SRCINFO to the AUR repo
+# (ssh://aur@aur.archlinux.org/atlas-pm-git.git). The local linux_dist/arch/publish-aur.sh
+# remains for manual/offline pushes — this just removes the manual step for metadata changes.
+#
+# One-time setup: add the AUR account's SSH *private* key as a repo secret named
+# AUR_SSH_PRIVATE_KEY (Settings → Secrets and variables → Actions, or:
+#   gh secret set AUR_SSH_PRIVATE_KEY < ~/.ssh/aur
+# ). Its matching public key must be registered on your AUR account.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'linux_dist/arch/PKGBUILD'
+  workflow_dispatch: {}   # allow manual runs from the Actions tab
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Publish atlas-pm-git to the AUR
+        # Pinned to the v4.1.3 commit SHA — this third-party action receives the AUR SSH
+        # private key, so we pin to an exact commit rather than a movable tag.
+        uses: KSXGitHub/github-actions-deploy-aur@da03e160361ce01bf087e790b6ffd196d7dccff7
+        with:
+          pkgname: atlas-pm-git
+          pkgbuild: linux_dist/arch/PKGBUILD
+          commit_username: Vatteck
+          commit_email: vatteck@gmail.com
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "sync from atlas ${{ github.sha }}"
+          # test build is left off: atlas-pm-git is a -git package, so a CI build would clone
+          # and build the whole app for no real packaging signal. .SRCINFO is still generated.
