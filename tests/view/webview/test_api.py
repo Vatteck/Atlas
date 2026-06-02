@@ -835,3 +835,38 @@ class RichDetailTest(unittest.TestCase):
         self.assertEqual('error', res['status'])
 
 
+class DowngradeTest(unittest.TestCase):
+    """Roll back to a previous version (AtlasApi.downgrade)."""
+
+    def setUp(self):
+        self.manager = Mock()
+        self.api = AtlasApi(self.manager, Mock())
+        self.pkg = Mock()
+        self.pkg.name = 'foo'
+        self.pkg.get_type.return_value = 'arch_repo'
+        self.pkg.gem_name = 'arch'
+        self.api.pkg_registry = {'arch_repo:foo': self.pkg}
+
+    @patch('atlas.view.webview.api.record_activity')
+    @patch('atlas.view.webview.api.WebviewWatcher')
+    def test_downgrade_success(self, mock_watcher_cls, mock_record):
+        self.manager.requires_root.return_value = False  # → no password prompt
+        self.manager.downgrade.return_value = True
+        res = self.api.downgrade('arch_repo:foo')
+        self.assertEqual({'status': 'ok', 'success': True}, res)
+        self.manager.downgrade.assert_called_once_with(
+            self.pkg, root_password=None, handler=mock_watcher_cls.return_value)
+        mock_record.assert_called_once_with('downgrade', 'foo', 'arch_repo', True)
+
+    @patch('atlas.view.webview.api.record_activity')
+    def test_downgrade_cancelled_without_password(self, _mock_record):
+        self.api.acquire_root_password = Mock(return_value=(False, None))
+        res = self.api.downgrade('arch_repo:foo')
+        self.assertEqual('cancelled', res['status'])
+        self.manager.downgrade.assert_not_called()
+
+    def test_downgrade_unknown_pkg(self):
+        res = self.api.downgrade('does:not-exist')
+        self.assertEqual('error', res['status'])
+
+

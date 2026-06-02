@@ -1034,6 +1034,7 @@ body {
 .activity-action.uninstall { background: rgba(239, 68, 68, 0.15); color: var(--status-danger); }
 .activity-action.update { background: rgba(16, 185, 129, 0.15); color: var(--status-success); }
 .activity-action.update_all { background: rgba(245, 158, 11, 0.15); color: var(--status-warning); }
+.activity-action.downgrade { background: rgba(245, 158, 11, 0.15); color: var(--status-warning); }
 .activity-pkg { color: var(--text-primary); font-weight: 500; }
 .activity-time { color: var(--text-secondary); font-size: 12px; flex-shrink: 0; }
 

@@ -19,16 +19,21 @@
 **Feature/QoL polish (2026-06-02).** The big transitions are done; Atlas is an Arch-focused,
 **pure-Python** pywebview app on the AUR with green CI. Now building out the feature backlog.
 Recently shipped the **Maintenance / Cleanup hub** (Disk view), **README screenshots**, the
-**Arch safety net** (News page + `.pacnew` notice), and the **rich app detail page**
-(screenshots + version history). Picking the next item from [BACKLOG.md](BACKLOG.md).
+**Arch safety net** (News page + `.pacnew` notice), the **rich app detail page**
+(screenshots + version history), and **downgrade/rollback**. Picking the next item from
+[BACKLOG.md](BACKLOG.md).
 
 ## Next
 
 Pulling from **[BACKLOG.md](BACKLOG.md)**. Near-term candidates:
 
-- **Downgrade / rollback** from the pacman cache (pairs with the maintenance/safety theme).
-- A **system-tray indicator** (non-Qt) — a real feature; the legacy Qt tray was removed.
 - **Browse by category** — a store-like discovery view (category data already in atlas-files).
+- A **system-tray indicator** (non-Qt) — a real feature; the legacy Qt tray was removed.
+- Lighter QoL: sort dropdown (votes/popularity/recent), selection toolbar refinements.
+
+> Several recently-shipped UI features **need a GUI eyeball** (can't be driven headless):
+> the rich detail modal (screenshot strip + history), the News page, the Disk maintenance
+> panel, and the downgrade flow (privileged + may prompt for a version).
 - Exploratory: container sandboxing ("Vault").
 - Lower-value: route the controller's ad-hoc `Thread(...)` spawns through a shared pool
   (marginal; only with a measured reason).
@@ -46,6 +51,15 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Downgrade / rollback (2026-06-02):** the gems implement `downgrade` and `_serialize_pkg`
+  reports `can_be_downgraded`, but the webview never called it. Added `AtlasApi.downgrade`
+  (mirrors `update`/`uninstall`: root broker → terminal → `manager.downgrade(pkg, …,
+  handler=WebviewWatcher)` → activity + notify; the gem picks the target version and may
+  prompt via the watcher). Frontend: a **Downgrade** button in the detail-modal footer (when
+  installed + `can_be_downgraded`) + `window.downgradeApp`; `.activity-action.downgrade`
+  badge style. Tests: `test_api.py::DowngradeTest` (3). Plan:
+  [plans/2026-06-02-downgrade-rollback.md](plans/2026-06-02-downgrade-rollback.md). **Needs a
+  GUI eyeball** (privileged transaction; may prompt for a version).
 - **Rich app detail page — screenshots + version history (2026-06-02):** the detail modal
   was description + a key/value table only. The orchestrator already had `get_screenshots`
   (Flatpak/AppImage) and `get_history` (all gems) but neither was exposed to the webview —

@@ -969,6 +969,20 @@ function openDetailModal(pkg) {
     }
     
     footer.appendChild(closeBtn);
+
+    // Roll back to a previous version (gem decides the target / may prompt).
+    if (pkg.installed && pkg.can_be_downgraded) {
+        const downgradeBtn = document.createElement('button');
+        downgradeBtn.className = 'btn btn-outline';
+        downgradeBtn.textContent = 'Downgrade';
+        downgradeBtn.title = 'Roll back to a previous version';
+        downgradeBtn.onclick = () => {
+            detailModal.classList.add('hidden');
+            downgradeApp(pkg.id);
+        };
+        footer.appendChild(downgradeBtn);
+    }
+
     if (actionBtn) {
         footer.appendChild(actionBtn);
     }
@@ -1621,6 +1635,30 @@ window.updateApp = async (id, btn = null) => {
         } else {
             operationInProgress = false; // Release lock on immediate failure
             showToast('Error', result ? result.error : 'Update failed', 'error');
+            if (btn) btn.classList.remove('loading');
+        }
+    } catch (err) {
+        operationInProgress = false;
+        if (btn) btn.classList.remove('loading');
+    }
+};
+
+window.downgradeApp = async (id, btn = null) => {
+    if (btn) btn.classList.add('loading');
+    operationInProgress = true; // Synch lock
+    showToast('Downgrading', 'Downgrade started', 'info');
+    try {
+        const result = await pyApiCall('downgrade', id);
+        if (result && result.status === 'cancelled') {
+            operationInProgress = false;
+            showToast('Cancelled', 'Authentication cancelled', 'info');
+            if (btn) btn.classList.remove('loading');
+        } else if (result && result.success) {
+            showToast('Success', 'Application downgraded', 'success');
+            packageCache = {}; // Wipe cache
+        } else {
+            operationInProgress = false; // Release lock on immediate failure
+            showToast('Error', (result && result.error) || 'Downgrade failed', 'error');
             if (btn) btn.classList.remove('loading');
         }
     } catch (err) {

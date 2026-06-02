@@ -16,8 +16,10 @@
   has a "Reclaim space" panel: orphan packages (checklist), **pacman cache** (`pacman -Sc`,
   freed amount measured before/after), and **unused Flatpak runtimes**
   (`flatpak uninstall --unused`, honouring the configured install level).
-- **Downgrade / rollback** — pick an older cached version of a package from the pacman
-  cache (`/var/cache/pacman/pkg/`). Classic Arch safety move; bauh had it.
+- ~~**Downgrade / rollback**~~ ✅ **Shipped 2026-06-02** — see
+  [plans/2026-06-02-downgrade-rollback.md](plans/2026-06-02-downgrade-rollback.md). A
+  **Downgrade** button in the detail modal (when `can_be_downgraded`) wired to the gems'
+  existing `downgrade` via `AtlasApi.downgrade`; the gem picks the target version.
 
 ## Arch safety net (distinctive, very Arch-specific)
 

@@ -727,6 +727,38 @@ class AtlasApi:
             record_activity('update', pkg.name, pkg.get_type() or pkg.gem_name, False, str(e))
             return {'status': 'error', 'message': str(e)}
 
+    def downgrade(self, pkg_id: str) -> dict:
+        """Roll a package back to a previous version. The gem picks the target version
+        (and may prompt through the watcher); we just drive the privileged transaction,
+        mirroring update()/uninstall()."""
+        pkg = self._get_pkg(pkg_id)
+        if not pkg:
+            return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
+        try:
+            self.logger.info(f"Downgrading package: {pkg.name}")
+            proceed, root_password = self.acquire_root_password(SoftwareAction.DOWNGRADE, pkg)
+            if not proceed:
+                self.logger.info(f"Downgrade of {pkg.name} cancelled (no root password)")
+                return {'status': 'cancelled'}
+            if self.window:
+                self.window.evaluate_js(f"terminalOpen('Downgrading {pkg.name}')")
+            watcher = WebviewWatcher(self.logger, self.window, self)
+            success = bool(self.manager.downgrade(pkg, root_password=root_password, handler=watcher))
+            if self.window:
+                self.window.evaluate_js(f"terminalSetDone({str(success).lower()})")
+
+            record_activity('downgrade', pkg.name, pkg.get_type() or pkg.gem_name, success)
+            self._notify(f"{pkg.name} downgraded" if success else f"Failed to downgrade {pkg.name}")
+
+            return {'status': 'ok', 'success': success}
+        except Exception as e:
+            self.logger.error(f"Error downgrading package {pkg.name}: {e}")
+            traceback.print_exc()
+            if self.window:
+                self.window.evaluate_js("terminalSetDone(false)")
+            record_activity('downgrade', pkg.name, pkg.get_type() or pkg.gem_name, False, str(e))
+            return {'status': 'error', 'message': str(e)}
+
     def get_info(self, pkg_id: str) -> dict:
         pkg = self._get_pkg(pkg_id)
         if not pkg:
