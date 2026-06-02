@@ -19,4 +19,4 @@ Comment[ru]=Установка и удаление приложений (Arch, A
 Comment[tr]=Uygulama yükle/kaldır (Arch, AUR, Flatpak, AppImage)
 Exec=/usr/bin/atlas
 Icon=atlas-pm
-StartupWMClass=atlas
+StartupWMClass=atlas-pm

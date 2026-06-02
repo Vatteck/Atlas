@@ -53,6 +53,19 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Window icon — make the identity uniformly `atlas-pm` (2026-06-02):** the prior fix pinned
+  app_id to the bare **`atlas`**, which still showed the map on KDE/Plasma Wayland. Diagnosis
+  from the affected box: install was correct (Icon=atlas-pm, StartupWMClass, atlas-pm.png all
+  present) but the active icon theme ships a generic **`atlas`** icon (char-white, Tela,
+  Fluent, WhiteSur, BigSur-black all carry `…/apps/atlas.svg` — a map), and KDE resolves a
+  window's icon by an **app_id→icon-name lookup** that hit the theme `atlas` *before* the
+  desktop file's `Icon=`. Fix: drop the bare `atlas` identity entirely — `set_prgname('atlas-pm')`,
+  renamed the entry to **`atlas-pm.desktop`** (so app_id == desktop basename), `StartupWMClass=atlas-pm`,
+  `Icon=atlas-pm` (unchanged); the PKGBUILD installs `atlas-pm.desktop`. `atlas-pm` collides with
+  no theme. Verified app_id flips to `atlas-pm` (throwaway GTK window). Also forced the GTK
+  backend (`gui='gtk'` unless `PYWEBVIEW_GUI` set) so pywebview doesn't try Qt first (the
+  affected box has no qtpy → scary-but-harmless traceback) and so the GTK app_id always applies.
+  **Needs a relogin + `kbuildsycoca6` on KDE after rebuild** for the cache to refresh.
 - **Sort dropdown (2026-06-02):** a topbar `#sort-filter` (next to the type filter / view
   toggle) — **Relevance** (default; unchanged search/AUR ranking), **Votes**, **Popularity**,
   **Recently updated**, **Name (A–Z)**. Client-side in `main.js` (`sortPackages()` dispatch +

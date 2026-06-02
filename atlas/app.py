@@ -108,14 +108,17 @@ def main():
     html_path = 'file://' + os.path.abspath(os.path.join(os.path.dirname(__file__), 'view', 'webview', 'index.html'))
 
     # Pin the program name so the window identity is stable and matches the installed
-    # `atlas.desktop`. On Wayland the compositor/dock/switcher resolves a window's icon by
-    # matching its app_id to a .desktop file (then reading that file's Icon=); GTK derives the
-    # app_id (and the X11 WM_CLASS) from the program name, which otherwise defaults to argv[0]'s
-    # basename — e.g. 'app.py' under `python -m atlas.app`, matching no desktop file → fallback
-    # icon. Setting it to 'atlas' makes app_id='atlas', which matches atlas.desktop (Icon=atlas-pm).
+    # `atlas-pm.desktop`. GTK derives the Wayland app_id (and X11 WM_CLASS) from the program
+    # name, which otherwise defaults to argv[0]'s basename — e.g. 'app.py' under
+    # `python -m atlas.app`, matching no desktop file → fallback icon.
+    #
+    # Use 'atlas-pm', NOT the bare 'atlas': KDE/Plasma resolves a window's icon by an
+    # app_id→icon-name lookup, and several icon themes (char-white, Tela, Fluent, WhiteSur, …)
+    # ship a generic 'atlas' icon (a map) that would win over the desktop file's Icon=. The
+    # unique 'atlas-pm' collides with no theme and matches atlas-pm.desktop (Icon=atlas-pm).
     try:
         from gi.repository import GLib
-        GLib.set_prgname('atlas')
+        GLib.set_prgname('atlas-pm')
     except Exception:
         pass  # non-GTK backend / gi unavailable — harmless
 
