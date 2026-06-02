@@ -17,6 +17,12 @@ on:
       - 'linux_dist/arch/PKGBUILD'
   workflow_dispatch: {}   # allow manual runs from the Actions tab
 
+# Serialize publishes so a PKGBUILD-change push and a manual dispatch can't race the AUR
+# push. cancel-in-progress stays false: an in-flight publish should finish, not be killed.
+concurrency:
+  group: aur-publish
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
