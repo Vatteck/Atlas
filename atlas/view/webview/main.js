@@ -810,15 +810,28 @@ function openDetailModal(pkg) {
         table.innerHTML = '';
         if (info && Object.keys(info).length > 0) {
             Object.entries(info).forEach(([key, val]) => {
+                // Skip empty, null, undefined, or 'None' values to keep the table clean
+                if (val === null || val === undefined || val === '' || val === 'None' || val === 'none' || val === 'null') {
+                    return;
+                }
+                if (Array.isArray(val) && val.length === 0) {
+                    return;
+                }
+
                 const tr = document.createElement('tr');
                 const tdKey = document.createElement('td');
                 tdKey.textContent = key;
                 const tdVal = document.createElement('td');
-                if (typeof val === 'object' && val !== null) {
+                
+                if (Array.isArray(val)) {
+                    // Format arrays nicely as a comma-separated list
+                    tdVal.textContent = val.join(', ');
+                } else if (typeof val === 'object') {
                     tdVal.textContent = JSON.stringify(val);
                 } else {
                     tdVal.textContent = String(val);
                 }
+                
                 tr.appendChild(tdKey);
                 tr.appendChild(tdVal);
                 table.appendChild(tr);

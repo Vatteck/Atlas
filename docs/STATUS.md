@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §8). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-01
+**Last updated:** 2026-06-02
 **Version:** 0.10.7
 **Working branch:** `master` (use short-lived branches for larger features; run `git branch` to see what's active)
 
@@ -13,7 +13,7 @@
 
 ## Current focus
 
-**Modernization + simplification (2026-06-01).** Atlas is now an Arch-focused, **pure-Python**
+**Modernization + simplification (2026-06-02).** Atlas is now an Arch-focused, **pure-Python**
 pywebview app: the Rust `atlas_rs` extension was dropped (a package manager is I/O-bound;
 the native path wasn't worth the toolchain), and the residual PyQt5 coupling is gone. The
 webview privileged-op flow, source-types UI, settings page, and notifications are all
@@ -45,6 +45,7 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Clean Package Details Modal & Array Formatting (2026-06-02):** Fixed the bug where the package details modal displayed raw `"null"` values for missing metadata rows (such as conflicts, provides, and optional deps). Empty, `null`, `undefined`, and `"None"` / `"none"` / `"null"` values are now omitted from the details table entirely, keeping it clean and compact. Also formatted array values (such as "depends on" and "required by") as nice, clean comma-separated lists instead of raw JSON arrays.
 - **Responsive Layout Adaptivity (2026-06-01):** Implemented fluid layout adaptivity to support tiling window managers and small splits down to 400px wide. Changed the pywebview minimum window constraint in `app.py` from `(800, 600)` to `(400, 400)` and shifted CSS media queries breakpoints upward (collapse at `960px`, stacking at `700px`, single-column grid at `520px`) to perfectly cover 1080p screen half-splits.
 - **UI Polish & Micro-interactions (2026-06-01):** Implemented 7 high-performance, GPU-safe micro-interactions to elevate the UI's tactile feel: active navigation indicator spring bar, badge pop scale animation (`.badge-pop`), package card hover glow (`box-shadow`), source switcher scale-down on active, tactile button scale-down (`transform: scale`), toast custom slide-in/out scale animations tailored per success/error, and focus outline rings for keyboard accessibility.
 - **UI Modernization & Premium Design Tokens (2026-06-01):** Implemented modern Obsidian/Deep Graphite surfaces and Indigo/Purple premium theme accents. Rebuilt CSS custom properties, added smooth transitions, glassmorphic sidebar and topbar, spring-ease obsidian blurred modals, animated loading skeleton screens, 3D lift package cards, and removed the awkward left active-nav border shadow. Fully tested and verified.
