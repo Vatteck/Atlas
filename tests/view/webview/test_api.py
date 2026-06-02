@@ -548,3 +548,50 @@ class AtlasApiDialogTest(unittest.TestCase):
         self.assertTrue(self.api._message_event.is_set())
 
 
+class BatchOperationsTest(unittest.TestCase):
+    def setUp(self):
+        self.manager = Mock()
+        self.logger = Mock()
+        self.api = AtlasApi(self.manager, self.logger)
+        self.api.window = Mock()
+
+        # Mock packages
+        self.pkg1 = Mock()
+        self.pkg1.name = "pkg1"
+        self.pkg1.installed = True
+        self.pkg1.get_type = Mock(return_value="Flatpak")
+        self.pkg1.gem_name = "flatpak"
+
+        self.pkg2 = Mock()
+        self.pkg2.name = "pkg2"
+        self.pkg2.installed = False
+        self.pkg2.get_type = Mock(return_value="Flatpak")
+        self.pkg2.gem_name = "flatpak"
+
+        # Register packages in registry
+        self.api.pkg_registry["flatpak:pkg1"] = self.pkg1
+        self.api.pkg_registry["flatpak:pkg2"] = self.pkg2
+
+    @patch('atlas.view.webview.api.WebviewWatcher')
+    @patch('atlas.view.webview.api.record_activity')
+    def test_batch_uninstall_success(self, mock_record, mock_watcher_cls):
+        self.manager.uninstall.return_value = Mock(success=True)
+        self.manager.requires_root.return_value = False
+
+        res = self.api.batch_uninstall(["flatpak:pkg1"])
+        self.assertEqual(res, {'status': 'ok', 'success': True})
+        self.manager.uninstall.assert_called_once_with(self.pkg1, root_password=None, handler=mock_watcher_cls.return_value)
+        mock_record.assert_called_once_with('uninstall', 'pkg1', 'Flatpak', True)
+
+    @patch('atlas.view.webview.api.WebviewWatcher')
+    @patch('atlas.view.webview.api.record_activity')
+    def test_batch_install_success(self, mock_record, mock_watcher_cls):
+        self.manager.install.return_value = Mock(success=True)
+        self.manager.requires_root.return_value = False
+
+        res = self.api.batch_install(["flatpak:pkg2"])
+        self.assertEqual(res, {'status': 'ok', 'success': True})
+        self.manager.install.assert_called_once_with(self.pkg2, root_password=None, disk_loader=None, handler=mock_watcher_cls.return_value)
+        mock_record.assert_called_once_with('install', 'pkg2', 'Flatpak', True)
+
+

@@ -82,6 +82,7 @@ const navItems = document.querySelectorAll('.nav-item');
 const selectModeBtn = document.getElementById('select-mode-btn');
 const batchBar = document.getElementById('batch-bar');
 const batchCount = document.getElementById('batch-count');
+const batchInstallBtn = document.getElementById('batch-install-btn');
 const batchUninstallBtn = document.getElementById('batch-uninstall-btn');
 const batchCancelBtn = document.getElementById('batch-cancel-btn');
 const updateAllBtn = document.getElementById('update-all-btn');
@@ -659,7 +660,7 @@ function cardInnerHTML(group, activeIdx) {
 
     return `
             <div class="package-header">
-                <input type="checkbox" class="pkg-checkbox" ${isChecked} onclick="event.stopPropagation();">
+                <input type="checkbox" class="pkg-checkbox" ${isChecked}>
                 <img src="${(pkg.icon_url && pkg.icon_url.startsWith('data:')) ? pkg.icon_url : letterAvatar(pkg)}" data-src="${escapeHtml(getIconDataSrc(pkg.icon_url))}" class="package-icon" alt="${escapeHtml(pkg.name)} icon" loading="lazy" decoding="async">
                 <div class="package-info">
                     <h3 class="package-title" title="${escapeHtml(pkg.name)}">${escapeHtml(pkg.name)}</h3>
@@ -916,20 +917,73 @@ function toggleSelectMode(active) {
 
 function updateBatchBar() {
     if (selectMode && selectedPackages.size > 0) {
+        let installedCount = 0;
+        let uninstalledCount = 0;
+        selectedPackages.forEach(id => {
+            const pkg = currentPackages.find(p => p.id === id);
+            if (pkg) {
+                if (pkg.installed) {
+                    installedCount++;
+                } else {
+                    uninstalledCount++;
+                }
+            }
+        });
+
         batchCount.textContent = `${selectedPackages.size} selected`;
+
+        if (installedCount > 0) {
+            batchUninstallBtn.classList.remove('hidden');
+            batchUninstallBtn.textContent = `Uninstall Selected (${installedCount})`;
+        } else {
+            batchUninstallBtn.classList.add('hidden');
+        }
+
+        if (uninstalledCount > 0) {
+            batchInstallBtn.classList.remove('hidden');
+            batchInstallBtn.textContent = `Install Selected (${uninstalledCount})`;
+        } else {
+            batchInstallBtn.classList.add('hidden');
+        }
+
         batchBar.classList.remove('hidden');
     } else {
         batchBar.classList.add('hidden');
     }
 }
 
+batchInstallBtn.addEventListener('click', async () => {
+    if (selectedPackages.size === 0) return;
+    const ids = Array.from(selectedPackages);
+    const toInstall = ids.filter(id => {
+        const pkg = currentPackages.find(p => p.id === id);
+        return pkg && !pkg.installed;
+    });
+    if (toInstall.length === 0) return;
+    toggleSelectMode(false);
+    showToast('Batch Installing', `Installing ${toInstall.length} package(s)...`, 'info');
+    
+    const result = await pyApiCall('batch_install', toInstall);
+    if (result && result.success) {
+        packageCache = {}; // Invalidate cache on batch operation completion
+        showToast('Success', 'Selected packages installed', 'success');
+    } else {
+        showToast('Error', result ? result.error : 'Batch operation failed', 'error');
+    }
+});
+
 batchUninstallBtn.addEventListener('click', async () => {
     if (selectedPackages.size === 0) return;
     const ids = Array.from(selectedPackages);
+    const toUninstall = ids.filter(id => {
+        const pkg = currentPackages.find(p => p.id === id);
+        return pkg && pkg.installed;
+    });
+    if (toUninstall.length === 0) return;
     toggleSelectMode(false);
-    showToast('Batch Uninstalling', `Uninstalling ${ids.length} packages in batch...`, 'info');
+    showToast('Batch Uninstalling', `Uninstalling ${toUninstall.length} package(s)...`, 'info');
     
-    const result = await pyApiCall('batch_uninstall', ids);
+    const result = await pyApiCall('batch_uninstall', toUninstall);
     if (result && result.success) {
         packageCache = {}; // Invalidate cache on batch operation completion
         showToast('Success', 'Selected packages uninstalled', 'success');

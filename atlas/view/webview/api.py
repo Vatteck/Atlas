@@ -739,6 +739,62 @@ class AtlasApi:
                 self.window.evaluate_js("terminalSetDone(false)")
             return {'status': 'error', 'message': str(e)}
 
+    def batch_install(self, pkg_ids: List[str]) -> dict:
+        try:
+            self.logger.info(f"Batch install triggered for packages: {pkg_ids}")
+            pkgs = []
+            for pid in pkg_ids:
+                p = self._get_pkg(pid)
+                if p:
+                    pkgs.append(p)
+            
+            if not pkgs:
+                return {'status': 'error', 'message': 'No valid packages specified for install'}
+                
+            self.logger.info(f"Prepared batch install for: {[p.name for p in pkgs]}")
+
+            # Acquire a password if any of the selected packages needs root; cache covers the rest.
+            root_password = None
+            for pkg in pkgs:
+                proceed, pwd = self.acquire_root_password(SoftwareAction.INSTALL, pkg)
+                if not proceed:
+                    self.logger.info("Batch install cancelled (no root password)")
+                    return {'status': 'cancelled'}
+                if pwd is not None:
+                    root_password = pwd
+                    break
+
+            watcher = WebviewWatcher(self.logger, self.window, self)
+
+            success = True
+            for idx, pkg in enumerate(pkgs):
+                if self.window:
+                    self.window.evaluate_js(f"terminalOpen('Installing {pkg.name} ({idx+1}/{len(pkgs)})')")
+                
+                res = self.manager.install(pkg, root_password=root_password, disk_loader=None, handler=watcher)
+                pkg_success = res.success if res else False
+                
+                # Record individual activity
+                record_activity('install', pkg.name, pkg.get_type() or pkg.gem_name, pkg_success)
+                
+                if not pkg_success:
+                    self.logger.error(f"Failed to install {pkg.name}")
+                    success = False
+                    break
+                    
+            if self.window:
+                self.window.evaluate_js(f"terminalSetDone({str(success).lower()})")
+
+            self._notify(f"Installed {len(pkgs)} package(s)" if success else "Batch install failed")
+
+            return {'status': 'ok', 'success': success}
+        except Exception as e:
+            self.logger.error(f"Error in batch install: {e}")
+            traceback.print_exc()
+            if self.window:
+                self.window.evaluate_js("terminalSetDone(false)")
+            return {'status': 'error', 'message': str(e)}
+
     def update_all(self) -> dict:
         try:
             self.logger.info("Update All triggered")

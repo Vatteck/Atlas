@@ -1503,3 +1503,8 @@ body {
     }
 }
 
+/* Global utility for hiding elements */
+.hidden {
+    display: none !important;
+}
+
