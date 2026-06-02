@@ -55,6 +55,16 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Fix `_fill_suggestions` crash on an empty/partial config file (2026-06-02):** a background
+  thread threw `TypeError: 'NoneType' object is not subscriptable` (non-fatal — logged, app kept
+  running). Root cause: `_fill_suggestions` passed `self.configman.read_config()` to the
+  suggestions downloader, but `YAMLConfigManager.read_config()` returns **None** when the config
+  file exists yet is empty/null (`yaml.safe_load → None`); `should_download` then indexed a
+  default key (`arch_config['suggestions_exp']`) on None. Fix: pass **`get_config()`** (defaults
+  merged with cached — never None) instead. Same one-liner applied to the **Debian** gem
+  (`debian/controller.py:541`, identical pattern; off by default but same latent crash). Sibling
+  of the 2026-06-01 `deep_update` null-override fix. Tests: `tests/common/test_config.py` (5 —
+  locks the `read_config()`-is-None-vs-`get_config()`-defaults contract).
 - **System-tray indicator (non-Qt) — phase 1 (2026-06-02):** reintroduced a tray presence,
   this time pure-Python (the legacy Qt tray was purged). Backend: **AyatanaAppIndicator3** (falls
   back to AppIndicator3) via `gi` — a StatusNotifierItem KDE Plasma shows natively; rides the

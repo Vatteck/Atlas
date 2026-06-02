@@ -538,7 +538,9 @@ class DebianPackageManager(SoftwareManager, SettingsController):
 
     def _fill_suggestions(self, output: Dict[str, int]):
         self.suggestions_downloader.register_task(None)
-        suggestions = self.suggestions_downloader.read(self.configman.read_config())
+        # get_config() not read_config(): the latter is None for an empty/partial config file and
+        # the downloader indexes default keys like 'suggestions.exp' (would TypeError on None).
+        suggestions = self.suggestions_downloader.read(self.configman.get_config())
 
         if suggestions:
             output.update(suggestions)

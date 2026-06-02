@@ -3764,7 +3764,10 @@ class ArchManager(SoftwareManager, SettingsController):
 
     def _fill_suggestions(self, output: Dict[str, int]):
         self.suggestions_downloader.register_task(None)
-        suggestions = self.suggestions_downloader.read(self.configman.read_config())
+        # get_config() (defaults merged with the cached file), NOT read_config(): the latter
+        # returns the raw cached file, which is None when the config file is empty/partial — and
+        # the downloader indexes default keys like 'suggestions_exp' (would TypeError on None).
+        suggestions = self.suggestions_downloader.read(self.configman.get_config())
 
         if suggestions:
             output.update(suggestions)
