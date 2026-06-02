@@ -681,6 +681,31 @@ function cardInnerHTML(group, activeIdx) {
         `;
 }
 
+function getSkeletonGridHTML() {
+    let html = '';
+    for (let i = 0; i < 6; i++) {
+        html += `
+        <div class="skeleton-card">
+            <div class="skeleton-header">
+                <div class="skeleton-icon skeleton-shimmer"></div>
+                <div class="skeleton-info">
+                    <div class="skeleton-line title skeleton-shimmer"></div>
+                    <div class="skeleton-line subtitle skeleton-shimmer"></div>
+                </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+                <div class="skeleton-line description skeleton-shimmer"></div>
+                <div class="skeleton-line description-short skeleton-shimmer"></div>
+            </div>
+            <div class="skeleton-footer">
+                <div class="skeleton-tag skeleton-shimmer"></div>
+                <div class="skeleton-btn skeleton-shimmer"></div>
+            </div>
+        </div>`;
+    }
+    return html;
+}
+
 // Render Package Cards (one per app group)
 function renderPackages(packages) {
     packagesGrid.innerHTML = '';
@@ -989,9 +1014,10 @@ function formatBytes(bytes, decimals = 2) {
 }
 
 async function renderDiskView() {
-    packagesGrid.style.display = 'none';
-    loadingState.classList.remove('hidden');
+    packagesGrid.style.display = 'grid';
+    packagesGrid.innerHTML = getSkeletonGridHTML();
     emptyState.classList.add('hidden');
+    loadingState.classList.add('hidden');
 
     const data = await pyApiCall('get_disk_usage');
     loadingState.classList.add('hidden');
@@ -1147,9 +1173,10 @@ async function renderActivityFeed() {
 
 // Data Fetching
 async function fetchPackages() {
-    packagesGrid.style.display = 'none';
+    packagesGrid.style.display = 'grid';
+    packagesGrid.innerHTML = getSkeletonGridHTML();
     emptyState.classList.add('hidden');
-    loadingState.classList.remove('hidden');
+    loadingState.classList.add('hidden');
     updateAllBtn.classList.add('hidden'); // hidden by default
     cleanupOrphansBtn.classList.add('hidden'); // hidden by default
     checkOrphans(); // cheap count; shows the cleanup button on any view when orphans exist

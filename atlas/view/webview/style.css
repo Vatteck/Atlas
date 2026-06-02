@@ -1163,4 +1163,81 @@ body {
 .btn-pin.pinned { background: rgba(245, 158, 11, 0.1); border-color: var(--status-warning); color: var(--status-warning); }
 .btn-pin.pinned:hover { background: var(--status-warning); color: white; }
 
+/* Skeleton Loader Styles */
+.skeleton-card {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 180px;
+    position: relative;
+    overflow: hidden;
+}
+.skeleton-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+.skeleton-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
+}
+.skeleton-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.skeleton-line {
+    height: 12px;
+    border-radius: var(--radius-sm);
+}
+.skeleton-line.title {
+    width: 60%;
+    height: 16px;
+}
+.skeleton-line.subtitle {
+    width: 40%;
+}
+.skeleton-line.description {
+    width: 90%;
+    height: 10px;
+}
+.skeleton-line.description-short {
+    width: 75%;
+    height: 10px;
+}
+.skeleton-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+}
+.skeleton-tag {
+    width: 70px;
+    height: 20px;
+    border-radius: var(--radius-sm);
+}
+.skeleton-btn {
+    width: 80px;
+    height: 28px;
+    border-radius: var(--radius-md);
+}
+.skeleton-shimmer {
+    background: linear-gradient(90deg, var(--bg-surface-hover) 25%, var(--border-color) 50%, var(--bg-surface-hover) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite linear;
+}
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
 
