@@ -5,6 +5,37 @@ from unittest.mock import Mock, patch, mock_open
 from atlas.view.webview.api import AtlasApi, _json_safe
 
 
+class GetInstalledFilterTest(unittest.TestCase):
+    def setUp(self):
+        self.manager = Mock()
+        self.api = AtlasApi(self.manager, Mock())
+
+    def _pkg(self, name, runtime=False):
+        p = Mock()
+        p.name = name
+        p.runtime = runtime
+        p.description = ''; p.version = '1'; p.latest_version = '1'
+        p.installed = True; p.update = False; p.icon_url = None; p.size = 1
+        p.categories = []
+        p.get_publisher.return_value = ''
+        p.get_type.return_value = 'flatpak'
+        for attr in ('can_be_run', 'can_be_downgraded', 'has_info', 'has_history',
+                     'is_update_ignored', 'supports_ignored_updates'):
+            getattr(p, attr).return_value = False
+        return p
+
+    def test_flatpak_runtimes_hidden_from_installed(self):
+        app = self._pkg('GIMP', runtime=False)
+        runtime = self._pkg('org.freedesktop.Platform', runtime=True)
+        self.manager.read_installed.return_value = Mock(installed=[app, runtime])
+
+        res = self.api.get_installed()
+
+        names = [p['name'] for p in res['data']]
+        self.assertIn('GIMP', names)
+        self.assertNotIn('org.freedesktop.Platform', names)
+
+
 class OpenUrlTest(unittest.TestCase):
     def setUp(self):
         self.api = AtlasApi(Mock(), Mock())

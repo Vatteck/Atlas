@@ -365,7 +365,10 @@ class AtlasApi:
         try:
             self.logger.info("get_installed called")
             result = self.manager.read_installed()
-            pkgs = result.installed or []
+            # Hide Flatpak runtimes / extensions / themes / locales (runtime refs) from the
+            # Installed view — users browse apps, not the dozens of low-level deps. They
+            # still count toward the Disk view, which has its own read_installed call.
+            pkgs = [p for p in (result.installed or []) if not getattr(p, 'runtime', False)]
             return {'status': 'ok', 'data': [self._serialize_pkg(p) for p in pkgs]}
         except Exception as e:
             self.logger.error(f"Error fetching installed packages: {e}")
