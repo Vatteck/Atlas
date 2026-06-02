@@ -289,6 +289,7 @@ class AtlasApi:
             'can_be_downgraded': pkg.can_be_downgraded() if hasattr(pkg, 'can_be_downgraded') else False,
             'has_info': pkg.has_info() if hasattr(pkg, 'has_info') else False,
             'has_history': pkg.has_history() if hasattr(pkg, 'has_history') else False,
+            'has_screenshots': pkg.has_screenshots() if hasattr(pkg, 'has_screenshots') else False,
             'update_ignored': pkg.is_update_ignored() if hasattr(pkg, 'is_update_ignored') else False,
             'supports_pinning': pkg.supports_ignored_updates() if hasattr(pkg, 'supports_ignored_updates') else False,
             # AUR metadata (None for non-Arch packages) — used to rank/badge AUR variants
@@ -738,6 +739,35 @@ class AtlasApi:
             self.logger.error(f"Error getting info for package {pkg.name}: {e}")
             traceback.print_exc()
             return {'status': 'error', 'message': str(e)}
+
+    def get_screenshots(self, pkg_id: str) -> dict:
+        """Screenshot URLs for the detail modal (Flatpak/AppImage have them; Arch doesn't).
+        Returns {status, data:[url, ...]}; an empty list is a valid 'ok' result."""
+        pkg = self._get_pkg(pkg_id)
+        if not pkg:
+            return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
+        try:
+            urls = [u for u in (self.manager.get_screenshots(pkg) or ()) if u]
+            return {'status': 'ok', 'data': urls}
+        except Exception as e:
+            self.logger.error(f"Error getting screenshots for {pkg.name}: {e}")
+            return {'status': 'error', 'message': str(e), 'data': []}
+
+    def get_history(self, pkg_id: str) -> dict:
+        """Version history for the detail modal. Returns
+        {status, data:{history:[{...}], current_index:int}}; current_index marks the
+        installed version (-1 if unknown)."""
+        pkg = self._get_pkg(pkg_id)
+        if not pkg:
+            return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
+        try:
+            hist = self.manager.get_history(pkg)
+            entries = _json_safe(getattr(hist, 'history', None) or [])
+            current = getattr(hist, 'pkg_status_idx', -1)
+            return {'status': 'ok', 'data': {'history': entries, 'current_index': current}}
+        except Exception as e:
+            self.logger.error(f"Error getting history for {pkg.name}: {e}")
+            return {'status': 'error', 'message': str(e), 'data': {'history': [], 'current_index': -1}}
 
     def open_url(self, url: str) -> dict:
         """Open an external URL in the user's browser. Routed through Python because a

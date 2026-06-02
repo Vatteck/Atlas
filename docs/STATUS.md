@@ -18,17 +18,17 @@
 
 **Feature/QoL polish (2026-06-02).** The big transitions are done; Atlas is an Arch-focused,
 **pure-Python** pywebview app on the AUR with green CI. Now building out the feature backlog.
-Recently shipped the **Maintenance / Cleanup hub** (Disk view), **README screenshots**, and
-the **Arch safety net** (News page + `.pacnew` notice). Picking the next item from
-[BACKLOG.md](BACKLOG.md).
+Recently shipped the **Maintenance / Cleanup hub** (Disk view), **README screenshots**, the
+**Arch safety net** (News page + `.pacnew` notice), and the **rich app detail page**
+(screenshots + version history). Picking the next item from [BACKLOG.md](BACKLOG.md).
 
 ## Next
 
 Pulling from **[BACKLOG.md](BACKLOG.md)**. Near-term candidates:
 
+- **Downgrade / rollback** from the pacman cache (pairs with the maintenance/safety theme).
 - A **system-tray indicator** (non-Qt) — a real feature; the legacy Qt tray was removed.
-- **Rich app detail page** — in-app screenshots, description, version history.
-- **Downgrade / rollback** from the pacman cache.
+- **Browse by category** — a store-like discovery view (category data already in atlas-files).
 - Exploratory: container sandboxing ("Vault").
 - Lower-value: route the controller's ad-hoc `Thread(...)` spawns through a shared pool
   (marginal; only with a measured reason).
@@ -46,6 +46,17 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Rich app detail page — screenshots + version history (2026-06-02):** the detail modal
+  was description + a key/value table only. The orchestrator already had `get_screenshots`
+  (Flatpak/AppImage) and `get_history` (all gems) but neither was exposed to the webview —
+  now wired as `AtlasApi.get_screenshots` / `get_history` (+ `has_screenshots` in
+  `_serialize_pkg`). Frontend: `renderDetailScreenshots` (a lazy-loaded thumbnail strip,
+  click opens the full image) and `renderDetailHistory` (a table built from the union of
+  entry keys via the existing `prettifyInfoKey`, installed version's row highlighted) in
+  `main.js`, with `#detail-screenshots` / `#detail-history-section` in `index.html` and
+  `.screenshot-thumb` / `.history-table` styles. Tests: `test_api.py::RichDetailTest` (4).
+  Plan: [plans/2026-06-02-rich-app-detail.md](plans/2026-06-02-rich-app-detail.md).
+  **Needs a GUI eyeball** (strip/history can't be driven headless).
 - **Arch safety net — News page + .pacnew detection (2026-06-02):** two distinctive,
   very-Arch features. A dedicated **News** sidebar page pulls recent archlinux.org news
   (`AtlasApi.get_arch_news` — fetches the RSS feed via the shared `HttpClient`, parses with

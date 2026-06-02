@@ -796,3 +796,42 @@ class ArchSafetyNetTest(unittest.TestCase):
         self.assertEqual([], res['data']['files'])
 
 
+class RichDetailTest(unittest.TestCase):
+    """Detail-modal extras: get_screenshots (Flatpak/AppImage) and get_history."""
+
+    def setUp(self):
+        self.manager = Mock()
+        self.api = AtlasApi(self.manager, Mock())
+        self.pkg = Mock()
+        self.pkg.name = 'gimp'
+        self.api.pkg_registry = {'flatpak:gimp': self.pkg}
+
+    def test_get_screenshots_returns_urls(self):
+        # generator return + a falsy entry that must be filtered out
+        self.manager.get_screenshots.return_value = iter(['http://a/1.png', 'http://a/2.png', ''])
+        res = self.api.get_screenshots('flatpak:gimp')
+        self.assertEqual('ok', res['status'])
+        self.assertEqual(['http://a/1.png', 'http://a/2.png'], res['data'])
+
+    def test_get_screenshots_unknown_pkg(self):
+        res = self.api.get_screenshots('does:not-exist')
+        self.assertEqual('error', res['status'])
+
+    def test_get_history_serializes_and_marks_current(self):
+        hist = Mock()
+        hist.history = [{'1_version': '2.10', '3_date': datetime(2026, 1, 1, 0, 0)},
+                        {'1_version': '2.11'}]
+        hist.pkg_status_idx = 1
+        self.manager.get_history.return_value = hist
+        res = self.api.get_history('flatpak:gimp')
+        self.assertEqual('ok', res['status'])
+        self.assertEqual(1, res['data']['current_index'])
+        self.assertEqual(2, len(res['data']['history']))
+        # datetime is made JSON-safe (ISO string) by _json_safe
+        self.assertIsInstance(res['data']['history'][0]['3_date'], str)
+
+    def test_get_history_unknown_pkg(self):
+        res = self.api.get_history('does:not-exist')
+        self.assertEqual('error', res['status'])
+
+

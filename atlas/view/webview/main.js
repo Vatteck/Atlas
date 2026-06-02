@@ -773,6 +773,71 @@ function prettifyInfoKey(key) {
     return String(key).replace(/^\d+_/, '').replace(/_/g, ' ').trim();
 }
 
+// Screenshot strip in the detail modal (Flatpak/AppImage carry screenshots; Arch doesn't).
+async function renderDetailScreenshots(pkg) {
+    const el = document.getElementById('detail-screenshots');
+    if (!el) return;
+    el.innerHTML = '';
+    el.classList.add('hidden');
+    if (!pkg.has_screenshots) return;
+
+    const urls = await pyApiCall('get_screenshots', pkg.id);  // unwrapped list, or null
+    if (!urls || urls.length === 0) return;
+
+    el.innerHTML = urls.map(u =>
+        `<a class="screenshot-thumb" href="#" data-shot="${escapeHtml(u)}" title="Open full screenshot">
+            <img loading="lazy" src="${escapeHtml(u)}" alt="screenshot">
+         </a>`).join('');
+    el.classList.remove('hidden');
+    el.querySelectorAll('a[data-shot]').forEach(a => {
+        a.addEventListener('click', (e) => { e.preventDefault(); pyApiCall('open_url', a.dataset.shot); });
+    });
+    // Drop any thumbnail whose image fails to load.
+    el.querySelectorAll('img').forEach(img => {
+        img.onerror = () => { img.parentElement.style.display = 'none'; };
+    });
+}
+
+// Version-history table in the detail modal; the installed version's row is highlighted.
+async function renderDetailHistory(pkg) {
+    const section = document.getElementById('detail-history-section');
+    const body = document.getElementById('detail-history');
+    if (!section || !body) return;
+    section.classList.add('hidden');
+    body.innerHTML = '';
+    if (!pkg.has_history) return;
+
+    const data = await pyApiCall('get_history', pkg.id);  // unwrapped {history, current_index}
+    const history = data && data.history;
+    if (!history || history.length === 0) return;
+    const current = (data && typeof data.current_index === 'number') ? data.current_index : -1;
+
+    // Union of columns across entries (prettified, first-seen order).
+    const cols = [];
+    const seen = new Set();
+    history.forEach(row => Object.keys(row).forEach(k => {
+        const label = prettifyInfoKey(k);
+        const lk = label.toLowerCase();
+        if (!seen.has(lk)) { seen.add(lk); cols.push({ key: k, label }); }
+    }));
+
+    const head = `<tr>${cols.map(c => `<th>${escapeHtml(c.label)}</th>`).join('')}</tr>`;
+    const rows = history.map((row, i) => {
+        const cells = cols.map(c => {
+            let v = row[c.key];
+            if (v === null || v === undefined) v = '';
+            else if (Array.isArray(v)) v = v.join(', ');
+            else if (typeof v === 'object') v = JSON.stringify(v);
+            return `<td>${escapeHtml(String(v))}</td>`;
+        }).join('');
+        const attrs = i === current ? ' class="history-current" title="Currently installed"' : '';
+        return `<tr${attrs}>${cells}</tr>`;
+    }).join('');
+
+    body.innerHTML = `<div class="history-scroll"><table class="detail-table history-table">${head}${rows}</table></div>`;
+    section.classList.remove('hidden');
+}
+
 // These duplicate what the modal header already shows (title, version, description), so
 // don't repeat them in the DETAILS table.
 const SKIP_DETAIL_KEYS = new Set(['id', 'name', 'version', 'description']);
@@ -813,9 +878,13 @@ function openDetailModal(pkg) {
 
     const table = document.getElementById('detail-table');
     table.innerHTML = `<tr><td colspan="2" style="text-align: center; color: var(--text-secondary);">Loading extended properties...</td></tr>`;
-    
+
     detailModal.classList.remove('hidden');
-    
+
+    // Rich detail extras (read-only): screenshots for Flatpak/AppImage and version history.
+    renderDetailScreenshots(pkg);
+    renderDetailHistory(pkg);
+
     // Fetch key-value info from python
     pyApiCall('get_info', pkg.id).then(info => {
         table.innerHTML = '';

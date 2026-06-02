@@ -30,9 +30,12 @@
 
 ## Discovery & detail
 
-- **Rich app detail page** — screenshots (`get_screenshots` already exists), full
-  description, version/release history, "required by" / dependency list. Pairs with the
-  README-screenshots goal; makes Atlas feel like a store.
+- ~~**Rich app detail page**~~ ✅ **Shipped 2026-06-02** — see
+  [plans/2026-06-02-rich-app-detail.md](plans/2026-06-02-rich-app-detail.md). The detail
+  modal now shows a **screenshot strip** (Flatpak/AppImage) and a **version-history** table
+  (installed version highlighted), via newly-wired `get_screenshots`/`get_history`. (The
+  description + dependency/required-by metadata were already in the Details table.)
+  *Follow-up:* in-modal lightbox instead of opening screenshots in the browser.
 - **Browse by category** — the `atlas-files` repo already ships category data; a store-like
   "Games / Dev / Graphics" browse view can use it.
 

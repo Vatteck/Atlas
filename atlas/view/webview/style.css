@@ -1679,6 +1679,61 @@ body {
     font-size: 0.92em;
 }
 
+/* Detail modal: screenshot strip (Flatpak/AppImage) */
+.detail-screenshots {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+}
+
+.screenshot-thumb {
+    flex: 0 0 auto;
+    display: block;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.screenshot-thumb:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent-border-hover);
+}
+
+.screenshot-thumb img {
+    display: block;
+    height: 150px;
+    width: auto;
+    max-width: 320px;
+    object-fit: cover;
+}
+
+/* Detail modal: version history */
+.history-scroll {
+    overflow-x: auto;
+}
+
+.history-table th {
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    white-space: nowrap;
+}
+
+.history-table td {
+    white-space: nowrap;
+}
+
+.history-table tr.history-current {
+    background: var(--accent-glass);
+    font-weight: 600;
+}
+
 /* Global utility for hiding elements */
 .hidden {
     display: none !important;
