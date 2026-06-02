@@ -784,19 +784,63 @@ async function renderDetailScreenshots(pkg) {
     const urls = await pyApiCall('get_screenshots', pkg.id);  // unwrapped list, or null
     if (!urls || urls.length === 0) return;
 
-    el.innerHTML = urls.map(u =>
-        `<a class="screenshot-thumb" href="#" data-shot="${escapeHtml(u)}" title="Open full screenshot">
+    el.innerHTML = urls.map((u, i) =>
+        `<a class="screenshot-thumb" href="#" data-idx="${i}" title="Click to enlarge">
             <img loading="lazy" src="${escapeHtml(u)}" alt="screenshot">
          </a>`).join('');
     el.classList.remove('hidden');
-    el.querySelectorAll('a[data-shot]').forEach(a => {
-        a.addEventListener('click', (e) => { e.preventDefault(); pyApiCall('open_url', a.dataset.shot); });
+    el.querySelectorAll('a[data-idx]').forEach(a => {
+        a.addEventListener('click', (e) => { e.preventDefault(); openLightbox(urls, Number(a.dataset.idx)); });
     });
     // Drop any thumbnail whose image fails to load.
     el.querySelectorAll('img').forEach(img => {
         img.onerror = () => { img.parentElement.style.display = 'none'; };
     });
 }
+
+// Full-size screenshot viewer (lightbox) with prev/next + keyboard nav.
+let lightboxUrls = [];
+let lightboxIdx = 0;
+
+function openLightbox(urls, idx) {
+    lightboxUrls = urls || [];
+    if (lightboxUrls.length === 0) return;
+    showLightboxImage(idx);
+    const box = document.getElementById('screenshot-lightbox');
+    box.classList.remove('hidden');
+    const multi = lightboxUrls.length > 1;
+    document.getElementById('lightbox-prev').style.display = multi ? '' : 'none';
+    document.getElementById('lightbox-next').style.display = multi ? '' : 'none';
+}
+
+function showLightboxImage(idx) {
+    lightboxIdx = (idx + lightboxUrls.length) % lightboxUrls.length;  // wrap around
+    document.getElementById('lightbox-img').src = lightboxUrls[lightboxIdx];
+}
+
+function closeLightbox() {
+    document.getElementById('screenshot-lightbox').classList.add('hidden');
+}
+
+function lightboxStep(delta) {
+    if (lightboxUrls.length > 1) showLightboxImage(lightboxIdx + delta);
+}
+
+(function wireLightbox() {
+    const box = document.getElementById('screenshot-lightbox');
+    if (!box) return;
+    document.getElementById('lightbox-close').addEventListener('click', closeLightbox);
+    document.getElementById('lightbox-prev').addEventListener('click', () => lightboxStep(-1));
+    document.getElementById('lightbox-next').addEventListener('click', () => lightboxStep(1));
+    // Click the backdrop (not the image/buttons) to dismiss.
+    box.addEventListener('click', (e) => { if (e.target === box) closeLightbox(); });
+    document.addEventListener('keydown', (e) => {
+        if (box.classList.contains('hidden')) return;
+        if (e.key === 'Escape') closeLightbox();
+        else if (e.key === 'ArrowLeft') lightboxStep(-1);
+        else if (e.key === 'ArrowRight') lightboxStep(1);
+    });
+})();
 
 // Version-history table in the detail modal; the installed version's row is highlighted.
 async function renderDetailHistory(pkg) {

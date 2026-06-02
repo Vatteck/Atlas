@@ -125,6 +125,14 @@
         </main>
     </div>
 
+    <!-- Screenshot lightbox (full-size viewer for detail-modal screenshots) -->
+    <div id="screenshot-lightbox" class="lightbox hidden" role="dialog" aria-modal="true">
+        <button class="lightbox-close" id="lightbox-close" aria-label="Close">✕</button>
+        <button class="lightbox-nav lightbox-prev" id="lightbox-prev" aria-label="Previous screenshot">‹</button>
+        <img id="lightbox-img" src="" alt="screenshot">
+        <button class="lightbox-nav lightbox-next" id="lightbox-next" aria-label="Next screenshot">›</button>
+    </div>
+
     <!-- Terminal Slide-out Panel -->
     <div id="terminal-panel" class="terminal-panel hidden">
         <div class="terminal-header">

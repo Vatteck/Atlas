@@ -31,9 +31,9 @@ Pulling from **[BACKLOG.md](BACKLOG.md)**. Near-term candidates:
 - A **system-tray indicator** (non-Qt) — a real feature; the legacy Qt tray was removed.
 - Lighter QoL: sort dropdown (votes/popularity/recent), selection toolbar refinements.
 
-> Several recently-shipped UI features **need a GUI eyeball** (can't be driven headless):
-> the rich detail modal (screenshot strip + history), the News page, the Disk maintenance
-> panel, and the downgrade flow (privileged + may prompt for a version).
+> GUI-verified 2026-06-02: rich detail modal (screenshots + history), News page, Disk
+> maintenance panel all look good. Still worth a live run: an actual **downgrade**
+> (privileged + may prompt for a version) and the new **screenshot lightbox**.
 - Exploratory: container sandboxing ("Vault").
 - Lower-value: route the controller's ad-hoc `Thread(...)` spawns through a shared pool
   (marginal; only with a measured reason).

@@ -41,5 +41,8 @@ with the README screenshots work.
 ## Notes / follow-ups
 - Arch repo packages have no screenshots (only Flatpak/AppImage via Flathub/AppImageHub) —
   the strip simply stays hidden for them; history still shows.
-- Needs a quick GUI eyeball (the screenshot strip + history can't be driven headless).
-- Could later add an in-modal lightbox instead of opening screenshots in the browser.
+- GUI-verified working 2026-06-02.
+- ✅ **Lightbox (2026-06-02):** clicking a thumbnail now opens a full-size in-app lightbox
+  (`#screenshot-lightbox`) with prev/next + keyboard nav (Esc/←/→) and backdrop-to-close,
+  instead of opening the image in the browser. `openLightbox()`/`wireLightbox()` in
+  `main.js`, `.lightbox*` styles (z-index 400, above the modal at 300).
