@@ -143,6 +143,13 @@ def main():
     except (TypeError, ValueError):
         pass
 
+    # Force the GTK/WebKit backend — Atlas's documented (and only depended-on) stack. Otherwise
+    # pywebview auto-detects and may try Qt first: on a box without qtpy that prints a scary (but
+    # non-fatal — it falls back to GTK) traceback, and a Qt window wouldn't honour the GTK app_id
+    # we pin via set_prgname. Respect an explicit PYWEBVIEW_GUI override if the user set one.
+    if not os.environ.get('PYWEBVIEW_GUI'):
+        start_kwargs['gui'] = 'gtk'
+
     webview.start(**start_kwargs)
     sys.exit(0)
 
