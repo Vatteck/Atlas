@@ -11,6 +11,8 @@ Atlas is a community fork of [bauh](https://github.com/vinifmor/bauh), rebuilt a
 
 > Status: actively developed (v0.10.7). Built and tested on Arch / CachyOS.
 
+![Atlas dashboard](docs/screenshots/dashboard.png)
+
 ---
 
 ## Highlights
@@ -29,8 +31,18 @@ Atlas is a community fork of [bauh](https://github.com/vinifmor/bauh), rebuilt a
   suggestions, notifications, and more.
 - **Desktop notifications** when long operations finish.
 - **Package web links** — jump to a package's AUR, archlinux.org, or Flathub page.
+- **Reclaim disk space** — the Disk view shows what's using space and cleans it up in one
+  place: orphan packages, the pacman cache, and unused Flatpak runtimes.
 - **Safe by default** — optional [Timeshift](https://github.com/teejee2008/timeshift)
   snapshot before changes; per-package update pinning.
+
+## Screenshots
+
+| One app, every source | Full package details |
+|:---:|:---:|
+| [![Source switcher](docs/screenshots/apppanel.png)](docs/screenshots/apppanel.png) | [![Package details](docs/screenshots/details.png)](docs/screenshots/details.png) |
+| **Reclaim disk space** | **Live transaction output** |
+| [![Disk view](docs/screenshots/diskpage.png)](docs/screenshots/diskpage.png) | [![Install terminal](docs/screenshots/terminal.png)](docs/screenshots/terminal.png) |
 
 ## Supported sources
 
@@ -116,7 +128,7 @@ The big transitions are done — Qt5 → pywebview UI, and back to a clean **pur
 engine (a Rust hot-paths experiment was tried and dropped: a package manager is I/O-bound,
 so native code didn't earn its keep). What's left is polish and new features:
 
-- Screenshots and richer app detail panels.
+- Richer app detail panels — in-app screenshots, descriptions, and version history.
 - A system-tray indicator (the legacy Qt tray was removed; a non-Qt one could return).
 - Exploratory: container sandboxing ("Vault").
 
