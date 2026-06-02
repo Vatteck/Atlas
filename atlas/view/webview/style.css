@@ -353,10 +353,14 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;            /* wrap action buttons to a new line instead of clipping them */
     margin-top: auto;
     padding-top: 16px;
     border-top: 1px solid var(--border-color);
 }
+/* Keep the Pin/Install/Uninstall group together and never let it shrink/clip. */
+.package-footer > div:last-child { flex-shrink: 0; }
 
 .package-tags {
     display: flex;

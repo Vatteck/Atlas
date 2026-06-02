@@ -586,10 +586,21 @@ function collapseByName(packages) {
         if (!map.has(key)) { map.set(key, []); order.push(key); }
         map.get(key).push(p);
     });
-    return order.map(key => {
-        const sources = map.get(key).slice().sort(compareSourcePreference);
-        return { key, name: sources[0].name, sources };
+    const groups = [];
+    order.forEach(key => {
+        const items = map.get(key);
+        const types = items.map(p => normalizeType(p.type));
+        // The switcher is for ONE app available from DIFFERENT sources. Same name + same
+        // source = genuinely different packages (e.g. several Flatpaks that share a display
+        // name like "Adwaita theme") — don't fake a multi-source switcher; keep them apart.
+        if (new Set(types).size !== types.length) {
+            items.forEach(p => groups.push({ key, name: p.name, sources: [p] }));
+        } else {
+            const sources = items.slice().sort(compareSourcePreference);
+            groups.push({ key, name: sources[0].name, sources });
+        }
     });
+    return groups;
 }
 
 // The footer tags/switcher for the active source of a group.
