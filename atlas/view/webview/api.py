@@ -934,6 +934,12 @@ class AtlasApi:
                 except Exception:
                     flatpak_level = ''
 
+            tray_cfg = (core.get('ui') or {}).get('tray') or {}
+            try:
+                from atlas.view.tray import TRAY_AVAILABLE
+            except Exception:
+                TRAY_AVAILABLE = False
+
             return {'status': 'ok', 'data': {
                 'types': types,
                 'flatpak_available': flatpak_man is not None,
@@ -944,6 +950,12 @@ class AtlasApi:
                     'ask_for_reboot': bool(core['updates']['ask_for_reboot']),
                     'download_icons': bool(core['download']['icons']),
                     'store_root_password': bool(core['store_root_password']),
+                },
+                'tray': {
+                    'available': bool(TRAY_AVAILABLE),
+                    'enabled': bool(tray_cfg.get('enabled', True)),
+                    'minimize_to_tray': bool(tray_cfg.get('minimize_to_tray', False)),
+                    'update_check_interval': int(tray_cfg.get('update_check_interval', 60) or 0),
                 },
             }}
         except Exception as e:
@@ -980,6 +992,20 @@ class AtlasApi:
                 core['download']['icons'] = bool(general['download_icons'])
             if 'store_root_password' in general:
                 core['store_root_password'] = bool(general['store_root_password'])
+
+            # System tray (takes effect on next launch — the indicator is built at startup).
+            tray = settings.get('tray')
+            if isinstance(tray, dict):
+                ui_tray = core.setdefault('ui', {}).setdefault('tray', {})
+                if 'enabled' in tray:
+                    ui_tray['enabled'] = bool(tray['enabled'])
+                if 'minimize_to_tray' in tray:
+                    ui_tray['minimize_to_tray'] = bool(tray['minimize_to_tray'])
+                if 'update_check_interval' in tray:
+                    try:
+                        ui_tray['update_check_interval'] = max(0, int(tray['update_check_interval']))
+                    except (TypeError, ValueError):
+                        pass
 
             self.manager.configman.save_config(core)
 

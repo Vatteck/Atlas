@@ -1201,6 +1201,7 @@ updateAllBtn.addEventListener('click', async () => {
     } else {
         showToast('Error', result ? result.error : 'Bulk upgrade failed', 'error');
     }
+    refreshUpdatesBadge();  // count should drop to ~0 after a full upgrade
 });
 
 async function checkOrphans() {
@@ -1613,7 +1614,27 @@ async function fetchPackages() {
 
     // Update Badge if viewing updates
     if (currentView === 'updates' && !query) {
-        document.getElementById('updates-badge').textContent = currentPackages.length;
+        setUpdatesBadge(currentPackages.length);
+    }
+}
+
+// Sidebar "Updates" badge. Shown proactively (startup, after updates, and pushed by the tray
+// poller) so the count is visible without opening the Updates page. Hidden when there are none.
+function setUpdatesBadge(count) {
+    const el = document.getElementById('updates-badge');
+    if (!el) return;
+    const n = Math.max(0, Number(count) || 0);
+    el.textContent = n;
+    el.style.display = n > 0 ? '' : 'none';
+}
+window.setUpdatesBadge = setUpdatesBadge;  // the tray (Python) calls this to keep the badge live
+
+async function refreshUpdatesBadge() {
+    try {
+        const results = await pyApiCall('get_updates', 'all');
+        setUpdatesBadge((results || []).length);
+    } catch (e) {
+        // non-fatal: the badge just won't refresh this time
     }
 }
 
@@ -1779,6 +1800,7 @@ window.updateApp = async (id, btn = null) => {
         } else if (result && result.success) {
             showToast('Success', 'Application updated', 'success');
             packageCache = {}; // Wipe cache
+            refreshUpdatesBadge();  // one fewer pending update
         } else {
             operationInProgress = false; // Release lock on immediate failure
             showToast('Error', result ? result.error : 'Update failed', 'error');
@@ -1928,6 +1950,29 @@ async function renderSettings() {
             <span class="settings-row-label">${escapeHtml(label)}</span>
         </label>`).join('');
 
+    const tray = data.tray || {};
+    const trayDisabledAttr = tray.available ? '' : 'disabled';
+    const traySection = `
+        <section class="settings-section">
+            <h3>System tray</h3>
+            ${tray.available ? ''
+                : '<p class="settings-help">Not available on this system. Install the <code>libayatana-appindicator</code> package to enable the tray.</p>'}
+            <label class="settings-row ${tray.available ? '' : 'disabled'}" title="Show an Atlas icon in the system tray">
+                <input type="checkbox" data-tray-key="enabled" ${tray.enabled ? 'checked' : ''} ${trayDisabledAttr}>
+                <span class="settings-row-label">Show tray icon</span>
+            </label>
+            <label class="settings-row ${tray.available ? '' : 'disabled'}" title="Closing the window hides Atlas to the tray instead of quitting">
+                <input type="checkbox" data-tray-key="minimize_to_tray" ${tray.minimize_to_tray ? 'checked' : ''} ${trayDisabledAttr}>
+                <span class="settings-row-label">Close to tray (keep running in background)</span>
+            </label>
+            <label class="settings-row ${tray.available ? '' : 'disabled'}" title="How often the tray checks for updates (0 = never)">
+                <span class="settings-row-label">Check for updates every (minutes, 0 = off)</span>
+                <input type="number" id="settings-tray-interval" class="styled-input" min="0" step="5"
+                       value="${Number.isFinite(tray.update_check_interval) ? tray.update_check_interval : 60}" ${trayDisabledAttr}>
+            </label>
+            <p class="settings-help">Tray changes take effect the next time Atlas starts.</p>
+        </section>`;
+
     packagesGrid.innerHTML = `
         <div class="settings-page">
             <section class="settings-section">
@@ -1940,6 +1985,7 @@ async function renderSettings() {
                 <h3>General</h3>
                 ${generalRows}
             </section>
+            ${traySection}
             <section class="settings-section">
                 <h3>Backup</h3>
                 <p class="settings-help">Save the list of installed apps to <code>~/atlas-manifest.json</code>, or reinstall everything from it (handy for migrating or after a reinstall).</p>
@@ -1973,6 +2019,17 @@ async function saveSettings() {
     const payload = { types, general };
     const levelEl = document.getElementById('settings-flatpak-level');
     if (levelEl) payload.flatpak_installation_level = levelEl.value;
+
+    const tray = {};
+    packagesGrid.querySelectorAll('input[data-tray-key]').forEach(el => {
+        tray[el.getAttribute('data-tray-key')] = el.checked;
+    });
+    const intervalEl = document.getElementById('settings-tray-interval');
+    if (intervalEl) {
+        const mins = parseInt(intervalEl.value, 10);
+        if (Number.isFinite(mins)) tray.update_check_interval = Math.max(0, mins);
+    }
+    payload.tray = tray;
 
     const res = await pyApiCall('save_app_settings', payload);
     btn.classList.remove('loading');
@@ -2150,6 +2207,7 @@ packagesGrid.addEventListener('click', async (e) => {
 window.addEventListener('pywebviewready', function() {
     console.log("pywebview is ready!");
     fetchPackages();
+    refreshUpdatesBadge();  // populate the sidebar Updates count without opening that page
 });
 
 // Mock API for development outside of pywebview

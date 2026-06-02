@@ -1,8 +1,17 @@
 # System-tray indicator (non-Qt) — 2026-06-02
 
-> **Status: phase 1 implemented (2026-06-02).** `atlas/view/tray.py` + `app.py` wiring +
-> `ui.tray.{enabled,minimize_to_tray}` config + `tests/view/test_tray.py` (12). Smoke-tested on
-> a real GTK loop. Phase 2 (update-count badge) deferred. Needs a GUI eyeball on KDE.
+> **Status: phases 1 + 2 implemented + Settings UI (2026-06-02).**
+> - Phase 1: `atlas/view/tray.py` (`AtlasTray` + `start()`) + `app.py` wiring +
+>   `ui.tray.{enabled,minimize_to_tray}`. Menu (show/hide, updates, quit), opt-in close-to-tray.
+> - Phase 2: update-count **badge** — a daemon-thread poller (`ui.tray.update_check_interval`
+>   minutes, default 60, 0=off) calls `manager.read_installed()`, pushes the count to the GTK
+>   thread via `GLib.idle_add` → `indicator.set_label(N)` + a "Updates available: N" menu item.
+>   Label-only (no ATTENTION status — that needs a separate attention icon we don't ship).
+> - Settings UI: a "System tray" section on the webview Settings page (enabled / close-to-tray /
+>   interval), gated/greyed when the backend is absent. Tray changes apply on next launch.
+> - Tests: `tests/view/test_tray.py` (20) + `test_api.py::AppSettingsTest` tray cases. Smoke-tested
+>   on a real GTK loop (indicator builds; poller → badge flows). GUI-confirmed phase 1 on KDE;
+>   phase 2 badge + Settings section still want a GUI eyeball.
 
 ## Goal
 

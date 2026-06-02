@@ -146,6 +146,7 @@ class AppSettingsTest(unittest.TestCase):
             'updates': {'check_interval': 5, 'ask_for_reboot': True},
             'download': {'icons': True},
             'store_root_password': True,
+            'ui': {'tray': {'enabled': True, 'minimize_to_tray': False, 'update_check_interval': 60}},
         }
         self.manager.configman.get_config.return_value = self.core
 
@@ -190,6 +191,30 @@ class AppSettingsTest(unittest.TestCase):
         self.api.save_app_settings({'flatpak_installation_level': 'bogus'})
         saved = self.flatpak.configman.save_config.call_args[0][0]
         self.assertIsNone(saved['installation_level'])
+
+    def test_get_app_settings_includes_tray_block(self):
+        data = self.api.get_app_settings()['data']
+        self.assertIn('tray', data)
+        self.assertIn('available', data['tray'])  # whether the AppIndicator backend is present
+        self.assertTrue(data['tray']['enabled'])
+        self.assertFalse(data['tray']['minimize_to_tray'])
+        self.assertEqual(60, data['tray']['update_check_interval'])
+
+    def test_save_app_settings_persists_tray(self):
+        res = self.api.save_app_settings({'tray': {'enabled': False, 'minimize_to_tray': True,
+                                                   'update_check_interval': 30}})
+        self.assertEqual('ok', res['status'])
+        self.assertFalse(self.core['ui']['tray']['enabled'])
+        self.assertTrue(self.core['ui']['tray']['minimize_to_tray'])
+        self.assertEqual(30, self.core['ui']['tray']['update_check_interval'])
+
+    def test_save_app_settings_clamps_negative_interval(self):
+        self.api.save_app_settings({'tray': {'update_check_interval': -5}})
+        self.assertEqual(0, self.core['ui']['tray']['update_check_interval'])
+
+    def test_save_app_settings_ignores_non_numeric_interval(self):
+        self.api.save_app_settings({'tray': {'update_check_interval': 'soon'}})
+        self.assertEqual(60, self.core['ui']['tray']['update_check_interval'])  # unchanged
 
 
 class NotifyTest(unittest.TestCase):

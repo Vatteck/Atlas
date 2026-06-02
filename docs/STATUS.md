@@ -16,13 +16,14 @@
 
 ## Current focus
 
-**System-tray indicator (non-Qt) — phase 1 built (2026-06-02).** The big transitions are done;
-Atlas is an Arch-focused, **pure-Python** pywebview app on the AUR with green CI. Now building
-out the feature backlog. Recently shipped **Browse by category**, a **grid/list view toggle**,
-a **sort dropdown**, the **window-icon fix** (incl. Wayland app_id), the **new app icon**, and
-**AUR publish automation**. **Just built (phase 1):** a non-Qt system-tray indicator
-(AppIndicator/SNI) — see Done. **Needs a GUI eyeball** on KDE. Phase 2 (update-count badge) is
-deferred. Plan: [plans/2026-06-02-system-tray.md](plans/2026-06-02-system-tray.md).
+**System-tray indicator (non-Qt) — phases 1+2 + Settings UI (2026-06-02).** The big transitions
+are done; Atlas is an Arch-focused, **pure-Python** pywebview app on the AUR with green CI. Now
+building out the feature backlog. Recently shipped **Browse by category**, a **grid/list view
+toggle**, a **sort dropdown**, the **window-icon fix** (incl. Wayland app_id), the **new app
+icon**, and **AUR publish automation**. **Just built:** a non-Qt system-tray indicator
+(AppIndicator/SNI) with an update-count badge + a Settings section for its options — see Done.
+Phase 1 GUI-confirmed on KDE; the phase 2 badge + Settings section still want a GUI eyeball.
+Plan: [plans/2026-06-02-system-tray.md](plans/2026-06-02-system-tray.md).
 
 ## Next
 
@@ -55,6 +56,38 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **System tray — phase 2 (update badge) + Settings UI (2026-06-02):** the tray now shows a
+  pending-update **count**. A daemon-thread poller (`ui.tray.update_check_interval` minutes,
+  default 60, 0=off; first run 30s after build) calls `manager.read_installed()`, counts
+  `p.update`, and pushes the number to the GTK thread via `GLib.idle_add`. Poller stops cleanly
+  on Quit (`threading.Event`). Also added a **System tray** section to the webview Settings page
+  (`AtlasApi.get_app_settings`/`save_app_settings` gained a `tray` block; `renderSettings`/
+  `saveSettings` + a `.styled-input` CSS rule): toggle the icon, close-to-tray, and the interval
+  — greyed out when the AppIndicator backend is absent; **changes apply on next launch**.
+  **Visibility fixes after a GUI eyeball (KDE only updated on right-click; in-app count only
+  after opening Updates) — and two regressions those first fixes caused, now corrected:**
+  - **KDE ignores `set_label`** (Unity/GNOME-only), so the count was invisible until you opened
+    the menu. Now we **draw the count onto the icon**: cairo composites a red badge bubble
+    (capped "99+") over the logo, written to a temp PNG, and the indicator swaps to it via
+    `set_icon_full(<absolute-path>)` — an absolute path makes AppIndicator send pixmap data,
+    which is the **only** thing KDE's SNI host reliably shows. The zero state restores the proven
+    **themed name** (`atlas-pm`), so the base icon never regresses. `set_label` kept (helps
+    Unity/GNOME). Temp dir cleaned on Quit. *(First attempt used `set_icon_theme_path` + a bare
+    name → KDE showed the "A" letter-avatar; abandoned.)*
+  - **Don't call `evaluate_js` on the GTK main thread.** pywebview's `evaluate_js` blocks the
+    caller on a semaphore the main loop must release, so calling it from `_apply_count` (which
+    runs via `GLib.idle_add` on the main thread) **deadlocked the UI** ("application not
+    responding"). Now the webview push (`_push_badge_to_webview`) runs on the poller's background
+    thread, and `_on_updates` navigation runs on a worker thread too. `_apply_count` is GTK-only.
+    **This is a general gotcha — see Known gaps.**
+  - **In-app sidebar badge is now proactive:** `setUpdatesBadge()`/`refreshUpdatesBadge()` in
+    `main.js` populate `#updates-badge` at startup and after update/update-all (not only when the
+    Updates page loads); hidden at 0 (default `display:none` in `index.html`). The tray poller
+    also calls `window.setUpdatesBadge(n)` so the sidebar stays live while the window is open.
+  Tests: `tests/view/test_tray.py` (21) + `test_api.py::AppSettingsTest` (4 new). Smoke-tested on
+  a real GTK loop: poller→count, badge-icon render (incl. "99+" cap), absolute-path icon set,
+  `evaluate_js` confirmed off the main thread, temp cleanup. **Needs a GUI eyeball on KDE** to
+  confirm the icon badge is visible passively and the ANR is gone.
 - **Fix `_fill_suggestions` crash on an empty/partial config file (2026-06-02):** a background
   thread threw `TypeError: 'NoneType' object is not subscriptable` (non-fatal — logged, app kept
   running). Root cause: `_fill_suggestions` passed `self.configman.read_config()` to the
@@ -391,6 +424,18 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Known gaps / gotchas (don't get burned)
 
+- **Never call `window.evaluate_js` on the GTK main thread (2026-06-02).** pywebview's
+  `evaluate_js` blocks the calling thread on a semaphore that's only released by a callback the
+  **GTK main loop** runs — so calling it from the main thread (e.g. inside a `GLib.idle_add`
+  callback, a GTK signal handler, or an AppIndicator menu `activate`) deadlocks the whole UI
+  ("application not responding", though the process is alive). Call it from a worker/background
+  thread instead. This bit the tray twice; the tray now pushes to JS only from its poller thread
+  and runs menu-triggered navigation on a short daemon thread.
+- **AppIndicator custom icons on KDE need an absolute path, not a theme name (2026-06-02).**
+  `set_icon_theme_path(dir)` + `set_icon_full('name')` does **not** resolve on KDE's SNI host
+  (you get the "A" letter-avatar). Pass an **absolute file path** to `set_icon_full` so the lib
+  sends pixmap data. The tray's dynamic count badge relies on this; the un-badged/zero state uses
+  the installed themed name (`atlas-pm`, in hicolor) which does work.
 - **System tray (2026-06-02):** built on **AppIndicator/SNI** (`atlas/view/tray.py`), so it
   shows on **KDE Plasma natively** but **GNOME needs the AppIndicator extension** (desktop-side,
   not our bug — don't try to work around it). Two more notes: (1) `gi`/AppIndicator are **not

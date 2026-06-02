@@ -39,6 +39,7 @@ class CoreConfigManager(YAMLConfigManager):
                 'tray': {
                     'enabled': True,
                     'minimize_to_tray': False,
+                    'update_check_interval': 60,
                     'default_icon': None,
                     'updates_icon': None
                 },

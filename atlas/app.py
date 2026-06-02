@@ -159,7 +159,7 @@ def main():
     # runs. Reuses the same logo.png as the window icon (icon_path above).
     try:
         from atlas.view import tray as tray_mod
-        tray_mod.start(window, app_config, logger, icon_path)
+        tray_mod.start(window, manager, app_config, logger, icon_path)
     except Exception as e:
         logger.error(f"Could not initialize the system tray: {e}")
 
