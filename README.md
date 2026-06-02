@@ -7,8 +7,7 @@ install, update, downgrade, and remove software from the **official Arch repos, 
 Flatpak, and AppImage** — all from one modern interface.
 
 Atlas is a community fork of [bauh](https://github.com/vinifmor/bauh), rebuilt around a
-**[pywebview](https://pywebview.flowrocket.com/) web UI** and a lazy-loaded engine, with
-the hot Arch paths moving to **Rust (via PyO3)**.
+**[pywebview](https://pywebview.flowrocket.com/) web UI** and a lazy-loaded engine.
 
 > Status: actively developed (v0.10.7). Built and tested on Arch / CachyOS.
 
@@ -61,12 +60,11 @@ atlas             # launch
 
 ## Install & run (from source)
 
-Atlas needs Python, a system webview (GTK + WebKit), and a Rust toolchain to build the
-native `atlas_rs` extension.
+Atlas needs Python and a system webview (GTK + WebKit):
 
 ```bash
 # 1. System prerequisites (Arch)
-sudo pacman -S --needed python python-pip gtk3 webkit2gtk python-gobject rust git
+sudo pacman -S --needed python python-pip gtk3 webkit2gtk python-gobject git
 #    (use webkit2gtk-4.1 if that's what your distro ships)
 
 # 2. Get the code
@@ -74,9 +72,9 @@ git clone https://github.com/Vatteck/atlas.git && cd atlas
 
 # 3. Python env + dependencies
 python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt setuptools-rust
+pip install -r requirements.txt
 
-# 4. Build the Rust extension and install Atlas (editable)
+# 4. Install Atlas (editable)
 pip install -e .
 
 # 5. Run
@@ -97,14 +95,13 @@ Suggestion and category data is fetched at runtime from
 
 ## Architecture
 
-Atlas is a **Python** application (`atlas/`) with a **pywebview** front-end
+Atlas is a **pure-Python** application (`atlas/`) with a **pywebview** front-end
 (`atlas/view/webview/`) and one backend "gem" per package type (`atlas/gems/<type>/`).
-Slow Arch hot paths are migrating to a **Rust** crate (`rust/`, `atlas_rs`) exposed through
-PyO3, behind the existing Python implementations.
+Each gem wraps a system package manager (pacman, AUR, Flatpak, AppImage).
 
 Working on Atlas? Start with **[AGENTS.md](AGENTS.md)** (the operating manual) and
 **[docs/](docs/)** — `STATUS.md` (current state), `ARCHITECTURE.md`, `ROADMAP.md`,
-`DEVELOPMENT.md`, and `atlas_rs-API.md`.
+`DEVELOPMENT.md`.
 
 ## Roadmap
 
