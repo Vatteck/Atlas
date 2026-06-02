@@ -448,6 +448,30 @@ def run(app_id: str):
     subprocess.Popen((f'flatpak run {app_id}',), shell=True, env={**os.environ})
 
 
+def map_installed_sizes() -> Dict[str, float]:
+    """Map each installed flatpak id -> on-disk size in bytes (the `flatpak list` 'size'
+    column, e.g. '287.9 MB' — number and unit are separated by a non-breaking space)."""
+    res = {}
+    output = run_cmd('flatpak list --columns=application,size')
+
+    if not output:
+        return res
+
+    for line in output.split('\n'):
+        app_id, _, size_str = line.partition('\t')
+        app_id = app_id.strip()
+        if not app_id or '\t' not in line:
+            continue
+
+        parts = size_str.split()  # str.split() treats the NBSP as whitespace too
+        if len(parts) >= 2:
+            size = size_to_byte(parts[0], parts[1])
+            if size is not None:
+                res[app_id] = size
+
+    return res
+
+
 def map_update_download_size(app_ids: Iterable[str], installation: str, version: Tuple[str, ...]) -> Dict[str, float]:
     success, output = ProcessHandler().handle_simple(SimpleProcess(('flatpak', 'update', f'--{installation}',
                                                                     '--no-deps')))

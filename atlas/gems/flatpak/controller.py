@@ -48,6 +48,17 @@ class FlatpakManager(SoftwareManager, SettingsController):
     def get_managed_types(self) -> Set["type"]:
         return {FlatpakApplication}
 
+    def fill_sizes(self, pkgs: List[FlatpakApplication]):
+        # Installed on-disk size per flatpak (for the Disk view), keyed by app id.
+        if not pkgs:
+            return
+
+        sizes = flatpak.map_installed_sizes()
+        if sizes:
+            for p in pkgs:
+                if p.size is None:
+                    p.size = sizes.get(str(p.id))
+
     def _map_to_model(self, app_json: dict, installed: bool, disk_loader: Optional[DiskCacheLoader], internet: bool = True) -> Tuple[FlatpakApplication, Optional[FlatpakAsyncDataLoader]]:
 
         app = FlatpakApplication(**app_json, i18n=self.i18n)
