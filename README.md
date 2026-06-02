@@ -49,7 +49,14 @@ build. Re-enable any of them under **Settings → Package types**.
 
 ## Install (Arch package)
 
-A `-git` PKGBUILD lives at [`linux_dist/arch/PKGBUILD`](linux_dist/arch/PKGBUILD):
+The easiest way on Arch: install from the AUR:
+
+```bash
+yay -S atlas-pm-git
+atlas             # launch
+```
+
+Or build locally from the PKGBUILD at [`linux_dist/arch/PKGBUILD`](linux_dist/arch/PKGBUILD):
 
 ```bash
 git clone https://github.com/Vatteck/atlas.git
