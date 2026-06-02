@@ -767,6 +767,16 @@ function deferredIconLoad() {
     });
 }
 
+// get_info keys carry Qt-era numeric ordering prefixes (e.g. "03_version",
+// "08_first_submitted"); strip the prefix and turn underscores into spaces for display.
+function prettifyInfoKey(key) {
+    return String(key).replace(/^\d+_/, '').replace(/_/g, ' ').trim();
+}
+
+// These duplicate what the modal header already shows (title, version, description), so
+// don't repeat them in the DETAILS table.
+const SKIP_DETAIL_KEYS = new Set(['id', 'name', 'version', 'description']);
+
 // Package Detail Modal View
 function openDetailModal(pkg) {
     const detailIcon = document.getElementById('detail-icon');
@@ -810,6 +820,7 @@ function openDetailModal(pkg) {
     pyApiCall('get_info', pkg.id).then(info => {
         table.innerHTML = '';
         if (info && Object.keys(info).length > 0) {
+            const seenLabels = new Set();
             Object.entries(info).forEach(([key, val]) => {
                 // Skip empty, null, undefined, or 'None' values to keep the table clean
                 if (val === null || val === undefined || val === '' || val === 'None' || val === 'none' || val === 'null') {
@@ -819,9 +830,18 @@ function openDetailModal(pkg) {
                     return;
                 }
 
+                const label = prettifyInfoKey(key);
+                const labelKey = label.toLowerCase();
+                // Drop rows that just repeat the header (name / version / description),
+                // and collapse duplicate labels (e.g. AUR's 00_url + 10_url) to the first.
+                if (SKIP_DETAIL_KEYS.has(labelKey) || seenLabels.has(labelKey)) {
+                    return;
+                }
+                seenLabels.add(labelKey);
+
                 const tr = document.createElement('tr');
                 const tdKey = document.createElement('td');
-                tdKey.textContent = key;
+                tdKey.textContent = label;
                 const tdVal = document.createElement('td');
                 
                 if (Array.isArray(val)) {
