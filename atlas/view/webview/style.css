@@ -272,7 +272,7 @@ body {
 }
 
 .package-card {
-    background-color: var(--bg-surface);
+    background-color: var(--bg-surface-glass);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     padding: 16px;
@@ -280,10 +280,11 @@ body {
     flex-direction: column;
     gap: 12px;
     box-shadow: var(--shadow-sm);
-    transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+    transition: transform var(--transition-smooth), box-shadow var(--transition-smooth), border-color var(--transition-smooth);
     cursor: default;
     position: relative;
     overflow: hidden;
+    animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 
     /* Performance: Isolate rendering and skip painting offscreen cards */
     content-visibility: auto;
@@ -299,8 +300,8 @@ body {
 
 .package-card:hover {
     transform: translateY(-4px);
-    box-shadow: var(--shadow-md);
-    border-color: var(--accent-glass);
+    box-shadow: 0 10px 24px rgba(224, 36, 36, 0.08);
+    border-color: rgba(224, 36, 36, 0.3);
 }
 
 .package-header {
@@ -1241,6 +1242,17 @@ body {
 @keyframes shimmer {
     0% { background-position: 200% 0; }
     100% { background-position: -200% 0; }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 
