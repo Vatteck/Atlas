@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §8). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-02 (Browse by category)
+**Last updated:** 2026-06-02 (starting system-tray indicator)
 **Version:** 0.10.7
 **Working branch:** `master` (use short-lived branches for larger features; run `git branch` to see what's active)
 
@@ -16,11 +16,13 @@
 
 ## Current focus
 
-**Feature/QoL polish (2026-06-02).** The big transitions are done; Atlas is an Arch-focused,
-**pure-Python** pywebview app on the AUR with green CI. Now building out the feature backlog.
-Recently shipped **Browse by category**, a **grid/list view toggle**, a **sort dropdown**, and
-the **window-icon fix** (incl. Wayland app_id) — plus **AUR publish automation** (local
-`publish-aur.sh` + a GitHub Action). Picking the next item from [BACKLOG.md](BACKLOG.md).
+**System-tray indicator (non-Qt) — phase 1 built (2026-06-02).** The big transitions are done;
+Atlas is an Arch-focused, **pure-Python** pywebview app on the AUR with green CI. Now building
+out the feature backlog. Recently shipped **Browse by category**, a **grid/list view toggle**,
+a **sort dropdown**, the **window-icon fix** (incl. Wayland app_id), the **new app icon**, and
+**AUR publish automation**. **Just built (phase 1):** a non-Qt system-tray indicator
+(AppIndicator/SNI) — see Done. **Needs a GUI eyeball** on KDE. Phase 2 (update-count badge) is
+deferred. Plan: [plans/2026-06-02-system-tray.md](plans/2026-06-02-system-tray.md).
 
 ## Next
 
@@ -53,6 +55,30 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **System-tray indicator (non-Qt) — phase 1 (2026-06-02):** reintroduced a tray presence,
+  this time pure-Python (the legacy Qt tray was purged). Backend: **AyatanaAppIndicator3** (falls
+  back to AppIndicator3) via `gi` — a StatusNotifierItem KDE Plasma shows natively; rides the
+  same GTK3 loop pywebview runs, no Qt, no new Python dep (system pkg `libayatana-appindicator`).
+  New `atlas/view/tray.py` (`AtlasTray` + `start()` factory); wired in `app.py` before
+  `webview.start()` (the indicator builds on the GTK loop via `GLib.idle_add`, so pre-start
+  wiring is fine). Menu: **Show/Hide Atlas**, **Check for updates** (→ `activateView('updates')`),
+  **Quit Atlas** (`window.destroy()` = real exit). **Close-to-tray** is opt-in: a `closing`
+  handler returns `False` to cancel the close and hide instead, gated on the new
+  `ui.tray.minimize_to_tray` (default **off** → closing quits as before). Also new:
+  `ui.tray.enabled` (default on). Fully **additive/optional** — missing typelib or
+  `enabled:false` → `start()` no-ops and the app launches unchanged. Tests:
+  `tests/view/test_tray.py` (12, pure-logic helpers + callback behaviour with a fake window).
+  Smoke-tested on a real GTK loop (indicator builds, callbacks don't crash). **GUI-confirmed
+  working on KDE by the user (2026-06-02).** Plan:
+  [plans/2026-06-02-system-tray.md](plans/2026-06-02-system-tray.md).
+- **New app icon (2026-06-02):** replaced the app logo with a new `icon.svg` provided by the
+  user. `atlas/view/resources/img/logo.svg` now holds the new vector; `logo.png` re-rasterized
+  from it at 512×512 (`rsvg-convert`) — that's the window icon (`app.py`) and the `atlas-pm`
+  icon the PKGBUILD installs to hicolor/pixmaps. Removed the orphaned `logo_update.svg` (a
+  leftover bauh asset, zero references). No code paths changed. Commit `3d59189`. Verified live
+  on a clean CachyOS+Plasma box (new icon shows first launch). One stale second machine showed
+  the old map icon (app_id correctly `atlas-pm` but KWin fuzzy-matched a stale local desktop
+  file) — purely local cache/leftover state, not a code/packaging issue; deferred.
 - **Window icon — make the identity uniformly `atlas-pm` (2026-06-02):** the prior fix pinned
   app_id to the bare **`atlas`**, which still showed the map on KDE/Plasma Wayland. Diagnosis
   from the affected box: install was correct (Icon=atlas-pm, StartupWMClass, atlas-pm.png all
@@ -355,6 +381,14 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Known gaps / gotchas (don't get burned)
 
+- **System tray (2026-06-02):** built on **AppIndicator/SNI** (`atlas/view/tray.py`), so it
+  shows on **KDE Plasma natively** but **GNOME needs the AppIndicator extension** (desktop-side,
+  not our bug — don't try to work around it). Two more notes: (1) `gi`/AppIndicator are **not
+  in the project venv** — the GUI (and thus the tray) runs under **system Python**; `TRAY_AVAILABLE`
+  is False inside the venv, which is why tray *logic* is unit-tested but the indicator itself is
+  GUI-eyeball-only. (2) libayatana prints a harmless `…is deprecated, use libayatana-appindicator-glib`
+  warning at startup; ignore it (a future polish could switch namespaces). Close-to-tray is
+  **opt-in** via `ui.tray.minimize_to_tray` (default off) so closing still quits by default.
 - **WebKitGTK has no `window.prompt`/`confirm`/`alert`.** They return `null`/no-op, so the
   watcher's old `evaluate_js("window.prompt/confirm/alert(...)")` never worked. **All four
   are now HTML modals** (password, confirm, message) that block the worker thread on a

@@ -153,6 +153,16 @@ def main():
     if not os.environ.get('PYWEBVIEW_GUI'):
         start_kwargs['gui'] = 'gtk'
 
+    # System-tray indicator (non-Qt, AppIndicator/SNI). Additive and optional: a missing typelib
+    # or a disabled config flag makes this a no-op. The indicator is built on the GTK main loop
+    # (GLib.idle_add), so wiring it before webview.start() is fine — it materializes once the loop
+    # runs. Reuses the same logo.png as the window icon (icon_path above).
+    try:
+        from atlas.view import tray as tray_mod
+        tray_mod.start(window, app_config, logger, icon_path)
+    except Exception as e:
+        logger.error(f"Could not initialize the system tray: {e}")
+
     webview.start(**start_kwargs)
     sys.exit(0)
 

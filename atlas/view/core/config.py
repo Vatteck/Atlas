@@ -37,6 +37,8 @@ class CoreConfigManager(YAMLConfigManager):
                     'max_displayed': 50
                 },
                 'tray': {
+                    'enabled': True,
+                    'minimize_to_tray': False,
                     'default_icon': None,
                     'updates_icon': None
                 },
