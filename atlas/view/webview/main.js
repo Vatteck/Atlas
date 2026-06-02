@@ -940,25 +940,38 @@ cleanupOrphansBtn.addEventListener('click', async () => {
 
     // Fetch the real orphan list on demand (the badge only knows the count).
     const orphans = await pyApiCall('get_orphans');
-    const ids = (orphans || []).map(pkg => pkg.id);
-    if (ids.length === 0) {
+    if (!orphans || orphans.length === 0) {
         showToast('Nothing to clean', 'There are no orphan packages to remove', 'info');
         cleanupOrphansBtn.classList.add('hidden');
         return;
     }
 
-    const names = (orphans || []).map(p => p.name).join(', ');
-    const ok = await pyApiCall('prompt_confirmation',
-        'Remove orphans?',
-        `These ${ids.length} package(s) were installed as dependencies and are no longer required:\n\n${names}`,
-        'Remove', 'Cancel');
-    if (!(ok && ok[0])) return;
+    // Show the orphans as a checklist (all ticked) so the user can keep any they still
+    // want. Reuses the confirm-modal's MultipleSelectComponent rendering.
+    const components = [{
+        kind: 'multiselect',
+        label: '',
+        options: orphans.map((p, i) => ({ oi: i, label: p.name, tooltip: null,
+                                          selected: true, readOnly: false, icon: null })),
+    }];
+    const res = await pyApiCall('prompt_confirmation',
+        'Remove orphan packages?',
+        'These were installed as dependencies and are no longer required. Uncheck any you want to keep:',
+        'Remove selected', 'Cancel', true, components);
 
-    showToast('Orphan Cleanup', "Removing " + ids.length + " orphaned package(s)...", 'info');
+    if (!(res && res[0])) return;  // cancelled
+    const selectedIdx = (res[1] && res[1][0]) || [];   // selected option indices of component 0
+    const ids = selectedIdx.map(i => orphans[i] && orphans[i].id).filter(Boolean);
+    if (ids.length === 0) {
+        showToast('Nothing selected', 'No packages were selected to remove', 'info');
+        return;
+    }
+
+    showToast('Orphan Cleanup', "Removing " + ids.length + " package(s)...", 'info');
     const result = await pyApiCall('batch_uninstall', ids);
     if (result && result.success) {
         packageCache = {}; // Invalidate cache on orphan cleanup
-        showToast('Success', 'Orphaned packages removed successfully', 'success');
+        showToast('Success', 'Selected packages removed', 'success');
         checkOrphans();
         fetchPackages();
     } else {
