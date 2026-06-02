@@ -21,10 +21,16 @@ working. Remaining modernization items below.
 
 ## Next
 
-- Optional: publish the PKGBUILD to the AUR (it builds locally via `makepkg -si`); render
-  rich components (icons) in more dialogs; AUR-suggestion support (currently repo-only —
-  see the suggestions gotcha below); route the controller's ad-hoc `Thread(...)` spawns
-  through a shared pool (marginal, only with a measured reason).
+**The roadmap is essentially complete** — the Qt→webview and (reverted) Rust transitions,
+the modernization pass (pure-Python, CI, de-Qt, packaging+AUR publish), and the source-types
+/ settings / notifications feature work are all done. Atlas is published on the AUR
+(`atlas-pm-git`) and CI is green. Remaining is polish / new scope:
+
+- **README screenshots** of the live UI (small, helps presentation / the AUR page).
+- A **system-tray indicator** (non-Qt) — a real feature; the legacy Qt tray was removed.
+- Exploratory: container sandboxing ("Vault").
+- Lower-value: route the controller's ad-hoc `Thread(...)` spawns through a shared pool
+  (marginal; only with a measured reason).
 
 Done this session: ✅ CI (GitHub Actions, pytest 3.10–3.13), ✅ dropped Rust, ✅ deleted the
 dead Qt-era settings tree, ✅ refreshed stale metadata, ✅ Arch PKGBUILD

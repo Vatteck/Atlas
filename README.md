@@ -108,11 +108,13 @@ Working on Atlas? Start with **[AGENTS.md](AGENTS.md)** (the operating manual) a
 
 ## Roadmap
 
-- Continue moving Arch CPU-bound hot paths to Rust (only where it measurably wins).
-- Render rich components (icons, multi-selects) in more dialogs.
-- Optional Flatpak/AppImage web links and richer detail panels.
-- Re-introduce a non-Qt tray (the legacy Qt tray was removed in the rebrand).
-- Advanced container sandboxing ("Vault").
+The big transitions are done — Qt5 → pywebview UI, and back to a clean **pure-Python**
+engine (a Rust hot-paths experiment was tried and dropped: a package manager is I/O-bound,
+so native code didn't earn its keep). What's left is polish and new features:
+
+- Screenshots and richer app detail panels.
+- A system-tray indicator (the legacy Qt tray was removed; a non-Qt one could return).
+- Exploratory: container sandboxing ("Vault").
 
 ## Credits & license
 
