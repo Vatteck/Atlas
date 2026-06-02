@@ -3,6 +3,8 @@
     --bg-base: #f4f6fa;
     --bg-surface: #ffffff;
     --bg-surface-glass: rgba(255, 255, 255, 0.75);
+    --bg-sidebar: #f8f9fc;           /* Opaque sidebar — no backdrop-filter needed */
+    --bg-topbar: rgba(244, 246, 250, 0.97); /* Near-opaque topbar — cheap compositing */
     --bg-surface-hover: #f1f5f9;
     --border-color: #e2e8f0;
     --text-primary: #0f172a;
@@ -36,6 +38,8 @@
     --bg-base: #05070c;               /* Obsidian Black */
     --bg-surface: #0e111a;            /* Deep Graphite */
     --bg-surface-glass: rgba(14, 17, 26, 0.75);
+    --bg-sidebar: #0a0d14;            /* Opaque sidebar — no backdrop-filter needed */
+    --bg-topbar: rgba(5, 7, 12, 0.97); /* Near-opaque topbar — cheap compositing */
     --bg-surface-hover: #161a26;
     --border-color: rgba(255, 255, 255, 0.06);
     --text-primary: #f8fafc;
@@ -80,9 +84,7 @@ body {
 /* Sidebar */
 .sidebar {
     width: var(--sidebar-width);
-    background-color: var(--bg-surface-glass);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background-color: var(--bg-sidebar);
     border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
@@ -177,13 +179,14 @@ body {
     margin-top: 4px;
 }
 
-/* Main Content Area */
 .content {
     flex: 1;
     display: flex;
     flex-direction: column;
     position: relative;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    will-change: scroll-position;
 }
 
 /* Topbar / Header */
@@ -191,9 +194,7 @@ body {
     position: sticky;
     top: 0;
     z-index: 20;
-    background: var(--bg-surface-glass);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: var(--bg-topbar);
     padding: 20px 32px;
     border-bottom: 1px solid var(--border-color);
     display: flex;
@@ -272,38 +273,33 @@ body {
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 16px;
     padding: 24px;
+    contain: layout style;
 }
 
 .package-card {
-    background-color: var(--bg-surface-glass);
+    background-color: var(--bg-surface);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     padding: 16px;
     display: flex;
     flex-direction: column;
     gap: 12px;
-    box-shadow: var(--shadow-sm);
-    transition: transform var(--transition-smooth), box-shadow var(--transition-smooth), border-color var(--transition-smooth);
     cursor: default;
     position: relative;
     overflow: hidden;
-    animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    /* Transitions only for the properties we actually animate on hover.
+       Using outline instead of box-shadow avoids expensive blur repaints. */
+    transition: transform 0.2s ease, border-color 0.2s ease;
 
     /* Performance: Isolate rendering and skip painting offscreen cards */
     content-visibility: auto;
-    contain-intrinsic-size: auto none auto 180px;
-}
-
-/* Fallback for engines without content-visibility support */
-@supports not (content-visibility: auto) {
-    .package-card {
-        contain: layout style paint;
-    }
+    contain-intrinsic-size: 180px;
+    contain-intrinsic-height: 180px;
+    contain: layout style paint;
 }
 
 .package-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--accent-shadow-hover);
+    transform: translateY(-2px);
     border-color: var(--accent-border-hover);
 }
 
@@ -1007,9 +1003,7 @@ body {
 }
 
 .disk-summary-card {
-    background: var(--bg-surface-glass);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: var(--bg-surface);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     padding: 32px;
@@ -1018,6 +1012,7 @@ body {
     flex-direction: column;
     gap: 20px;
 }
+
 
 .disk-summary-title {
     font-size: 13px;

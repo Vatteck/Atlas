@@ -46,7 +46,7 @@ re-add a native extension without a measured win. Details in the historical
 ## Done
 
 - **UI Modernization & Premium Design Tokens (2026-06-01):** Implemented modern Obsidian/Deep Graphite surfaces and Indigo/Purple premium theme accents. Rebuilt CSS custom properties, added smooth transitions, glassmorphic sidebar and topbar, spring-ease obsidian blurred modals, animated loading skeleton screens, 3D lift package cards, and removed the awkward left active-nav border shadow. Fully tested and verified.
-
+- **Scroll Performance Optimization (2026-06-01):** Fixed severe scroll lag in the package grid. Root causes were (1) the sticky `.topbar` with `backdrop-filter: blur(16px)` overlapping the scrolling packages grid, forcing expensive repaints (fixed by promoting to a compositor layer via `transform: translateZ(0); will-change: transform, backdrop-filter`), (2) an invalid 4-value `contain-intrinsic-size` syntax on `.package-card` that caused older WebKitGTK versions to drop the rule and collapse `content-visibility` elements to 0px height, creating massive scrollbar thrashing (fixed by using the older, safer syntax `contain-intrinsic-size: 180px; contain-intrinsic-height: 180px`), and (3) a `fadeInUp` CSS animation applied globally to all `.package-card` elements, forcing WebKit to maintain active animation states for thousands of nodes at once (fixed by removing the animation).
 - **Dialog component icons (2026-06-01):** the confirm-modal checkbox/radio options (optdep
   list, missing-deps, AUR provider choice) now show their source/repo/AUR icons. The gem
   `InputOption.icon_path` (an on-disk SVG) is inlined as a base64 data URI in
@@ -306,6 +306,7 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Decision log (append-only; newest first)
 
+- **2026-06-01** — Fixed severe scroll lag in the package grid. Root causes were (1) the sticky `.topbar` with `backdrop-filter: blur(16px)` overlapping the scrolling packages grid, forcing expensive repaints (fixed by promoting to a compositor layer via `transform: translateZ(0); will-change: transform, backdrop-filter`), (2) an invalid 4-value `contain-intrinsic-size` syntax on `.package-card` that caused older WebKitGTK versions to drop the rule and collapse `content-visibility` elements to 0px height, creating massive scrollbar thrashing (fixed by using the older, safer syntax `contain-intrinsic-size: 180px; contain-intrinsic-height: 180px`), and (3) a `fadeInUp` CSS animation applied globally to all `.package-card` elements, forcing WebKit to maintain active animation states for thousands of nodes at once (fixed by removing the animation).
 - **2026-05-30** — Converted the remaining `window.confirm`/`alert` watcher dialogs
   (`request_confirmation`/`request_reboot`/`show_message`) to blocking HTML modals, reusing
   the password-broker pattern (evaluate_js → worker blocks on Event → `js_api` callback
