@@ -595,3 +595,125 @@ class BatchOperationsTest(unittest.TestCase):
         mock_record.assert_called_once_with('install', 'pkg2', 'Flatpak', True)
 
 
+class CleanupHubTest(unittest.TestCase):
+    """Maintenance / "Reclaim space" panel backend (get_cleanup_summary + clean actions)."""
+
+    def setUp(self):
+        self.manager = Mock()
+        self.api = AtlasApi(self.manager, Mock())
+
+    def _arch_man(self, orphan_names):
+        m = Mock()
+        m.__module__ = 'atlas.gems.arch.controller'
+        m.list_orphans.return_value = set(orphan_names)
+        return m
+
+    def _flatpak_man(self, level=None, enabled=True):
+        m = Mock()
+        m.__module__ = 'atlas.gems.flatpak.controller'
+        m.is_enabled.return_value = enabled
+        m.configman.get_config.return_value = {'installation_level': level}
+        return m
+
+    # --- get_cleanup_summary ------------------------------------------------ #
+    @patch('atlas.view.webview.api.shutil.which', return_value='/usr/bin/flatpak')
+    @patch('atlas.view.webview.api.get_dir_size', return_value=5000)
+    @patch('atlas.view.webview.api.os.path.isdir', return_value=True)
+    def test_summary_shape_and_is_cheap(self, _isdir, _dirsize, _which):
+        self.manager.managers = [self._arch_man({'gjs', 'gtk2'}), self._flatpak_man()]
+
+        res = self.api.get_cleanup_summary()
+
+        self.assertEqual('ok', res['status'])
+        data = res['data']
+        self.assertEqual(2, data['orphans']['count'])
+        self.assertTrue(data['pacman_cache']['available'])
+        self.assertEqual(5000, data['pacman_cache']['total_bytes'])
+        self.assertTrue(data['flatpak']['available'])
+        # The summary must stay cheap — never trigger a full read_installed().
+        self.manager.read_installed.assert_not_called()
+
+    @patch('atlas.view.webview.api.shutil.which', return_value=None)
+    @patch('atlas.view.webview.api.os.path.isdir', return_value=False)
+    def test_summary_handles_missing_cache_and_flatpak(self, _isdir, _which):
+        self.manager.managers = [self._arch_man(set())]
+        res = self.api.get_cleanup_summary()
+        self.assertEqual('ok', res['status'])
+        self.assertEqual(0, res['data']['orphans']['count'])
+        self.assertFalse(res['data']['pacman_cache']['available'])
+        self.assertFalse(res['data']['flatpak']['available'])
+
+    # --- clean_pacman_cache ------------------------------------------------- #
+    @patch('atlas.view.webview.api.new_root_subprocess')
+    @patch('atlas.view.webview.api.os.path.isdir', return_value=True)
+    def test_clean_pacman_cache_cancelled_without_password(self, _isdir, mock_root):
+        self.api.ensure_root_password = Mock(return_value=None)
+        res = self.api.clean_pacman_cache()
+        self.assertEqual('cancelled', res['status'])
+        mock_root.assert_not_called()  # never shell out if the user cancels the prompt
+
+    @patch('atlas.view.webview.api.get_dir_size', return_value=1000)
+    @patch('atlas.view.webview.api.new_root_subprocess')
+    @patch('atlas.view.webview.api.os.path.isdir', return_value=True)
+    def test_clean_pacman_cache_error_on_nonzero(self, _isdir, mock_root, _dirsize):
+        self.api.ensure_root_password = Mock(return_value='pw')
+        proc = Mock(returncode=1)
+        proc.communicate.return_value = (b'', b'boom')
+        mock_root.return_value = proc
+        res = self.api.clean_pacman_cache()
+        self.assertEqual('error', res['status'])
+        self.assertIn('boom', res['message'])
+
+    # freed = cache size before minus after (real measurement, no root needed to read)
+    @patch('atlas.view.webview.api.get_dir_size', side_effect=[5000, 1000])
+    @patch('atlas.view.webview.api.new_root_subprocess')
+    @patch('atlas.view.webview.api.os.path.isdir', return_value=True)
+    def test_clean_pacman_cache_success_reports_freed(self, _isdir, mock_root, _dirsize):
+        self.api.ensure_root_password = Mock(return_value='pw')
+        self.api._notify = Mock()
+        proc = Mock(returncode=0)
+        proc.communicate.return_value = (b'', b'')
+        mock_root.return_value = proc
+        res = self.api.clean_pacman_cache()
+        self.assertEqual('ok', res['status'])
+        self.assertEqual(4000, res['freed_bytes'])
+        self.assertTrue(res['freed_human'])
+        self.api._notify.assert_called_once()
+
+    # --- clean_flatpak_unused ----------------------------------------------- #
+    @patch('atlas.view.webview.api.new_subprocess')
+    @patch('atlas.view.webview.api.shutil.which', return_value='/usr/bin/flatpak')
+    def test_clean_flatpak_unused_user_level_needs_no_root(self, _which, mock_new):
+        self.manager.managers = [self._flatpak_man(level='user')]
+        self.api.ensure_root_password = Mock()
+        self.api._notify = Mock()
+        proc = Mock(returncode=0)
+        proc.communicate.return_value = (b'', b'')
+        mock_new.return_value = proc
+
+        res = self.api.clean_flatpak_unused()
+
+        self.assertEqual('ok', res['status'])
+        self.api.ensure_root_password.assert_not_called()  # user scope → no root prompt
+        cmd = mock_new.call_args[0][0]
+        self.assertIn('--user', cmd)
+        self.assertIn('--unused', cmd)
+
+    @patch('atlas.view.webview.api.new_root_subprocess')
+    @patch('atlas.view.webview.api.shutil.which', return_value='/usr/bin/flatpak')
+    def test_clean_flatpak_unused_system_level_uses_root(self, _which, mock_root):
+        self.manager.managers = [self._flatpak_man(level='system')]
+        self.api.ensure_root_password = Mock(return_value='pw')
+        self.api._notify = Mock()
+        proc = Mock(returncode=0)
+        proc.communicate.return_value = (b'', b'')
+        mock_root.return_value = proc
+
+        res = self.api.clean_flatpak_unused()
+
+        self.assertEqual('ok', res['status'])
+        self.api.ensure_root_password.assert_called_once()
+        cmd = mock_root.call_args[0][0]
+        self.assertIn('--system', cmd)
+
+

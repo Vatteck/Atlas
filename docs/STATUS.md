@@ -9,22 +9,21 @@
 **Version:** 0.10.7
 **Working branch:** `master` (use short-lived branches for larger features; run `git branch` to see what's active)
 
+> Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)** — the longer-horizon menu we pull
+> from. This file stays the live baton (in-progress / just-shipped).
+
 ---
 
 ## Current focus
 
-**Modernization + simplification (2026-06-02).** Atlas is now an Arch-focused, **pure-Python**
-pywebview app: the Rust `atlas_rs` extension was dropped (a package manager is I/O-bound;
-the native path wasn't worth the toolchain), and the residual PyQt5 coupling is gone. The
-webview privileged-op flow, source-types UI, settings page, and notifications are all
-working. Remaining modernization items below.
+**Feature/QoL polish (2026-06-02).** The big transitions are done; Atlas is an Arch-focused,
+**pure-Python** pywebview app on the AUR with green CI. Now building out the feature backlog.
+Just shipped the **Maintenance / Cleanup hub** on the Disk view. Picking the next item from
+[BACKLOG.md](BACKLOG.md).
 
 ## Next
 
-**The roadmap is essentially complete** — the Qt→webview and (reverted) Rust transitions,
-the modernization pass (pure-Python, CI, de-Qt, packaging+AUR publish), and the source-types
-/ settings / notifications feature work are all done. Atlas is published on the AUR
-(`atlas-pm-git`) and CI is green. Remaining is polish / new scope:
+Pulling from **[BACKLOG.md](BACKLOG.md)**. Near-term candidates:
 
 - **README screenshots** of the live UI (small, helps presentation / the AUR page).
 - A **system-tray indicator** (non-Qt) — a real feature; the legacy Qt tray was removed.
@@ -45,6 +44,20 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Maintenance / Cleanup hub on the Disk view (2026-06-02):** turned the Disk view from
+  informational into actionable. New "Reclaim space" panel surfaces the three big Arch
+  space-wasters, each with an estimate + confirm step: **orphan packages** (reuses the
+  existing `get_orphans` checklist flow, now extracted into `runOrphanCleanup()`), **pacman
+  package cache** (`pacman -Sc` — keeps cache for installed pkgs so downgrades still work;
+  freed amount measured by `get_dir_size` before/after since `pacman -Sc --print` needs
+  root), and **unused Flatpak runtimes** (`flatpak uninstall --unused`, at the configured
+  install level — `--user` no-root by default, `--system` under root). Backend: `AtlasApi.
+  get_cleanup_summary` (cheap, read-only — no `read_installed`), `clean_pacman_cache`,
+  `clean_flatpak_unused` in `view/webview/api.py`. Frontend: `renderMaintenancePanel`/
+  `handleMaintenanceAction` in `main.js`, `.maintenance-*` styles. Tests:
+  `test_api.py::CleanupHubTest` (7). Plan:
+  [plans/2026-06-01-maintenance-hub.md](plans/2026-06-01-maintenance-hub.md). Backlog of
+  further ideas captured in [BACKLOG.md](BACKLOG.md).
 - **Bulk Selection Fix and Dynamic Batch Action Bar (2026-06-02):** Resolved a critical event propagation bug (`event.stopPropagation()`) in the package card checkbox template that blocked selection toggle events from reaching the grid event delegation layer, causing direct checkbox clicks to not update the selection count or visual selected styles. Additionally implemented fully dynamic batch action controls at the bottom overlay (`Install Selected (N)` / `Uninstall Selected (M)`) and engineered the corresponding sequential bulk installation backend API `batch_install` to support single-authentication multi-package installations. Fully verified via extensive new unit tests.
 - **Clean Package Details Modal & Array Formatting (2026-06-02):** Fixed the bug where the package details modal displayed raw `"null"` values for missing metadata rows (such as conflicts, provides, and optional deps). Empty, `null`, `undefined`, and `"None"` / `"none"` / `"null"` values are now omitted from the details table entirely, keeping it clean and compact. Also formatted array values (such as "depends on" and "required by") as nice, clean comma-separated lists instead of raw JSON arrays.
 - **Responsive Layout Adaptivity (2026-06-01):** Implemented fluid layout adaptivity to support tiling window managers and small splits down to 400px wide. Changed the pywebview minimum window constraint in `app.py` from `(800, 600)` to `(400, 400)` and shifted CSS media queries breakpoints upward (collapse at `960px`, stacking at `700px`, single-column grid at `520px`) to perfectly cover 1080p screen half-splits.

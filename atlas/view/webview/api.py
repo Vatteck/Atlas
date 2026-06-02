@@ -1,5 +1,7 @@
 import json
 import logging
+import os
+import shutil
 import threading
 import traceback
 import webbrowser
@@ -21,7 +23,8 @@ def _json_safe(obj):
     return obj
 
 from atlas.api.abstract.controller import SoftwareAction
-from atlas.commons.system import validate_root_password
+from atlas.commons.system import (validate_root_password, new_subprocess,
+                                  new_root_subprocess, get_dir_size)
 from atlas.commons.view_utils import get_human_size_str
 from atlas.view.core.controller import GenericSoftwareManager
 from atlas.view.webview.watcher import WebviewWatcher
@@ -30,6 +33,8 @@ from atlas.view.webview.export import write_manifest, read_manifest
 
 
 class AtlasApi:
+
+    PACMAN_CACHE_DIR = '/var/cache/pacman/pkg'
 
     def __init__(self, manager: GenericSoftwareManager, logger: logging.Logger):
         self.manager = manager
@@ -425,6 +430,112 @@ class AtlasApi:
             self.logger.error(f"Error counting orphans: {e}")
             return {'status': 'error', 'message': str(e), 'count': 0}
 
+    # ------------------------------------------------------------------ #
+    # Maintenance / cleanup (Disk view "Reclaim space" panel)
+    # ------------------------------------------------------------------ #
+    def get_cleanup_summary(self) -> dict:
+        """Cheap, read-only summary for the Maintenance panel: orphan count, total pacman
+        cache size, and whether Flatpak unused-runtime cleanup is available. Deliberately
+        avoids read_installed() (and anything needing root) so it's fast enough to call on
+        view open — the exact reclaimable amount is reported after cleaning instead, since
+        `pacman -Sc --print` needs root."""
+        data = {
+            'orphans': {'count': 0},
+            'pacman_cache': {'available': False, 'total_bytes': 0, 'total_human': '0 B'},
+            'flatpak': {'available': False},
+        }
+
+        try:
+            arch_man = self._manager_by_gem('arch')
+            if arch_man is not None and hasattr(arch_man, 'list_orphans'):
+                data['orphans']['count'] = len(arch_man.list_orphans() or ())
+        except Exception:
+            self.logger.warning("cleanup summary: orphan count failed", exc_info=True)
+
+        try:
+            if os.path.isdir(self.PACMAN_CACHE_DIR):
+                total = get_dir_size(self.PACMAN_CACHE_DIR) or 0
+                data['pacman_cache'] = {
+                    'available': True,
+                    'total_bytes': total,
+                    'total_human': get_human_size_str(total) or '0 B',
+                }
+        except Exception:
+            self.logger.warning("cleanup summary: pacman cache sizing failed", exc_info=True)
+
+        try:
+            flatpak_man = self._manager_by_gem('flatpak')
+            if shutil.which('flatpak') and flatpak_man is not None:
+                try:
+                    enabled = flatpak_man.is_enabled()
+                except Exception:
+                    enabled = True
+                data['flatpak']['available'] = bool(enabled)
+        except Exception:
+            self.logger.warning("cleanup summary: flatpak availability check failed", exc_info=True)
+
+        return {'status': 'ok', 'data': data}
+
+    def clean_pacman_cache(self) -> dict:
+        """Remove cached tarballs of packages that are no longer installed (`pacman -Sc`).
+        Cache for currently-installed packages is kept, so downgrades still work. Needs root."""
+        if not os.path.isdir(self.PACMAN_CACHE_DIR):
+            return {'status': 'error', 'message': 'pacman cache directory not found'}
+        pwd = self.ensure_root_password()
+        if pwd is None:
+            return {'status': 'cancelled'}
+        try:
+            before = get_dir_size(self.PACMAN_CACHE_DIR) or 0
+            proc = new_root_subprocess(['pacman', '-Sc', '--noconfirm'], root_password=pwd)
+            _, err = proc.communicate()
+            if proc.returncode != 0:
+                msg = (err or b'').decode(errors='replace').strip() or 'pacman -Sc failed'
+                self.logger.error(f"clean_pacman_cache: {msg}")
+                return {'status': 'error', 'message': msg}
+            after = get_dir_size(self.PACMAN_CACHE_DIR) or 0
+            freed_bytes = max(0, before - after)
+            freed_human = get_human_size_str(freed_bytes) or '0 B'
+            self._notify(f"Freed {freed_human} from the package cache")
+            return {'status': 'ok', 'freed_bytes': freed_bytes, 'freed_human': freed_human}
+        except Exception as e:
+            self.logger.error(f"clean_pacman_cache failed: {e}")
+            return {'status': 'error', 'message': str(e)}
+
+    def clean_flatpak_unused(self) -> dict:
+        """Remove unused Flatpak runtimes/extensions (`flatpak uninstall --unused`), at the
+        scope the app installs to: system (needs root) if configured, else user (no root)."""
+        if not shutil.which('flatpak'):
+            return {'status': 'error', 'message': 'flatpak is not installed'}
+        try:
+            level = None
+            flatpak_man = self._manager_by_gem('flatpak')
+            if flatpak_man is not None:
+                try:
+                    level = flatpak_man.configman.get_config().get('installation_level')
+                except Exception:
+                    level = None
+
+            cmd = ['flatpak', 'uninstall', '--unused', '--assumeyes']
+            if level == 'system':
+                cmd.append('--system')
+                pwd = self.ensure_root_password()
+                if pwd is None:
+                    return {'status': 'cancelled'}
+                proc = new_root_subprocess(cmd, root_password=pwd)
+            else:
+                cmd.append('--user')
+                proc = new_subprocess(cmd)
+
+            _, err = proc.communicate()
+            if proc.returncode != 0:
+                msg = (err or b'').decode(errors='replace').strip() or 'flatpak uninstall --unused failed'
+                self.logger.error(f"clean_flatpak_unused: {msg}")
+                return {'status': 'error', 'message': msg}
+            self._notify("Removed unused Flatpak runtimes")
+            return {'status': 'ok'}
+        except Exception as e:
+            self.logger.error(f"clean_flatpak_unused failed: {e}")
+            return {'status': 'error', 'message': str(e)}
 
     def get_updates(self, pkg_type: str = 'all') -> dict:
         try:

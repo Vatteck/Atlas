@@ -1027,15 +1027,17 @@ async function checkOrphans() {
     }
 }
 
-cleanupOrphansBtn.addEventListener('click', async () => {
-    if (operationInProgress) { showToast('Busy', 'Another operation is already running', 'warning'); return; }
+// Shared orphan-cleanup flow used by both the topbar button and the Disk-view
+// maintenance panel. Returns true if packages were actually removed.
+async function runOrphanCleanup() {
+    if (operationInProgress) { showToast('Busy', 'Another operation is already running', 'warning'); return false; }
 
     // Fetch the real orphan list on demand (the badge only knows the count).
     const orphans = await pyApiCall('get_orphans');
     if (!orphans || orphans.length === 0) {
         showToast('Nothing to clean', 'There are no orphan packages to remove', 'info');
         cleanupOrphansBtn.classList.add('hidden');
-        return;
+        return false;
     }
 
     // Show the orphans as a checklist (all ticked) so the user can keep any they still
@@ -1051,12 +1053,12 @@ cleanupOrphansBtn.addEventListener('click', async () => {
         'These were installed as dependencies and are no longer required. Uncheck any you want to keep:',
         'Remove selected', 'Cancel', true, components);
 
-    if (!(res && res[0])) return;  // cancelled
+    if (!(res && res[0])) return false;  // cancelled
     const selectedIdx = (res[1] && res[1][0]) || [];   // selected option indices of component 0
     const ids = selectedIdx.map(i => orphans[i] && orphans[i].id).filter(Boolean);
     if (ids.length === 0) {
         showToast('Nothing selected', 'No packages were selected to remove', 'info');
-        return;
+        return false;
     }
 
     showToast('Orphan Cleanup', "Removing " + ids.length + " package(s)...", 'info');
@@ -1065,10 +1067,14 @@ cleanupOrphansBtn.addEventListener('click', async () => {
         packageCache = {}; // Invalidate cache on orphan cleanup
         showToast('Success', 'Selected packages removed', 'success');
         checkOrphans();
-        fetchPackages();
-    } else {
-        showToast('Error', result ? result.error : 'Orphan cleanup failed', 'error');
+        return true;
     }
+    showToast('Error', result ? result.error : 'Orphan cleanup failed', 'error');
+    return false;
+}
+
+cleanupOrphansBtn.addEventListener('click', async () => {
+    if (await runOrphanCleanup()) fetchPackages();
 });
 
 function formatBytes(bytes, decimals = 2) {
@@ -1112,6 +1118,7 @@ async function renderDiskView() {
 
     let html = `
         <div class="disk-view-container">
+            <div id="maintenance-panel"></div>
             <div class="disk-summary-card">
                 <div class="disk-summary-title">Total Managed Disk Usage</div>
                 <div class="disk-summary-value">${escapeHtml(totalHuman)}</div>
@@ -1193,6 +1200,106 @@ async function renderDiskView() {
     `;
 
     packagesGrid.innerHTML = html;
+    renderMaintenancePanel();
+}
+
+// "Reclaim space" maintenance panel at the top of the Disk view. Surfaces the three big
+// Arch space-wasters (orphans / pacman cache / unused Flatpak runtimes) with a size or
+// count estimate and an action button. Backed by the cheap, read-only get_cleanup_summary.
+async function renderMaintenancePanel() {
+    const panel = document.getElementById('maintenance-panel');
+    if (!panel) return;
+
+    const data = await pyApiCall('get_cleanup_summary');  // unwrapped {orphans, pacman_cache, flatpak}
+    if (!data) { panel.innerHTML = ''; return; }
+
+    const rows = [];
+
+    const orphanCount = (data.orphans && data.orphans.count) || 0;
+    if (orphanCount > 0) {
+        rows.push(maintenanceRow('orphans', 'Orphan packages',
+            `${orphanCount} package${orphanCount > 1 ? 's' : ''} installed as dependencies, no longer required`,
+            'Review & remove'));
+    }
+
+    const cache = data.pacman_cache || {};
+    if (cache.available) {
+        rows.push(maintenanceRow('cache', 'Package cache',
+            `${cache.total_human} cached · clear tarballs for packages no longer installed`,
+            'Clean cache'));
+    }
+
+    if (data.flatpak && data.flatpak.available) {
+        rows.push(maintenanceRow('flatpak', 'Unused Flatpak runtimes',
+            'Remove runtimes and extensions that no installed app uses', 'Remove unused'));
+    }
+
+    if (rows.length === 0) {
+        panel.innerHTML = `<div class="maintenance-card maintenance-empty">✓ Nothing to clean up — your system is tidy.</div>`;
+        return;
+    }
+
+    panel.innerHTML = `
+        <div class="maintenance-card">
+            <div class="maintenance-title">Reclaim space</div>
+            <div class="maintenance-rows">${rows.join('')}</div>
+        </div>`;
+
+    panel.querySelectorAll('button[data-action]').forEach(btn => {
+        btn.addEventListener('click', () => handleMaintenanceAction(btn.dataset.action));
+    });
+}
+
+function maintenanceRow(action, title, desc, btnLabel, disabled = false) {
+    return `
+        <div class="maintenance-row">
+            <div class="maintenance-row-info">
+                <span class="maintenance-row-title">${escapeHtml(title)}</span>
+                <span class="maintenance-row-desc">${escapeHtml(desc)}</span>
+            </div>
+            <button class="btn btn-secondary" data-action="${escapeHtml(action)}" ${disabled ? 'disabled' : ''}>${escapeHtml(btnLabel)}</button>
+        </div>`;
+}
+
+async function handleMaintenanceAction(action) {
+    if (operationInProgress) { showToast('Busy', 'Another operation is already running', 'warning'); return; }
+
+    if (action === 'orphans') {
+        const removed = await runOrphanCleanup();
+        // Refresh the whole view if packages changed; otherwise just refresh the panel.
+        if (removed) renderDiskView(); else renderMaintenancePanel();
+        return;
+    }
+
+    if (action === 'cache') {
+        const ok = await pyApiCall('prompt_confirmation',
+            'Clean package cache?',
+            'Remove cached package files for software that is no longer installed? Cache for installed packages is kept, so you can still downgrade.',
+            'Clean', 'Cancel');
+        if (!(ok && ok[0])) return;
+        showToast('Cleaning cache', 'Removing old cached packages…', 'info');
+        const result = await pyApiCall('clean_pacman_cache');  // null on error (already toasted)
+        if (result && result.status === 'ok') {
+            showToast('Cache cleaned', `Freed ${result.freed_human || '0 B'} from the package cache`, 'success');
+            renderDiskView();
+        }
+        return;
+    }
+
+    if (action === 'flatpak') {
+        const ok = await pyApiCall('prompt_confirmation',
+            'Remove unused Flatpak runtimes?',
+            'Remove Flatpak runtimes and extensions that no installed app uses?',
+            'Remove', 'Cancel');
+        if (!(ok && ok[0])) return;
+        showToast('Flatpak cleanup', 'Removing unused runtimes…', 'info');
+        const result = await pyApiCall('clean_flatpak_unused');
+        if (result && result.status === 'ok') {
+            showToast('Done', 'Unused Flatpak runtimes removed', 'success');
+            renderDiskView();
+        }
+        return;
+    }
 }
 
 // Render Chronological Activity Log
