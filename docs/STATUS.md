@@ -51,20 +51,29 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
-- **Window icon — fix the titlebar "map" icon (2026-06-02):** the earlier icon fixes
-  (`Icon=atlas-pm` + shipping `atlas-pm.png`, commits `fc9331e`/`b0e09c4`) only covered the
-  **launcher** entry. The **running window** (titlebar / taskbar / alt-tab) had no explicit
-  icon, so GTK fell back to the window's WM_CLASS, which icon themes (e.g. CachyOS's
-  `char-white` ships `/usr/share/icons/char-white/apps/16/atlas.svg`) resolve to a generic
-  `atlas` **map** icon. Fixed by passing our bundled 512×512 `view/resources/img/logo.png` to
-  `webview.start(icon=…)` — pywebview calls `set_icon_from_file` + `set_default_icon_from_file`
-  on the GtkWindow. The `icon` start param landed in **pywebview 4.2**, so `app.py`
-  feature-detects it via `inspect.signature` (still launches on older pywebview, just without
-  the window icon) and the dep floor is bumped `>=4.0 → >=4.2` (requirements.txt + pyproject).
-  Note: this is a *runtime/code* fix (unlike the launcher icon, which is install-time via the
-  PKGBUILD) so it ships with the source, not just the package. **Needs a GUI eyeball** (titlebar
-  icon). Reported on a second CachyOS box; the launcher icon there is a separate, install-side
-  issue (stale/old `atlas-pm-git` build or non-package install — rebuild + refresh icon cache).
+- **Window icon — fix the running-window "map" icon, incl. Wayland (2026-06-02):** the earlier
+  icon fixes (`Icon=atlas-pm` + shipping `atlas-pm.png`, commits `fc9331e`/`b0e09c4`) only
+  covered the **launcher** `.desktop` entry. The **running window** (titlebar / taskbar /
+  dock / alt-tab) fell back to a generic `atlas` **map** icon some themes ship (e.g. CachyOS's
+  `char-white` → `/usr/share/icons/char-white/apps/16/atlas.svg`). Two-pronged fix in `app.py`:
+  - **Wayland (the important one):** the compositor/dock/switcher resolves a window's icon by
+    matching its **app_id to a `.desktop` file**, *not* the client-set GTK icon. GTK derives
+    the app_id from the program name, which defaulted to `argv[0]`'s basename — **`app.py`**
+    under `python -m atlas.app` (verified live via `hyprctl clients`: `class='app.py'`,
+    native Wayland) — matching no desktop file → fallback icon. `GLib.set_prgname('atlas')`
+    pins app_id=`atlas`, which matches `atlas.desktop` (→ `Icon=atlas-pm`). Verified with a
+    throwaway GTK window: `class` flips `app.py` → `atlas`.
+  - **X11 complement:** pass the bundled 512×512 logo to `webview.start(icon=…)` (pywebview
+    calls `set_icon_from_file` + `set_default_icon_from_file`). `icon` landed in **pywebview
+    4.2**, so feature-detected via `inspect.signature`; dep floor bumped `>=4.0 → >=4.2`.
+  - Also added `StartupWMClass=atlas` to `atlas.desktop` (belt-and-suspenders for WMs/
+    compositors that match on it).
+  This is a *runtime/code* fix (ships with source, not just the PKGBUILD). On Wayland the icon
+  still resolves through the **installed** `atlas.desktop` + `atlas-pm.png` (hicolor), so a
+  package install is still required for the bitmap. **Needs a live eyeball after relaunch**
+  (the running instance must restart for the new app_id to take effect). Dev box is Hyprland/
+  Wayland, no titlebars — icon shows in waybar/dock/switcher. The second CachyOS box's
+  *launcher* icon is a separate install-side issue (rebuild the `-git` pkg + refresh icon cache).
 - **Grid/list layout toggle (2026-06-02):** package views were a CSS grid
   (`minmax(300px, 1fr)`) that auto-collapsed to one column on narrow panes — which read as
   an inconsistent "sometimes list, sometimes grid". Added an explicit segmented **toggle** in

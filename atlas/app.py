@@ -107,6 +107,18 @@ def main():
 
     html_path = 'file://' + os.path.abspath(os.path.join(os.path.dirname(__file__), 'view', 'webview', 'index.html'))
 
+    # Pin the program name so the window identity is stable and matches the installed
+    # `atlas.desktop`. On Wayland the compositor/dock/switcher resolves a window's icon by
+    # matching its app_id to a .desktop file (then reading that file's Icon=); GTK derives the
+    # app_id (and the X11 WM_CLASS) from the program name, which otherwise defaults to argv[0]'s
+    # basename — e.g. 'app.py' under `python -m atlas.app`, matching no desktop file → fallback
+    # icon. Setting it to 'atlas' makes app_id='atlas', which matches atlas.desktop (Icon=atlas-pm).
+    try:
+        from gi.repository import GLib
+        GLib.set_prgname('atlas')
+    except Exception:
+        pass  # non-GTK backend / gi unavailable — harmless
+
     window = webview.create_window(
         'Atlas',
         html_path,
@@ -117,12 +129,12 @@ def main():
     )
     api.set_window(window)
 
-    # Window icon (titlebar / taskbar / alt-tab). The .desktop's Icon= only covers the
-    # launcher entry; without an explicit window icon GTK falls back to the window's WM_CLASS,
-    # which some icon themes resolve to a generic 'atlas' icon (a map). Hand pywebview our
-    # bundled logo so it sets it on the GtkWindow (set_icon_from_file + set_default_icon_from_file).
-    # The `icon` start param is GTK/Qt-only and was added in pywebview 4.2 — feature-detect so
-    # the app still launches on older pywebview (just without the window icon).
+    # X11 complement to the app_id pinning above: set an explicit window icon (_NET_WM_ICON)
+    # so X11 WMs that show a per-window icon (titlebar / taskbar / alt-tab) use our bundled
+    # logo instead of falling back to the WM_CLASS theme lookup (a generic 'atlas' map icon).
+    # Wayland ignores client-set window icons and uses the app_id→.desktop match instead, so
+    # this is mostly a no-op there. The `icon` start param is GTK/Qt-only and was added in
+    # pywebview 4.2 — feature-detect so the app still launches on older pywebview.
     start_kwargs = {'debug': bool(args.logs)}
     icon_path = os.path.join(os.path.dirname(__file__), 'view', 'resources', 'img', 'logo.png')
     try:
