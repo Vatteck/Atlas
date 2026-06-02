@@ -45,6 +45,8 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **UI Modernization & Premium Design Tokens (2026-06-01):** Implemented modern Obsidian/Deep Graphite surfaces and Indigo/Purple premium theme accents. Rebuilt CSS custom properties, added smooth transitions, glassmorphic sidebar and topbar, spring-ease obsidian blurred modals, animated loading skeleton screens, 3D lift package cards, and removed the awkward left active-nav border shadow. Fully tested and verified.
+
 - **Dialog component icons (2026-06-01):** the confirm-modal checkbox/radio options (optdep
   list, missing-deps, AUR provider choice) now show their source/repo/AUR icons. The gem
   `InputOption.icon_path` (an on-disk SVG) is inlined as a base64 data URI in
