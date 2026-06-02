@@ -3247,35 +3247,24 @@ class ArchManager(SoftwareManager, SettingsController):
             yield self._custom_actions['setup_snapd']
 
     def fill_sizes(self, pkgs: List[ArchPackage]):
-        installed, new, all_names, installed_names = [], [], [], []
+        # Installed packages -> their actual on-disk size (pacman -Qi "Installed Size"),
+        # which works for both repo and AUR packages. Not-installed repo packages -> the
+        # repository's reported install size (pacman -Si). Used by the Disk view, so this
+        # must be the absolute installed size (not an update delta).
+        installed_names = [p.name for p in pkgs if p.installed]
+        new = [p for p in pkgs if not p.installed and p.repository != 'aur']
 
-        for p in pkgs:
-            if p.repository != 'aur':
-                all_names.append(p.name)
-                if p.installed:
-                    installed.append(p)
-                    installed_names.append(p.name)
-                else:
-                    new.append(p)
-
-        new_sizes = pacman.map_update_sizes(all_names)
-
-        if new_sizes:
-            if new:
-                for p in new:
-                    p.size = new_sizes.get(p.name)
-
-            if installed:
-                installed_sizes = pacman.get_installed_size(installed_names)
-
-                for p in installed:
+        if installed_names:
+            installed_sizes = pacman.get_installed_size(installed_names)
+            for p in pkgs:
+                if p.installed and p.size is None:
                     p.size = installed_sizes.get(p.name)
-                    new_size = new_sizes.get(p.name)
 
-                    if p.size is None:
-                        p.size = new_size
-                    elif new_size is not None:
-                        p.size = new_size - p.size
+        if new:
+            new_sizes = pacman.map_update_sizes([p.name for p in new])
+            for p in new:
+                if p.size is None:
+                    p.size = new_sizes.get(p.name)
 
     def upgrade_system(self, root_password: Optional[str], watcher: ProcessWatcher) -> bool:
         # repo_map = pacman.map_repositories()

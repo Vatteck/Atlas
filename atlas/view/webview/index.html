@@ -48,11 +48,13 @@
             <div class="sidebar-footer">
                 <button id="export-btn" class="btn btn-outline" style="font-size:12px; width:100%; margin-bottom:8px;" title="Export installed packages to ~/atlas-manifest.json">⬆ Export</button>
                 <button id="import-btn" class="btn btn-outline" style="font-size:12px; width:100%; margin-bottom:8px;" title="Install packages from ~/atlas-manifest.json">⬇ Import</button>
-                <button id="theme-toggle" class="icon-button" aria-label="Toggle theme">
-                    <svg class="icon dark-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-                    <svg class="icon light-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
-                </button>
-                <button id="shortcuts-help-btn" class="icon-button" style="margin-left: 8px; font-weight: bold; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;" aria-label="Keyboard shortcuts" title="Show keyboard shortcuts">?</button>
+                <div class="sidebar-footer-icons">
+                    <button id="theme-toggle" class="icon-button" aria-label="Toggle theme" title="Toggle light/dark theme">
+                        <svg class="icon dark-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                        <svg class="icon light-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                    </button>
+                    <button id="shortcuts-help-btn" class="icon-button" style="font-weight: bold;" aria-label="Keyboard shortcuts" title="Show keyboard shortcuts">?</button>
+                </div>
             </div>
         </aside>
 
@@ -86,7 +88,7 @@
                         </svg>
                         Cleanup Orphans
                     </button>
-                    <button id="select-mode-btn" class="btn btn-secondary" style="margin-right: 8px;">Select</button>
+                    <button id="select-mode-btn" class="btn btn-secondary">Select</button>
 
                     <select id="type-filter" class="styled-select">
                         <option value="all">All Types</option>

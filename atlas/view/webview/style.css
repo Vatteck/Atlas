@@ -156,6 +156,22 @@ body {
     border-top: 1px solid var(--border-color);
 }
 
+/* Header action buttons (Update All / Cleanup Orphans / Select / type filter) —
+   flex keeps them the same height and evenly spaced regardless of icon/text content. */
+.filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Theme + help icons sit as a tidy centered row under Export/Import. */
+.sidebar-footer-icons {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 4px;
+}
+
 /* Main Content Area */
 .content {
     flex: 1;
