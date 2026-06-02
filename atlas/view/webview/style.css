@@ -10,6 +10,8 @@
     --accent-color: #6366f1;           /* Premium Indigo */
     --accent-hover: #4f46e5;           /* Deeper Indigo */
     --accent-glass: rgba(99, 102, 241, 0.15);
+    --accent-shadow-hover: 0 10px 24px rgba(99, 102, 241, 0.2);
+    --accent-border-hover: rgba(99, 102, 241, 0.4);
     
     /* Status Colors */
     --status-success: #10b981;
@@ -41,6 +43,8 @@
     --accent-color: #818cf8;           /* Glowing Purple/Indigo */
     --accent-hover: #6366f1;           /* Brighter Purple hover */
     --accent-glass: rgba(129, 140, 248, 0.15);
+    --accent-shadow-hover: 0 10px 24px rgba(129, 140, 248, 0.12);
+    --accent-border-hover: rgba(129, 140, 248, 0.35);
     --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
 }
 
@@ -299,8 +303,8 @@ body {
 
 .package-card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 10px 24px rgba(129, 140, 248, 0.06);
-    border-color: rgba(129, 140, 248, 0.25);
+    box-shadow: var(--accent-shadow-hover);
+    border-color: var(--accent-border-hover);
 }
 
 .package-header {
