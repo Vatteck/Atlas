@@ -46,8 +46,11 @@ package() {
     cd "$_srcname"
     python -m installer --destdir="$pkgdir" dist/*.whl
 
-    # desktop entry + icon (the .desktop uses Icon=atlas)
+    # desktop entry + icon. The icon is named 'atlas-pm' (not 'atlas') so it doesn't
+    # collide with the generic 'atlas' map icon some icon themes ship — the .desktop's
+    # Icon=atlas-pm then resolves to our PNG in pixmaps (a no-size-constraint fallback
+    # searched by all launchers).
     install -Dm644 atlas/desktop/atlas.desktop "$pkgdir/usr/share/applications/atlas.desktop"
-    install -Dm644 atlas/view/resources/img/logo.png "$pkgdir/usr/share/pixmaps/atlas.png"
+    install -Dm644 atlas/view/resources/img/logo.png "$pkgdir/usr/share/pixmaps/atlas-pm.png"
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

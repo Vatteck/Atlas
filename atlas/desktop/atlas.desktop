@@ -18,4 +18,4 @@ Comment[ca]=Instal·lar i eliminar aplicacions (Arch, AUR, Flatpak, AppImage)
 Comment[ru]=Установка и удаление приложений (Arch, AUR, Flatpak, AppImage)
 Comment[tr]=Uygulama yükle/kaldır (Arch, AUR, Flatpak, AppImage)
 Exec=/usr/bin/atlas
-Icon=atlas
+Icon=atlas-pm
