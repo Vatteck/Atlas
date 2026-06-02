@@ -1318,3 +1318,188 @@ body {
     outline: none;
 }
 
+/* ==========================================
+   Responsive Adaptivity (Tiling / Compact Views)
+   ========================================== */
+
+@media (max-width: 768px) {
+    :root {
+        --sidebar-width: 70px;
+    }
+    
+    .sidebar-header {
+        padding: 20px 0;
+        justify-content: center;
+    }
+    
+    .sidebar-header h1 {
+        display: none;
+    }
+    
+    .sidebar-nav {
+        padding: 8px;
+    }
+    
+    .nav-item {
+        justify-content: center;
+        padding: 12px;
+        gap: 0;
+    }
+    
+    .nav-item .nav-label {
+        display: none;
+    }
+    
+    /* Absolute overlay badge on compact updates icon */
+    .nav-item .badge {
+        position: absolute;
+        top: 4px;
+        right: 8px;
+        margin-left: 0;
+        padding: 2px 6px;
+        font-size: 9px;
+        border: 1.5px solid var(--bg-sidebar);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    .sidebar-footer {
+        padding: 12px 4px;
+    }
+    
+    .sidebar-footer-icons {
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        margin-top: 0;
+    }
+
+    /* Topbar adaptive wrap */
+    .topbar {
+        padding: 12px 16px;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    
+    #search-input {
+        padding: 10px 12px 10px 40px;
+        font-size: 14px;
+        border-radius: var(--radius-md);
+    }
+    
+    .styled-select {
+        padding: 10px 32px 10px 12px;
+        border-radius: var(--radius-md);
+        font-size: 13px;
+        background-position: right 8px center;
+    }
+    
+    .btn {
+        padding: 7px 12px;
+        font-size: 12px;
+        border-radius: var(--radius-md);
+    }
+
+    /* Grid & containers padding density */
+    .packages-grid {
+        padding: 12px;
+        gap: 12px;
+    }
+    
+    .disk-view-container,
+    .settings-page,
+    .activity-feed {
+        padding: 16px;
+    }
+    
+    .disk-summary-card {
+        padding: 20px;
+    }
+    
+    .disk-summary-value {
+        font-size: 32px;
+    }
+}
+
+@media (max-width: 600px) {
+    .topbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .search-container {
+        width: 100%;
+        order: 1;
+    }
+    
+    .topbar #refresh-btn {
+        display: none; /* Hide refresh button on extra narrow views to save horizontal width */
+    }
+    
+    .filters {
+        width: 100%;
+        order: 2;
+        justify-content: space-between;
+        gap: 6px;
+    }
+    
+    .filters .styled-select {
+        flex: 1;
+        max-width: unset;
+    }
+}
+
+@media (max-width: 480px) {
+    .packages-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .package-card {
+        padding: 12px;
+    }
+    
+    .package-header {
+        gap: 12px;
+    }
+    
+    .package-icon {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .package-title {
+        font-size: 15px;
+    }
+    
+    .package-footer {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+    
+    .package-footer > div:last-child {
+        width: 100%;
+        display: flex;
+        gap: 8px;
+    }
+    
+    .package-footer .btn {
+        flex: 1;
+    }
+    
+    .modal-content {
+        max-height: 92vh;
+    }
+    
+    .modal-header {
+        padding: 16px;
+    }
+    
+    .modal-body {
+        padding: 16px;
+    }
+    
+    .modal-footer {
+        padding: 12px 16px;
+    }
+}
+
