@@ -18,15 +18,17 @@
 
 **Feature/QoL polish (2026-06-02).** The big transitions are done; Atlas is an Arch-focused,
 **pure-Python** pywebview app on the AUR with green CI. Now building out the feature backlog.
-Just shipped the **Maintenance / Cleanup hub** on the Disk view. Picking the next item from
+Recently shipped the **Maintenance / Cleanup hub** (Disk view), **README screenshots**, and
+the **Arch safety net** (News page + `.pacnew` notice). Picking the next item from
 [BACKLOG.md](BACKLOG.md).
 
 ## Next
 
 Pulling from **[BACKLOG.md](BACKLOG.md)**. Near-term candidates:
 
-- **README screenshots** of the live UI (small, helps presentation / the AUR page).
 - A **system-tray indicator** (non-Qt) — a real feature; the legacy Qt tray was removed.
+- **Rich app detail page** — in-app screenshots, description, version history.
+- **Downgrade / rollback** from the pacman cache.
 - Exploratory: container sandboxing ("Vault").
 - Lower-value: route the controller's ad-hoc `Thread(...)` spawns through a shared pool
   (marginal; only with a measured reason).
@@ -44,6 +46,17 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Arch safety net — News page + .pacnew detection (2026-06-02):** two distinctive,
+  very-Arch features. A dedicated **News** sidebar page pulls recent archlinux.org news
+  (`AtlasApi.get_arch_news` — fetches the RSS feed via the shared `HttpClient`, parses with
+  stdlib `xml.etree`, strips HTML from summaries; `renderNews()` in `main.js`). And a
+  **`.pacnew`/`.pacsave` notice** on the Updates view: `get_pacnew_files` runs
+  `find /etc /boot -name '*.pacnew'/-name '*.pacsave'` (by name only — no content reads, no
+  root), `renderUpdatesNotice()` shows a warning card listing them + `pacdiff` guidance
+  (read-only, no auto-merge). Chosen behaviour: passive News page (no update gating),
+  detect-and-list for `.pacnew`. Tests: `test_api.py::ArchSafetyNetTest` (6). Plan:
+  [plans/2026-06-02-arch-safety-net.md](plans/2026-06-02-arch-safety-net.md). Verified live:
+  feed parses (10 items), and the dev box has ~10 real `.pacnew`/`.pacsave` files.
 - **Maintenance / Cleanup hub on the Disk view (2026-06-02):** turned the Disk view from
   informational into actionable. New "Reclaim space" panel surfaces the three big Arch
   space-wasters, each with an estimate + confirm step: **orphan packages** (reuses the

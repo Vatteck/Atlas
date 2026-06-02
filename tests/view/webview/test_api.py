@@ -717,3 +717,82 @@ class CleanupHubTest(unittest.TestCase):
         self.assertIn('--system', cmd)
 
 
+ARCH_NEWS_RSS = """<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0"><channel>
+<title>Arch Linux: Recent news updates</title>
+<item>
+  <title>Breaking change in foo</title>
+  <link>https://archlinux.org/news/breaking-foo/</link>
+  <pubDate>Mon, 25 May 2026 04:58:52 +0000</pubDate>
+  <description>&lt;p&gt;Users must &lt;b&gt;intervene&lt;/b&gt; manually.&lt;/p&gt;</description>
+</item>
+<item>
+  <title>Second item</title>
+  <link>https://archlinux.org/news/second/</link>
+  <pubDate>Tue, 01 Jan 2026 00:00:00 +0000</pubDate>
+  <description>Plain text body</description>
+</item>
+</channel></rss>"""
+
+
+class ArchSafetyNetTest(unittest.TestCase):
+    """News page (get_arch_news) + .pacnew detection (get_pacnew_files)."""
+
+    def setUp(self):
+        self.manager = Mock()
+        self.api = AtlasApi(self.manager, Mock())
+
+    def _mock_feed(self, text, status=200):
+        client = Mock()
+        client.get.return_value = Mock(status_code=status, text=text)
+        self.api._http_client = Mock(return_value=client)
+        return client
+
+    # --- get_arch_news ------------------------------------------------------ #
+    def test_arch_news_parses_feed(self):
+        self._mock_feed(ARCH_NEWS_RSS)
+        res = self.api.get_arch_news()
+        self.assertEqual('ok', res['status'])
+        items = res['data']
+        self.assertEqual(2, len(items))
+        first = items[0]
+        self.assertEqual('Breaking change in foo', first['title'])
+        self.assertEqual('https://archlinux.org/news/breaking-foo/', first['url'])
+        self.assertEqual('May 25, 2026', first['date'])
+        # HTML tags stripped, entities unescaped, whitespace collapsed
+        self.assertEqual('Users must intervene manually.', first['summary'])
+
+    def test_arch_news_respects_limit(self):
+        self._mock_feed(ARCH_NEWS_RSS)
+        res = self.api.get_arch_news(limit=1)
+        self.assertEqual(1, len(res['data']))
+
+    def test_arch_news_error_on_bad_response(self):
+        self._mock_feed('', status=503)
+        res = self.api.get_arch_news()
+        self.assertEqual('error', res['status'])
+
+    def test_arch_news_error_when_no_response(self):
+        client = Mock()
+        client.get.return_value = None
+        self.api._http_client = Mock(return_value=client)
+        res = self.api.get_arch_news()
+        self.assertEqual('error', res['status'])
+
+    # --- get_pacnew_files --------------------------------------------------- #
+    @patch('atlas.view.webview.api.run_cmd')
+    def test_pacnew_lists_files(self, mock_run):
+        mock_run.return_value = "/etc/pacman.conf.pacnew\n/etc/ssh/sshd_config.pacnew\n"
+        res = self.api.get_pacnew_files()
+        self.assertEqual('ok', res['status'])
+        self.assertEqual(2, res['data']['count'])
+        self.assertIn('/etc/pacman.conf.pacnew', res['data']['files'])
+
+    @patch('atlas.view.webview.api.run_cmd', return_value='')
+    def test_pacnew_empty(self, _mock_run):
+        res = self.api.get_pacnew_files()
+        self.assertEqual('ok', res['status'])
+        self.assertEqual(0, res['data']['count'])
+        self.assertEqual([], res['data']['files'])
+
+

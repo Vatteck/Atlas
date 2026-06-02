@@ -23,7 +23,7 @@ def _json_safe(obj):
     return obj
 
 from atlas.api.abstract.controller import SoftwareAction
-from atlas.commons.system import (validate_root_password, new_subprocess,
+from atlas.commons.system import (validate_root_password, run_cmd, new_subprocess,
                                   new_root_subprocess, get_dir_size)
 from atlas.commons.view_utils import get_human_size_str
 from atlas.view.core.controller import GenericSoftwareManager
@@ -35,6 +35,7 @@ from atlas.view.webview.export import write_manifest, read_manifest
 class AtlasApi:
 
     PACMAN_CACHE_DIR = '/var/cache/pacman/pkg'
+    ARCH_NEWS_URL = 'https://archlinux.org/feeds/news/'
 
     def __init__(self, manager: GenericSoftwareManager, logger: logging.Logger):
         self.manager = manager
@@ -536,6 +537,79 @@ class AtlasApi:
         except Exception as e:
             self.logger.error(f"clean_flatpak_unused failed: {e}")
             return {'status': 'error', 'message': str(e)}
+
+    # ------------------------------------------------------------------ #
+    # Arch safety net (News page + .pacnew detection)
+    # ------------------------------------------------------------------ #
+    def _http_client(self):
+        """The shared HttpClient (via the arch gem's context), or a lazy fallback."""
+        arch_man = self._manager_by_gem('arch')
+        client = getattr(getattr(arch_man, 'context', None), 'http_client', None)
+        if client is not None:
+            return client
+        if getattr(self, '_fallback_http', None) is None:
+            from atlas.api.http import HttpClient
+            self._fallback_http = HttpClient(self.logger)
+        return self._fallback_http
+
+    @staticmethod
+    def _strip_html(text: str) -> str:
+        """Crude HTML→text for news summaries: drop tags, unescape entities, collapse space."""
+        import re
+        import html
+        if not text:
+            return ''
+        text = re.sub(r'<[^>]+>', ' ', text)
+        text = html.unescape(text)
+        return re.sub(r'\s+', ' ', text).strip()
+
+    def get_arch_news(self, limit: int = 12) -> dict:
+        """Recent Arch Linux news (archlinux.org RSS) for the News page. Read-only; the feed
+        is the only network call. Returns {status, data:[{title, url, date, summary}]}."""
+        import xml.etree.ElementTree as ET
+        from email.utils import parsedate_to_datetime
+        try:
+            res = self._http_client().get(self.ARCH_NEWS_URL, single_call=True)
+            if res is None or res.status_code >= 300 or not res.text:
+                return {'status': 'error', 'message': 'Could not reach the Arch news feed'}
+
+            root = ET.fromstring(res.text)
+            items = []
+            for item in root.iterfind('./channel/item'):
+                title = (item.findtext('title') or '').strip()
+                url = (item.findtext('link') or '').strip()
+                if not title:
+                    continue
+                date_str = ''
+                raw_date = (item.findtext('pubDate') or '').strip()
+                if raw_date:
+                    try:
+                        date_str = parsedate_to_datetime(raw_date).strftime('%b %d, %Y')
+                    except Exception:
+                        date_str = raw_date
+                summary = self._strip_html(item.findtext('description') or '')
+                if len(summary) > 280:
+                    summary = summary[:277].rstrip() + '…'
+                items.append({'title': title, 'url': url, 'date': date_str, 'summary': summary})
+                if len(items) >= limit:
+                    break
+
+            return {'status': 'ok', 'data': items}
+        except Exception as e:
+            self.logger.error(f"get_arch_news failed: {e}")
+            return {'status': 'error', 'message': str(e)}
+
+    def get_pacnew_files(self) -> dict:
+        """Find .pacnew/.pacsave config files left by pacman that need manual review.
+        Lists by filename only (no content reads, no root). Read-only."""
+        try:
+            out = run_cmd(r"find /etc /boot -type f \( -name '*.pacnew' -o -name '*.pacsave' \)",
+                          ignore_return_code=True, print_error=False)
+            files = sorted(line.strip() for line in (out or '').split('\n') if line.strip())
+            return {'status': 'ok', 'data': {'files': files, 'count': len(files)}}
+        except Exception as e:
+            self.logger.error(f"get_pacnew_files failed: {e}")
+            return {'status': 'error', 'message': str(e), 'data': {'files': [], 'count': 0}}
 
     def get_updates(self, pkg_type: str = 'all') -> dict:
         try:

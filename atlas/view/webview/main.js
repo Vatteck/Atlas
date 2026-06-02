@@ -1382,6 +1382,9 @@ async function fetchPackages() {
 
     const query = searchInput.value.trim();
 
+    // The Updates view shows a notice when pacman left .pacnew/.pacsave files to review.
+    if (currentView === 'updates') renderUpdatesNotice();
+
     // Fetch the full (all-types) set; the type filter is applied client-side at render so
     // switching it is instant and doesn't refetch. Cache key is therefore type-independent.
     const cacheKey = getCacheKey(currentView, 'all', query);
@@ -1436,6 +1439,52 @@ async function fetchPackages() {
     if (currentView === 'updates' && !query) {
         document.getElementById('updates-badge').textContent = currentPackages.length;
     }
+}
+
+// Arch Linux News page (read-only feed from archlinux.org).
+async function renderNews() {
+    packagesGrid.style.display = 'block';
+    packagesGrid.innerHTML = `<div class="state-container"><div class="spinner"></div><p>Loading Arch news…</p></div>`;
+
+    const data = await pyApiCall('get_arch_news');  // unwrapped list, or null on error
+    if (!data) {
+        packagesGrid.innerHTML = `<div class="news-empty">Could not load Arch news — check your connection and try again.</div>`;
+        return;
+    }
+    if (data.length === 0) {
+        packagesGrid.innerHTML = `<div class="news-empty">No recent Arch news.</div>`;
+        return;
+    }
+
+    const items = data.map(n => `
+        <article class="news-card">
+            <div class="news-card-head">
+                <h3 class="news-title">${escapeHtml(n.title)}</h3>
+                ${n.date ? `<span class="news-date">${escapeHtml(n.date)}</span>` : ''}
+            </div>
+            ${n.summary ? `<p class="news-summary">${escapeHtml(n.summary)}</p>` : ''}
+            ${n.url ? `<a class="news-link" href="#" data-news-url="${escapeHtml(n.url)}">Read on archlinux.org ↗</a>` : ''}
+        </article>`).join('');
+
+    packagesGrid.innerHTML = `<div class="news-list"><div class="news-header">Arch Linux News</div>${items}</div>`;
+    packagesGrid.querySelectorAll('a[data-news-url]').forEach(a => {
+        a.addEventListener('click', (e) => { e.preventDefault(); pyApiCall('open_url', a.dataset.newsUrl); });
+    });
+}
+
+// Notice on the Updates view: .pacnew/.pacsave config files pacman left for manual review.
+async function renderUpdatesNotice() {
+    const el = document.getElementById('updates-notice');
+    if (!el) return;
+    const res = await pyApiCall('get_pacnew_files');  // unwrapped {files, count} or null
+    if (!res || !res.count) { el.innerHTML = ''; return; }
+    const list = res.files.map(f => `<li><code>${escapeHtml(f)}</code></li>`).join('');
+    el.innerHTML = `
+        <div class="config-notice">
+            <div class="config-notice-title">⚠ ${escapeHtml(res.count)} configuration file${res.count > 1 ? 's' : ''} need review</div>
+            <p class="config-notice-body">These <code>.pacnew</code>/<code>.pacsave</code> files were installed alongside updates and may need merging with your current config. Review them with <code>sudo pacdiff</code> (from <code>pacman-contrib</code>), then remove the <code>.pacnew</code> file.</p>
+            <ul class="config-notice-list">${list}</ul>
+        </div>`;
 }
 
 // Action Handlers
@@ -1672,12 +1721,20 @@ function activateView(viewName) {
     
     currentView = viewName;
     searchInput.value = ''; // clear search on view change
-    
+
+    const notice = document.getElementById('updates-notice');
+    if (notice) notice.innerHTML = '';  // only the Updates view shows the .pacnew notice
+
     if (viewName === 'settings') {
         emptyState.classList.add('hidden');
         loadingState.classList.add('hidden');
         packagesGrid.style.display = 'block';
         renderSettings();
+    } else if (viewName === 'news') {
+        emptyState.classList.add('hidden');
+        loadingState.classList.add('hidden');
+        packagesGrid.style.display = 'block';
+        renderNews();
     } else {
         fetchPackages();
     }

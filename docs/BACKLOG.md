@@ -21,11 +21,12 @@
 
 ## Arch safety net (distinctive, very Arch-specific)
 
-- **Pre-update Arch news check** — pull the archlinux.org news feed and warn *before* a
-  large update when there's a "manual intervention required" notice. Prevents broken
-  systems; nothing else does this well in a GUI.
-- **`.pacnew` / `.pacsave` detection** — after updates pacman leaves config files that need
-  merging; surface "N config files need review" with a way to diff/merge.
+- ~~**Arch news + `.pacnew` detection**~~ ✅ **Shipped 2026-06-02** — see
+  [plans/2026-06-02-arch-safety-net.md](plans/2026-06-02-arch-safety-net.md). A dedicated
+  **News** page (archlinux.org feed) and a **`.pacnew`/`.pacsave` notice** on the Updates
+  view (detect + list + `pacdiff` guidance, read-only).
+  - *Possible follow-ups:* gate/annotate "Update All" with news newer than the last update;
+    assist `.pacnew` merging (launch `pacdiff` in a terminal).
 
 ## Discovery & detail
 
