@@ -3266,6 +3266,10 @@ class ArchManager(SoftwareManager, SettingsController):
                 if p.size is None:
                     p.size = new_sizes.get(p.name)
 
+    def list_orphans(self) -> Set[str]:
+        """Names of installed packages that are safe-to-remove orphans (pacman -Qtdq)."""
+        return pacman.list_orphans()
+
     def upgrade_system(self, root_password: Optional[str], watcher: ProcessWatcher) -> bool:
         # repo_map = pacman.map_repositories()
         net_available = self.context.internet_checker.is_available()

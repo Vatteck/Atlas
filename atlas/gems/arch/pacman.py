@@ -1102,6 +1102,18 @@ def map_available_packages() -> Optional[Dict[str, Any]]:
         return res
 
 
+def list_orphans() -> Set[str]:
+    """True removable orphans: packages installed as dependencies (-d) that nothing else
+    requires (-t), i.e. `pacman -Qtdq`. (Not to be confused with an AUR package whose
+    maintainer field is empty — that's a different, unrelated meaning of 'orphan'.)"""
+    output = run_cmd('pacman -Qtdq', print_error=False)
+
+    if not output:
+        return set()
+
+    return {line.strip() for line in output.split('\n') if line.strip()}
+
+
 def map_installed(pkgs: Optional[Collection[str]] = None) -> Optional[Dict[str, str]]:
     output = run_cmd(f"pacman -Q {' '.join({*pkgs} if pkgs else '')}".strip(), print_error=False)
 

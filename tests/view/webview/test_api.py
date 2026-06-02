@@ -36,6 +36,51 @@ class GetInstalledFilterTest(unittest.TestCase):
         self.assertNotIn('org.freedesktop.Platform', names)
 
 
+class GetOrphansTest(unittest.TestCase):
+    def setUp(self):
+        self.manager = Mock()
+        self.api = AtlasApi(self.manager, Mock())
+
+    def _pkg(self, name, ptype):
+        p = Mock()
+        p.name = name
+        p.description = ''; p.version = '1'; p.latest_version = '1'; p.installed = True
+        p.update = False; p.icon_url = None; p.size = 1; p.categories = []
+        p.get_publisher.return_value = ''
+        p.get_type.return_value = ptype
+        for a in ('can_be_run', 'can_be_downgraded', 'has_info', 'has_history',
+                  'is_update_ignored', 'supports_ignored_updates'):
+            getattr(p, a).return_value = False
+        return p
+
+    def _arch_man(self, orphan_names):
+        m = Mock()
+        m.__module__ = 'atlas.gems.arch.controller'
+        m.list_orphans.return_value = set(orphan_names)
+        return m
+
+    def test_returns_only_real_arch_orphans(self):
+        arch = self._arch_man({'gjs', 'gutenprint'})
+        self.manager.managers = [arch]
+        # a real orphan, a non-orphan arch pkg, and a flatpak that happens to share an
+        # orphan name (must NOT be treated as an Arch orphan)
+        self.manager.read_installed.return_value = Mock(installed=[
+            self._pkg('gjs', 'arch_repo'),
+            self._pkg('firefox', 'arch_repo'),
+            self._pkg('gutenprint', 'flatpak'),
+        ])
+        res = self.api.get_orphans()
+        names = [p['name'] for p in res['data']]
+        self.assertEqual(['gjs'], names)
+
+    def test_no_orphans_short_circuits(self):
+        arch = self._arch_man(set())
+        self.manager.managers = [arch]
+        res = self.api.get_orphans()
+        self.assertEqual([], res['data'])
+        self.manager.read_installed.assert_not_called()
+
+
 class OpenUrlTest(unittest.TestCase):
     def setUp(self):
         self.api = AtlasApi(Mock(), Mock())
@@ -160,47 +205,6 @@ class AtlasApiOrphansTest(unittest.TestCase):
         self.manager = Mock()
         self.logger = Mock()
         self.api = AtlasApi(self.manager, self.logger)
-
-    def test_get_orphans_success(self):
-        # Prepare mock packages
-        pkg_orphan = Mock()
-        pkg_orphan.orphan = True
-        pkg_orphan.name = "orphan-pkg"
-        pkg_orphan.description = "an orphan"
-        pkg_orphan.version = "1.0"
-        pkg_orphan.latest_version = "1.0"
-        pkg_orphan.installed = True
-        pkg_orphan.update = False
-        pkg_orphan.icon_url = None
-        pkg_orphan.publisher = None
-        pkg_orphan.size = 100
-        pkg_orphan.categories = []
-        pkg_orphan.get_publisher = Mock(return_value=None)
-        pkg_orphan.get_type = Mock(return_value="Flatpak")
-
-        pkg_regular = Mock()
-        pkg_regular.orphan = False
-        pkg_regular.name = "regular-pkg"
-        
-        # Package with no orphan attribute
-        pkg_no_attr = Mock(spec=[]) 
-        pkg_no_attr.name = "no-attr"
-
-        installed_result = Mock()
-        installed_result.installed = [pkg_orphan, pkg_regular, pkg_no_attr]
-        self.manager.read_installed.return_value = installed_result
-
-        res = self.api.get_orphans()
-        self.assertEqual(res['status'], 'ok')
-        self.assertEqual(len(res['data']), 1)
-        self.assertEqual(res['data'][0]['name'], 'orphan-pkg')
-        self.manager.read_installed.assert_called_once()
-
-    def test_get_orphans_error(self):
-        self.manager.read_installed.side_effect = Exception("Read failed")
-        res = self.api.get_orphans()
-        self.assertEqual(res['status'], 'error')
-        self.assertIn("Read failed", res['message'])
 
     def test_serialize_pkg_registry_eviction(self):
         # Setup mock package

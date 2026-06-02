@@ -378,9 +378,34 @@ class AtlasApi:
     def get_orphans(self) -> dict:
         try:
             self.logger.info("get_orphans called")
+
+            # Real removable orphans = packages installed as deps that nothing requires
+            # (pacman -Qtdq). NOT the ArchPackage.orphan property, which means "AUR package
+            # with no maintainer" — a totally different thing that wrongly flagged installed
+            # apps for deletion.
+            arch_man = self._manager_by_gem('arch')
+            orphan_names = set()
+            if arch_man is not None and hasattr(arch_man, 'list_orphans'):
+                try:
+                    orphan_names = set(arch_man.list_orphans() or ())
+                except Exception:
+                    self.logger.warning("Could not list orphan packages", exc_info=True)
+
+            if not orphan_names:
+                return {'status': 'ok', 'data': []}
+
             result = self.manager.read_installed()
-            pkgs = result.installed or []
-            orphans = [p for p in pkgs if hasattr(p, 'orphan') and p.orphan]
+            orphans = []
+            for p in (result.installed or []):
+                if p.name not in orphan_names:
+                    continue
+                try:
+                    ptype = p.get_type() or p.gem_name
+                except Exception:
+                    ptype = getattr(p, 'gem_name', None)
+                if ptype in ('arch_repo', 'aur'):  # orphan-dep concept is Arch-only
+                    orphans.append(p)
+
             return {'status': 'ok', 'data': [self._serialize_pkg(p) for p in orphans]}
         except Exception as e:
             self.logger.error(f"Error fetching orphan packages: {e}")
