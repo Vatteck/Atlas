@@ -76,7 +76,9 @@ body {
 /* Sidebar */
 .sidebar {
     width: var(--sidebar-width);
-    background-color: var(--bg-surface);
+    background-color: var(--bg-surface-glass);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
@@ -138,6 +140,7 @@ body {
 .nav-item.active {
     background-color: var(--accent-glass);
     color: var(--accent-color);
+    box-shadow: inset 3px 0 0 var(--accent-color);
 }
 
 .badge {
@@ -228,7 +231,7 @@ body {
 #search-input:focus {
     outline: none;
     border-color: var(--accent-color);
-    box-shadow: 0 0 0 3px var(--accent-glass);
+    box-shadow: 0 0 16px var(--accent-glass);
 }
 
 #search-input::placeholder {
