@@ -51,6 +51,17 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Grid/list layout toggle (2026-06-02):** package views were a CSS grid
+  (`minmax(300px, 1fr)`) that auto-collapsed to one column on narrow panes — which read as
+  an inconsistent "sometimes list, sometimes grid". Added an explicit segmented **toggle** in
+  the topbar (grid/list icons next to the type filter) so layout is the user's choice, not
+  width-driven. List mode is one full-width row per package (icon+title · description ·
+  tags/actions). Pure CSS — `applyViewMode()` toggles `.view-list` on `#packages-grid` (no
+  refetch/re-render), `setViewMode()` persists to `localStorage['atlas_view_mode']`, re-applied
+  in `renderPackages` + on launch. Files: `index.html` (`#view-toggle`), `main.js`, `style.css`
+  (`.view-toggle`, `.view-list .package-*`). Frontend-only (no Python tests). GUI-confirmed by
+  user. Note: categories are still only surfaced on the Browse page (each pkg carries
+  `categories` but cards/detail don't show them yet — possible follow-up).
 - **Browse by category — store-like discovery view (2026-06-02):** a new **Browse** sidebar
   page. Atlas already cached `categories.txt` (name → raw category labels, ~294 entries) but
   only used it to *annotate* search results; now it's a browse index. `AtlasApi.get_categories`

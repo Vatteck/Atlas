@@ -97,6 +97,10 @@ let currentGroups = [];   // packages collapsed by app name; each card renders o
 let diskPackages = [];
 let currentView = 'dashboard'; // 'dashboard', 'installed', 'updates', 'activity'
 
+// Grid vs list layout for the package views (persisted). Pure CSS — toggling the class on
+// packagesGrid is enough, no re-render needed. Defaults to grid.
+let viewMode = (localStorage.getItem('atlas_view_mode') === 'list') ? 'list' : 'grid';
+
 let selectMode = false;
 let selectedPackages = new Set();
 let operationInProgress = false;
@@ -246,6 +250,22 @@ function renderFiltered() {
     const filtered = filterByType(currentPackages, typeFilter.value);
     const query = searchInput.value.trim();
     renderPackages(query ? sortByRelevance(filtered, query) : rankAur(filtered));
+}
+
+// Reflect the current grid/list choice on the package grid + the toggle buttons. Layout is
+// pure CSS (.view-list on .packages-grid), so this never needs a re-render.
+function applyViewMode() {
+    packagesGrid.classList.toggle('view-list', viewMode === 'list');
+    packagesGrid.classList.toggle('view-grid', viewMode === 'grid');
+    document.querySelectorAll('.view-toggle-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.viewMode === viewMode);
+    });
+}
+
+function setViewMode(mode) {
+    viewMode = (mode === 'list') ? 'list' : 'grid';
+    localStorage.setItem('atlas_view_mode', viewMode);
+    applyViewMode();
 }
 
 const MAX_CACHE_ENTRIES = 30;
@@ -720,6 +740,7 @@ function renderPackages(packages) {
 
     emptyState.classList.add('hidden');
     packagesGrid.style.display = 'grid';
+    applyViewMode();  // keep the grid/list class in sync on every (re)render
 
     // Optimize: Use DocumentFragment to batch DOM insertions in a single reflow pass
     const fragment = document.createDocumentFragment();
@@ -1777,6 +1798,12 @@ searchInput.addEventListener('input', () => {
 typeFilter.addEventListener('change', () => {
     fetchPackages();
 });
+
+// Grid/list layout toggle. Layout is pure CSS, so just flip the mode + class (no refetch).
+document.querySelectorAll('.view-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => setViewMode(btn.dataset.viewMode));
+});
+applyViewMode();  // reflect the persisted choice on first paint
 
 // Export / Import Manifest listeners
 // Backup: export installed apps to a manifest / reinstall from one. Lives in Settings now

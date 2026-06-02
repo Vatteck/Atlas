@@ -103,6 +103,15 @@
                         <option value="flatpak">Flatpak</option>
                         <option value="appimage">AppImage</option>
                     </select>
+
+                    <div id="view-toggle" class="view-toggle" role="group" aria-label="Layout">
+                        <button type="button" class="view-toggle-btn" data-view-mode="grid" aria-label="Grid view" title="Grid view">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect></svg>
+                        </button>
+                        <button type="button" class="view-toggle-btn" data-view-mode="list" aria-label="List view" title="List view">
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                        </button>
+                    </div>
                 </div>
             </header>
 
