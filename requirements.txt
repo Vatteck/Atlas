@@ -1,4 +1,4 @@
-pywebview>=4.0
+pywebview>=4.2
 requests>=2.18
 colorama>=0.3.8
 pyyaml>=3.13

@@ -51,6 +51,20 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Window icon — fix the titlebar "map" icon (2026-06-02):** the earlier icon fixes
+  (`Icon=atlas-pm` + shipping `atlas-pm.png`, commits `fc9331e`/`b0e09c4`) only covered the
+  **launcher** entry. The **running window** (titlebar / taskbar / alt-tab) had no explicit
+  icon, so GTK fell back to the window's WM_CLASS, which icon themes (e.g. CachyOS's
+  `char-white` ships `/usr/share/icons/char-white/apps/16/atlas.svg`) resolve to a generic
+  `atlas` **map** icon. Fixed by passing our bundled 512×512 `view/resources/img/logo.png` to
+  `webview.start(icon=…)` — pywebview calls `set_icon_from_file` + `set_default_icon_from_file`
+  on the GtkWindow. The `icon` start param landed in **pywebview 4.2**, so `app.py`
+  feature-detects it via `inspect.signature` (still launches on older pywebview, just without
+  the window icon) and the dep floor is bumped `>=4.0 → >=4.2` (requirements.txt + pyproject).
+  Note: this is a *runtime/code* fix (unlike the launcher icon, which is install-time via the
+  PKGBUILD) so it ships with the source, not just the package. **Needs a GUI eyeball** (titlebar
+  icon). Reported on a second CachyOS box; the launcher icon there is a separate, install-side
+  issue (stale/old `atlas-pm-git` build or non-package install — rebuild + refresh icon cache).
 - **Grid/list layout toggle (2026-06-02):** package views were a CSS grid
   (`minmax(300px, 1fr)`) that auto-collapsed to one column on narrow panes — which read as
   an inconsistent "sometimes list, sometimes grid". Added an explicit segmented **toggle** in

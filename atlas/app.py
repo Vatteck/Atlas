@@ -1,4 +1,5 @@
 import faulthandler
+import inspect
 import locale
 import logging
 import os
@@ -115,7 +116,22 @@ def main():
         min_size=(400, 400)
     )
     api.set_window(window)
-    webview.start(debug=bool(args.logs))
+
+    # Window icon (titlebar / taskbar / alt-tab). The .desktop's Icon= only covers the
+    # launcher entry; without an explicit window icon GTK falls back to the window's WM_CLASS,
+    # which some icon themes resolve to a generic 'atlas' icon (a map). Hand pywebview our
+    # bundled logo so it sets it on the GtkWindow (set_icon_from_file + set_default_icon_from_file).
+    # The `icon` start param is GTK/Qt-only and was added in pywebview 4.2 — feature-detect so
+    # the app still launches on older pywebview (just without the window icon).
+    start_kwargs = {'debug': bool(args.logs)}
+    icon_path = os.path.join(os.path.dirname(__file__), 'view', 'resources', 'img', 'logo.png')
+    try:
+        if os.path.exists(icon_path) and 'icon' in inspect.signature(webview.start).parameters:
+            start_kwargs['icon'] = icon_path
+    except (TypeError, ValueError):
+        pass
+
+    webview.start(**start_kwargs)
     sys.exit(0)
 
 
