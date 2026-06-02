@@ -87,3 +87,26 @@ and watcher are covered under `tests/view/webview/`.
 | Suggestions/categories don't update | Cached under `~/.cache/atlaspm/<gem>/`; delete the cached file or wait for expiry. Data comes from [atlas-files](https://github.com/Vatteck/atlas-files) `main`. |
 | A modal/dialog never returns | A `js_api` `submit_*` callback isn't firing — check the modal's button handler in `main.js`. |
 | Tests need a real system | Mock `run_cmd` / inputs; assert via parsed output, not live `pacman`/network. |
+
+---
+
+## 7. Packaging — publishing to the AUR
+
+The AUR package **`atlas-pm-git`** lives in its own git repo
+(`ssh://aur@aur.archlinux.org/atlas-pm-git.git`) with `PKGBUILD` + `.SRCINFO` at the root —
+it can't reference this repo's `linux_dist/arch/` subfolder. So `linux_dist/arch/PKGBUILD` is
+the **source of truth**, and the AUR copy is synced from it.
+
+Edit `linux_dist/arch/PKGBUILD`, then publish in one step:
+
+```bash
+./linux_dist/arch/publish-aur.sh ["commit message"]   # add --dry-run to preview
+```
+
+It clones/resets the AUR repo (default `~/Projects/atlas-aur`, override with `$ATLAS_AUR_DIR`),
+copies the PKGBUILD, **regenerates `.SRCINFO`** (so the two can't drift), mirrors `.SRCINFO`
+back here, and commits + pushes only if something changed. Needs your AUR SSH key loaded.
+
+> The icon/code fixes themselves need **no** PKGBUILD change — `atlas-pm-git` builds from
+> `master` HEAD, so a user `paru -S atlas-pm-git` rebuild picks them up. Only edit/publish the
+> PKGBUILD when **packaging metadata** changes (deps, install paths, the desktop entry).
