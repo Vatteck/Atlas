@@ -1,15 +1,15 @@
 :root {
     /* Light Theme Tokens */
-    --bg-base: #f8fafc;
+    --bg-base: #f4f6fa;
     --bg-surface: #ffffff;
-    --bg-surface-glass: rgba(255, 255, 255, 0.7);
+    --bg-surface-glass: rgba(255, 255, 255, 0.75);
     --bg-surface-hover: #f1f5f9;
     --border-color: #e2e8f0;
     --text-primary: #0f172a;
     --text-secondary: #64748b;
-    --accent-color: #6366f1;
-    --accent-hover: #4f46e5;
-    --accent-glass: rgba(99, 102, 241, 0.15);
+    --accent-color: #e02424;           /* Premium Crimson */
+    --accent-hover: #c81e1e;           /* Deeper Crimson */
+    --accent-glass: rgba(224, 36, 36, 0.12);
     
     /* Status Colors */
     --status-success: #10b981;
@@ -21,28 +21,27 @@
     --radius-md: 12px;
     --radius-lg: 16px;
     --sidebar-width: 260px;
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 12px -1px rgba(0, 0, 0, 0.08);
+    --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.05);
     
     /* Animation */
     --transition-fast: 0.15s ease-in-out;
-    --transition-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-smooth: 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Dark Theme Tokens */
 [data-theme="dark"] {
-    --bg-base: #0b0f19;
-    --bg-surface: #151b2b;
-    --bg-surface-glass: rgba(21, 27, 43, 0.75);
-    --bg-surface-hover: #1e293b;
-    --border-color: #1e293b;
+    --bg-base: #05070c;               /* Obsidian Black */
+    --bg-surface: #0e111a;            /* Deep Graphite */
+    --bg-surface-glass: rgba(14, 17, 26, 0.75);
+    --bg-surface-hover: #161a26;
+    --border-color: rgba(255, 255, 255, 0.06);
     --text-primary: #f8fafc;
     --text-secondary: #94a3b8;
-    --accent-color: #818cf8;
-    --accent-hover: #6366f1;
-    --accent-glass: rgba(129, 140, 248, 0.15);
-    --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    --accent-color: #e02424;           /* Glowing Crimson */
+    --accent-hover: #ff3333;           /* Vivid Crimson hover */
+    --accent-glass: rgba(224, 36, 36, 0.16);
+    --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
 }
 
 * {
