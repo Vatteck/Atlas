@@ -1270,15 +1270,17 @@ typeFilter.addEventListener('change', () => {
 });
 
 // Export / Import Manifest listeners
-document.getElementById('export-btn').addEventListener('click', async () => {
+// Backup: export installed apps to a manifest / reinstall from one. Lives in Settings now
+// (and Ctrl+E). Defined as functions so they work whether or not the Settings page is open.
+async function exportPackages() {
     showToast('Exporting', 'Writing manifest...', 'info');
     const result = await pyApiCall('export_packages');
     if (result) {
         showToast('Exported', `${result.count} packages saved to ${result.path}`, 'success');
     }
-});
+}
 
-document.getElementById('import-btn').addEventListener('click', async () => {
+async function importPackages() {
     showToast('Importing', 'Reading ~/atlas-manifest.json and installing missing packages...', 'info');
     const result = await pyApiCall('import_packages');
     if (result) {
@@ -1289,7 +1291,7 @@ document.getElementById('import-btn').addEventListener('click', async () => {
         showToast('Import Complete', "Installed: " + installed + " | Skipped (already present): " + skipped + " | Failed: " + failed.length, failed.length > 0 ? 'error' : 'success');
         fetchPackages();
     }
-});
+}
 
 const refreshBtn = document.getElementById('refresh-btn');
 if (refreshBtn) {
@@ -1361,12 +1363,22 @@ async function renderSettings() {
                 <h3>General</h3>
                 ${generalRows}
             </section>
+            <section class="settings-section">
+                <h3>Backup</h3>
+                <p class="settings-help">Save the list of installed apps to <code>~/atlas-manifest.json</code>, or reinstall everything from it (handy for migrating or after a reinstall).</p>
+                <div class="settings-actions">
+                    <button id="settings-export-btn" class="btn btn-outline">⬆ Export installed apps</button>
+                    <button id="settings-import-btn" class="btn btn-outline">⬇ Import from manifest</button>
+                </div>
+            </section>
             <div class="settings-actions">
                 <button id="settings-save-btn" class="btn btn-primary">Save changes</button>
             </div>
         </div>`;
 
     document.getElementById('settings-save-btn').addEventListener('click', saveSettings);
+    document.getElementById('settings-export-btn').addEventListener('click', exportPackages);
+    document.getElementById('settings-import-btn').addEventListener('click', importPackages);
 }
 
 async function saveSettings() {
@@ -1732,10 +1744,7 @@ document.addEventListener('keydown', (e) => {
     // Ctrl+E: Export
     if (ctrlKey && !shiftKey && key.toLowerCase() === 'e' && !isInput) {
         e.preventDefault();
-        const exportBtn = document.getElementById('export-btn');
-        if (exportBtn) {
-            exportBtn.click();
-        }
+        exportPackages();
         return;
     }
 });
