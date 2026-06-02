@@ -70,10 +70,10 @@ re-add a native extension without a measured win. Details in the historical
     compositors that match on it).
   This is a *runtime/code* fix (ships with source, not just the PKGBUILD). On Wayland the icon
   still resolves through the **installed** `atlas.desktop` + `atlas-pm.png` (hicolor), so a
-  package install is still required for the bitmap. **Needs a live eyeball after relaunch**
-  (the running instance must restart for the new app_id to take effect). Dev box is Hyprland/
-  Wayland, no titlebars — icon shows in waybar/dock/switcher. The second CachyOS box's
-  *launcher* icon is a separate install-side issue (rebuild the `-git` pkg + refresh icon cache).
+  package install is still required for the bitmap. **Verified live (Hyprland/Wayland):** after
+  relaunch `hyprctl clients` reports the Atlas window's `class` as `atlas` (was `app.py`), so
+  the dock/switcher now matches `atlas.desktop`. The second CachyOS box's *launcher* icon is a
+  separate install-side issue (rebuild the `-git` pkg + refresh icon cache).
 - **Grid/list layout toggle (2026-06-02):** package views were a CSS grid
   (`minmax(300px, 1fr)`) that auto-collapsed to one column on narrow panes — which read as
   an inconsistent "sometimes list, sometimes grid". Added an explicit segmented **toggle** in
