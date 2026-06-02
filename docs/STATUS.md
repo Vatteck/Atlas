@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §8). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-02
+**Last updated:** 2026-06-02 (Browse by category)
 **Version:** 0.10.7
 **Working branch:** `master` (use short-lived branches for larger features; run `git branch` to see what's active)
 
@@ -20,20 +20,20 @@
 **pure-Python** pywebview app on the AUR with green CI. Now building out the feature backlog.
 Recently shipped the **Maintenance / Cleanup hub** (Disk view), **README screenshots**, the
 **Arch safety net** (News page + `.pacnew` notice), the **rich app detail page**
-(screenshots + version history), and **downgrade/rollback**. Picking the next item from
-[BACKLOG.md](BACKLOG.md).
+(screenshots + version history), **downgrade/rollback**, and **Browse by category** (a
+store-like discovery view). Picking the next item from [BACKLOG.md](BACKLOG.md).
 
 ## Next
 
 Pulling from **[BACKLOG.md](BACKLOG.md)**. Near-term candidates:
 
-- **Browse by category** — a store-like discovery view (category data already in atlas-files).
 - A **system-tray indicator** (non-Qt) — a real feature; the legacy Qt tray was removed.
 - Lighter QoL: sort dropdown (votes/popularity/recent), selection toolbar refinements.
 
 > GUI-verified 2026-06-02: rich detail modal (screenshots + history), News page, Disk
 > maintenance panel all look good. Still worth a live run: an actual **downgrade**
-> (privileged + may prompt for a version) and the new **screenshot lightbox**.
+> (privileged + may prompt for a version), the new **screenshot lightbox**, and the new
+> **Browse** page (category grid → package grid; can't be driven headless).
 - Exploratory: container sandboxing ("Vault").
 - Lower-value: route the controller's ad-hoc `Thread(...)` spawns through a shared pool
   (marginal; only with a measured reason).
@@ -51,6 +51,22 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Browse by category — store-like discovery view (2026-06-02):** a new **Browse** sidebar
+  page. Atlas already cached `categories.txt` (name → raw category labels, ~294 entries) but
+  only used it to *annotate* search results; now it's a browse index. `AtlasApi.get_categories`
+  normalizes the messy raw labels (Browser/browser, Xfce/XFCE, Python, Emulator, Manjaro, …)
+  into 8 curated top-level buckets (`CATEGORY_BUCKETS`: Games / Internet / Audio & Video /
+  Graphics / Development / Office / Utilities / System) with distinct-package counts; every
+  raw label maps into a bucket (verified against the live file). `get_category_packages(key)`
+  resolves a bucket's names through two new **Arch-gem** methods — `read_categories()` (returns
+  `self.categories`, one-shot reads the cached file if the bg downloader hasn't run) and
+  `list_category_packages(names)` (I/O-cheap: one `pacman -Sl` for version/repo/installed + one
+  batched `pacman -Si` for descriptions; **no AUR RPC, no network**). Arch-only by design
+  (categories.txt is a repo index). Frontend: `renderBrowse()` (category-card grid) →
+  `renderCategoryPackages(key,label)` (back header + reuses `renderPackages`), nav item +
+  `.category-card`/`.browse-*` styles. Tests: `test_api.py::BrowseCategoryTest` (4). Plan:
+  [plans/2026-06-02-browse-by-category.md](plans/2026-06-02-browse-by-category.md). **Needs a
+  GUI eyeball** (grid render can't be driven headless).
 - **Downgrade / rollback (2026-06-02):** the gems implement `downgrade` and `_serialize_pkg`
   reports `can_be_downgraded`, but the webview never called it. Added `AtlasApi.downgrade`
   (mirrors `update`/`uninstall`: root broker → terminal → `manager.downgrade(pkg, …,

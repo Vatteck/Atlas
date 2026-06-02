@@ -870,3 +870,78 @@ class DowngradeTest(unittest.TestCase):
         self.assertEqual('error', res['status'])
 
 
+class BrowseCategoryTest(unittest.TestCase):
+    """Browse-by-category discovery view (get_categories / get_category_packages)."""
+
+    def setUp(self):
+        self.manager = Mock()
+        self.api = AtlasApi(self.manager, Mock())
+
+        # name -> raw category labels, mirroring atlas-files/arch/categories.txt
+        self.cat_map = {
+            '0ad': ['Game'],
+            'dolphin-emu': ['Emulator'],     # also a Games bucket label
+            'firefox': ['Network', 'Browser'],
+            'gimp': ['Graphics'],
+            'alsa-lib': ['Audio', 'System'],  # Audio & Video + System
+            'python-foo': ['Python'],         # Development bucket
+        }
+
+        self.arch = Mock()
+        self.arch.__module__ = 'atlas.gems.arch.controller'
+        self.arch.read_categories.return_value = self.cat_map
+        self.arch.list_category_packages.side_effect = self._list_category_packages
+        self.manager.managers = [self.arch]
+
+    def _pkg(self, name):
+        p = Mock()
+        p.name = name
+        p.description = ''; p.version = '1'; p.latest_version = '1'; p.installed = False
+        p.update = False; p.icon_url = None; p.size = 1; p.categories = self.cat_map.get(name, [])
+        p.get_publisher.return_value = ''
+        p.get_type.return_value = 'arch_repo'
+        for a in ('can_be_run', 'can_be_downgraded', 'has_info', 'has_history',
+                  'is_update_ignored', 'supports_ignored_updates'):
+            getattr(p, a).return_value = False
+        return p
+
+    def _list_category_packages(self, names, limit=150):
+        return [self._pkg(n) for n in sorted(names)]
+
+    def test_get_categories_buckets_and_counts(self):
+        res = self.api.get_categories()
+        self.assertEqual('ok', res['status'])
+        by_key = {b['key']: b for b in res['data']}
+
+        # Game + Emulator both map into the Games bucket
+        self.assertEqual(2, by_key['games']['count'])
+        # Network + Browser are the same package (firefox) — distinct-package count is 1
+        self.assertEqual(1, by_key['internet']['count'])
+        self.assertEqual(1, by_key['graphics']['count'])
+        self.assertEqual(1, by_key['multimedia']['count'])   # alsa-lib (Audio)
+        self.assertEqual(1, by_key['development']['count'])   # python-foo
+        self.assertEqual(1, by_key['system']['count'])        # alsa-lib (System)
+        self.assertEqual('Games', by_key['games']['label'])
+        # empty buckets are dropped
+        self.assertNotIn('office', by_key)
+
+    def test_get_category_packages_resolves_via_arch_gem(self):
+        res = self.api.get_category_packages('games')
+        self.assertEqual('ok', res['status'])
+        names = sorted(p['name'] for p in res['data'])
+        self.assertEqual(['0ad', 'dolphin-emu'], names)
+        # the arch gem got exactly the matching names
+        called_names = set(self.arch.list_category_packages.call_args[0][0])
+        self.assertEqual({'0ad', 'dolphin-emu'}, called_names)
+
+    def test_get_category_packages_unknown_key(self):
+        res = self.api.get_category_packages('not-a-bucket')
+        self.assertEqual('error', res['status'])
+
+    def test_categories_no_arch_gem(self):
+        self.manager.managers = []
+        res = self.api.get_categories()
+        self.assertEqual('ok', res['status'])
+        self.assertEqual([], res['data'])
+
+

@@ -1645,6 +1645,88 @@ body {
     color: var(--text-secondary);
 }
 
+/* Browse-by-category (Discovery view) */
+.browse-header {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+
+.category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
+}
+
+.category-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 20px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    text-align: left;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.category-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent-border-hover);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.category-icon {
+    font-size: 28px;
+    line-height: 1;
+}
+
+.category-label {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.category-count {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* Back header above a category's package grid — spans the whole grid row. */
+.browse-subheader {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 4px;
+}
+
+.browse-back {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+}
+
+.browse-back:hover {
+    border-color: var(--accent-border-hover);
+}
+
+.browse-cat-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
 /* .pacnew / .pacsave config-file notice (Updates view) */
 .config-notice {
     border: 1px solid var(--accent-border-hover);

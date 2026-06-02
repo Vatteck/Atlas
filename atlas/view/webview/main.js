@@ -1599,6 +1599,60 @@ async function renderNews() {
     });
 }
 
+// Browse-by-category: a store-like discovery view. Top level shows category cards; clicking
+// one lists that category's repo packages (reusing the normal package grid).
+async function renderBrowse() {
+    packagesGrid.style.display = 'block';
+    packagesGrid.innerHTML = `<div class="state-container"><div class="spinner"></div><p>Loading categories…</p></div>`;
+
+    const data = await pyApiCall('get_categories');  // unwrapped list, or null on error
+    if (!data) {
+        packagesGrid.innerHTML = `<div class="news-empty">Could not load categories. Category data is fetched from atlas-files — check your connection and try again.</div>`;
+        return;
+    }
+    if (data.length === 0) {
+        packagesGrid.innerHTML = `<div class="news-empty">No category data available yet.</div>`;
+        return;
+    }
+
+    const cards = data.map(c => `
+        <button class="category-card" data-cat-key="${escapeHtml(c.key)}" data-cat-label="${escapeHtml(c.label)}">
+            <span class="category-icon">${escapeHtml(c.icon || '📦')}</span>
+            <span class="category-label">${escapeHtml(c.label)}</span>
+            <span class="category-count">${escapeHtml(c.count)} package${c.count === 1 ? '' : 's'}</span>
+        </button>`).join('');
+
+    packagesGrid.innerHTML = `<div class="browse-view"><div class="browse-header">Browse by category</div><div class="category-grid">${cards}</div></div>`;
+    packagesGrid.querySelectorAll('.category-card').forEach(btn => {
+        btn.addEventListener('click', () => renderCategoryPackages(btn.dataset.catKey, btn.dataset.catLabel));
+    });
+}
+
+async function renderCategoryPackages(key, label) {
+    packagesGrid.style.display = 'block';
+    packagesGrid.innerHTML = `<div class="state-container"><div class="spinner"></div><p>Loading ${escapeHtml(label)}…</p></div>`;
+
+    const data = await pyApiCall('get_category_packages', key);  // unwrapped list, or null on error
+    const header = document.createElement('div');
+    header.className = 'browse-subheader';
+    header.innerHTML = `<button class="browse-back" type="button">← Categories</button><span class="browse-cat-title">${escapeHtml(label)}</span>`;
+
+    if (!data || data.length === 0) {
+        packagesGrid.style.display = 'block';
+        packagesGrid.innerHTML = '';
+        packagesGrid.appendChild(header);
+        const empty = document.createElement('div');
+        empty.className = 'news-empty';
+        empty.textContent = data ? 'No packages found in this category.' : 'Could not load packages for this category.';
+        packagesGrid.appendChild(empty);
+    } else {
+        renderPackages(data);  // sets packagesGrid to the grid layout + cards
+        packagesGrid.insertBefore(header, packagesGrid.firstChild);
+    }
+
+    header.querySelector('.browse-back').addEventListener('click', renderBrowse);
+}
+
 // Notice on the Updates view: .pacnew/.pacsave config files pacman left for manual review.
 async function renderUpdatesNotice() {
     const el = document.getElementById('updates-notice');
@@ -1886,6 +1940,11 @@ function activateView(viewName) {
         loadingState.classList.add('hidden');
         packagesGrid.style.display = 'block';
         renderNews();
+    } else if (viewName === 'browse') {
+        emptyState.classList.add('hidden');
+        loadingState.classList.add('hidden');
+        packagesGrid.style.display = 'block';
+        renderBrowse();
     } else {
         fetchPackages();
     }

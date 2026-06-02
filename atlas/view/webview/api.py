@@ -37,6 +37,23 @@ class AtlasApi:
     PACMAN_CACHE_DIR = '/var/cache/pacman/pkg'
     ARCH_NEWS_URL = 'https://archlinux.org/feeds/news/'
 
+    # Browse-by-category buckets for the Discovery view. The shipped categories.txt uses many
+    # inconsistent raw labels (Browser/browser, Xfce/XFCE, Python, Emulator, Manjaro, …); we
+    # merge the synonyms into a small curated, ordered set of top-level buckets. Each raw label
+    # maps into at most the buckets that list it. See docs/plans/2026-06-02-browse-by-category.md.
+    CATEGORY_BUCKETS = (
+        ('games',       'Games',         '🎮', ('Game', 'Emulator')),
+        ('internet',    'Internet',      '🌐', ('Network', 'Browser', 'browser', 'Torrent', 'P2P', 'IRC')),
+        ('multimedia',  'Audio & Video', '🎵', ('Audio', 'Video', 'AudioVideo')),
+        ('graphics',    'Graphics',      '🎨', ('Graphics', 'GTK')),
+        ('development', 'Development',    '⌨',  ('Development', 'Python', 'Javascript')),
+        ('office',      'Office',         '📄', ('Office',)),
+        ('utilities',   'Utilities',     '🧰', ('Utility',)),
+        ('system',      'System',        '⚙',  ('System', 'Settings', 'Security', 'Kernel',
+                                                'Printing', 'Bluetooth', 'Qt', 'KDE', 'Gnome',
+                                                'Xfce', 'XFCE', 'Manjaro')),
+    )
+
     def __init__(self, manager: GenericSoftwareManager, logger: logging.Logger):
         self.manager = manager
         self.logger = logger
@@ -365,6 +382,53 @@ class AtlasApi:
             return {'status': 'ok', 'data': [self._serialize_pkg(p) for p in pkgs]}
         except Exception as e:
             self.logger.error(f"Error fetching suggestions: {e}")
+            traceback.print_exc()
+            return {'status': 'error', 'message': str(e)}
+
+    def _category_names(self, raw_labels) -> set:
+        """Package names whose category map intersects a bucket's set of raw labels."""
+        arch_man = self._manager_by_gem('arch')
+        if arch_man is None or not hasattr(arch_man, 'read_categories'):
+            return set()
+
+        cat_map = arch_man.read_categories() or {}
+        wanted = set(raw_labels)
+        return {name for name, cats in cat_map.items() if cats and wanted.intersection(cats)}
+
+    def get_categories(self) -> dict:
+        """Top-level browse buckets with the count of distinct repo-indexed packages in each.
+        Cheap: reads the (cached) Arch category map and inverts it; no network."""
+        try:
+            self.logger.info("get_categories called")
+            buckets = []
+            for key, label, icon, raw in self.CATEGORY_BUCKETS:
+                count = len(self._category_names(raw))
+                if count:
+                    buckets.append({'key': key, 'label': label, 'icon': icon, 'count': count})
+            return {'status': 'ok', 'data': buckets}
+        except Exception as e:
+            self.logger.error(f"Error listing categories: {e}")
+            traceback.print_exc()
+            return {'status': 'error', 'message': str(e)}
+
+    def get_category_packages(self, key: str) -> dict:
+        """Packages in a browse bucket. Arch-only: categories.txt is a repo index, so this
+        resolves names through the Arch gem's lightweight repo lookup (no AUR/network)."""
+        try:
+            self.logger.info(f"get_category_packages called: {key}")
+            bucket = next((b for b in self.CATEGORY_BUCKETS if b[0] == key), None)
+            if bucket is None:
+                return {'status': 'error', 'message': f'Unknown category: {key}'}
+
+            names = self._category_names(bucket[3])
+            arch_man = self._manager_by_gem('arch')
+            if arch_man is None or not names:
+                return {'status': 'ok', 'data': []}
+
+            pkgs = arch_man.list_category_packages(names)
+            return {'status': 'ok', 'data': [self._serialize_pkg(p) for p in pkgs]}
+        except Exception as e:
+            self.logger.error(f"Error fetching category packages: {e}")
             traceback.print_exc()
             return {'status': 'error', 'message': str(e)}
 

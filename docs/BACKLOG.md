@@ -38,8 +38,14 @@
   (installed version highlighted), via newly-wired `get_screenshots`/`get_history`. (The
   description + dependency/required-by metadata were already in the Details table.)
   *Follow-up:* in-modal lightbox instead of opening screenshots in the browser.
-- **Browse by category** — the `atlas-files` repo already ships category data; a store-like
-  "Games / Dev / Graphics" browse view can use it.
+- ~~**Browse by category**~~ ✅ **Shipped 2026-06-02** — see
+  [plans/2026-06-02-browse-by-category.md](plans/2026-06-02-browse-by-category.md). A new
+  **Browse** sidebar page: curated top-level buckets (Games / Internet / Audio & Video /
+  Graphics / Development / Office / Utilities / System) built from the shipped
+  `categories.txt`; click one to list its repo packages. Arch-only, I/O-cheap (one
+  `pacman -Sl` + one batched `pacman -Si`, no AUR/network).
+  - *Follow-ups:* sort-within-category (overlaps the Sort dropdown item); AUR/Flatpak
+    categories would need each gem's own category source.
 
 ## Lighter QoL
 

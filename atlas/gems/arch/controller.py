@@ -3780,6 +3780,70 @@ class ArchManager(SoftwareManager, SettingsController):
                     if current_val is None:
                         setattr(pkg, attr, cached_val)
 
+    def read_categories(self) -> Dict[str, List[str]]:
+        """The category map (package name -> [raw category labels]) used to annotate packages.
+
+        Normally populated in the background by ``CategoriesDownloader``; if it hasn't run yet
+        this session, fall back to a one-shot read of the cached file so the webview Browse
+        view works on a cold start. Returns ``self.categories`` (possibly empty)."""
+        if not self.categories and os.path.exists(CATEGORIES_FILE_PATH):
+            try:
+                with open(CATEGORIES_FILE_PATH) as f:
+                    content = f.read()
+
+                parsed = {}
+                for line in content.split('\n'):
+                    if line and '=' in line:
+                        name, raw = line.split('=', 1)
+                        parsed[name] = [c.strip() for c in raw.split(',') if c.strip()]
+
+                self.categories = parsed
+            except Exception:
+                self.logger.warning(f"Could not read cached categories from '{CATEGORIES_FILE_PATH}'", exc_info=True)
+
+        return self.categories
+
+    def list_category_packages(self, names: Collection[str], limit: int = 150) -> List[ArchPackage]:
+        """Lightweight repo lookup for the webview Browse view: of ``names``, return the
+        packages that exist in the official repos as ``ArchPackage`` objects.
+
+        I/O-cheap by design — one ``pacman -Sl`` (version/repo/installed) plus one batched
+        ``pacman -Si`` (descriptions). No AUR RPC, no network, no per-package info calls."""
+        if not names:
+            return []
+
+        available = pacman.map_available_packages() or {}
+        matched = sorted(n for n in names if n in available)
+
+        if limit and len(matched) > limit:
+            matched = matched[:limit]
+
+        if not matched:
+            return []
+
+        descriptions = {}
+        try:
+            full = pacman.map_packages(names=matched, remote=True, not_signed=False, skip_ignored=True)
+            signed = full.get('signed') if full else None
+            if signed:
+                descriptions = {n: d.get('description') for n, d in signed.items()}
+        except Exception:
+            self.logger.warning("Could not fetch repo package descriptions for the Browse view", exc_info=True)
+
+        pkgs = []
+        for name in matched:
+            data = available[name]
+            pkgs.append(ArchPackage(name=name,
+                                    version=data['v'],
+                                    latest_version=data['v'],
+                                    repository=data['r'],
+                                    installed=bool(data['i']),
+                                    description=descriptions.get(name),
+                                    categories=self.categories.get(name),
+                                    i18n=self.i18n,
+                                    maintainer=data['r']))
+        return pkgs
+
     def list_suggestions(self, limit: int, filter_installed: bool) -> Optional[List[PackageSuggestion]]:
         if limit == 0:
             return
