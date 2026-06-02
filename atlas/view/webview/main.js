@@ -77,6 +77,7 @@ const loadingState = document.getElementById('loading-state');
 const emptyState = document.getElementById('empty-state');
 const searchInput = document.getElementById('search-input');
 const typeFilter = document.getElementById('type-filter');
+const sortFilter = document.getElementById('sort-filter');
 const navItems = document.querySelectorAll('.nav-item');
 
 const selectModeBtn = document.getElementById('select-mode-btn');
@@ -100,6 +101,12 @@ let currentView = 'dashboard'; // 'dashboard', 'installed', 'updates', 'activity
 // Grid vs list layout for the package views (persisted). Pure CSS — toggling the class on
 // packagesGrid is enough, no re-render needed. Defaults to grid.
 let viewMode = (localStorage.getItem('atlas_view_mode') === 'list') ? 'list' : 'grid';
+
+// Sort order for the package lists (persisted). 'relevance' keeps the existing
+// search-ranking / AUR-ranking behaviour; the rest are explicit comparators.
+const SORT_MODES = ['relevance', 'votes', 'popularity', 'updated', 'name'];
+let sortMode = SORT_MODES.includes(localStorage.getItem('atlas_sort_mode'))
+    ? localStorage.getItem('atlas_sort_mode') : 'relevance';
 
 let selectMode = false;
 let selectedPackages = new Set();
@@ -246,10 +253,31 @@ function sortByRelevance(packages, query) {
     }).map(pair => pair[0]);
 }
 
+// Numeric sort key: treat missing/non-number as -Infinity so packages without the field
+// (e.g. votes/popularity/last_modified on non-AUR sources) sink to the bottom.
+function _numKey(v) { return typeof v === 'number' ? v : -Infinity; }
+
+// Apply the chosen sort. 'relevance' preserves today's behaviour (search ranking, else AUR
+// ranking); the explicit modes override and sort across all sources. Always stable.
+function sortPackages(list, query) {
+    const pkgs = list || [];
+    if (sortMode === 'relevance') {
+        return query ? sortByRelevance(pkgs, query) : rankAur(pkgs);
+    }
+    const cmp = {
+        votes:      (a, b) => _numKey(b.votes) - _numKey(a.votes),
+        popularity: (a, b) => _numKey(b.popularity) - _numKey(a.popularity),
+        updated:    (a, b) => _numKey(b.last_modified) - _numKey(a.last_modified),
+        name:       (a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }),
+    }[sortMode];
+    if (!cmp) return pkgs;
+    return pkgs.map((p, i) => [p, i]).sort((x, y) => cmp(x[0], y[0]) || (x[1] - y[1])).map(pair => pair[0]);
+}
+
 function renderFiltered() {
     const filtered = filterByType(currentPackages, typeFilter.value);
     const query = searchInput.value.trim();
-    renderPackages(query ? sortByRelevance(filtered, query) : rankAur(filtered));
+    renderPackages(sortPackages(filtered, query));
 }
 
 // Reflect the current grid/list choice on the package grid + the toggle buttons. Layout is
@@ -1667,7 +1695,7 @@ async function renderCategoryPackages(key, label) {
         empty.textContent = data ? 'No packages found in this category.' : 'Could not load packages for this category.';
         packagesGrid.appendChild(empty);
     } else {
-        renderPackages(data);  // sets packagesGrid to the grid layout + cards
+        renderPackages(sortPackages(data, ''));  // sets packagesGrid to the grid layout + cards
         packagesGrid.insertBefore(header, packagesGrid.firstChild);
     }
 
@@ -1798,6 +1826,19 @@ searchInput.addEventListener('input', () => {
 typeFilter.addEventListener('change', () => {
     fetchPackages();
 });
+
+// Sort dropdown. Sorting is client-side, so just re-render the current package list (no
+// refetch). Live re-sort covers dashboard/installed/updates/search; Browse picks up the new
+// order when a category is (re)opened.
+const SORTABLE_VIEWS = new Set(['dashboard', 'installed', 'updates']);
+if (sortFilter) {
+    sortFilter.value = sortMode;  // reflect the persisted choice
+    sortFilter.addEventListener('change', () => {
+        sortMode = SORT_MODES.includes(sortFilter.value) ? sortFilter.value : 'relevance';
+        localStorage.setItem('atlas_sort_mode', sortMode);
+        if (SORTABLE_VIEWS.has(currentView)) renderFiltered();
+    });
+}
 
 // Grid/list layout toggle. Layout is pure CSS, so just flip the mode + class (no refetch).
 document.querySelectorAll('.view-toggle-btn').forEach(btn => {

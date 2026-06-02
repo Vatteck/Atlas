@@ -36,6 +36,33 @@ class GetInstalledFilterTest(unittest.TestCase):
         self.assertNotIn('org.freedesktop.Platform', names)
 
 
+class SerializeSortFieldsTest(unittest.TestCase):
+    """The Sort dropdown's 'recently updated' mode needs last_modified serialized."""
+
+    def setUp(self):
+        self.manager = Mock()
+        self.api = AtlasApi(self.manager, Mock())
+
+    def _pkg(self, name, last_modified):
+        p = Mock()
+        p.name = name
+        p.description = ''; p.version = '1'; p.latest_version = '1'; p.installed = False
+        p.update = False; p.icon_url = None; p.size = 1; p.categories = []
+        p.votes = 42; p.popularity = 3.5; p.last_modified = last_modified
+        p.get_publisher.return_value = ''
+        p.get_type.return_value = 'aur'
+        for a in ('can_be_run', 'can_be_downgraded', 'has_info', 'has_history',
+                  'is_update_ignored', 'supports_ignored_updates'):
+            getattr(p, a).return_value = False
+        return p
+
+    def test_last_modified_votes_popularity_serialized(self):
+        data = self.api._serialize_pkg(self._pkg('yay', 1700000000))
+        self.assertEqual(1700000000, data['last_modified'])
+        self.assertEqual(42, data['votes'])
+        self.assertEqual(3.5, data['popularity'])
+
+
 class GetOrphansTest(unittest.TestCase):
     def setUp(self):
         self.manager = Mock()

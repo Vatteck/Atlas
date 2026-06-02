@@ -313,6 +313,9 @@ class AtlasApi:
             # in the webview. See docs/plans/2026-06-01-source-types-and-multisource-cards.md.
             'votes': getattr(pkg, 'votes', None),
             'popularity': getattr(pkg, 'popularity', None),
+            # epoch seconds; populated for AUR (from the AUR RPC). Used by the Sort dropdown's
+            # "recently updated" mode — None for non-AUR sources (they sort last there).
+            'last_modified': getattr(pkg, 'last_modified', None),
             'maintainer': getattr(pkg, 'maintainer', None),
             'out_of_date': bool(getattr(pkg, 'out_of_date', None)),
             'package_base': getattr(pkg, 'package_base', None),

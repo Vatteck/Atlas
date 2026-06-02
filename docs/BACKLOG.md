@@ -50,7 +50,10 @@
 ## Lighter QoL
 
 - **Keyboard shortcuts** — `/` focuses search, `Esc` closes modals, etc.
-- **Sort dropdown** — votes / popularity / recently-updated.
+- ~~**Sort dropdown**~~ ✅ **Shipped 2026-06-02** — see
+  [plans/2026-06-02-sort-dropdown.md](plans/2026-06-02-sort-dropdown.md). Topbar `#sort-filter`:
+  Relevance (default) / Votes / Popularity / Recently updated / Name. Client-side, persisted to
+  `localStorage`; `last_modified` newly serialized for the "recently updated" mode.
 - **Selection toolbar** — now that bulk checkboxes exist, act on N selected packages at
   once (install/remove/update the selection).
 

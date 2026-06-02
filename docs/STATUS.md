@@ -18,17 +18,19 @@
 
 **Feature/QoL polish (2026-06-02).** The big transitions are done; Atlas is an Arch-focused,
 **pure-Python** pywebview app on the AUR with green CI. Now building out the feature backlog.
-Recently shipped the **Maintenance / Cleanup hub** (Disk view), **README screenshots**, the
-**Arch safety net** (News page + `.pacnew` notice), the **rich app detail page**
-(screenshots + version history), **downgrade/rollback**, and **Browse by category** (a
-store-like discovery view). Picking the next item from [BACKLOG.md](BACKLOG.md).
+Recently shipped **Browse by category**, a **grid/list view toggle**, a **sort dropdown**, and
+the **window-icon fix** (incl. Wayland app_id) — plus **AUR publish automation** (local
+`publish-aur.sh` + a GitHub Action). Picking the next item from [BACKLOG.md](BACKLOG.md).
 
 ## Next
 
 Pulling from **[BACKLOG.md](BACKLOG.md)**. Near-term candidates:
 
 - A **system-tray indicator** (non-Qt) — a real feature; the legacy Qt tray was removed.
-- Lighter QoL: sort dropdown (votes/popularity/recent), selection toolbar refinements.
+- **Arch safety net** follow-ups: gate "Update All" on archlinux.org news newer than the last
+  sync; `.pacnew` merge assist (launch `pacdiff` in a terminal).
+- Note: **keyboard shortcuts** and the **selection toolbar** backlog items already look largely
+  shipped (shortcuts help button + batch install/uninstall bar) — confirm before re-picking.
 
 > GUI-verified 2026-06-02: rich detail modal (screenshots + history), News page, Disk
 > maintenance panel all look good. Still worth a live run: an actual **downgrade**
@@ -51,6 +53,16 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Sort dropdown (2026-06-02):** a topbar `#sort-filter` (next to the type filter / view
+  toggle) — **Relevance** (default; unchanged search/AUR ranking), **Votes**, **Popularity**,
+  **Recently updated**, **Name (A–Z)**. Client-side in `main.js` (`sortPackages()` dispatch +
+  `sortMode` persisted to `localStorage['atlas_sort_mode']`); `renderFiltered()` and
+  `renderCategoryPackages()` both route through it. Explicit modes override search relevance;
+  missing numeric keys (votes/popularity/`last_modified` on non-AUR sources) sort last. Backend:
+  one line — `last_modified` (epoch, AUR-populated) added to `_serialize_pkg`. Live re-sort
+  covers dashboard/installed/updates/search; Browse applies on category (re)open (documented
+  limitation). Tests: `test_api.py::SerializeSortFieldsTest` (1). Plan:
+  [plans/2026-06-02-sort-dropdown.md](plans/2026-06-02-sort-dropdown.md). **Needs a GUI eyeball.**
 - **Window icon — fix the running-window "map" icon, incl. Wayland (2026-06-02):** the earlier
   icon fixes (`Icon=atlas-pm` + shipping `atlas-pm.png`, commits `fc9331e`/`b0e09c4`) only
   covered the **launcher** `.desktop` entry. The **running window** (titlebar / taskbar /
