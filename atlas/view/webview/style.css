@@ -1322,7 +1322,7 @@ body {
    Responsive Adaptivity (Tiling / Compact Views)
    ========================================== */
 
-@media (max-width: 768px) {
+@media (max-width: 960px) {
     :root {
         --sidebar-width: 70px;
     }
@@ -1420,7 +1420,7 @@ body {
     }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 700px) {
     .topbar {
         flex-direction: column;
         align-items: stretch;
@@ -1448,7 +1448,7 @@ body {
     }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 520px) {
     .packages-grid {
         grid-template-columns: 1fr;
     }
