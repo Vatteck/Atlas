@@ -547,12 +547,16 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Known gaps / gotchas (don't get burned)
 
-- **Mirror refresh is Manjaro-only / dead on Arch (2026-06-02).** `pacman.refresh_mirrors()` runs
-  `pacman-mirrors -g` — a **Manjaro** tool, not present on Arch/CachyOS (which use
-  `reflector`/`rate-mirrors`/`cachyos-rate-mirrors`). So `ArchManager.refresh_mirrors` can't work on
-  the target platform; it's a bauh/Manjaro leftover. Fix proposed in
-  [plans/2026-06-02-arch-mirror-refresh.md](plans/2026-06-02-arch-mirror-refresh.md) (detect the real
-  Arch tools). Until then, regenerate mirrors manually with `reflector`.
+- **`refresh_mirrors` is an inert Manjaro leftover — intentionally left (2026-06-03).** The gem's
+  `ArchManager.refresh_mirrors` / `pacman.refresh_mirrors` / `RefreshMirrors` worker use Manjaro's
+  `pacman-mirrors -g`. On Arch/CachyOS this **never runs**: the custom action isn't surfaced in the
+  webview at all, and the startup worker is double-gated off (`refresh_mirrors_startup` defaults off
+  **and** `is_mirrors_available()` = `which pacman-mirrors`, absent on Arch). It's **superseded** by
+  the Arch-correct `regenerate_mirrorlist` (reflector/rate-mirrors, in the `.pacnew` notice +
+  Settings → Mirrors). **Decision (2026-06-03): leave it.** Full removal would refactor the startup
+  DB-sync flow (`RefreshMirrors` feeds `SyncDatabases.should_sync(mirrors_refreshed, …)`) + the
+  custom-action registry + `refresh_mirrors_startup` + i18n — a sensitive change for **zero runtime
+  gain** (it's already inert). Not a bug; don't "fix" it. If ever removed, it's pure dead-code hygiene.
 - **Never call `window.evaluate_js` on the GTK main thread (2026-06-02).** pywebview's
   `evaluate_js` blocks the calling thread on a semaphore that's only released by a callback the
   **GTK main loop** runs — so calling it from the main thread (e.g. inside a `GLib.idle_add`

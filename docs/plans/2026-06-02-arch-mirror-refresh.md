@@ -1,8 +1,13 @@
 # Arch-correct mirror refresh + mirrorlist regen action — 2026-06-02
 
-> **Status: design note (caution shipped; regen not started).** Prompted by a real incident: a user
-> overwrote `/etc/pacman.d/mirrorlist` with the stock all-commented `.pacnew` via the new pacdiff
-> button, wiping all `core`/`extra` mirror servers (`no servers configured for repository: extra`).
+> **Status: DONE (caution + `regenerate_mirrorlist` button shipped). Gem-action fix dropped.**
+> Prompted by a real incident: a user overwrote `/etc/pacman.d/mirrorlist` with the stock
+> all-commented `.pacnew` via the new pacdiff button, wiping all `core`/`extra` mirror servers.
+> The mirrorlist caution + the reflector/rate-mirrors `regenerate_mirrorlist` button (`.pacnew`
+> notice + Settings → Mirrors) shipped (24dd152 / 8f3c6c8). **Finding #2 (fix the Manjaro
+> `refresh_mirrors` gem action) is intentionally NOT pursued (2026-06-03):** it's inert on Arch
+> and superseded — see STATUS Known gaps. Left as dead code; not worth refactoring the startup
+> DB-sync flow for zero runtime gain.
 
 ## Problem / findings
 
