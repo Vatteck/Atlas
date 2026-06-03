@@ -59,6 +59,17 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Fix: AUR installs crashed in the webview (`file_downloader=None`) (2026-06-02):** every AUR
+  install/build threw `AttributeError: 'NoneType' object has no attribute 'is_multithreaded'` —
+  `_pre_download_source` called `self.context.file_downloader.is_multithreaded()`, but the webview
+  builds its `ApplicationContext` with **`file_downloader=None`** (`app.py`), and pre-downloading
+  sources is just a multithreaded optimization. Guarded both call sites: `_pre_download_source`
+  (skips the optimization → makepkg fetches sources itself during the build) and
+  `_multithreaded_download_enabled` (was only shielded by the default-off
+  `repositories_mthread_download`; would crash if toggled on). Surfaced now because it was the first
+  AUR install attempted through the webview (tuxracer). Tests: `tests/gems/arch/test_downloader_guard.py`
+  (2). **Re-test needed:** confirm an AUR build now completes end-to-end (the crash is gone; build
+  itself is privileged/network so wasn't run here).
 - **`.pacnew` mirrorlist caution (2026-06-02):** the `.pacnew` notice now shows a pointed warning
   when `/etc/pacman.d/mirrorlist` is among the flagged files — overwriting it with pacdiff replaces
   your servers with the stock all-commented list (a user hit exactly this while testing the pacdiff

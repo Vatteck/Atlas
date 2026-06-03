@@ -1971,8 +1971,12 @@ class ArchManager(SoftwareManager, SettingsController):
         return pkg_repos
 
     def _pre_download_source(self, pkgname: str, project_dir: str, watcher: ProcessWatcher) -> bool:
+        # Pre-downloading sources is an optimization (multi-threaded fetch before makepkg). The
+        # webview builds its ApplicationContext with file_downloader=None, so skip it then —
+        # makepkg downloads the sources itself during the build.
         # TODO: multi-threaded download client cannot be run as another user at the moment
-        if not self.context.root_user and self.context.file_downloader.is_multithreaded():
+        if (not self.context.root_user and self.context.file_downloader is not None
+                and self.context.file_downloader.is_multithreaded()):
             with open('{}/.SRCINFO'.format(project_dir)) as f:
                 srcinfo = aur.map_srcinfo(string=f.read(), pkgname=pkgname)
 
@@ -2468,6 +2472,7 @@ class ArchManager(SoftwareManager, SettingsController):
 
     def _multithreaded_download_enabled(self, arch_config: dict) -> bool:
         return bool(arch_config['repositories_mthread_download']) \
+            and self.context.file_downloader is not None \
             and self.context.file_downloader.is_multithreaded() \
             and pacman.is_mirrors_available()
 
