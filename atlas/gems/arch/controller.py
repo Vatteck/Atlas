@@ -536,8 +536,14 @@ class ArchManager(SoftwareManager, SettingsController):
             if disk_loader:
                 disk_loader.fill(pkg, sync=True)
 
-            if pkg.repository == 'aur':
-                pkg.repository = None
+            if not pkg.repository or pkg.repository == 'aur':
+                # pacman couldn't place this installed package in any real repo (`pacman -Si` found
+                # nothing), so it's *foreign* — AUR/community or a local build — NOT an official-repo
+                # package. Label it 'aur' so it isn't shown as "Arch" (it was nulled to None →
+                # get_type()='arch_repo'), and so search() de-dupes it against the AUR result instead
+                # of rendering a bogus two-source "Arch + AUR" card. Genuine repo packages always get
+                # a real repo name here, so they're unaffected.
+                pkg.repository = 'aur'
 
                 if aur_index and pkg.name not in aur_index:
                     removed_cat = self.i18n['arch.category.remove_from_aur']

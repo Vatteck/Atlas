@@ -59,6 +59,19 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Fix: installed AUR-only packages mislabeled as official-repo ("Arch") (2026-06-03):** a
+  foreign installed package (repro: `atlas-pm-git`) showed a bogus two-source "Arch ● AUR" card.
+  Trace: `read_installed` buckets a `not_signed` package that's missing from the (stale) cached AUR
+  index into the *repo* path; `_fill_repo_pkgs` then sets `repository` from `pacman.map_repositories`
+  (`pacman -Si`), which finds it in **no** sync repo → `None` → `get_type()='arch_repo'` ("Arch").
+  `search()` then treats `None` as non-AUR and fails to de-dupe the AUR search hit → two-source card.
+  Fix (`controller._fill_repo_pkgs`): a package pacman can't place in any real repo is **foreign**
+  (AUR/community/local), not official-repo — label it **`'aur'`** instead of `None`. Surgical: genuine
+  repo packages always get a real repo name from `-Si`, so they're untouched; no code relies on
+  `repository is None`. Tests: `tests/gems/arch/test_repo_classification.py` (3). **Residual (separate,
+  index-freshness):** a freshly-published AUR package missing from the local index still gets a
+  "Removed from AUR" category hint (false positive until the index refreshes) — cosmetic, not the
+  source label. **Needs a GUI eyeball** (search "atlas" → single AUR card, not Arch+AUR).
 - **Better package icons (2026-06-03):** the grid was almost all letter-avatars (search results
   carry no icon for any source; icons were only fetched on the detail view). Three fixes:
   (1) **Flatpak icons in search** — `_serialize_pkg` derives the predictable Flathub CDN icon URL
@@ -530,16 +543,6 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Known gaps / gotchas (don't get burned)
 
-- **Installed AUR packages can be misclassified as official-repo (`arch_repo`) (2026-06-03).**
-  Searching for an installed **AUR-only** package (repro: `atlas-pm-git`) renders a two-source
-  "Arch ● AUR" card — the installed copy is tagged **`arch_repo`** ("Arch") and `collapseByName`
-  merges it with the AUR search hit. Confirmed AUR-only on the box: `pacman -Qm` lists it,
-  `pacman -Sl` shows it in no sync repo, `Validated By: None`. So the source classification is
-  wrong somewhere in the **search → installed-state merge** path (not basic `read_installed` —
-  `Validated By: None` should route it to the AUR/not-signed bucket via `pacman.py` signed/not_signed
-  + `updates.py`). **Cosmetic/non-blocking** — Atlas still builds/updates it as AUR fine. Needs a
-  focused trace across `updates.py` / `pacman.py` / the controller search path before fixing (a
-  careful change — it affects how *every* package's source is labeled). Not yet investigated.
 - **Mirror refresh is Manjaro-only / dead on Arch (2026-06-02).** `pacman.refresh_mirrors()` runs
   `pacman-mirrors -g` — a **Manjaro** tool, not present on Arch/CachyOS (which use
   `reflector`/`rate-mirrors`/`cachyos-rate-mirrors`). So `ArchManager.refresh_mirrors` can't work on
