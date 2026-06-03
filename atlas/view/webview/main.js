@@ -1779,10 +1779,16 @@ async function renderUpdatesNotice() {
     const res = await pyApiCall('get_pacnew_files');  // unwrapped {files, count} or null
     if (!res || !res.count) { el.innerHTML = ''; return; }
     const list = res.files.map(f => `<li><code>${escapeHtml(f)}</code></li>`).join('');
+    // mirrorlist is the classic pacdiff footgun: overwriting it with the stock .pacnew wipes your
+    // mirror servers. Call it out specifically so people don't blindly merge it.
+    const hasMirrorlist = (res.files || []).some(f => f === '/etc/pacman.d/mirrorlist' || f.endsWith('/mirrorlist.pacnew'));
+    const mirrorlistCaution = hasMirrorlist ? `
+            <p class="config-notice-warn">⚠ <code>/etc/pacman.d/mirrorlist</code> is listed — <strong>do not overwrite it with pacdiff</strong>. The <code>.pacnew</code> is the stock all-commented list; merging it wipes your mirror servers. Instead, regenerate it (<code>reflector</code> / <code>rate-mirrors</code>) or just discard the <code>.pacnew</code>.</p>` : '';
     el.innerHTML = `
         <div class="config-notice">
             <div class="config-notice-title">⚠ ${escapeHtml(res.count)} configuration file${res.count > 1 ? 's' : ''} need review</div>
             <p class="config-notice-body">These <code>.pacnew</code>/<code>.pacsave</code> files were installed alongside updates and may need merging with your current config. Review them with <code>pacdiff</code> (from <code>pacman-contrib</code>), then remove the <code>.pacnew</code> file.</p>
+            ${mirrorlistCaution}
             <ul class="config-notice-list">${list}</ul>
             <div class="config-notice-actions">
                 <button class="btn btn-outline" id="pacdiff-btn">Open pacdiff in a terminal</button>

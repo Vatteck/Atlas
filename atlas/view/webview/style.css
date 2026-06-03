@@ -1872,6 +1872,16 @@ body {
     margin-top: 14px;
 }
 
+.config-notice-warn {
+    margin: 10px 0 0;
+    padding: 10px 12px;
+    border-radius: var(--radius-md, 8px);
+    background: rgba(220, 38, 38, 0.12);
+    border: 1px solid rgba(220, 38, 38, 0.35);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
 /* Detail modal: screenshot strip (Flatpak/AppImage) */
 .detail-screenshots {
     display: flex;

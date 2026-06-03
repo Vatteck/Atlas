@@ -59,6 +59,13 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **`.pacnew` mirrorlist caution (2026-06-02):** the `.pacnew` notice now shows a pointed warning
+  when `/etc/pacman.d/mirrorlist` is among the flagged files — overwriting it with pacdiff replaces
+  your servers with the stock all-commented list (a user hit exactly this while testing the pacdiff
+  button). Steers to regenerate (reflector/rate-mirrors) or discard the `.pacnew`. Frontend-only
+  (`renderUpdatesNotice` + `.config-notice-warn`). Follow-up (not done): a working "Regenerate mirror
+  list" action — see [plans/2026-06-02-arch-mirror-refresh.md](plans/2026-06-02-arch-mirror-refresh.md)
+  (also fixes the Manjaro-leftover refresh, see Known gaps).
 - **AUR safety — heuristic PKGBUILD scanner engine (2026-06-02):** first increment of the "AUR
   safety" theme. New pure module `atlas/gems/arch/pkgbuild_audit.py` — `scan(text)` returns advisory
   findings (`{line_no, line, rule, severity, why}`) for suspicious PKGBUILD/.install constructs:
@@ -475,6 +482,12 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Known gaps / gotchas (don't get burned)
 
+- **Mirror refresh is Manjaro-only / dead on Arch (2026-06-02).** `pacman.refresh_mirrors()` runs
+  `pacman-mirrors -g` — a **Manjaro** tool, not present on Arch/CachyOS (which use
+  `reflector`/`rate-mirrors`/`cachyos-rate-mirrors`). So `ArchManager.refresh_mirrors` can't work on
+  the target platform; it's a bauh/Manjaro leftover. Fix proposed in
+  [plans/2026-06-02-arch-mirror-refresh.md](plans/2026-06-02-arch-mirror-refresh.md) (detect the real
+  Arch tools). Until then, regenerate mirrors manually with `reflector`.
 - **Never call `window.evaluate_js` on the GTK main thread (2026-06-02).** pywebview's
   `evaluate_js` blocks the calling thread on a semaphore that's only released by a callback the
   **GTK main loop** runs — so calling it from the main thread (e.g. inside a `GLib.idle_add`
