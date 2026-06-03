@@ -276,6 +276,28 @@
         </div>
     </div>
 
+    <!-- Arch news gate (shown before Update All when there's unread news) -->
+    <div id="news-gate-modal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-header-left">
+                    <div>
+                        <h2>Arch news before upgrading</h2>
+                        <p class="modal-description">New since your last sync — please review before a full upgrade, in case any needs manual intervention.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div id="news-gate-list" class="news-list"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="news-gate-cancel-btn">Cancel</button>
+                <button class="btn btn-primary" id="news-gate-proceed-btn">Proceed with upgrade</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Notification Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 

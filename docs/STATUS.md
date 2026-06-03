@@ -16,22 +16,21 @@
 
 ## Current focus
 
-**System-tray indicator (non-Qt) — phases 1+2 + Settings UI (2026-06-02).** The big transitions
-are done; Atlas is an Arch-focused, **pure-Python** pywebview app on the AUR with green CI. Now
-building out the feature backlog. Recently shipped **Browse by category**, a **grid/list view
-toggle**, a **sort dropdown**, the **window-icon fix** (incl. Wayland app_id), the **new app
-icon**, and **AUR publish automation**. **Just built:** a non-Qt system-tray indicator
-(AppIndicator/SNI) with an update-count badge + a Settings section for its options — see Done.
-Phase 1 GUI-confirmed on KDE; the phase 2 badge + Settings section still want a GUI eyeball.
-Plan: [plans/2026-06-02-system-tray.md](plans/2026-06-02-system-tray.md).
+**Arch safety-net features (2026-06-02).** The big transitions are done; Atlas is an Arch-focused,
+**pure-Python** pywebview app on the AUR with green CI. Now building out the feature backlog.
+Recently shipped the **non-Qt system tray** (icon + update badge + Settings), **Browse by
+category**, **grid/list toggle**, **sort dropdown**, the **window-icon fix**, the **new app icon**,
+and **AUR publish automation**. **Just built:** an **Update-All news gate** (warns about
+archlinux.org news since the last sync before a full upgrade) — see Done. Next likely the
+`.pacnew` merge-assist follow-up.
 
 ## Next
 
 Pulling from **[BACKLOG.md](BACKLOG.md)**. Near-term candidates:
 
-- A **system-tray indicator** (non-Qt) — a real feature; the legacy Qt tray was removed.
-- **Arch safety net** follow-ups: gate "Update All" on archlinux.org news newer than the last
-  sync; `.pacnew` merge assist (launch `pacdiff` in a terminal).
+- **Arch safety net** — remaining: `.pacnew` merge assist (we already *detect* `.pacnew`/`.pacsave`
+  on the Updates view; add a button to launch `pacdiff` in a terminal to merge them). ✅ Gate
+  "Update All" on Arch news is **done** (see Done).
 - Note: **keyboard shortcuts** and the **selection toolbar** backlog items already look largely
   shipped (shortcuts help button + batch install/uninstall bar) — confirm before re-picking.
 
@@ -56,6 +55,19 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Gate "Update All" on Arch news (2026-06-02):** before a full upgrade, warn about
+  archlinux.org news published since the last DB sync (the "didn't read the news, pacman broke"
+  guard). Backend (`api.py`): `_fetch_arch_news_items()` (shared RSS parser, now also keeps a raw
+  aware `datetime`; `get_arch_news` reuses it and strips `dt`), `_last_db_sync_time()` (newest
+  mtime of `/var/lib/pacman/sync/*.db`; fallback now−7d), and `check_upgrade_news()` →
+  `{since, new_count, news[]}` (only items newer than the reference). **Fail-open**: any feed/parse
+  error returns an empty result so the upgrade is never blocked by the *check* failing. Frontend: a
+  self-contained, promise-based `#news-gate-modal` + `showNewsGate()` (the confirm modal is wired
+  to the Python watcher, so it can't be reused) reusing `.news-card` markup; links open via
+  `open_url`. The Update All handler calls `check_upgrade_news` first and gates on it. Tests:
+  `test_api.py::ArchSafetyNetTest` (5 new). Live-verified vs the real feed + sync state. Plan:
+  [plans/2026-06-02-update-all-news-gate.md](plans/2026-06-02-update-all-news-gate.md). **Needs a
+  GUI eyeball** (modal render + proceed/cancel; requires unread news to actually fire).
 - **System tray — phase 2 (update badge) + Settings UI (2026-06-02):** the tray now shows a
   pending-update **count**. A daemon-thread poller (`ui.tray.update_check_interval` minutes,
   default 60, 0=off; first run 30s after build) calls `manager.read_installed()`, counts

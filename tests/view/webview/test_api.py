@@ -1,6 +1,6 @@
 import unittest
 import json
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from unittest.mock import Mock, patch, mock_open
 from atlas.view.webview.api import AtlasApi, _json_safe
 
@@ -846,6 +846,40 @@ class ArchSafetyNetTest(unittest.TestCase):
         self.assertEqual('ok', res['status'])
         self.assertEqual(0, res['data']['count'])
         self.assertEqual([], res['data']['files'])
+
+    # --- check_upgrade_news (the Update All gate) --------------------------- #
+    # Feed has: "Breaking change in foo" (25 May 2026), "Second item" (01 Jan 2026).
+    def test_upgrade_news_filters_to_items_newer_than_last_sync(self):
+        self._mock_feed(ARCH_NEWS_RSS)
+        self.api._last_db_sync_time = Mock(return_value=datetime(2026, 5, 1, tzinfo=timezone.utc))
+        data = self.api.check_upgrade_news()['data']
+        self.assertEqual(1, data['new_count'])                 # only the 25 May item
+        self.assertEqual('Breaking change in foo', data['news'][0]['title'])
+        self.assertNotIn('dt', data['news'][0])                # internal datetime not leaked
+
+    def test_upgrade_news_none_new_when_synced_after_all_news(self):
+        self._mock_feed(ARCH_NEWS_RSS)
+        self.api._last_db_sync_time = Mock(return_value=datetime(2026, 6, 1, tzinfo=timezone.utc))
+        data = self.api.check_upgrade_news()['data']
+        self.assertEqual(0, data['new_count'])
+        self.assertEqual([], data['news'])
+
+    def test_upgrade_news_all_new_when_synced_before_all_news(self):
+        self._mock_feed(ARCH_NEWS_RSS)
+        self.api._last_db_sync_time = Mock(return_value=datetime(2025, 12, 1, tzinfo=timezone.utc))
+        data = self.api.check_upgrade_news()['data']
+        self.assertEqual(2, data['new_count'])
+
+    def test_upgrade_news_fails_open_on_feed_error(self):
+        self._mock_feed('', status=503)
+        self.api._last_db_sync_time = Mock(return_value=datetime(2025, 1, 1, tzinfo=timezone.utc))
+        res = self.api.check_upgrade_news()
+        self.assertEqual('ok', res['status'])      # never blocks the upgrade on a check failure
+        self.assertEqual(0, res['data']['new_count'])
+
+    @patch('glob.glob', return_value=[])
+    def test_last_db_sync_time_none_without_sync_dbs(self, _mock_glob):
+        self.assertIsNone(self.api._last_db_sync_time())
 
 
 class RichDetailTest(unittest.TestCase):

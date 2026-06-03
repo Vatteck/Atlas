@@ -581,6 +581,43 @@ function resolveMessage() {
     pyApiCall('submit_message_ack');
 }
 
+// --- Arch news gate (client-side, before Update All) -----------------------
+// Self-contained + promise-based: resolves true (proceed) / false (cancel). Not the confirm
+// modal, which is wired to the Python watcher's submit_confirmation.
+let newsGateResolver = null;
+
+function resolveNewsGate(proceed) {
+    document.getElementById('news-gate-modal').classList.add('hidden');
+    const resolve = newsGateResolver;
+    newsGateResolver = null;
+    if (resolve) resolve(proceed);
+}
+
+function showNewsGate(items) {
+    const list = document.getElementById('news-gate-list');
+    list.innerHTML = (items || []).map(n => `
+        <article class="news-card">
+            <div class="news-card-head">
+                <h3 class="news-title">${escapeHtml(n.title)}</h3>
+                ${n.date ? `<span class="news-date">${escapeHtml(n.date)}</span>` : ''}
+            </div>
+            ${n.summary ? `<p class="news-summary">${escapeHtml(n.summary)}</p>` : ''}
+            ${n.url ? `<a class="news-link" href="#" data-news-url="${escapeHtml(n.url)}">Read on archlinux.org ↗</a>` : ''}
+        </article>`).join('');
+    list.querySelectorAll('a[data-news-url]').forEach(a => {
+        a.addEventListener('click', (e) => { e.preventDefault(); pyApiCall('open_url', a.dataset.newsUrl); });
+    });
+    document.getElementById('news-gate-modal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('news-gate-cancel-btn').focus(), 50);
+    return new Promise(resolve => { newsGateResolver = resolve; });
+}
+
+document.getElementById('news-gate-proceed-btn').addEventListener('click', () => resolveNewsGate(true));
+document.getElementById('news-gate-cancel-btn').addEventListener('click', () => resolveNewsGate(false));
+document.getElementById('news-gate-modal').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') resolveNewsGate(false);
+});
+
 window.showMessageModal = (opts) => {
     opts = opts || {};
     messageResolved = false;
@@ -1194,6 +1231,18 @@ batchCancelBtn.addEventListener('click', () => {
 
 updateAllBtn.addEventListener('click', async () => {
     if (operationInProgress) { showToast('Busy', 'Another operation is already running', 'warning'); return; }
+
+    // Arch news gate: warn about news published since the last sync before a full upgrade.
+    // Fail-open — if the check errors, `news` is null and we proceed normally.
+    const news = await pyApiCall('check_upgrade_news');
+    if (news && news.new_count > 0) {
+        const proceed = await showNewsGate(news.news);
+        if (!proceed) {
+            showToast('Upgrade cancelled', 'Review the Arch news, then run Update All again', 'info');
+            return;
+        }
+    }
+
     showToast('Updating All', 'Starting system packages upgrade...', 'info');
     const result = await pyApiCall('update_all');
     if (result && result.success) {

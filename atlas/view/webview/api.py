@@ -631,41 +631,84 @@ class AtlasApi:
         text = html.unescape(text)
         return re.sub(r'\s+', ' ', text).strip()
 
+    def _fetch_arch_news_items(self, limit: int = 12) -> list:
+        """Fetch + parse the archlinux.org RSS feed. Single source of truth for news parsing.
+        Returns a list of {title, url, date (display str), summary, dt (aware datetime|None)}.
+        Raises on network/parse failure (callers decide how to handle)."""
+        import xml.etree.ElementTree as ET
+        from datetime import timezone
+        from email.utils import parsedate_to_datetime
+
+        res = self._http_client().get(self.ARCH_NEWS_URL, single_call=True)
+        if res is None or res.status_code >= 300 or not res.text:
+            raise RuntimeError('Could not reach the Arch news feed')
+
+        root = ET.fromstring(res.text)
+        items = []
+        for item in root.iterfind('./channel/item'):
+            title = (item.findtext('title') or '').strip()
+            url = (item.findtext('link') or '').strip()
+            if not title:
+                continue
+            dt, date_str = None, ''
+            raw_date = (item.findtext('pubDate') or '').strip()
+            if raw_date:
+                try:
+                    dt = parsedate_to_datetime(raw_date)
+                    if dt.tzinfo is None:          # treat naive dates as UTC for safe comparison
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    date_str = dt.strftime('%b %d, %Y')
+                except Exception:
+                    date_str = raw_date
+            summary = self._strip_html(item.findtext('description') or '')
+            if len(summary) > 280:
+                summary = summary[:277].rstrip() + '…'
+            items.append({'title': title, 'url': url, 'date': date_str, 'summary': summary, 'dt': dt})
+            if len(items) >= limit:
+                break
+        return items
+
     def get_arch_news(self, limit: int = 12) -> dict:
         """Recent Arch Linux news (archlinux.org RSS) for the News page. Read-only; the feed
         is the only network call. Returns {status, data:[{title, url, date, summary}]}."""
-        import xml.etree.ElementTree as ET
-        from email.utils import parsedate_to_datetime
         try:
-            res = self._http_client().get(self.ARCH_NEWS_URL, single_call=True)
-            if res is None or res.status_code >= 300 or not res.text:
-                return {'status': 'error', 'message': 'Could not reach the Arch news feed'}
-
-            root = ET.fromstring(res.text)
-            items = []
-            for item in root.iterfind('./channel/item'):
-                title = (item.findtext('title') or '').strip()
-                url = (item.findtext('link') or '').strip()
-                if not title:
-                    continue
-                date_str = ''
-                raw_date = (item.findtext('pubDate') or '').strip()
-                if raw_date:
-                    try:
-                        date_str = parsedate_to_datetime(raw_date).strftime('%b %d, %Y')
-                    except Exception:
-                        date_str = raw_date
-                summary = self._strip_html(item.findtext('description') or '')
-                if len(summary) > 280:
-                    summary = summary[:277].rstrip() + '…'
-                items.append({'title': title, 'url': url, 'date': date_str, 'summary': summary})
-                if len(items) >= limit:
-                    break
-
+            items = [{k: v for k, v in it.items() if k != 'dt'}
+                     for it in self._fetch_arch_news_items(limit)]
             return {'status': 'ok', 'data': items}
         except Exception as e:
             self.logger.error(f"get_arch_news failed: {e}")
             return {'status': 'error', 'message': str(e)}
+
+    def _last_db_sync_time(self):
+        """When the local pacman databases were last synced = newest mtime among
+        /var/lib/pacman/sync/*.db (rewritten by `pacman -Sy`). Aware UTC datetime, or None."""
+        import glob
+        from datetime import datetime, timezone
+        try:
+            mtimes = [os.path.getmtime(p) for p in glob.glob('/var/lib/pacman/sync/*.db')]
+            if not mtimes:
+                return None
+            return datetime.fromtimestamp(max(mtimes), tz=timezone.utc)
+        except Exception as e:
+            self.logger.debug(f"_last_db_sync_time failed: {e}")
+            return None
+
+    def check_upgrade_news(self, limit: int = 12) -> dict:
+        """News published since the last DB sync — shown as a pre-upgrade warning so the user
+        doesn't `-Syu` into a manual-intervention notice. Fail-open: on any error returns an
+        empty result so the upgrade is never blocked by the *check* failing.
+        Returns {status, data:{since: iso|null, new_count, news:[{title,url,date,summary}]}}."""
+        from datetime import datetime, timedelta, timezone
+        try:
+            reference = self._last_db_sync_time() or (datetime.now(timezone.utc) - timedelta(days=7))
+            items = self._fetch_arch_news_items(limit)
+            new_items = [it for it in items if it['dt'] is not None and it['dt'] > reference]
+            news = [{k: v for k, v in it.items() if k != 'dt'} for it in new_items]
+            return {'status': 'ok', 'data': {'since': reference.isoformat(),
+                                             'new_count': len(news), 'news': news}}
+        except Exception as e:
+            self.logger.warning(f"check_upgrade_news failed (proceeding without a gate): {e}")
+            return {'status': 'ok', 'data': {'since': None, 'new_count': 0, 'news': []}}
 
     def get_pacnew_files(self) -> dict:
         """Find .pacnew/.pacsave config files left by pacman that need manual review.

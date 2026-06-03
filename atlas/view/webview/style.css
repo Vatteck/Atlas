@@ -1684,6 +1684,9 @@ body {
     margin: 0 auto;
 }
 
+/* In the pre-upgrade gate modal the list must stay bounded + scroll, not grow the dialog. */
+#news-gate-list { max-height: 55vh; overflow-y: auto; }
+
 .news-header {
     font-size: 13px;
     font-weight: 600;
