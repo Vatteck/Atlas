@@ -79,8 +79,11 @@ re-add a native extension without a measured win. Details in the historical
   **verified from the devtools source** (devtools installed on this box to confirm): run the tools as
   root; pass `-U atlas-aur` in the root path (makechrootpkg forbids root makepkg), rely on `SUDO_USER`
   in the unprivileged path. Tests: +18 (`test_chroot.py` 13, `test_chroot_build.py` 5); suite 419.
-  **⚠ Not yet run live** — a real chroot build needs root + ~1 GB + minutes; one real end-to-end build
-  is required before trusting the toggle. **Remaining:** (3) `-I` dep-chain injection + reconcile the
+  **✓ Verified live (2026-06-03):** built `yay-bin` in a fresh chroot end-to-end — products landed in
+  the package dir owned by the build user (pacman install works unchanged), deps resolved in-chroot.
+  Fixed a real bug the live test surfaced: `mkarchroot`'s `readlink -f <dir>/root` needs the parent
+  dir to exist, so `_build_in_chroot` now `mkdir -p`s the chroot dir first. **Remaining:** (3) `-I`
+  dep-chain injection + reconcile the
   redundant host-side dep install; (4) Settings UI toggle. Plan:
   [plans/2026-06-02-sandboxed-aur-builds.md](plans/2026-06-02-sandboxed-aur-builds.md).
 - **AUR PKGBUILD review — rich rendered modal (2026-06-03):** the advisory pre-build review (which

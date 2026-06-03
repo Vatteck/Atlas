@@ -2218,6 +2218,9 @@ class ArchManager(SoftwareManager, SettingsController):
         if not chroot.root_exists(chroot_dir):
             context.watcher.change_substatus('Creating clean build chroot (one-time; downloads base-devel)…')
             self.logger.info(f"Creating build chroot at '{chroot_dir}'")
+            # mkarchroot canonicalises '<dir>/root' with `readlink -f`, which yields nothing unless
+            # the parent dir already exists — create it first (under /var/lib, so as root).
+            self._chroot_root_proc(context, ['mkdir', '-p', chroot_dir])
             created, _ = self._chroot_root_proc(context, chroot.create_root_cmd(chroot_dir, makepkg_conf=makepkg_conf))
             if not created:
                 self.logger.error("Could not create the build chroot; falling back to host build")

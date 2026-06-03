@@ -24,8 +24,12 @@
 >    we pass **`-U <build_user>`** in the root path (`atlas-aur`, created by `add_package_builder_user`);
 >    the unprivileged path relies on the `SUDO_USER` our `sudo -S` sets. Copy-dir "root" collision is
 >    self-guarded (line 45); default makepkg args already include `--skipinteg`/`--syncdeps`, so we
->    pass no extra makepkg args. **NOT yet run live** (a real chroot build needs root + ~1 GB +
->    minutes) — needs one real end-to-end build before the toggle is trusted.
+>    pass no extra makepkg args. **VERIFIED LIVE (2026-06-03):** built `yay-bin` in a fresh chroot
+>    end-to-end — products landed in the package dir owned by the build user (so Atlas's
+>    `__fill_aur_output_files` + pacman install work unchanged) and deps resolved inside the chroot
+>    (`--syncdeps`). **Live-test bug fixed:** `mkarchroot` canonicalises `<dir>/root` with
+>    `readlink -f`, which yields nothing unless the *parent* exists → `_build_in_chroot` now
+>    `mkdir -p`s the chroot dir before `mkarchroot`.
 > 3. ⏳ `-I` injection wired for AUR dep chains; reconcile Atlas's own host-side dep install
 >    (`_handle_aur_package_deps_and_keys`) which is redundant/wrong in chroot mode (chroot
 >    `--syncdeps` resolves repo deps itself).

@@ -38,7 +38,7 @@ class ChrootBuildWiringTest(unittest.TestCase):
 
     def test_creates_root_when_absent_then_builds(self):
         ctx = self._ctx()
-        self.mgr._chroot_root_proc.side_effect = [(True, 'made'), (True, 'built')]  # create, build
+        self.mgr._chroot_root_proc.side_effect = [(True, 'mkdir'), (True, 'made'), (True, 'built')]  # mkdir, create, build
         with patch('atlas.gems.arch.controller.chroot.available', return_value=True), \
              patch('atlas.gems.arch.controller.chroot.root_exists', return_value=False), \
              patch('atlas.gems.arch.controller.chroot.create_root_cmd', return_value=['mkarchroot']) as mk, \
@@ -47,7 +47,10 @@ class ChrootBuildWiringTest(unittest.TestCase):
         self.assertEqual((True, 'built'), result)
         mk.assert_called_once()                                   # root created (was absent)
         self.assertEqual('atlas-aur', bc.call_args.kwargs['makepkg_user'])   # -U passed when root
-        self.assertEqual(2, self.mgr._chroot_root_proc.call_count)           # create + build, no update
+        self.assertEqual(3, self.mgr._chroot_root_proc.call_count)           # mkdir + create + build, no update
+        # the parent dir is created before mkarchroot (mkarchroot's readlink -f needs it)
+        self.assertEqual(['mkdir', '-p', '/var/lib/atlas/aurchroot'],
+                         self.mgr._chroot_root_proc.call_args_list[0].args[1])
         self.assertEqual('/build/foo', self.mgr._chroot_root_proc.call_args.kwargs['cwd'])  # built in pkg dir
 
     def test_updates_root_when_present(self):
@@ -65,7 +68,7 @@ class ChrootBuildWiringTest(unittest.TestCase):
 
     def test_falls_back_when_root_creation_fails(self):
         ctx = self._ctx()
-        self.mgr._chroot_root_proc.return_value = (False, 'mkarchroot blew up')
+        self.mgr._chroot_root_proc.side_effect = [(True, 'mkdir'), (False, 'mkarchroot blew up')]
         with patch('atlas.gems.arch.controller.chroot.available', return_value=True), \
              patch('atlas.gems.arch.controller.chroot.root_exists', return_value=False), \
              patch('atlas.gems.arch.controller.chroot.create_root_cmd', return_value=['mkarchroot']), \
