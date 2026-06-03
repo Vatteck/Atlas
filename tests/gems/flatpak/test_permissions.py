@@ -70,7 +70,7 @@ class SafetyTest(unittest.TestCase):
         self.assertEqual('safe', perms.safety({}, is_free=True)['level'])
 
 
-# Real `flatpak info --show-permissions` output (Discord).
+# Real `flatpak info --show-permissions` output (Discord-like, with a revoked name + env).
 SHOW_PERMS = """\
 [Context]
 shared=network;ipc;
@@ -80,6 +80,15 @@ filesystems=xdg-download;xdg-pictures:ro;home;
 
 [Session Bus Policy]
 org.kde.StatusNotifierWatcher=talk
+org.example.Owned=own
+org.example.Revoked=none
+
+[System Bus Policy]
+org.freedesktop.UPower=talk
+
+[Environment]
+ELECTRON_TRASH=gio
+WAS_UNSET=
 """
 
 
@@ -183,6 +192,50 @@ class FilesystemSectionTest(unittest.TestCase):
         self.assertEqual('--filesystem=home', perms.filesystem_flag('  home  ', True))       # trimmed
         self.assertIsNone(perms.filesystem_flag('', True))
         self.assertIsNone(perms.filesystem_flag('   ', True))
+
+
+class BusEnvSectionTest(unittest.TestCase):
+    def test_parse_context_reads_bus_and_env(self):
+        ctx = perms.parse_context(SHOW_PERMS)
+        self.assertEqual('talk', ctx['session_bus']['org.kde.StatusNotifierWatcher'])
+        self.assertEqual('own', ctx['session_bus']['org.example.Owned'])
+        self.assertEqual('none', ctx['session_bus']['org.example.Revoked'])
+        self.assertEqual('talk', ctx['system_bus']['org.freedesktop.UPower'])
+        self.assertEqual('gio', ctx['environment']['ELECTRON_TRASH'])
+        # the [Context] sets are unaffected by the extra sections
+        self.assertEqual({'network', 'ipc'}, ctx['shared'])
+
+    def test_bus_state_drops_revoked_and_splits_scopes(self):
+        state = perms.bus_state(perms.parse_context(SHOW_PERMS))
+        session_names = {e['name']: e['policy'] for e in state['session']}
+        self.assertEqual('talk', session_names['org.kde.StatusNotifierWatcher'])
+        self.assertEqual('own', session_names['org.example.Owned'])
+        self.assertNotIn('org.example.Revoked', session_names)        # =none is dropped
+        self.assertEqual([{'name': 'org.freedesktop.UPower', 'policy': 'talk'}], state['system'])
+
+    def test_bus_flag(self):
+        self.assertEqual('--talk-name=org.x', perms.bus_flag('session', 'org.x', 'talk', True))
+        self.assertEqual('--own-name=org.x', perms.bus_flag('session', 'org.x', 'own', True))
+        self.assertEqual('--no-talk-name=org.x', perms.bus_flag('session', 'org.x', 'talk', False))
+        self.assertEqual('--system-talk-name=org.x', perms.bus_flag('system', 'org.x', 'talk', True))
+        self.assertEqual('--system-own-name=org.x', perms.bus_flag('system', 'org.x', 'own', True))
+        self.assertEqual('--system-no-talk-name=org.x', perms.bus_flag('system', 'org.x', 'own', False))
+        self.assertIsNone(perms.bus_flag('session', '', 'talk', True))
+        self.assertIsNone(perms.bus_flag('bogus', 'org.x', 'talk', True))
+
+    def test_env_state_drops_empty(self):
+        state = perms.env_state(perms.parse_context(SHOW_PERMS))
+        by_var = {e['var']: e['value'] for e in state}
+        self.assertEqual('gio', by_var['ELECTRON_TRASH'])
+        self.assertNotIn('WAS_UNSET', by_var)   # unset-via-override vars read empty -> dropped
+
+    def test_env_flag(self):
+        self.assertEqual('--env=FOO=bar', perms.env_flag('FOO', 'bar', True))
+        self.assertEqual('--env=FOO=', perms.env_flag('FOO', '', True))
+        self.assertEqual('--env=FOO=', perms.env_flag('FOO', None, True))
+        self.assertEqual('--unset-env=FOO', perms.env_flag('FOO', 'bar', False))
+        self.assertIsNone(perms.env_flag('', 'bar', True))
+        self.assertIsNone(perms.env_flag('BAD=NAME', 'x', True))   # '=' not allowed in a var name
 
 
 if __name__ == '__main__':

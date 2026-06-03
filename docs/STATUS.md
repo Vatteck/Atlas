@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §8). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-03 (Flatpak Permissions page — filesystem section)
+**Last updated:** 2026-06-03 (Flatpak Permissions page — bus + environment, tabs)
 **Version:** 0.10.7
 **Working branch:** `master` (use short-lived branches for larger features; run `git branch` to see what's active)
 
@@ -59,6 +59,19 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Flatpak Permissions page — increment 3: Bus + Environment, + tabs (2026-06-03):** two more
+  tabs on the Permissions page. **Bus**: session + system D-Bus name grants — list (entries
+  revoked to `=none` are dropped), add (name + talk/own policy), remove. **Environment**: env-var
+  list/add/remove. Also **tabbed the whole detail panel** (Share / Socket / Device / Features /
+  Filesystem / Bus / Environment) since the combined list had grown long; active tab persists
+  across the re-renders that edits trigger. Backend: `parse_context` now also parses
+  `[Session/System Bus Policy]` + `[Environment]`; `bus_state`/`bus_flag`, `env_state`/`env_flag`;
+  `set_bus_permission`/`set_env_permission` → `AtlasApi.set_flatpak_bus`/`set_flatpak_env`. Verified
+  removal semantics against the real override keyfile (`--no-talk-name` ⇒ `=none`; `--unset-env` ⇒
+  empty value, filtered out). Tests: `test_permissions.py` now 28 (+10); full suite 398. Live
+  round-trip verified on Pinta. **Persist deferred** — `flatpak override` has no negative flag for
+  persist, so clean removal needs keyfile editing (separate, riskier; the apps probed used none).
+  **Needs a GUI eyeball.** Plan: [plans/2026-06-03-flatpak-permissions-page.md](plans/2026-06-03-flatpak-permissions-page.md).
 - **Flatpak Permissions page — Flatseal-grade, increment 2: Filesystem (2026-06-03):** the
   Permissions page now has a **Filesystem** section — predefined dir toggles (host / host-os /
   host-etc / home + the `xdg-*` dirs), each with a per-row access **mode** (read/write, read-only,

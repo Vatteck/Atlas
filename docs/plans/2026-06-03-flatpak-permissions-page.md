@@ -54,8 +54,22 @@ filesystems/features/persistent), `[Session Bus Policy]`, `[System Bus Policy]`,
    so it returned nothing — the grouped page *and* in-modal editor were silently empty for many
    installed apps. Now appends branch/installation only when present. Tests: +6 (filesystem_state,
    filesystem_flag, filesystems_raw). Live-verified against Flatseal & Discord.
-3. **Bus (talk/own) + Environment + Persist**: dynamic add/remove lists (parse the bus/env sections;
-   `--talk-name`/`--no-talk-name`, `--env`, `--persist`).
+3. ~~**Bus (talk/own) + Environment**~~ ✅ **Done (2026-06-03).** Two more tabs.
+   **Bus** tab: session + system D-Bus name grants — list (revoked `=none` entries dropped),
+   add (name + talk/own policy), remove. **Environment** tab: list/add/remove env vars.
+   Also added a **tab bar** for the whole detail panel (the category list had grown long).
+   Backend: `parse_context` now also reads `[Session/System Bus Policy]` and `[Environment]`
+   (name→policy / var→value dicts); `bus_state`/`bus_flag`, `env_state`/`env_flag`;
+   `set_bus_permission`/`set_env_permission` → `AtlasApi.set_flatpak_bus`/`set_flatpak_env`.
+   Removal semantics (verified by probing the override keyfile): `--no-talk-name` writes
+   `name=none` (revokes talk *or* own); `--unset-env` writes `VAR=` empty (so removed vars
+   read empty and are filtered out). Tests: +10. Live round-trip verified on Pinta.
+
+   **Persist deferred.** `flatpak override` has `--persist=PATH` but **no negative flag** —
+   the CLI can't remove a persist entry without a full `--reset` or editing the override
+   keyfile directly. Clean add/remove for persist needs keyfile editing (what Flatseal does),
+   which is a separate, riskier design decision (writing config files vs. shelling `override`).
+   Tracked as a follow-up; the three apps probed used no persist, so it's low-priority.
 
 ## Open decisions (confirm before building #1)
 

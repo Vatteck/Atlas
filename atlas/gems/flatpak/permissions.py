@@ -167,31 +167,41 @@ def _enabled(key: str, context: Dict[str, set]) -> bool:
     return bool(spec) and value in (context.get(spec[0]) or set())
 
 
-def parse_context(show_permissions_output: str) -> Dict[str, set]:
-    """Parse `flatpak info --show-permissions` [Context] into per-category sets
-    (filesystem `:ro`/`:rw` access modes stripped)."""
+def parse_context(show_permissions_output: str) -> Dict:
+    """Parse `flatpak info --show-permissions` into per-category state. The `[Context]` lists become
+    sets (filesystem `:ro`/`:rw` modes stripped, but kept in `filesystems_raw`); the bus/environment
+    sections become name->policy / var->value dicts."""
     cats = {c[0]: set() for c in _CATEGORIES.values()}  # shared/sockets/devices/features/filesystems
     cats['persistent'] = set()
     cats['filesystems_raw'] = set()   # filesystem tokens WITH their :ro/:create access mode kept
-    in_context = False
+    cats['session_bus'] = {}          # dbus name -> policy (talk/own/see/none)
+    cats['system_bus'] = {}
+    cats['environment'] = {}          # VAR -> value
+    section = None
     for raw in (show_permissions_output or '').splitlines():
         line = raw.strip()
         if line.startswith('['):
-            in_context = line == '[Context]'
+            section = line
             continue
-        if not in_context or '=' not in line:
+        if '=' not in line:
             continue
         key, _, val = line.partition('=')
-        key = key.strip()
-        if key in cats:
-            for tok in val.split(';'):
-                tok = tok.strip()
-                if tok:
-                    if key == 'filesystems':
-                        cats['filesystems'].add(tok.split(':', 1)[0])
-                        cats['filesystems_raw'].add(tok)
-                    else:
-                        cats[key].add(tok)
+        key, val = key.strip(), val.strip()
+        if section == '[Context]':
+            if key in cats and isinstance(cats[key], set):
+                for tok in (t.strip() for t in val.split(';')):
+                    if tok:
+                        if key == 'filesystems':
+                            cats['filesystems'].add(tok.split(':', 1)[0])
+                            cats['filesystems_raw'].add(tok)
+                        else:
+                            cats[key].add(tok)
+        elif section == '[Session Bus Policy]':
+            cats['session_bus'][key] = val
+        elif section == '[System Bus Policy]':
+            cats['system_bus'][key] = val
+        elif section == '[Environment]':
+            cats['environment'][key] = val
     return cats
 
 
@@ -279,6 +289,48 @@ def filesystem_flag(name: str, enabled: bool, mode: str = 'rw') -> Optional[str]
         return f'--nofilesystem={name}'
     suffix = '' if mode not in ('ro', 'create') else f':{mode}'
     return f'--filesystem={name}{suffix}'
+
+
+# --- D-Bus name policies (session + system buses) --------------------------------------------
+BUS_POLICIES = ('talk', 'own')  # 'see'/'none' exist but aren't worth exposing as add options
+
+
+def bus_state(context: Dict) -> Dict:
+    """Session/system bus name grants. Entries revoked to 'none' (e.g. by an existing override)
+    are dropped — they read as "not granted"."""
+    def entries(d):
+        return [{'name': n, 'policy': p} for n, p in sorted((d or {}).items())
+                if p and p != 'none']
+    return {'session': entries(context.get('session_bus')),
+            'system': entries(context.get('system_bus'))}
+
+
+def bus_flag(scope: str, name: str, policy: str, enabled: bool) -> Optional[str]:
+    """`flatpak override --user` flag for a D-Bus name grant. Removal uses `--no-talk-name`
+    (writes `name=none`), which revokes a 'talk' *or* an 'own' grant. None for bad input."""
+    name = (name or '').strip()
+    if not name or scope not in ('session', 'system'):
+        return None
+    prefix = '' if scope == 'session' else 'system-'
+    if not enabled:
+        return f'--{prefix}no-talk-name={name}'
+    verb = 'own' if policy == 'own' else 'talk'
+    return f'--{prefix}{verb}-name={name}'
+
+
+# --- Environment variables -------------------------------------------------------------------
+def env_state(context: Dict) -> List[Dict]:
+    """Environment overrides. Vars unset via `--unset-env` show up empty-valued — drop them."""
+    return [{'var': k, 'value': v} for k, v in sorted((context.get('environment') or {}).items()) if v]
+
+
+def env_flag(var: str, value: str, enabled: bool) -> Optional[str]:
+    """`flatpak override --user` flag for an env var: `--env=VAR=VALUE` to set, `--unset-env=VAR`
+    to remove. None for an empty/invalid name (no '=' allowed in the name)."""
+    var = (var or '').strip()
+    if not var or '=' in var:
+        return None
+    return f'--unset-env={var}' if not enabled else f'--env={var}={value if value is not None else ""}'
 
 
 def safety(perms: Optional[Dict], is_free: bool = True) -> Dict:

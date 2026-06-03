@@ -1131,6 +1131,30 @@ class AtlasApi:
             self.logger.error(f"set_flatpak_filesystem failed: {e}")
             return {'status': 'error', 'message': str(e)}
 
+    def set_flatpak_bus(self, pkg_id: str, scope: str, name: str, policy: str, enabled: bool) -> dict:
+        """Add/remove a D-Bus name grant (session or system bus) for an installed Flatpak (no root)."""
+        try:
+            pkg, man = self._flatpak_pkg_and_manager(pkg_id)
+            if not man or not hasattr(man, 'set_bus_permission'):
+                return {'status': 'error', 'message': 'Not a Flatpak package'}
+            ok = man.set_bus_permission(pkg, scope, name, policy, bool(enabled))
+            return {'status': 'ok'} if ok else {'status': 'error', 'message': 'Could not apply the bus change'}
+        except Exception as e:
+            self.logger.error(f"set_flatpak_bus failed: {e}")
+            return {'status': 'error', 'message': str(e)}
+
+    def set_flatpak_env(self, pkg_id: str, var: str, value: str, enabled: bool) -> dict:
+        """Set/remove an environment-variable override for an installed Flatpak (no root)."""
+        try:
+            pkg, man = self._flatpak_pkg_and_manager(pkg_id)
+            if not man or not hasattr(man, 'set_env_permission'):
+                return {'status': 'error', 'message': 'Not a Flatpak package'}
+            ok = man.set_env_permission(pkg, var, value or '', bool(enabled))
+            return {'status': 'ok'} if ok else {'status': 'error', 'message': 'Could not apply the variable change'}
+        except Exception as e:
+            self.logger.error(f"set_flatpak_env failed: {e}")
+            return {'status': 'error', 'message': str(e)}
+
     def reset_flatpak_overrides(self, pkg_id: str) -> dict:
         """Clear all user permission overrides for an installed Flatpak."""
         try:

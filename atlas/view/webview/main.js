@@ -1076,6 +1076,8 @@ async function renderPermsDetail(appId) {
             </div>`,
     }));
     sections.push({ key: 'filesystem', label: 'Filesystem', html: filesystemSectionHtml(data.filesystem || {}) });
+    sections.push({ key: 'bus', label: 'Bus', html: busSectionHtml(data.bus || {}) });
+    sections.push({ key: 'environment', label: 'Environment', html: environmentSectionHtml(data.environment || []) });
     if (!sections.some(s => s.key === permsActiveTab)) permsActiveTab = sections[0].key;
 
     const tabs = sections.map(s =>
@@ -1103,6 +1105,7 @@ async function renderPermsDetail(appId) {
         else cb.checked = !cb.checked;
     }));
     wireFilesystemHandlers(el, appId);
+    wireBusEnvHandlers(el, appId);
     document.getElementById('perms-reset-all').addEventListener('click', async () => {
         const r = await pyApiCall('reset_flatpak_overrides', appId);
         if (r && r.status === 'ok') { showToast('Permissions', 'Reset to defaults', 'success'); renderPermsDetail(appId); }
@@ -1178,6 +1181,89 @@ function wireFilesystemHandlers(el, appId) {
         const mode = el.querySelector('#fs-add-mode');
         const path = (input.value || '').trim();
         if (path) apply(path, true, mode ? mode.value : 'rw', true);
+    });
+}
+
+// --- Bus + Environment sections (dynamic add/remove lists) ---------------------------------
+function permsEmptyRow(text) {
+    return `<div class="perms-row perms-row-empty"><span class="perms-row-name">${escapeHtml(text)}</span></div>`;
+}
+
+function busScopeHtml(scope, label, entries) {
+    const rows = (entries || []).map(e => `
+        <div class="perms-row">
+            <span class="perms-row-text">
+                <span class="perms-row-name">${escapeHtml(e.name)}</span>
+                <span class="perms-row-flag">${escapeHtml(e.policy)}</span>
+            </span>
+            <button class="btn-icon" data-bus-remove="${scope}|${escapeHtml(e.name)}" title="Remove">✕</button>
+        </div>`).join('');
+    return `
+        <div class="perms-subsection">
+            <h4>${escapeHtml(label)}</h4>
+            <div class="perms-rows">${rows || permsEmptyRow('No names granted.')}</div>
+            <div class="perms-fs-add">
+                <input type="text" class="styled-input" data-bus-add-name="${scope}" placeholder="A D-Bus name, e.g. org.freedesktop.Notifications">
+                <select class="fs-mode styled-select" data-bus-add-policy="${scope}"><option value="talk">Talk</option><option value="own">Own</option></select>
+                <button class="btn btn-outline" data-bus-add-btn="${scope}">Add</button>
+            </div>
+        </div>`;
+}
+
+function busSectionHtml(bus) {
+    bus = bus || {};
+    return `
+        <div class="perms-group">
+            <div class="perms-group-head"><p>Services the app may communicate with over D-Bus</p></div>
+            ${busScopeHtml('session', 'Session bus', bus.session)}
+            ${busScopeHtml('system', 'System bus', bus.system)}
+        </div>`;
+}
+
+function environmentSectionHtml(env) {
+    const rows = (env || []).map(e => `
+        <div class="perms-row">
+            <span class="perms-row-text">
+                <span class="perms-row-name">${escapeHtml(e.var)}</span>
+                <span class="perms-row-flag">${escapeHtml(e.value)}</span>
+            </span>
+            <button class="btn-icon" data-env-remove="${escapeHtml(e.var)}" title="Remove">✕</button>
+        </div>`).join('');
+    return `
+        <div class="perms-group">
+            <div class="perms-group-head"><p>Environment variables set for the app</p></div>
+            <div class="perms-rows">${rows || permsEmptyRow('No variables set.')}</div>
+            <div class="perms-fs-add">
+                <input type="text" class="styled-input" id="env-add-var" placeholder="Variable, e.g. GTK_THEME">
+                <input type="text" class="styled-input" id="env-add-value" placeholder="Value">
+                <button class="btn btn-outline" id="env-add-btn">Add</button>
+            </div>
+        </div>`;
+}
+
+function wireBusEnvHandlers(el, appId) {
+    const done = (r) => {
+        if (r && r.status === 'ok') { showToast('Permissions', 'Updated — effective next launch', 'success'); renderPermsDetail(appId); return true; }
+        return false;
+    };
+    el.querySelectorAll('button[data-bus-remove]').forEach(btn => btn.addEventListener('click', async () => {
+        const [scope, name] = btn.getAttribute('data-bus-remove').split('|');
+        done(await pyApiCall('set_flatpak_bus', appId, scope, name, 'talk', false));
+    }));
+    el.querySelectorAll('button[data-bus-add-btn]').forEach(btn => btn.addEventListener('click', async () => {
+        const scope = btn.getAttribute('data-bus-add-btn');
+        const nameEl = el.querySelector(`input[data-bus-add-name="${scope}"]`);
+        const polEl = el.querySelector(`select[data-bus-add-policy="${scope}"]`);
+        const name = (nameEl.value || '').trim();
+        if (name) done(await pyApiCall('set_flatpak_bus', appId, scope, name, polEl ? polEl.value : 'talk', true));
+    }));
+    el.querySelectorAll('button[data-env-remove]').forEach(btn => btn.addEventListener('click', async () =>
+        done(await pyApiCall('set_flatpak_env', appId, btn.getAttribute('data-env-remove'), '', false))));
+    const envBtn = el.querySelector('#env-add-btn');
+    if (envBtn) envBtn.addEventListener('click', async () => {
+        const v = (el.querySelector('#env-add-var').value || '').trim();
+        const val = el.querySelector('#env-add-value').value || '';
+        if (v) done(await pyApiCall('set_flatpak_env', appId, v, val, true));
     });
 }
 
