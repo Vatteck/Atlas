@@ -67,9 +67,19 @@ re-add a native extension without a measured win. Details in the historical
   `FlatpakManager.get_flathub_metadata` → `AtlasApi.get_flatpak_meta` (empty for non-Flatpak) →
   `#detail-badges` row in `openDetailModal` + `.meta-badge` styles. Best-effort/graceful. Live-verified
   (GIMP: FOSS/verified/67k; Spotify: proprietary/unverified/135k). Tests: `test_flathub.py` (+5),
-  `test_api.py::FlatpakMetaTest` (2). Plan + remaining increments (permissions display → safety tier →
-  Flatseal-style editing): [plans/2026-06-03-flatpak-transparency.md](plans/2026-06-03-flatpak-transparency.md).
-  **Needs a GUI eyeball** (open a Flatpak's detail → badges row).
+  `test_api.py::FlatpakMetaTest` (2). **Increments 2+3 — permissions list + safety tier (2026-06-03):**
+  the Flathub **`/api/v2/summary/<id>`** endpoint exposes the full structured permission set
+  (sockets/filesystems/devices/shared/session-bus) for **any** app (installed or not), so we show
+  what Flathub's "potentially unsafe" modal shows — no `flatpak info` needed. New pure module
+  `atlas/gems/flatpak/permissions.py`: `describe(perms, is_free)` → human-readable risk-rated items
+  (`{title, detail, level: safe|warn|danger}`, GNOME-Software-style), `safety()` → advisory tier
+  (`unsafe`→"Potentially unsafe" / `moderate` / `safe`). `flathub.permissions()` fetches; folded into
+  `get_flathub_metadata` (one extra summary call). Detail modal: a **safety badge** in the badges row
+  + a **permissions list** section (color-coded by level), both clearly labeled *advisory, not a
+  guarantee*. Live-verified vs Flathub (Dropbox → unsafe: home/+tmp/X11 danger, audio/network/
+  non-portal/proprietary warn). Tests: `test_permissions.py` (11). Next: #4 Flatseal-style editing.
+  Plan: [plans/2026-06-03-flatpak-transparency.md](plans/2026-06-03-flatpak-transparency.md).
+  **Needs a GUI eyeball** (open a Flatpak's detail → badges + permissions).
 - **Fix: installed AUR-only packages mislabeled as official-repo ("Arch") (2026-06-03):** a
   foreign installed package (repro: `atlas-pm-git`) showed a bogus two-source "Arch ● AUR" card.
   Trace: `read_installed` buckets a `not_signed` package that's missing from the (stale) cached AUR

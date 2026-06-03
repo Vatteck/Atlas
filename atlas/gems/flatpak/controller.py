@@ -20,7 +20,7 @@ from atlas.commons import suggestions
 from atlas.commons.boot import CreateConfigFile
 from atlas.commons.html import strip_html, bold
 from atlas.commons.system import ProcessHandler
-from atlas.gems.flatpak import flatpak, flathub, CONFIG_FILE, UPDATES_IGNORED_FILE, FLATPAK_CONFIG_DIR, \
+from atlas.gems.flatpak import flatpak, flathub, permissions, CONFIG_FILE, UPDATES_IGNORED_FILE, FLATPAK_CONFIG_DIR, \
     EXPORTS_PATH, \
     get_icon_path, VERSION_1_5, VERSION_1_2, VERSION_1_12
 from atlas.gems.flatpak.config import FlatpakConfigManager
@@ -397,6 +397,13 @@ class FlatpakManager(SoftwareManager, SettingsController):
             return {}
         badges['installs_last_month'] = flathub.installs_last_month(self.http_client, app_id,
                                                                     logger=self.context.logger)
+        # Permissions + advisory safety tier (Flatseal/GNOME-Software-style), from the summary
+        # endpoint — works for non-installed apps too.
+        perms = flathub.permissions(self.http_client, app_id, logger=self.context.logger)
+        if perms is not None:
+            is_free = badges.get('is_free', True)
+            badges['permissions'] = permissions.describe(perms, is_free=is_free)
+            badges['safety'] = permissions.safety(perms, is_free=is_free)
         return badges
 
     def get_history(self, pkg: FlatpakApplication, full_commit_str: bool = False) -> PackageHistory:

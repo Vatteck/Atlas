@@ -131,6 +131,21 @@ def installs_last_month(http_client, app_id: str, logger=None) -> Optional[int]:
     return None
 
 
+def permissions(http_client, app_id: str, logger=None) -> Optional[dict]:
+    """The structured Flatpak permission set (sockets/filesystems/devices/shared/session-bus/…)
+    from the Flathub `summary` endpoint — available for any app, installed or not. None on miss."""
+    if not app_id:
+        return None
+    try:
+        res = http_client.get('{}/summary/{}'.format(FLATHUB_API_URL, app_id), single_call=True)
+        if res is not None and 200 <= res.status_code < 300:
+            return (res.json().get('metadata') or {}).get('permissions') or {}
+    except Exception as e:
+        if logger is not None:
+            logger.debug("flathub summary/permissions fetch failed for '%s': %s", app_id, e)
+    return None
+
+
 def _release_date(release: dict) -> Optional[datetime]:
     """v2 releases carry a unix `timestamp` (string) and sometimes an ISO `date`."""
     ts = release.get('timestamp')

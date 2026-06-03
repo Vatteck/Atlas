@@ -32,11 +32,16 @@ except stats:
    `FlatpakManager.get_flathub_metadata` → `AtlasApi.get_flatpak_meta` (empty for non-Flatpak);
    `#detail-badges` row in `openDetailModal`. Live-verified (GIMP: FOSS/verified/67k; Spotify:
    proprietary/unverified/135k). Tests: `test_flathub.py` (+5), `test_api.py::FlatpakMetaTest` (2).
-2. **Permissions display** (installed Flatpaks): parse `flatpak info --show-permissions` into a
-   readable list (filesystem, sockets, devices, dbus, …) in the detail modal.
-3. **Safety tier** ("Safe / Probably safe / Potentially unsafe"): heuristic over the permission set
-   (broad filesystem like `host`/`home`, `devices=all`, no sandbox, session-bus talk) + proprietary
-   license. Advisory badge. Pure, unit-testable.
+2 + 3. **Permissions list + safety tier (combined — same data source).** Reality-check (2026-06-03):
+   the Flathub **`/api/v2/summary/<id>`** endpoint exposes the full structured permission set
+   (`metadata.permissions`: `sockets`, `filesystems`, `shared`, `devices`, `session-bus`/`system-bus`
+   own/talk, `features`) for **any** app — installed or not — so we get the same data Flathub's UI
+   uses (no `flatpak info`, works for non-installed). New pure module `flatpak/permissions.py`:
+   `describe(perms, is_free)` → `[{title, detail, level: safe|warn|danger}]` (GNOME-Software-style
+   human descriptions); `safety(perms, is_free)` → `{level: safe|moderate|unsafe, label}` (danger →
+   "Potentially unsafe"). **Advisory only** (describes *declared* permissions, not behavior — never
+   "safe to trust"). Heavily unit-tested. Wired into `get_flathub_metadata` (one extra summary fetch)
+   → detail modal: a safety badge in the badges row + a permissions list section.
 4. **Permission editing (Flatseal-style):** toggle grid → `flatpak override --user <id> --…`
    (overrides in `~/.local/share/flatpak/overrides/`), with a reset. Privileged? `--user` needs no
    root; `--system` would. The bulk of the UI work.

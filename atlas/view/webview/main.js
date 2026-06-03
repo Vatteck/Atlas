@@ -1045,13 +1045,18 @@ function openDetailModal(pkg) {
 
     detailModal.classList.remove('hidden');
 
-    // Flathub metadata badges (Flatpak only): license FOSS/proprietary, verified, downloads.
+    // Flathub metadata badges + permissions/safety (Flatpak only).
     const badgesEl = document.getElementById('detail-badges');
+    const permsEl = document.getElementById('detail-permissions');
     badgesEl.innerHTML = '';
+    permsEl.innerHTML = '';
     if (normalizeType(pkg.type) === 'flatpak') {
         pyApiCall('get_flatpak_meta', pkg.id).then(meta => {
             if (!meta || !Object.keys(meta).length) return;
             const parts = [];
+            if (meta.safety && meta.safety.level) {
+                parts.push(`<span class="meta-badge safety-${escapeHtml(meta.safety.level)}" title="Advisory — based on the permissions this app declares, not a guarantee">${escapeHtml(meta.safety.label || '')}</span>`);
+            }
             if (typeof meta.is_free === 'boolean') {
                 parts.push(meta.is_free
                     ? `<span class="meta-badge foss" title="${escapeHtml(meta.license || 'Free/open-source license')}">Open Source</span>`
@@ -1064,6 +1069,16 @@ function openDetailModal(pkg) {
                 parts.push(`<span class="meta-badge downloads" title="Installs in the last month (Flathub)">↓ ${meta.installs_last_month.toLocaleString()}/mo</span>`);
             }
             badgesEl.innerHTML = parts.join('');
+
+            const perms = meta.permissions || [];
+            if (perms.length) {
+                const rows = perms.map(p => `
+                    <li class="perm-item perm-${escapeHtml(p.level)}">
+                        <span class="perm-title">${escapeHtml(p.title)}</span>
+                        <span class="perm-detail">${escapeHtml(p.detail)}</span>
+                    </li>`).join('');
+                permsEl.innerHTML = `<div class="detail-section-title">Permissions <span class="perm-note">(declared sandbox access — advisory, not a guarantee)</span></div><ul class="perm-list">${rows}</ul>`;
+            }
         });
     }
 
