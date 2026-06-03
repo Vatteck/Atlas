@@ -61,4 +61,10 @@
 
 - **System-tray indicator (non-Qt)** — the legacy Qt tray was removed; a GTK/AppIndicator
   one could return (also on the STATUS.md roadmap).
-- **Container sandboxing ("Vault")** — aspirational, no design yet.
+- **Sandboxed AUR builds ("Vault")** — build AUR packages in a clean chroot
+  (`devtools`/`makechrootpkg`, like paru/aurutils) instead of on the host. Design note written:
+  [plans/2026-06-02-sandboxed-aur-builds.md](plans/2026-06-02-sandboxed-aur-builds.md) (not yet
+  implemented; needs sign-off). Honest scope: isolates the *build* + enforces dep correctness —
+  does **not** stop installing a malicious package (install scripts run as root). Pair with
+  PKGBUILD review. Atlas builds AUR itself via `makepkg`, so this swaps the build step behind a
+  config toggle (strangler-fig). Open question: worth the upkeep vs. lower-effort PKGBUILD-diff review?

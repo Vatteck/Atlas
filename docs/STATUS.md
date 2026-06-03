@@ -28,9 +28,13 @@ archlinux.org news since the last sync before a full upgrade) — see Done. Next
 
 Pulling from **[BACKLOG.md](BACKLOG.md)**. Near-term candidates:
 
-- ✅ **Arch safety net is done** — both the Update-All news gate and the `.pacnew` merge-assist
-  button shipped (see Done). The Arch safety-net theme is now complete.
-- **Exploratory:** container sandboxing ("Vault").
+- **AUR safety theme (in progress):** layered defense for AUR installs. ✅ Heuristic PKGBUILD
+  scanner *engine* landed (see Done). **Next increment:** wire it into the PKGBUILD review UI +
+  add a **diff-since-last-build** view (layer 1 — `git.diff` helper + last-built-commit lookup).
+  Later: **sandboxed chroot builds** (layer 3 —
+  [plans/2026-06-02-sandboxed-aur-builds.md](plans/2026-06-02-sandboxed-aur-builds.md)). Honest
+  framing throughout: these are *helpers*, not malware detection (don't auto-block / show "safe").
+- ✅ **Arch safety net (system-level) is done** — Update-All news gate + `.pacnew` merge-assist button.
 - Note: **keyboard shortcuts** and the **selection toolbar** backlog items already look largely
   shipped (shortcuts help button + batch install/uninstall bar) — confirm before re-picking.
 
@@ -55,6 +59,19 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **AUR safety — heuristic PKGBUILD scanner engine (2026-06-02):** first increment of the "AUR
+  safety" theme. New pure module `atlas/gems/arch/pkgbuild_audit.py` — `scan(text)` returns advisory
+  findings (`{line_no, line, rule, severity, why}`) for suspicious PKGBUILD/.install constructs:
+  pipe-to-shell, base64 (+ long base64 blobs, excluding hex checksums), eval, hex-escape runs,
+  network commands in the build, sensitive-path writes (ssh/dotfiles/sudoers/crontab/autostart),
+  setuid, sudo, and dangerous `rm -rf` (only on `~`/`$HOME`/absolute paths, **not** `$srcdir`).
+  AI-free, no network. **Explicitly a helper, not a verdict** (`DISCLAIMER` const) — must never
+  auto-block or show "safe". Tuned against false positives (benign PKGBUILD → 0 findings).
+  Tests: `tests/gems/arch/test_pkgbuild_audit.py` (14, incl. benign-lookalike non-firing cases).
+  **Not yet wired into the UI** — that's the next increment (diff view + flag annotations). Design:
+  [plans/2026-06-02-aur-pkgbuild-review.md](plans/2026-06-02-aur-pkgbuild-review.md). The chroot-build
+  layer is a separate design note ([plans/2026-06-02-sandboxed-aur-builds.md](plans/2026-06-02-sandboxed-aur-builds.md)),
+  not started.
 - **`.pacnew` merge assist (2026-06-02):** the `.pacnew`/`.pacsave` notice on the Updates view now
   has an **"Open pacdiff in a terminal"** button. Backend (`api.py`): `_find_terminal()` resolves an
   available emulator (honors `$TERMINAL`, then a curated list whose exec flag takes args separately:
