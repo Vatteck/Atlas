@@ -38,7 +38,8 @@ from atlas.commons.view_utils import new_select
 from atlas.gems.arch import aur, pacman, message, confirmation, disk, git, \
     gpg, URL_CATEGORIES_FILE, CATEGORIES_FILE_PATH, CUSTOM_MAKEPKG_FILE, \
     get_icon_path, database, mirrors, sorting, cpu_manager, UPDATES_IGNORED_FILE, \
-    ARCH_CONFIG_DIR, EDITABLE_PKGBUILDS_FILE, URL_GPG_SERVERS, rebuild_detector, makepkg, sshell, get_repo_icon_path
+    ARCH_CONFIG_DIR, EDITABLE_PKGBUILDS_FILE, URL_GPG_SERVERS, rebuild_detector, makepkg, sshell, get_repo_icon_path, \
+    pkgbuild_audit
 from atlas.gems.arch.aur import AURClient
 from atlas.gems.arch.config import get_build_dir, ArchConfigManager
 from atlas.gems.arch.confirmation import confirm_missing_deps
@@ -2060,6 +2061,44 @@ class ArchManager(SoftwareManager, SettingsController):
                                                  'description': 'pkgdesc'}.items():
                             setattr(context.pkg, pkgattr, srcinfo.get(srcattr, getattr(context.pkg, pkgattr)))
 
+    def _audit_pkgbuild(self, context: TransactionContext) -> bool:
+        """Heuristic scan of the PKGBUILD (+ .install scriptlets) before building. If anything
+        is flagged, show an advisory confirmation so the user can take a second look — even when
+        PKGBUILD editing is off. Returns False only if the user explicitly cancels.
+
+        This is a *helper, not a safety check* (see pkgbuild_audit.DISCLAIMER): it never blocks on
+        its own, can't read obfuscated payloads, and a clean result does not mean the package is safe.
+        """
+        if context.config.get('aur_check_pkgbuild') is False:
+            return True
+
+        import glob
+        paths = [f'{context.project_dir}/PKGBUILD'] + sorted(glob.glob(f'{context.project_dir}/*.install'))
+        findings = []
+        for path in paths:
+            try:
+                with open(path) as f:
+                    findings.extend(pkgbuild_audit.scan(f.read()))
+            except FileNotFoundError:
+                continue
+            except Exception as e:
+                self.logger.warning(f"Could not audit '{path}': {e}")
+
+        warns = [f for f in findings if f['severity'] == pkgbuild_audit.WARN]
+        if not warns:
+            return True
+
+        self.logger.info(f"PKGBUILD audit for '{context.name}' flagged {len(warns)} line(s)")
+        bullets = '\n'.join(f"• L{f['line_no']}: {f['why']}\n    {f['line'][:160]}" for f in warns[:20])
+        if len(warns) > 20:
+            bullets += f"\n• …and {len(warns) - 20} more"
+        body = (f"Atlas flagged {len(warns)} line(s) in {bold(context.name)}'s PKGBUILD worth a look "
+                f"before building:\n\n{bullets}\n\n{pkgbuild_audit.DISCLAIMER}\n\nBuild this package anyway?")
+
+        return context.watcher.request_confirmation(title='Review PKGBUILD', body=body,
+                                                    confirmation_label='Build anyway',
+                                                    deny_label='Cancel')
+
     def _read_srcinfo(self, context: TransactionContext) -> str:
         src_path = f'{context.project_dir}/.SRCINFO'
 
@@ -2077,6 +2116,11 @@ class ArchManager(SoftwareManager, SettingsController):
 
     def _build(self, context: TransactionContext) -> bool:
         self._edit_pkgbuild_and_update_context(context)
+
+        if not self._audit_pkgbuild(context):
+            context.watcher.print(f"Build of '{context.name}' cancelled after PKGBUILD review")
+            return False
+
         self._pre_download_source(context.name, context.project_dir, context.watcher)
         self._update_progress(context, 50)
 

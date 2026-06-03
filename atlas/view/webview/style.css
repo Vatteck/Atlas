@@ -974,6 +974,8 @@ body {
 .modal-close:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
 .modal-body { flex: 1; overflow-y: auto; padding: 24px; }
 .modal-description { color: var(--text-secondary); font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
+/* Preserve newlines in confirmation/message bodies (e.g. the multi-line PKGBUILD-audit advisory). */
+#confirm-message, #message-body { white-space: pre-wrap; }
 .detail-section h3 { font-size: 12px; font-weight: 600; text-transform: uppercase;
     letter-spacing: 0.08em; color: var(--text-secondary); margin-bottom: 12px; }
 .detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }

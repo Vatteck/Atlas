@@ -42,4 +42,5 @@ class ArchConfigManager(YAMLConfigManager):
                 'aur_rebuild_detector': False,
                 "aur_rebuild_detector_no_bin": True,
                 "prefer_repository_provider": True,
+                'aur_check_pkgbuild': True,  # heuristic PKGBUILD scan before building (advisory)
                 'suggestions_exp': 24}

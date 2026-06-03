@@ -68,7 +68,16 @@ re-add a native extension without a measured win. Details in the historical
   AI-free, no network. **Explicitly a helper, not a verdict** (`DISCLAIMER` const) — must never
   auto-block or show "safe". Tuned against false positives (benign PKGBUILD → 0 findings).
   Tests: `tests/gems/arch/test_pkgbuild_audit.py` (14, incl. benign-lookalike non-firing cases).
-  **Not yet wired into the UI** — that's the next increment (diff view + flag annotations). Design:
+  **Wired into the build flow (2026-06-02):** `ArchManager._audit_pkgbuild(context)` runs in `_build`
+  (after the edit step, before makepkg) and scans the PKGBUILD + `*.install`. If anything is flagged
+  it shows an **advisory `request_confirmation`** ("Build anyway?" / "Cancel") listing the lines +
+  the disclaimer — surfacing even when `edit_aur_pkgbuild` is off, so it helps the people who skip.
+  Silent (no prompt) when clean. Gated by new config `aur_check_pkgbuild` (default **True**); cancel
+  aborts the build. Added `white-space: pre-wrap` to `#confirm-message`/`#message-body` so the
+  multi-line advisory renders. Tests: `tests/gems/arch/test_pkgbuild_audit_gate.py` (6). **Behavior
+  change to AUR installs — needs a GUI eyeball** (flagged pkg → advisory appears; clean pkg → no
+  interruption). Still TODO: a Settings toggle for `aur_check_pkgbuild`, and the **diff-since-last-build**
+  view (layer 1). Design:
   [plans/2026-06-02-aur-pkgbuild-review.md](plans/2026-06-02-aur-pkgbuild-review.md). The chroot-build
   layer is a separate design note ([plans/2026-06-02-sandboxed-aur-builds.md](plans/2026-06-02-sandboxed-aur-builds.md)),
   not started.
