@@ -143,5 +143,47 @@ class GroupedTogglesTest(unittest.TestCase):
         self.assertTrue(next(i for i in feat['items'] if i['key'] == 'feature:devel')['enabled'])
 
 
+class FilesystemSectionTest(unittest.TestCase):
+    def test_parse_context_keeps_raw_modes(self):
+        ctx = perms.parse_context(SHOW_PERMS)
+        # filesystems_raw keeps the ':ro' that 'filesystems' strips
+        self.assertEqual({'xdg-download', 'xdg-pictures:ro', 'home'}, ctx['filesystems_raw'])
+
+    def test_filesystem_state_presets_reflect_grants_and_modes(self):
+        state = perms.filesystem_state(perms.parse_context(SHOW_PERMS))
+        by_name = {p['name']: p for p in state['presets']}
+        self.assertTrue(by_name['home']['enabled'])
+        self.assertEqual('rw', by_name['home']['mode'])
+        self.assertTrue(by_name['xdg-download']['enabled'])
+        self.assertTrue(by_name['xdg-pictures']['enabled'])
+        self.assertEqual('ro', by_name['xdg-pictures']['mode'])   # ':ro' carried through
+        self.assertFalse(by_name['host']['enabled'])              # not granted
+        self.assertEqual('rw', by_name['host']['mode'])           # default for ungranted
+        self.assertTrue(by_name['home']['risky'])                 # home is flagged risky
+        self.assertFalse(by_name['xdg-download']['risky'])
+
+    def test_filesystem_state_custom_paths(self):
+        # a non-preset path with a :create mode shows up under custom, not presets
+        ctx = perms.parse_context("[Context]\nfilesystems=home;/mnt/data:create;\n")
+        state = perms.filesystem_state(ctx)
+        self.assertEqual([{'name': '/mnt/data', 'mode': 'create'}], state['custom'])
+        self.assertTrue({p['name'] for p in state['presets']} >= {'home'})
+
+    def test_filesystem_state_empty(self):
+        state = perms.filesystem_state(perms.parse_context(''))
+        self.assertEqual([], state['custom'])
+        self.assertTrue(all(p['enabled'] is False for p in state['presets']))
+
+    def test_filesystem_flag(self):
+        self.assertEqual('--filesystem=home', perms.filesystem_flag('home', True, 'rw'))
+        self.assertEqual('--filesystem=home:ro', perms.filesystem_flag('home', True, 'ro'))
+        self.assertEqual('--filesystem=/mnt/x:create', perms.filesystem_flag('/mnt/x', True, 'create'))
+        self.assertEqual('--nofilesystem=home', perms.filesystem_flag('home', False, 'rw'))
+        self.assertEqual('--filesystem=home', perms.filesystem_flag('home', True, 'bogus'))  # unknown mode -> rw
+        self.assertEqual('--filesystem=home', perms.filesystem_flag('  home  ', True))       # trimmed
+        self.assertIsNone(perms.filesystem_flag('', True))
+        self.assertIsNone(perms.filesystem_flag('   ', True))
+
+
 if __name__ == '__main__':
     unittest.main()

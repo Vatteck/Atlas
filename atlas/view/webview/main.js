@@ -1075,16 +1075,90 @@ async function renderPermsDetail(appId) {
             <button class="btn btn-outline" id="perms-reset-all">Reset to defaults</button>
         </div>
         <p class="popup-note">Changes are saved as per-user overrides (no root needed) and take effect the next time the app starts.</p>
-        ${groups}`;
+        ${groups}
+        ${filesystemSectionHtml(data.filesystem || {})}`;
 
     el.querySelectorAll('input[data-perm-key]').forEach(cb => cb.addEventListener('change', async () => {
         const r = await pyApiCall('set_flatpak_override', appId, cb.getAttribute('data-perm-key'), cb.checked);
         if (r && r.status === 'ok') showToast('Permissions', 'Updated — effective next launch', 'success');
         else cb.checked = !cb.checked;
     }));
+    wireFilesystemHandlers(el, appId);
     document.getElementById('perms-reset-all').addEventListener('click', async () => {
         const r = await pyApiCall('reset_flatpak_overrides', appId);
         if (r && r.status === 'ok') { showToast('Permissions', 'Reset to defaults', 'success'); renderPermsDetail(appId); }
+    });
+}
+
+const FS_MODE_OPTS = [['rw', 'Read/write'], ['ro', 'Read-only'], ['create', 'Create']];
+function fsModeSelect(name, mode, disabled) {
+    const opts = FS_MODE_OPTS.map(([v, l]) => `<option value="${v}" ${mode === v ? 'selected' : ''}>${l}</option>`).join('');
+    return `<select class="fs-mode styled-select" data-fs-mode="${escapeHtml(name)}" ${disabled ? 'disabled' : ''}>${opts}</select>`;
+}
+
+function filesystemSectionHtml(fs) {
+    const presets = (fs.presets || []).map(p => `
+        <div class="perms-row" title="Folders the app can access">
+            <span class="perms-row-text">
+                <span class="perms-row-name ${p.risky ? 'risky' : ''}">${escapeHtml(p.label)}</span>
+                <span class="perms-row-flag">filesystem=${escapeHtml(p.name)}</span>
+            </span>
+            <span class="perms-fs-controls">
+                ${fsModeSelect(p.name, p.mode, !p.enabled)}
+                <span class="switch"><input type="checkbox" data-fs-toggle="${escapeHtml(p.name)}" ${p.enabled ? 'checked' : ''}><span class="switch-track"></span></span>
+            </span>
+        </div>`).join('');
+    const custom = (fs.custom || []).map(c => `
+        <div class="perms-row">
+            <span class="perms-row-text">
+                <span class="perms-row-name">${escapeHtml(c.name)}</span>
+                <span class="perms-row-flag">custom path</span>
+            </span>
+            <span class="perms-fs-controls">
+                ${fsModeSelect(c.name, c.mode, false)}
+                <button class="btn-icon" data-fs-remove="${escapeHtml(c.name)}" title="Remove">✕</button>
+            </span>
+        </div>`).join('');
+    return `
+        <div class="perms-group">
+            <div class="perms-group-head"><h3>Filesystem</h3><p>Folders and paths the app can access</p></div>
+            <div class="perms-rows">${presets}${custom}</div>
+            <div class="perms-fs-add">
+                <input type="text" id="fs-add-input" class="styled-input" placeholder="A path, e.g. ~/Projects or /mnt/data">
+                ${fsModeSelect('', 'rw', false).replace('data-fs-mode=""', 'id="fs-add-mode"')}
+                <button class="btn btn-outline" id="fs-add-btn">Add path</button>
+            </div>
+        </div>`;
+}
+
+function wireFilesystemHandlers(el, appId) {
+    const apply = async (name, enabled, mode, rerender) => {
+        const r = await pyApiCall('set_flatpak_filesystem', appId, name, enabled, mode || 'rw');
+        if (r && r.status === 'ok') {
+            showToast('Permissions', 'Updated — effective next launch', 'success');
+            if (rerender) renderPermsDetail(appId);
+            return true;
+        }
+        return false;
+    };
+    el.querySelectorAll('input[data-fs-toggle]').forEach(cb => cb.addEventListener('change', async () => {
+        const name = cb.getAttribute('data-fs-toggle');
+        const sel = el.querySelector(`select[data-fs-mode="${CSS.escape(name)}"]`);
+        const ok = await apply(name, cb.checked, sel ? sel.value : 'rw', true);
+        if (!ok) cb.checked = !cb.checked;
+    }));
+    el.querySelectorAll('select[data-fs-mode]').forEach(sel => sel.addEventListener('change', () => {
+        const name = sel.getAttribute('data-fs-mode');
+        if (name) apply(name, true, sel.value, false);  // only meaningful when the entry is enabled
+    }));
+    el.querySelectorAll('button[data-fs-remove]').forEach(btn => btn.addEventListener('click', () =>
+        apply(btn.getAttribute('data-fs-remove'), false, 'rw', true)));
+    const addBtn = el.querySelector('#fs-add-btn');
+    if (addBtn) addBtn.addEventListener('click', () => {
+        const input = el.querySelector('#fs-add-input');
+        const mode = el.querySelector('#fs-add-mode');
+        const path = (input.value || '').trim();
+        if (path) apply(path, true, mode ? mode.value : 'rw', true);
     });
 }
 

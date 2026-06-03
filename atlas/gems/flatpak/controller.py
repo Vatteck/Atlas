@@ -419,10 +419,21 @@ class FlatpakManager(SoftwareManager, SettingsController):
         """Full Flatseal-style grouped permission toggles for an installed Flatpak (for the
         dedicated Permissions page)."""
         if not pkg.installed or not pkg.id:
-            return {'editable': False, 'groups': []}
+            return {'editable': False, 'groups': [], 'filesystem': {'presets': [], 'custom': []}}
         out = flatpak.show_permissions(pkg.id, pkg.branch or '', pkg.installation)
         context = permissions.parse_context(out or '')
-        return {'editable': True, 'groups': permissions.grouped_toggles(context)}
+        return {'editable': True, 'groups': permissions.grouped_toggles(context),
+                'filesystem': permissions.filesystem_state(context)}
+
+    def set_filesystem_permission(self, pkg: FlatpakApplication, name: str, enabled: bool, mode: str = 'rw') -> bool:
+        """Add/remove/re-mode a filesystem override (`--filesystem=<name>[:mode]` / `--nofilesystem`)."""
+        flag = permissions.filesystem_flag(name, enabled, mode)
+        if not flag or not pkg.id:
+            return False
+        ok, err = flatpak.set_override(pkg.id, flag)
+        if not ok:
+            self.logger.warning(f"flatpak override {flag} {pkg.id} failed: {err}")
+        return ok
 
     def set_permission(self, pkg: FlatpakApplication, key: str, enabled: bool) -> bool:
         """Apply one toggle via `flatpak override --user` (no root). Returns success."""

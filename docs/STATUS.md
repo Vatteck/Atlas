@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §8). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-02 (starting system-tray indicator)
+**Last updated:** 2026-06-03 (Flatpak Permissions page — filesystem section)
 **Version:** 0.10.7
 **Working branch:** `master` (use short-lived branches for larger features; run `git branch` to see what's active)
 
@@ -59,6 +59,19 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Flatpak Permissions page — Flatseal-grade, increment 2: Filesystem (2026-06-03):** the
+  Permissions page now has a **Filesystem** section — predefined dir toggles (host / host-os /
+  host-etc / home + the `xdg-*` dirs), each with a per-row access **mode** (read/write, read-only,
+  create), plus **custom-path add/remove**. Backend: `parse_context` keeps `filesystems_raw`
+  (mode-bearing tokens) alongside the stripped set; `filesystem_state()` splits grants into
+  presets vs custom; `filesystem_flag(name, enabled, mode)` → `--filesystem=X[:mode]` /
+  `--nofilesystem=X`; `set_filesystem_permission` / `AtlasApi.set_flatpak_filesystem` glue.
+  **Bug fixed along the way:** `flatpak.show_permissions` built `... <app> --None` when the
+  installation arg was unset (the webview path always passes it unset), so it returned nothing —
+  the grouped page *and* the in-modal editor were silently empty for installed apps. Now it
+  appends branch/installation only when present. Tests: `test_permissions.py` now 24 (+6 for
+  filesystem). Live-verified against Flatseal & Discord. Remaining: (3) Bus/Env/Persist dynamic
+  lists. **Needs a GUI eyeball** (filesystem toggles + mode selects + add-path).
 - **Dedicated Flatpak Permissions page — Flatseal-grade, increment 1 (2026-06-03):** a new
   **Permissions** sidebar page, **master/detail**: installed-Flatpak list (reuses `get_installed`,
   filtered to flatpak) → the selected app's permissions grouped (Share / Socket / Device / Features),

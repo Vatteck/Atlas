@@ -172,6 +172,7 @@ def parse_context(show_permissions_output: str) -> Dict[str, set]:
     (filesystem `:ro`/`:rw` access modes stripped)."""
     cats = {c[0]: set() for c in _CATEGORIES.values()}  # shared/sockets/devices/features/filesystems
     cats['persistent'] = set()
+    cats['filesystems_raw'] = set()   # filesystem tokens WITH their :ro/:create access mode kept
     in_context = False
     for raw in (show_permissions_output or '').splitlines():
         line = raw.strip()
@@ -186,7 +187,11 @@ def parse_context(show_permissions_output: str) -> Dict[str, set]:
             for tok in val.split(';'):
                 tok = tok.strip()
                 if tok:
-                    cats[key].add(tok.split(':', 1)[0] if key == 'filesystems' else tok)
+                    if key == 'filesystems':
+                        cats['filesystems'].add(tok.split(':', 1)[0])
+                        cats['filesystems_raw'].add(tok)
+                    else:
+                        cats[key].add(tok)
     return cats
 
 
@@ -216,6 +221,64 @@ def override_flag(key: str, enabled: bool) -> Optional[str]:
     if not spec or not value:
         return None
     return (spec[1] if enabled else spec[2]) + value
+
+
+# --- filesystem section (predefined dirs + custom paths, with access modes) ------------------
+FS_MODES = ('rw', 'ro', 'create')  # read-write (default), read-only, read-write+create
+
+# Predefined filesystem entries (name, label, risky).
+FS_PRESETS = [
+    ('host', 'All system files', True),
+    ('host-os', 'All system libraries & executables', True),
+    ('host-etc', 'All system configuration', True),
+    ('home', 'All user files', True),
+    ('xdg-desktop', 'Desktop', False),
+    ('xdg-documents', 'Documents', False),
+    ('xdg-download', 'Downloads', False),
+    ('xdg-music', 'Music', False),
+    ('xdg-pictures', 'Pictures', False),
+    ('xdg-videos', 'Videos', False),
+    ('xdg-public-share', 'Public share', False),
+    ('xdg-templates', 'Templates', False),
+    ('xdg-config', 'Config', True),
+    ('xdg-cache', 'Cache', False),
+    ('xdg-data', 'Data', False),
+    ('xdg-run', 'Runtime', False),
+]
+_FS_PRESET_NAMES = {p[0] for p in FS_PRESETS}
+
+
+def _fs_mode(token: str) -> str:
+    """Access mode of a filesystem token ('home', 'home:ro', '/foo:create') — defaults to rw."""
+    if ':' in token:
+        mode = token.rsplit(':', 1)[1]
+        if mode in ('ro', 'create'):
+            return mode
+    return 'rw'
+
+
+def filesystem_state(context: Dict[str, set]) -> Dict:
+    """Filesystem section state: predefined dir toggles (+ mode) and any custom paths."""
+    by_name = {}
+    for tok in (context.get('filesystems_raw') or set()):
+        by_name[tok.split(':', 1)[0]] = _fs_mode(tok)
+    presets = [{'name': name, 'label': label, 'risky': risky,
+                'enabled': name in by_name, 'mode': by_name.get(name, 'rw')}
+               for (name, label, risky) in FS_PRESETS]
+    custom = sorted(({'name': n, 'mode': m} for n, m in by_name.items() if n not in _FS_PRESET_NAMES),
+                    key=lambda c: c['name'])
+    return {'presets': presets, 'custom': custom}
+
+
+def filesystem_flag(name: str, enabled: bool, mode: str = 'rw') -> Optional[str]:
+    """`flatpak override --user` flag for a filesystem entry. None for an empty name."""
+    name = (name or '').strip()
+    if not name:
+        return None
+    if not enabled:
+        return f'--nofilesystem={name}'
+    suffix = '' if mode not in ('ro', 'create') else f':{mode}'
+    return f'--filesystem={name}{suffix}'
 
 
 def safety(perms: Optional[Dict], is_free: bool = True) -> Dict:

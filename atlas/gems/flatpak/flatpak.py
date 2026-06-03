@@ -86,8 +86,12 @@ def get_app_info(app_id: str, branch: str, installation: str) -> Optional[str]:
 
 def show_permissions(app_id: str, branch: str, installation: str) -> Optional[str]:
     """`flatpak info --show-permissions` — the app's effective [Context] (incl. existing overrides)."""
-    return run_cmd(f'flatpak info --show-permissions {app_id} {branch} --{installation}',
-                   ignore_return_code=True, print_error=False)
+    cmd = f'flatpak info --show-permissions {app_id}'
+    if branch:
+        cmd += f' {branch}'
+    if installation:  # None/'' when the webview didn't resolve it — bare '--None' is an invalid flag
+        cmd += f' --{installation}'
+    return run_cmd(cmd, ignore_return_code=True, print_error=False)
 
 
 def set_override(app_id: str, flag: str) -> Tuple[bool, str]:

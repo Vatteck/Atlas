@@ -44,7 +44,16 @@ filesystems/features/persistent), `[Session Bus Policy]`, `[System Bus Policy]`,
    generic over `"<category>:<value>"` keys (`--allow/--disallow` for features). Modal quick-editor
    refactored onto the same scheme (kept). Decisions: master/detail, iOS switches, keep both editors.
    Tests: `test_permissions.py` (18). Live-verified grouped output (Discord). **Needs a GUI eyeball.**
-2. **Filesystem section**: predefined dir toggles + custom-path add/remove + ro/rw mode.
+2. ~~**Filesystem section**~~ ✅ **Done (2026-06-03).** Predefined dir toggles (host/host-os/host-etc/
+   home + the `xdg-*` dirs) each with a per-row access mode (rw/ro/create), plus custom-path
+   add/remove. Backend: `parse_context` now keeps `filesystems_raw` (mode-bearing tokens) alongside
+   the stripped `filesystems`; `filesystem_state()` splits grants into presets vs custom;
+   `filesystem_flag(name, enabled, mode)` → `--filesystem=X[:mode]` / `--nofilesystem=X`;
+   `set_filesystem_permission`/`set_flatpak_filesystem` glue. **Fixed a real bug**: `show_permissions`
+   built `flatpak info --show-permissions <app> --None` when `installation` was unset (webview path),
+   so it returned nothing — the grouped page *and* in-modal editor were silently empty for many
+   installed apps. Now appends branch/installation only when present. Tests: +6 (filesystem_state,
+   filesystem_flag, filesystems_raw). Live-verified against Flatseal & Discord.
 3. **Bus (talk/own) + Environment + Persist**: dynamic add/remove lists (parse the bus/env sections;
    `--talk-name`/`--no-talk-name`, `--env`, `--persist`).
 

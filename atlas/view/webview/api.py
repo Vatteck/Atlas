@@ -1119,6 +1119,18 @@ class AtlasApi:
             self.logger.error(f"set_flatpak_override failed: {e}")
             return {'status': 'error', 'message': str(e)}
 
+    def set_flatpak_filesystem(self, pkg_id: str, name: str, enabled: bool, mode: str = 'rw') -> dict:
+        """Add/remove/re-mode a filesystem override for an installed Flatpak (no root)."""
+        try:
+            pkg, man = self._flatpak_pkg_and_manager(pkg_id)
+            if not man or not hasattr(man, 'set_filesystem_permission'):
+                return {'status': 'error', 'message': 'Not a Flatpak package'}
+            ok = man.set_filesystem_permission(pkg, name, bool(enabled), mode or 'rw')
+            return {'status': 'ok'} if ok else {'status': 'error', 'message': 'Could not apply the filesystem change'}
+        except Exception as e:
+            self.logger.error(f"set_flatpak_filesystem failed: {e}")
+            return {'status': 'error', 'message': str(e)}
+
     def reset_flatpak_overrides(self, pkg_id: str) -> dict:
         """Clear all user permission overrides for an installed Flatpak."""
         try:
