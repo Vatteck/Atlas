@@ -406,6 +406,28 @@ class FlatpakManager(SoftwareManager, SettingsController):
             badges['safety'] = permissions.safety(perms, is_free=is_free)
         return badges
 
+    def get_permission_toggles(self, pkg: FlatpakApplication) -> dict:
+        """Editable permission toggles for an INSTALLED Flatpak (Flatseal-style). Reads the effective
+        [Context] via `flatpak info --show-permissions`. Empty/editable=False for non-installed."""
+        if not pkg.installed or not pkg.id:
+            return {'editable': False, 'toggles': []}
+        out = flatpak.show_permissions(pkg.id, pkg.branch or '', pkg.installation)
+        context = permissions.parse_context(out or '')
+        return {'editable': True, 'toggles': permissions.editable_toggles(context)}
+
+    def set_permission(self, pkg: FlatpakApplication, key: str, enabled: bool) -> bool:
+        """Apply one toggle via `flatpak override --user` (no root). Returns success."""
+        flag = permissions.override_flag(key, enabled)
+        if not flag or not pkg.id:
+            return False
+        ok, err = flatpak.set_override(pkg.id, flag)
+        if not ok:
+            self.logger.warning(f"flatpak override {flag} {pkg.id} failed: {err}")
+        return ok
+
+    def reset_permissions(self, pkg: FlatpakApplication) -> bool:
+        return bool(pkg.id) and flatpak.reset_overrides(pkg.id)
+
     def get_history(self, pkg: FlatpakApplication, full_commit_str: bool = False) -> PackageHistory:
         pkg.commit = flatpak.get_commit(pkg.id, pkg.branch, pkg.installation)
         pkg_commit = pkg.commit if pkg.commit else None

@@ -81,7 +81,17 @@ re-add a native extension without a measured win. Details in the historical
   click-triggered popup — the **safety badge** (now `… ⓘ`) opens the color-coded permission
   breakdown, and the **license badge** opens a FOSS-vs-proprietary explanation + the SPDX license.
   Generic `#info-popup` modal (z-index 400, above the detail modal) + `showInfoPopup()`; frontend-only.
-  Next: #4 Flatseal-style editing.
+  (Verified/unverified badge is clickable too, explaining Flathub verification — e.g. why Spotify is
+  "unverified": community-packaged, not vendor-published.) **Increment 4 — Flatseal-style permission
+  editing (2026-06-03, theme complete):** "⚙ Manage permissions" on installed Flatpaks opens a toggle
+  editor (network, X11, Wayland, audio, all-devices, home, host). State read via `flatpak info
+  --show-permissions` (`permissions.parse_context`/`editable_toggles`); each toggle applies via
+  `flatpak override --user` (**no root**, `override_flag` maps key→flag); reset via `--reset`. Backend:
+  `flatpak.{show_permissions,set_override,reset_overrides}` → `FlatpakManager.{get_permission_toggles,
+  set_permission,reset_permissions}` → `AtlasApi.{get,set,reset}_flatpak_override(s)`. Toggles revert on
+  failure, effective next launch. Live-verified parsing (Discord). Tests: `test_permissions.py` (now 15).
+  **The Flatpak transparency & control theme is now complete** (metadata badges → permissions+safety →
+  click-popups → editing). **Needs a GUI eyeball** (toggling writes the override file).
   Plan: [plans/2026-06-03-flatpak-transparency.md](plans/2026-06-03-flatpak-transparency.md).
   **Needs a GUI eyeball** (open a Flatpak's detail → badges + permissions).
 - **Fix: installed AUR-only packages mislabeled as official-repo ("Arch") (2026-06-03):** a

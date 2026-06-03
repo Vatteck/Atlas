@@ -1020,6 +1020,41 @@ document.getElementById('info-popup-close').addEventListener('click', closeInfoP
 document.querySelector('#info-popup .modal-backdrop').addEventListener('click', closeInfoPopup);
 document.getElementById('info-popup').addEventListener('keydown', (e) => { if (e.key === 'Escape') closeInfoPopup(); });
 
+// Flatseal-style permission editor (installed Flatpaks). Toggles apply immediately via
+// `flatpak override --user` (no root); effective on next launch.
+async function openPermissionsEditor(pkg) {
+    const data = await pyApiCall('get_flatpak_overrides', pkg.id);
+    if (!data || !data.editable || !(data.toggles || []).length) {
+        showToast('Permissions', 'Permission editing is only available for installed Flatpaks', 'info');
+        return;
+    }
+    const rows = data.toggles.map(t => `
+        <label class="perm-toggle">
+            <span class="perm-toggle-label ${t.risky ? 'risky' : ''}">${escapeHtml(t.label)}</span>
+            <input type="checkbox" data-perm-key="${escapeHtml(t.key)}" ${t.enabled ? 'checked' : ''}>
+        </label>`).join('');
+    showInfoPopup('Manage permissions', `
+        <p class="popup-note">Toggle what <strong>${escapeHtml(pkg.name)}</strong> can access. Changes are saved as per-user overrides (no root needed) and take effect the next time the app starts.</p>
+        <div class="perm-toggles">${rows}</div>
+        <div class="settings-actions"><button class="btn btn-outline" id="perms-reset-btn">Reset to defaults</button></div>`);
+
+    document.querySelectorAll('#info-popup-body input[data-perm-key]').forEach(cb => {
+        cb.addEventListener('change', async () => {
+            const r = await pyApiCall('set_flatpak_override', pkg.id, cb.getAttribute('data-perm-key'), cb.checked);
+            if (r && r.status === 'ok') {
+                showToast('Permissions', 'Updated — effective next launch', 'success');
+            } else {
+                cb.checked = !cb.checked;  // revert (pyApiCall already surfaced the error)
+            }
+        });
+    });
+    const resetBtn = document.getElementById('perms-reset-btn');
+    if (resetBtn) resetBtn.addEventListener('click', async () => {
+        const r = await pyApiCall('reset_flatpak_overrides', pkg.id);
+        if (r && r.status === 'ok') { showToast('Permissions', 'Reset to defaults', 'success'); openPermissionsEditor(pkg); }
+    });
+}
+
 function permissionsPopupHtml(meta) {
     const rows = (meta.permissions || []).map(p => `
         <li class="perm-item perm-${escapeHtml(p.level)}">
@@ -1122,6 +1157,15 @@ function openDetailModal(pkg) {
                 verifiedBadge.addEventListener('click', () => showInfoPopup(meta.verified ? 'Verified developer' : 'Unverified', verificationPopupHtml(meta)));
             }
         });
+    }
+
+    // Manage-permissions entry point (installed Flatpaks only; uses flatpak info/override, so it
+    // works even for apps not on Flathub — independent of the badges above).
+    const permActionEl = document.getElementById('detail-perms-action');
+    permActionEl.innerHTML = '';
+    if (normalizeType(pkg.type) === 'flatpak' && pkg.installed) {
+        permActionEl.innerHTML = `<button class="btn btn-outline" id="manage-perms-btn">⚙ Manage permissions</button>`;
+        document.getElementById('manage-perms-btn').addEventListener('click', () => openPermissionsEditor(pkg));
     }
 
     // Rich detail extras (read-only): screenshots for Flatpak/AppImage and version history.

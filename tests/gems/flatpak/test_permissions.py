@@ -70,5 +70,49 @@ class SafetyTest(unittest.TestCase):
         self.assertEqual('safe', perms.safety({}, is_free=True)['level'])
 
 
+# Real `flatpak info --show-permissions` output (Discord).
+SHOW_PERMS = """\
+[Context]
+shared=network;ipc;
+sockets=x11;wayland;pulseaudio;pcsc;
+devices=all;
+filesystems=xdg-download;xdg-pictures:ro;home;
+
+[Session Bus Policy]
+org.kde.StatusNotifierWatcher=talk
+"""
+
+
+class EditableTogglesTest(unittest.TestCase):
+    def test_parse_context_strips_modes_and_sections(self):
+        ctx = perms.parse_context(SHOW_PERMS)
+        self.assertEqual({'network', 'ipc'}, ctx['shared'])
+        self.assertEqual({'x11', 'wayland', 'pulseaudio', 'pcsc'}, ctx['sockets'])
+        self.assertEqual({'all'}, ctx['devices'])
+        self.assertIn('home', ctx['filesystems'])
+        self.assertIn('xdg-pictures', ctx['filesystems'])  # ':ro' stripped
+        # Session Bus Policy lines are not mistaken for context entries
+        self.assertNotIn('org.kde.StatusNotifierWatcher', ctx['shared'])
+
+    def test_editable_toggles_reflect_state(self):
+        states = {t['key']: t['enabled'] for t in perms.editable_toggles(perms.parse_context(SHOW_PERMS))}
+        self.assertTrue(states['network'])
+        self.assertTrue(states['x11'])
+        self.assertTrue(states['devices'])
+        self.assertTrue(states['home'])
+        self.assertFalse(states['host'])   # not granted
+
+    def test_editable_toggles_all_off_for_empty(self):
+        states = {t['key']: t['enabled'] for t in perms.editable_toggles(perms.parse_context(''))}
+        self.assertTrue(all(v is False for v in states.values()))
+
+    def test_override_flag_mapping(self):
+        self.assertEqual('--unshare=network', perms.override_flag('network', False))
+        self.assertEqual('--share=network', perms.override_flag('network', True))
+        self.assertEqual('--nosocket=x11', perms.override_flag('x11', False))
+        self.assertEqual('--nofilesystem=host', perms.override_flag('host', False))
+        self.assertIsNone(perms.override_flag('bogus', True))
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -42,9 +42,16 @@ except stats:
    "Potentially unsafe"). **Advisory only** (describes *declared* permissions, not behavior — never
    "safe to trust"). Heavily unit-tested. Wired into `get_flathub_metadata` (one extra summary fetch)
    → detail modal: a safety badge in the badges row + a permissions list section.
-4. **Permission editing (Flatseal-style):** toggle grid → `flatpak override --user <id> --…`
-   (overrides in `~/.local/share/flatpak/overrides/`), with a reset. Privileged? `--user` needs no
-   root; `--system` would. The bulk of the UI work.
+4. ~~**Permission editing (Flatseal-style)**~~ ✅ **Done (2026-06-03).** "⚙ Manage permissions" on
+   installed Flatpaks opens a toggle editor (curated high-impact set: network, X11, Wayland, audio,
+   all-devices, home, host). Reads current state from `flatpak info --show-permissions`
+   (`permissions.parse_context` + `editable_toggles`); each toggle applies immediately via
+   `flatpak override --user <flag> <id>` (**no root**) — `permissions.override_flag` maps key→flag.
+   Reset = `flatpak override --user --reset`. `flatpak.{show_permissions,set_override,reset_overrides}`
+   + `FlatpakManager.{get_permission_toggles,set_permission,reset_permissions}` +
+   `AtlasApi.{get_flatpak_overrides,set_flatpak_override,reset_flatpak_overrides}`. Toggles revert on
+   failure; effective next launch. Tests: `test_permissions.py` (+4). **Needs a GUI eyeball** (toggling
+   actually changes the override file).
 
 ## Notes / out of scope
 

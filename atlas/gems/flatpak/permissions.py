@@ -101,6 +101,65 @@ def describe(perms: Optional[Dict], is_free: bool = True) -> List[Dict]:
 _LABELS = {'unsafe': 'Potentially unsafe', 'moderate': 'Limited sandbox', 'safe': 'Sandboxed'}
 
 
+# --- editable overrides (Flatseal-style) -----------------------------------------------------
+# A curated set of high-impact toggles. Each maps a key to the [Context] category+token used to
+# read its current state, and the `flatpak override --user` flags to turn it on/off.
+EDITABLE = [
+    {'key': 'network', 'label': 'Network access', 'category': 'shared', 'token': 'network',
+     'on': '--share=network', 'off': '--unshare=network', 'risky': True},
+    {'key': 'x11', 'label': 'Legacy windowing (X11)', 'category': 'sockets', 'token': 'x11',
+     'on': '--socket=x11', 'off': '--nosocket=x11', 'risky': True},
+    {'key': 'wayland', 'label': 'Wayland windowing', 'category': 'sockets', 'token': 'wayland',
+     'on': '--socket=wayland', 'off': '--nosocket=wayland', 'risky': False},
+    {'key': 'audio', 'label': 'Audio & microphone', 'category': 'sockets', 'token': 'pulseaudio',
+     'on': '--socket=pulseaudio', 'off': '--nosocket=pulseaudio', 'risky': True},
+    {'key': 'devices', 'label': 'All devices (webcam, etc.)', 'category': 'devices', 'token': 'all',
+     'on': '--device=all', 'off': '--nodevice=all', 'risky': True},
+    {'key': 'home', 'label': 'Home folder', 'category': 'filesystems', 'token': 'home',
+     'on': '--filesystem=home', 'off': '--nofilesystem=home', 'risky': True},
+    {'key': 'host', 'label': 'All system files', 'category': 'filesystems', 'token': 'host',
+     'on': '--filesystem=host', 'off': '--nofilesystem=host', 'risky': True},
+]
+_EDITABLE_BY_KEY = {t['key']: t for t in EDITABLE}
+
+
+def parse_context(show_permissions_output: str) -> Dict[str, set]:
+    """Parse `flatpak info --show-permissions` [Context] into {shared, sockets, devices,
+    filesystems} sets (filesystem `:ro`/`:rw` access modes stripped)."""
+    cats = {'shared': set(), 'sockets': set(), 'devices': set(), 'filesystems': set()}
+    in_context = False
+    for raw in (show_permissions_output or '').splitlines():
+        line = raw.strip()
+        if line.startswith('['):
+            in_context = line == '[Context]'
+            continue
+        if not in_context or '=' not in line:
+            continue
+        key, _, val = line.partition('=')
+        key = key.strip()
+        if key in cats:
+            for tok in val.split(';'):
+                tok = tok.strip()
+                if tok:
+                    cats[key].add(tok.split(':', 1)[0] if key == 'filesystems' else tok)
+    return cats
+
+
+def editable_toggles(context: Dict[str, set]) -> List[Dict]:
+    """Current on/off state of each editable toggle, from a parsed [Context]."""
+    return [{'key': t['key'], 'label': t['label'], 'risky': t['risky'],
+             'enabled': t['token'] in (context.get(t['category']) or set())}
+            for t in EDITABLE]
+
+
+def override_flag(key: str, enabled: bool) -> Optional[str]:
+    """The `flatpak override --user` flag to set a toggle on/off, or None for an unknown key."""
+    spec = _EDITABLE_BY_KEY.get(key)
+    if not spec:
+        return None
+    return spec['on'] if enabled else spec['off']
+
+
 def safety(perms: Optional[Dict], is_free: bool = True) -> Dict:
     """Advisory overall tier from the permission set + license. unsafe > moderate > safe."""
     items = describe(perms, is_free)

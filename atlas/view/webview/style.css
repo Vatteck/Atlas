@@ -1900,6 +1900,15 @@ body {
 .popup-note { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin: 0 0 14px; }
 .popup-note code { background: rgba(127,127,127,0.15); border-radius: 4px; padding: 1px 5px; }
 
+/* Flatpak permission editor (toggles) */
+#detail-perms-action { margin-top: 12px; }
+#detail-perms-action:empty { display: none; }
+.perm-toggles { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+.perm-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 4px; }
+.perm-toggle-label { font-size: 14px; color: var(--text-primary); }
+.perm-toggle-label.risky::before { content: '⚠ '; color: #d97706; }
+.perm-toggle input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; }
+
 /* Flatpak permissions list */
 .perm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .perm-item { display: flex; flex-direction: column; gap: 1px; padding: 8px 12px; border-radius: var(--radius-md, 8px); border-left: 3px solid var(--border-color); background: var(--bg-surface); }

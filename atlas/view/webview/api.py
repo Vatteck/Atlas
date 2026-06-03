@@ -1072,6 +1072,54 @@ class AtlasApi:
             self.logger.error(f"get_flatpak_meta failed: {e}")
             return {'status': 'ok', 'data': {}}
 
+    def _flatpak_pkg_and_manager(self, pkg_id: str):
+        """(pkg, flatpak_manager) for an installed Flatpak, else (None, None)."""
+        pkg = self._get_pkg(pkg_id)
+        try:
+            ptype = str(pkg.get_type() or '').lower()
+        except Exception:
+            ptype = ''
+        if pkg is None or ptype != 'flatpak':
+            return None, None
+        man = self._manager_by_gem('flatpak')
+        return (pkg, man) if man is not None else (None, None)
+
+    def get_flatpak_overrides(self, pkg_id: str) -> dict:
+        """Editable Flatseal-style permission toggles for an installed Flatpak. Non-installed /
+        non-Flatpak → editable:false."""
+        try:
+            pkg, man = self._flatpak_pkg_and_manager(pkg_id)
+            if not man or not hasattr(man, 'get_permission_toggles'):
+                return {'status': 'ok', 'data': {'editable': False, 'toggles': []}}
+            return {'status': 'ok', 'data': man.get_permission_toggles(pkg)}
+        except Exception as e:
+            self.logger.error(f"get_flatpak_overrides failed: {e}")
+            return {'status': 'ok', 'data': {'editable': False, 'toggles': []}}
+
+    def set_flatpak_override(self, pkg_id: str, key: str, enabled: bool) -> dict:
+        """Toggle one permission via `flatpak override --user` (no root)."""
+        try:
+            pkg, man = self._flatpak_pkg_and_manager(pkg_id)
+            if not man:
+                return {'status': 'error', 'message': 'Not a Flatpak package'}
+            ok = man.set_permission(pkg, key, bool(enabled))
+            return {'status': 'ok'} if ok else {'status': 'error', 'message': 'Could not apply the permission change'}
+        except Exception as e:
+            self.logger.error(f"set_flatpak_override failed: {e}")
+            return {'status': 'error', 'message': str(e)}
+
+    def reset_flatpak_overrides(self, pkg_id: str) -> dict:
+        """Clear all user permission overrides for an installed Flatpak."""
+        try:
+            pkg, man = self._flatpak_pkg_and_manager(pkg_id)
+            if not man:
+                return {'status': 'error', 'message': 'Not a Flatpak package'}
+            ok = man.reset_permissions(pkg)
+            return {'status': 'ok'} if ok else {'status': 'error', 'message': 'Could not reset permissions'}
+        except Exception as e:
+            self.logger.error(f"reset_flatpak_overrides failed: {e}")
+            return {'status': 'error', 'message': str(e)}
+
     def get_screenshots(self, pkg_id: str) -> dict:
         """Screenshot URLs for the detail modal (Flatpak/AppImage have them; Arch doesn't).
         Returns {status, data:[url, ...]}; an empty list is a valid 'ok' result."""
