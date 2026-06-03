@@ -5,7 +5,7 @@
 > pull from. Move an item to a `docs/plans/` doc when it gets picked up, and note the
 > outcome in STATUS.md when it ships.
 
-**Last updated:** 2026-06-01
+**Last updated:** 2026-06-03
 
 ---
 
@@ -46,6 +46,31 @@
   `pacman -Sl` + one batched `pacman -Si`, no AUR/network).
   - *Follow-ups:* sort-within-category (overlaps the Sort dropdown item); AUR/Flatpak
     categories would need each gem's own category source.
+
+## Flatpak transparency & control (a "Flatseal + Flathub-info" theme)
+
+Flatpak is a first-class source; these enrich its detail view + add control. Two linked ideas —
+the **safety tier bridges them** (it's *derived* from permissions, not a field). Reality-checked
+2026-06-03; all data is reachable (Flathub v2 API — already integrated in `flathub.py` — plus
+`flatpak info`/`override` CLI). Flatpak-only; metadata completeness varies (graceful fallback).
+
+- **Rich Flatpak metadata in the detail view** (like Flathub/GNOME Software):
+  - **License → Open Source vs Proprietary:** already fetched (`flathub.py` maps `project_license`);
+    just classify the SPDX id (FOSS vs proprietary) + show a badge. *Easy.*
+  - **Verified developer badge:** Flathub exposes a verification flag (API) — add a fetch. *Easy.*
+  - **Age rating (OARS, e.g. "3+"):** `content_rating` is in the AppStream payload we already pull —
+    map it. *Easy.*
+  - **Downloads/month:** Flathub stats API (`/api/v2/stats/<id>`) — add a fetch. *Easy.*
+  - **"Desktop only" / form factor:** from AppStream metadata — fuzzier, optional.
+- **Permission management (Flatseal-style):** read perms via `flatpak info --show-permissions <id>`
+  (+ static manifest), read/write **user overrides** via `flatpak override --user …` (stored in
+  `~/.local/share/flatpak/overrides/`). Backend is easy CLI-wrapping; the work is the UI (a toggle
+  grid: filesystem, sockets X11/wayland/network, devices, dbus, env). Value vs Flatseal = integrated,
+  no separate app. We read **no** permissions today (`flatpak.py` only runs `flatpak info`).
+- **Derived safety tier ("Safe / Probably safe / Potentially unsafe"):** the bridge — GNOME Software
+  computes this from the permission set (broad filesystem/device/socket access, no sandbox) +
+  proprietary license. Implement as a heuristic over the permissions read above. **Advisory, not a
+  verdict** — same framing as the PKGBUILD scanner (never "this is safe/unsafe", just a signal).
 
 ## Lighter QoL
 
