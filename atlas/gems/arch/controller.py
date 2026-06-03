@@ -116,6 +116,9 @@ class TransactionContext:
         self.last_modified = last_modified
         self.commit = commit
         self.update_aur_index = update_aur_index
+        # Shared (per-transaction) dir holding already-built AUR packages, for `makechrootpkg -I`
+        # injection of AUR deps into dependents' clean-chroot builds. Propagated to dep contexts.
+        self.chroot_inject_dir: Optional[str] = None
 
     @classmethod
     def gen_context_from(cls, pkg: ArchPackage, arch_config: dict, root_password: Optional[str], handler: ProcessHandler, aur_supported: Optional[bool] = None) -> "TransactionContext":
@@ -132,8 +135,10 @@ class TransactionContext:
         return self.project_dir or '.'
 
     def clone_base(self):
-        return TransactionContext(watcher=self.watcher, handler=self.handler, root_password=self.root_password,
-                                  arch_config=self.config, installed=set(), removed={}, aur_supported=self.aur_supported)
+        ctx = TransactionContext(watcher=self.watcher, handler=self.handler, root_password=self.root_password,
+                                 arch_config=self.config, installed=set(), removed={}, aur_supported=self.aur_supported)
+        ctx.chroot_inject_dir = self.chroot_inject_dir  # deps share the parent's injection dir
+        return ctx
 
     def gen_dep_context(self, name: str, repository: str):
         dep_context = self.clone_base()
@@ -2191,8 +2196,30 @@ class ArchManager(SoftwareManager, SettingsController):
         """Run a devtools/chroot command with root privileges, matching how Atlas escalates
         elsewhere: when the app is already root, run it directly; otherwise via `sudo -S` with the
         root password. devtools' own `check_root` then no-ops because we're already root."""
-        root_pwd = None if context.root_user else context.root_password
+        root_pwd = None if self.context.root_user else context.root_password
         return context.handler.handle_simple(SimpleProcess(cmd, cwd=cwd, root_password=root_pwd))
+
+    def _ensure_chroot_inject_dir(self, context: TransactionContext):
+        """Create the per-transaction dir that holds already-built AUR packages for `-I` injection,
+        once, on the top context. Dep contexts inherit it via `clone_base`, so a dep's build stashes
+        its output here and the dependent (built later) injects it into its clean chroot."""
+        if context.chroot_inject_dir:
+            return
+        path = f'{get_build_dir(context.config, self.pkgbuilder_user)}/chroot_inject_{int(time.time())}'
+        made, err = sshell.mkdir(dir_path=path, custom_user=self.pkgbuilder_user)
+        if made:
+            context.chroot_inject_dir = path
+        else:
+            self.logger.warning(f"Could not create chroot injection dir '{path}': {err}")
+
+    def _stash_for_injection(self, context: TransactionContext):
+        """Copy this AUR package's freshly built files into the shared inject dir so packages built
+        later in the transaction (its dependents) can be handed them via `makechrootpkg -I`."""
+        for f in (context.install_files or ()):
+            try:
+                shutil.copy2(f, context.chroot_inject_dir)
+            except Exception as e:
+                self.logger.warning(f"Could not stash '{f}' for chroot injection: {e}")
 
     def _build_in_chroot(self, context: TransactionContext, optimize: bool) -> Optional[Tuple[bool, str]]:
         """Build the package in a devtools **clean chroot** (makechrootpkg). Returns ``(success,
@@ -2208,12 +2235,19 @@ class ArchManager(SoftwareManager, SettingsController):
         # The inner makepkg must run as a non-root user. When Atlas runs as root we pass our created
         # build user explicitly (makechrootpkg would otherwise default makepkg to root and refuse);
         # when Atlas runs unprivileged, our `sudo -S` sets SUDO_USER and makechrootpkg adopts it.
-        if context.root_user and not self.add_package_builder_user(context.handler):
+        if self.context.root_user and not self.add_package_builder_user(context.handler):
             return None
-        build_user = self.pkgbuilder_user if context.root_user else None
+        build_user = self.pkgbuilder_user if self.context.root_user else None
 
         chroot_dir = self._chroot_dir(context.config)
         makepkg_conf = CUSTOM_MAKEPKG_FILE if (optimize and os.path.exists(CUSTOM_MAKEPKG_FILE)) else None
+
+        # Inject AUR deps built earlier in this transaction (the clean chroot has none of them). They
+        # were stashed in the shared inject dir as each dep finished; deps build before dependents,
+        # so everything here is exactly this package's already-built (transitive) AUR deps.
+        inject_pkgs = []
+        if context.chroot_inject_dir and os.path.isdir(context.chroot_inject_dir):
+            inject_pkgs = sorted(glob.glob(f'{context.chroot_inject_dir}/*.pkg.tar.*'))
 
         if not chroot.root_exists(chroot_dir):
             context.watcher.change_substatus('Creating clean build chroot (one-time; downloads base-devel)…')
@@ -2230,11 +2264,18 @@ class ArchManager(SoftwareManager, SettingsController):
             context.watcher.change_substatus('Updating build chroot…')
             self._chroot_root_proc(context, chroot.update_root_cmd(chroot_dir))  # non-fatal: a stale chroot still builds
 
+        if inject_pkgs:
+            self.logger.info(f"Injecting {len(inject_pkgs)} built AUR dep(s) into the chroot build of '{context.name}'")
         context.watcher.change_substatus(self.i18n['arch.building.package'].format(bold(context.name)))
-        cmd = chroot.build_cmd(chroot_dir, makepkg_user=build_user)
+        cmd = chroot.build_cmd(chroot_dir, inject_pkgs=inject_pkgs, makepkg_user=build_user)
         return self._chroot_root_proc(context, cmd, cwd=context.project_dir)
 
     def _build(self, context: TransactionContext) -> bool:
+        # Set up the shared AUR-dep injection dir before deps are built (they inherit it via
+        # clone_base and stash their outputs there for this package's chroot build to inject).
+        if context.config.get('aur_build_chroot') and chroot.available():
+            self._ensure_chroot_inject_dir(context)
+
         self._edit_pkgbuild_and_update_context(context)
 
         if not self._audit_pkgbuild(context):
@@ -2281,6 +2322,11 @@ class ArchManager(SoftwareManager, SettingsController):
 
         if pkgbuilt:
             self.__fill_aur_output_files(context)
+
+            # Stash the built package(s) so a later dependent in this transaction can inject them
+            # into its clean chroot (the chroot can't see host-installed AUR deps).
+            if context.chroot_inject_dir:
+                self._stash_for_injection(context)
 
             self.logger.info(f"Reading '{context.name}' cloned repository current commit")
             commits = git.list_commits(context.project_dir, limit=1)
@@ -2859,6 +2905,11 @@ class ArchManager(SoftwareManager, SettingsController):
         finally:
             if os.path.exists(context.build_dir) and context.config['aur_remove_build_dir']:
                 context.handler.handle(SystemProcess(new_subprocess(['rm', '-rf', context.build_dir])))
+            # The shared chroot injection dir outlives the per-dep build dirs; clean it once, at the
+            # top of the transaction (deps share the same path via clone_base).
+            if (not context.dependency and context.chroot_inject_dir
+                    and os.path.exists(context.chroot_inject_dir)):
+                context.handler.handle(SystemProcess(new_subprocess(['rm', '-rf', context.chroot_inject_dir])))
 
         return False
 

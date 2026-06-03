@@ -30,9 +30,22 @@
 >    (`--syncdeps`). **Live-test bug fixed:** `mkarchroot` canonicalises `<dir>/root` with
 >    `readlink -f`, which yields nothing unless the *parent* exists → `_build_in_chroot` now
 >    `mkdir -p`s the chroot dir before `mkarchroot`.
-> 3. ⏳ `-I` injection wired for AUR dep chains; reconcile Atlas's own host-side dep install
->    (`_handle_aur_package_deps_and_keys`) which is redundant/wrong in chroot mode (chroot
->    `--syncdeps` resolves repo deps itself).
+> 3. ✅ **`-I` AUR dep-chain injection (2026-06-03).** A per-transaction **shared inject dir** holds
+>    every AUR package built in the transaction; deps build depth-first *before* dependents
+>    (`_install_deps` → `_install_from_aur` recurses), so when any package builds, the dir already
+>    holds exactly its transitive AUR deps. `_build` creates the dir on the top context
+>    (`_ensure_chroot_inject_dir`); `clone_base`/`gen_dep_context` propagate it to dep contexts; each
+>    AUR build stashes its output there (`_stash_for_injection`, after `__fill_aur_output_files`,
+>    *before* the dep's build dir is `rm -rf`'d); `_build_in_chroot` injects everything in the dir via
+>    `makechrootpkg -I`. Cleaned up at the top-level `_install_from_aur` finally. Tests: +3 (inject
+>    gathering, clone_base/gen_dep_context propagation); suite 422. **Host-side dep install left as-is**
+>    — repo + AUR runtime deps are genuinely needed on the host for the *installed* package, so it's
+>    correct, not redundant (build-only makedepends do get over-installed on the host, but that's
+>    pre-existing host-build behavior, out of scope).
+>    **⚠ Bug fixed here:** increment 2 referenced `context.root_user`, which `TransactionContext`
+>    doesn't have (only the manager's `self.context.root_user` does) — it would `AttributeError` on
+>    every real chroot build. Mock-based tests masked it and the live `yay-bin` test used raw shell,
+>    so the *Atlas* `_build_in_chroot` path had never actually executed. Now uses `self.context`.
 > 4. ✅ **Settings toggle (2026-06-03):** "Build AUR packages in a clean chroot" in the AUR-safety
 >    settings section (`get_app_settings`/`save_app_settings` arch block: `build_chroot` +
 >    `chroot_available`). Disabled with an "install devtools" hint when `chroot.available()` is False;
@@ -40,7 +53,11 @@
 >    passed to `mkarchroot -M` on create when `optimize` + a custom conf exist (per-build honoring TBD,
 >    minor).
 >
-> **Only `-I` AUR dep-chain injection (increment 3) remains** for full v1.
+> **All four increments are implemented.** v1 is feature-complete. **Trust gate:** the devtools
+> commands + single-package chroot build are verified live (`yay-bin`), and the orchestration is
+> unit-tested, but the full Atlas `_build_in_chroot` path (esp. `-I` dep injection) still needs one
+> real GUI install of an AUR package *with an AUR dependency* — especially given the `root_user`
+> bug above means that path had never actually executed before increment 3.
 
 ## Goal
 

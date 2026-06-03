@@ -19,12 +19,13 @@ class ChrootBuildWiringTest(unittest.TestCase):
         self.mgr._chroot_root_proc = Mock()
 
     def _ctx(self, root_user=True):
+        self.mgr.context = Mock(root_user=root_user)  # manager-level app context (has root_user)
         ctx = Mock()
         ctx.name = 'foo'
         ctx.project_dir = '/build/foo'
-        ctx.root_user = root_user
         ctx.root_password = None if root_user else 'pw'
         ctx.config = {'aur_build_chroot': True}
+        ctx.chroot_inject_dir = None   # no AUR deps to inject in these wiring tests
         ctx.watcher = Mock()
         ctx.handler = Mock()
         return ctx
@@ -76,6 +77,20 @@ class ChrootBuildWiringTest(unittest.TestCase):
             self.assertIsNone(self.mgr._build_in_chroot(ctx, optimize=False))
         bc.assert_not_called()                                    # never reached the build
 
+    def test_injects_built_aur_deps_from_inject_dir(self):
+        ctx = self._ctx()
+        ctx.chroot_inject_dir = '/build/inject'
+        self.mgr._chroot_root_proc.side_effect = [(True, 'updated'), (True, 'built')]
+        deps = ['/build/inject/dep1.pkg.tar.zst', '/build/inject/dep2.pkg.tar.zst']
+        with patch('atlas.gems.arch.controller.chroot.available', return_value=True), \
+             patch('atlas.gems.arch.controller.chroot.root_exists', return_value=True), \
+             patch('atlas.gems.arch.controller.chroot.update_root_cmd', return_value=['arch-nspawn']), \
+             patch('atlas.gems.arch.controller.chroot.build_cmd', return_value=['makechrootpkg']) as bc, \
+             patch('atlas.gems.arch.controller.os.path.isdir', return_value=True), \
+             patch('atlas.gems.arch.controller.glob.glob', return_value=deps):
+            self.mgr._build_in_chroot(ctx, optimize=False)
+        self.assertEqual(deps, bc.call_args.kwargs['inject_pkgs'])  # built deps fed to makechrootpkg -I
+
     def test_unprivileged_omits_build_user(self):
         ctx = self._ctx(root_user=False)
         self.mgr._chroot_root_proc.side_effect = [(True, 'updated'), (True, 'built')]
@@ -86,6 +101,26 @@ class ChrootBuildWiringTest(unittest.TestCase):
             self.mgr._build_in_chroot(ctx, optimize=False)
         self.assertIsNone(bc.call_args.kwargs['makepkg_user'])    # rely on SUDO_USER, no -U
         self.mgr.add_package_builder_user.assert_not_called()     # only the root path creates a user
+
+
+class ChrootInjectDirPropagationTest(unittest.TestCase):
+    """Dep contexts must share the parent's inject dir so a dep's stashed output is visible when the
+    dependent builds."""
+
+    def test_clone_base_propagates_inject_dir(self):
+        from atlas.gems.arch.controller import TransactionContext
+        parent = TransactionContext(aur_supported=True, arch_config={})
+        parent.chroot_inject_dir = '/build/inject_123'
+        child = parent.clone_base()
+        self.assertEqual('/build/inject_123', child.chroot_inject_dir)
+
+    def test_gen_dep_context_inherits_inject_dir(self):
+        from atlas.gems.arch.controller import TransactionContext
+        parent = TransactionContext(aur_supported=True, arch_config={})
+        parent.chroot_inject_dir = '/build/inject_123'
+        dep = parent.gen_dep_context('libfoo', 'aur')
+        self.assertEqual('/build/inject_123', dep.chroot_inject_dir)
+        self.assertTrue(dep.dependency)
 
 
 if __name__ == '__main__':

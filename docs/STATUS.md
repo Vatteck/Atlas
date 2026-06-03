@@ -84,9 +84,15 @@ re-add a native extension without a measured win. Details in the historical
   Fixed a real bug the live test surfaced: `mkarchroot`'s `readlink -f <dir>/root` needs the parent
   dir to exist, so `_build_in_chroot` now `mkdir -p`s the chroot dir first. **Settings toggle done**
   (2026-06-03): "Build AUR packages in a clean chroot" in the AUR-safety section, disabled with an
-  "install devtools" hint when unavailable, honest help text. **Only remaining:** (3) `-I`
-  dep-chain injection + reconcile the
-  redundant host-side dep install; (4) Settings UI toggle. Plan:
+  "install devtools" hint when unavailable, honest help text. **`-I` dep-chain injection done**
+  (2026-06-03): a per-transaction shared inject dir collects each built AUR package (deps build
+  before dependents), propagated to dep contexts via `clone_base`; `_build_in_chroot` feeds them to
+  `makechrootpkg -I`. **Bug fixed in increment 3:** increment 2 used `context.root_user`, which
+  `TransactionContext` lacks (only `self.context.root_user` exists) → would `AttributeError` on every
+  real chroot build; Mocks + the raw-shell live test had masked it, so the Atlas `_build_in_chroot`
+  path had never actually run. Tests: +3 (suite 422). **v1 feature-complete; trust gate:** still needs
+  one real GUI install of an AUR pkg *with an AUR dep* (single-package build is live-verified; the
+  full `_build_in_chroot` path hasn't run through the app yet). Plan:
   [plans/2026-06-02-sandboxed-aur-builds.md](plans/2026-06-02-sandboxed-aur-builds.md).
 - **AUR PKGBUILD review — rich rendered modal (2026-06-03):** the advisory pre-build review (which
   already scanned + diffed) now *renders* properly instead of dumping a plain-text wall into the
