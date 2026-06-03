@@ -95,6 +95,21 @@ def scan(text: str) -> List[Dict]:
     return findings
 
 
+def diff(old_text: str, new_text: str, max_lines: int = 240) -> str:
+    """Unified diff of two PKGBUILD revisions (what changed since the last build). Empty string if
+    identical. Truncated to keep the advisory modal manageable."""
+    import difflib
+    old = (old_text or '').splitlines()
+    new = (new_text or '').splitlines()
+    lines = list(difflib.unified_diff(old, new, fromfile='PKGBUILD (last built)',
+                                      tofile='PKGBUILD (new)', lineterm=''))
+    if not lines:
+        return ''
+    if len(lines) > max_lines:
+        lines = lines[:max_lines] + [f'... (diff truncated — {len(lines) - max_lines} more lines)']
+    return '\n'.join(lines)
+
+
 def summarize(findings: List[Dict]) -> Dict:
     """Small rollup for the UI banner: counts by severity + total."""
     warn = sum(1 for f in findings if f['severity'] == WARN)

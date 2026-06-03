@@ -2077,31 +2077,68 @@ class ArchManager(SoftwareManager, SettingsController):
             return True
 
         import glob
-        paths = [f'{context.project_dir}/PKGBUILD'] + sorted(glob.glob(f'{context.project_dir}/*.install'))
-        findings = []
-        for path in paths:
+        pkgbuild_path = f'{context.project_dir}/PKGBUILD'
+        new_text = ''
+        try:
+            with open(pkgbuild_path) as f:
+                new_text = f.read()
+        except Exception as e:
+            self.logger.warning(f"Could not read '{pkgbuild_path}' for audit: {e}")
+
+        findings = list(pkgbuild_audit.scan(new_text))
+        for path in sorted(glob.glob(f'{context.project_dir}/*.install')):
             try:
                 with open(path) as f:
                     findings.extend(pkgbuild_audit.scan(f.read()))
-            except FileNotFoundError:
-                continue
             except Exception as e:
                 self.logger.warning(f"Could not audit '{path}': {e}")
-
         warns = [f for f in findings if f['severity'] == pkgbuild_audit.WARN]
-        if not warns:
+
+        # On an update, show what changed in the PKGBUILD since the last build (the "compromised
+        # release" guard). The fresh clone is shallow, so fetch the old revision from AUR's cgit by
+        # commit and diff in Python. Best-effort: any failure just omits the diff.
+        diff_text = ''
+        old_commit = getattr(getattr(context, 'pkg', None), 'commit', None)
+        if old_commit and not getattr(context, 'new_pkg', False) and new_text:
+            old_text = self._fetch_pkgbuild_at_commit(context.get_base_name(), old_commit)
+            if old_text:
+                diff_text = pkgbuild_audit.diff(old_text, new_text)
+
+        if not warns and not diff_text:
             return True
 
-        self.logger.info(f"PKGBUILD audit for '{context.name}' flagged {len(warns)} line(s)")
-        bullets = '\n'.join(f"• L{f['line_no']}: {f['why']}\n    {f['line'][:160]}" for f in warns[:20])
-        if len(warns) > 20:
-            bullets += f"\n• …and {len(warns) - 20} more"
-        body = (f"Atlas flagged {len(warns)} line(s) in {bold(context.name)}'s PKGBUILD worth a look "
-                f"before building:\n\n{bullets}\n\n{pkgbuild_audit.DISCLAIMER}\n\nBuild this package anyway?")
+        sections = []
+        if diff_text:
+            self.logger.info(f"PKGBUILD changed since last build for '{context.name}'")
+            sections.append("Changed since your last build:\n" + diff_text)
+        if warns:
+            self.logger.info(f"PKGBUILD audit for '{context.name}' flagged {len(warns)} line(s)")
+            bullets = '\n'.join(f"• L{f['line_no']}: {f['why']}\n    {f['line'][:160]}" for f in warns[:20])
+            if len(warns) > 20:
+                bullets += f"\n• …and {len(warns) - 20} more"
+            sections.append(f"Flagged {len(warns)} line(s) worth a look:\n{bullets}")
+
+        body = (f"Review {bold(context.name)}'s PKGBUILD before building:\n\n"
+                + "\n\n".join(sections)
+                + f"\n\n{pkgbuild_audit.DISCLAIMER}\n\nBuild this package anyway?")
 
         return context.watcher.request_confirmation(title='Review PKGBUILD', body=body,
                                                     confirmation_label='Build anyway',
                                                     deny_label='Cancel')
+
+    def _fetch_pkgbuild_at_commit(self, base: str, commit: str) -> Optional[str]:
+        """Fetch a PKGBUILD at a specific commit from AUR's cgit (for the diff-since-last-build).
+        Best-effort: returns None on any failure."""
+        try:
+            import urllib.parse
+            url = (f'https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD'
+                   f'?h={urllib.parse.quote(base)}&id={urllib.parse.quote(commit)}')
+            res = self.http_client.get(url, single_call=True)
+            if res is not None and res.status_code < 300 and res.text:
+                return res.text
+        except Exception as e:
+            self.logger.debug(f"could not fetch old PKGBUILD ({base}@{commit}) for diff: {e}")
+        return None
 
     def _read_srcinfo(self, context: TransactionContext) -> str:
         src_path = f'{context.project_dir}/.SRCINFO'

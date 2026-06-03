@@ -103,8 +103,17 @@ re-add a native extension without a measured win. Details in the historical
   change to AUR installs — needs a GUI eyeball** (flagged pkg → advisory appears; clean pkg → no
   interruption). A **Settings toggle** ("AUR safety → Scan PKGBUILDs before building") now exposes
   `aur_check_pkgbuild` via the webview Settings page (`get_app_settings`/`save_app_settings` gained an
-  `arch` block; `test_api.py::AppSettingsTest` +2). Still TODO: the **diff-since-last-build** view
-  (layer 1). Design:
+  `arch` block; `test_api.py::AppSettingsTest` +2). **Layer 1 — diff-since-last-build (2026-06-03):**
+  on an AUR **update**, the audit advisory now also shows *what changed* in the PKGBUILD since the
+  last build (the compromised-release guard). The fresh clone is shallow (`depth=1`), so the old
+  revision is fetched from **AUR cgit** by commit (`…/plain/PKGBUILD?h=<base>&id=<pkg.commit>`,
+  best-effort via `http_client`; `pkg.commit` is already persisted) and diffed in Python
+  (`pkgbuild_audit.diff`, truncated). The advisory now fires on **findings OR a non-empty update
+  diff**; body shows the diff + flagged lines + disclaimer. Fresh installs unchanged (prompt only on
+  findings). Live-verified vs real AUR (injected `curl|bash` shows as a `+` line *and* trips the
+  scanner). Tests: `test_pkgbuild_audit.py` (+3) + `test_pkgbuild_audit_gate.py` (+3). Note: this
+  means AUR updates with PKGBUILD changes now prompt (toggle: `aur_check_pkgbuild`); update-all noise
+  is the known tradeoff. Design:
   [plans/2026-06-02-aur-pkgbuild-review.md](plans/2026-06-02-aur-pkgbuild-review.md). The chroot-build
   layer is a separate design note ([plans/2026-06-02-sandboxed-aur-builds.md](plans/2026-06-02-sandboxed-aur-builds.md)),
   not started.
