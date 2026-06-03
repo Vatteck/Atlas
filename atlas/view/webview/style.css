@@ -1924,6 +1924,15 @@ body {
 .perms-detail { flex: 1; min-width: 0; }
 .perms-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
 .perms-detail-head h2 { margin: 0; font-size: 22px; }
+/* Category tabs (Share / Socket / Device / Features / Filesystem …) */
+.perms-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 14px 0 4px; border-bottom: 1px solid var(--border-color); }
+.perms-tab { padding: 8px 14px; border: none; background: transparent; color: var(--text-secondary); font-size: 14px; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.perms-tab:hover { color: var(--text-primary); }
+.perms-tab.active { color: var(--accent-color, #6366f1); border-bottom-color: var(--accent-color, #6366f1); }
+.perms-tabpanel { display: none; }
+.perms-tabpanel.active { display: block; }
+.perms-tabpanel > .perms-group:first-child { margin-top: 14px; }
+
 .perms-group { margin-top: 22px; }
 .perms-group-head h3 { margin: 0; font-size: 15px; }
 .perms-group-head p { margin: 2px 0 10px; font-size: 13px; color: var(--text-secondary); }

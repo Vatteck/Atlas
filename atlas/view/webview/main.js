@@ -1010,6 +1010,7 @@ const SKIP_DETAIL_KEYS = new Set(['id', 'name', 'version', 'description']);
 // --- Permissions page (Flatseal-style, master/detail) ----------------------
 let permsPageApps = [];
 let permsPageSelected = null;
+let permsActiveTab = null;   // which category tab is open in the detail panel (persists across re-renders)
 
 async function renderPermissionsPage() {
     packagesGrid.innerHTML = `<div class="state-container"><div class="spinner"></div><p>Loading installed Flatpaks…</p></div>`;
@@ -1055,29 +1056,47 @@ async function renderPermsDetail(appId) {
         el.innerHTML = `<div class="news-empty">Permissions aren't available for this app.</div>`;
         return;
     }
-    const groups = (data.groups || []).map(g => `
-        <div class="perms-group">
-            <div class="perms-group-head"><h3>${escapeHtml(g.title)}</h3><p>${escapeHtml(g.subtitle)}</p></div>
-            <div class="perms-rows">
-                ${g.items.map(t => `
-                    <label class="perms-row" title="${escapeHtml(t.detail || '')}">
-                        <span class="perms-row-text">
-                            <span class="perms-row-name ${t.risky ? 'risky' : ''}">${escapeHtml(t.label)}</span>
-                            <span class="perms-row-flag">${escapeHtml(t.flag)}</span>
-                        </span>
-                        <span class="switch"><input type="checkbox" data-perm-key="${escapeHtml(t.key)}" ${t.enabled ? 'checked' : ''}><span class="switch-track"></span></span>
-                    </label>`).join('')}
-            </div>
-        </div>`).join('');
+    // One panel per category + the Filesystem section, behind tabs (the combined list is long).
+    const sections = (data.groups || []).map(g => ({
+        key: g.title.toLowerCase(),
+        label: g.title,
+        html: `
+            <div class="perms-group">
+                <div class="perms-group-head"><p>${escapeHtml(g.subtitle)}</p></div>
+                <div class="perms-rows">
+                    ${g.items.map(t => `
+                        <label class="perms-row" title="${escapeHtml(t.detail || '')}">
+                            <span class="perms-row-text">
+                                <span class="perms-row-name ${t.risky ? 'risky' : ''}">${escapeHtml(t.label)}</span>
+                                <span class="perms-row-flag">${escapeHtml(t.flag)}</span>
+                            </span>
+                            <span class="switch"><input type="checkbox" data-perm-key="${escapeHtml(t.key)}" ${t.enabled ? 'checked' : ''}><span class="switch-track"></span></span>
+                        </label>`).join('')}
+                </div>
+            </div>`,
+    }));
+    sections.push({ key: 'filesystem', label: 'Filesystem', html: filesystemSectionHtml(data.filesystem || {}) });
+    if (!sections.some(s => s.key === permsActiveTab)) permsActiveTab = sections[0].key;
+
+    const tabs = sections.map(s =>
+        `<button class="perms-tab ${s.key === permsActiveTab ? 'active' : ''}" data-tab="${s.key}">${escapeHtml(s.label)}</button>`).join('');
+    const panels = sections.map(s =>
+        `<div class="perms-tabpanel ${s.key === permsActiveTab ? 'active' : ''}" data-tabpanel="${s.key}">${s.html}</div>`).join('');
     el.innerHTML = `
         <div class="perms-detail-head">
             <h2>${escapeHtml(app ? app.name : appId)}</h2>
             <button class="btn btn-outline" id="perms-reset-all">Reset to defaults</button>
         </div>
         <p class="popup-note">Changes are saved as per-user overrides (no root needed) and take effect the next time the app starts.</p>
-        ${groups}
-        ${filesystemSectionHtml(data.filesystem || {})}`;
+        <div class="perms-tabs">${tabs}</div>
+        ${panels}`;
 
+    el.querySelectorAll('.perms-tab').forEach(tab => tab.addEventListener('click', () => {
+        permsActiveTab = tab.getAttribute('data-tab');
+        el.querySelectorAll('.perms-tab').forEach(x => x.classList.toggle('active', x === tab));
+        el.querySelectorAll('.perms-tabpanel').forEach(p =>
+            p.classList.toggle('active', p.getAttribute('data-tabpanel') === permsActiveTab));
+    }));
     el.querySelectorAll('input[data-perm-key]').forEach(cb => cb.addEventListener('change', async () => {
         const r = await pyApiCall('set_flatpak_override', appId, cb.getAttribute('data-perm-key'), cb.checked);
         if (r && r.status === 'ok') showToast('Permissions', 'Updated — effective next launch', 'success');
@@ -1121,7 +1140,7 @@ function filesystemSectionHtml(fs) {
         </div>`).join('');
     return `
         <div class="perms-group">
-            <div class="perms-group-head"><h3>Filesystem</h3><p>Folders and paths the app can access</p></div>
+            <div class="perms-group-head"><p>Folders and paths the app can access</p></div>
             <div class="perms-rows">${presets}${custom}</div>
             <div class="perms-fs-add">
                 <input type="text" id="fs-add-input" class="styled-input" placeholder="A path, e.g. ~/Projects or /mnt/data">
