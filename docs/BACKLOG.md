@@ -72,6 +72,19 @@ the **safety tier bridges them** (it's *derived* from permissions, not a field).
   proprietary license. Implement as a heuristic over the permissions read above. **Advisory, not a
   verdict** — same framing as the PKGBUILD scanner (never "this is safe/unsafe", just a signal).
 
+## Icons
+
+- ~~**Flatpak icons in search + multi-source best-icon + polished letter fallback**~~ ✅ **Shipped
+  2026-06-03.** Flatpak results get the predictable Flathub CDN icon
+  (`dl.flathub.org/repo/appstream/x86_64/icons/128x128/<app_id>.png`, lazy-probed, letter on 404);
+  multi-source cards borrow any source's icon (fixes Steam); nicer gradient avatar.
+- **Installed-app icons from the system icon theme (roadmap).** Search/repo/AUR packages have no
+  icon metadata, but *installed* apps do: resolve the package's `.desktop` `Icon=` (via
+  `pacman -Ql` → parse) → look it up in the GTK icon theme → embed as a data URI. Gives real icons
+  to installed Arch/AUR apps regardless of source (dashboard/installed views especially). Medium
+  effort; backend (uses the `gi` GTK icon theme we already depend on). Honest limit: only helps
+  *installed* packages — non-installed AUR/repo search results still fall back to the letter avatar.
+
 ## Lighter QoL
 
 - **Keyboard shortcuts** — `/` focuses search, `Esc` closes modals, etc.

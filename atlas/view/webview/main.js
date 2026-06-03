@@ -215,11 +215,29 @@ function letterAvatar(pkg) {
     const bg = SOURCE_COLORS[normalizeType(pkg.type)] || '#6366f1';
     let ch = ((pkg.name || '?').trim()[0] || '?').toUpperCase();
     if (!/[A-Z0-9]/.test(ch)) ch = '?';
+    // A soft sheen (light top → faint dark bottom) over the source color reads as a polished tile
+    // rather than a flat square; the letter is slightly translucent so it's less harsh.
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48">`
-        + `<rect width="48" height="48" rx="11" fill="${bg}"/>`
-        + `<text x="24" y="25" font-family="sans-serif" font-size="24" font-weight="600" fill="#ffffff" `
-        + `text-anchor="middle" dominant-baseline="central">${ch}</text></svg>`;
+        + `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">`
+        + `<stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>`
+        + `<stop offset="1" stop-color="#000000" stop-opacity="0.14"/></linearGradient></defs>`
+        + `<rect width="48" height="48" rx="12" fill="${bg}"/>`
+        + `<rect width="48" height="48" rx="12" fill="url(#g)"/>`
+        + `<text x="24" y="25" font-family="-apple-system,Segoe UI,Roboto,sans-serif" font-size="22" `
+        + `font-weight="600" fill="#ffffff" fill-opacity="0.95" text-anchor="middle" `
+        + `dominant-baseline="central">${ch}</text></svg>`;
     return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+
+// Best icon for a (possibly multi-source) card: an embedded data: icon wins, else any remote URL,
+// so e.g. Steam (Arch installed + Flatpak) borrows the Flatpak's icon when the active source has
+// none. '' means no source has an icon → the letter avatar is used.
+function bestIconUrl(group) {
+    const srcs = (group && group.sources) || [];
+    const data = srcs.find(s => s.icon_url && s.icon_url.startsWith('data:'));
+    if (data) return data.icon_url;
+    const remote = srcs.find(s => s.icon_url && /^https?:\/\//.test(s.icon_url));
+    return remote ? remote.icon_url : '';
 }
 
 // Name-relevance for search ranking: exact > prefix > name-contains > description-only.
@@ -742,11 +760,12 @@ function cardInnerHTML(group, activeIdx) {
          </button>` : '';
 
     const isChecked = selectedPackages.has(pkg.id) ? 'checked' : '';
+    const iconUrl = bestIconUrl(group);
 
     return `
             <div class="package-header">
                 <input type="checkbox" class="pkg-checkbox" ${isChecked}>
-                <img src="${(pkg.icon_url && pkg.icon_url.startsWith('data:')) ? pkg.icon_url : letterAvatar(pkg)}" data-src="${escapeHtml(getIconDataSrc(pkg.icon_url))}" class="package-icon" alt="${escapeHtml(pkg.name)} icon" loading="lazy" decoding="async">
+                <img src="${(iconUrl && iconUrl.startsWith('data:')) ? iconUrl : letterAvatar(pkg)}" data-src="${escapeHtml(getIconDataSrc(iconUrl))}" class="package-icon" alt="${escapeHtml(pkg.name)} icon" loading="lazy" decoding="async">
                 <div class="package-info">
                     <h3 class="package-title" title="${escapeHtml(pkg.name)}">${escapeHtml(pkg.name)}</h3>
                     <div class="package-publisher">

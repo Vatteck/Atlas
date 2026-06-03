@@ -59,6 +59,18 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Better package icons (2026-06-03):** the grid was almost all letter-avatars (search results
+  carry no icon for any source; icons were only fetched on the detail view). Three fixes:
+  (1) **Flatpak icons in search** — `_serialize_pkg` derives the predictable Flathub CDN icon URL
+  from the `app_id` (`dl.flathub.org/repo/appstream/x86_64/icons/128x128/<id>.png`, verified) when a
+  Flatpak has no icon; the existing lazy-loader probes it and silently falls back to the avatar on
+  404 / non-Flathub remotes. (2) **Multi-source best-icon** — `bestIconUrl(group)` makes a card use
+  any source's icon (prefers data: then http), so e.g. **Steam** (Arch installed + Flatpak) borrows
+  the Flatpak icon instead of showing a letter. (3) **Polished letter avatar** — gradient sheen +
+  rounded tile + translucent glyph (was a flat square). Non-installed AUR/repo packages still have
+  no icon source anywhere → avatar (inherent). Tests: `test_api.py::FlatpakIconFallbackTest` (3).
+  Roadmap (BACKLOG "Icons"): installed-app icons from the system icon theme (`.desktop` `Icon=` →
+  GTK theme → embed). **Needs a GUI eyeball** (Flatpak/Steam icons now load).
 - **Fix: AUR installs crashed in the webview (`file_downloader=None`) (2026-06-02):** every AUR
   install/build threw `AttributeError: 'NoneType' object has no attribute 'is_multithreaded'` —
   `_pre_download_source` called `self.context.file_downloader.is_multithreaded()`, but the webview

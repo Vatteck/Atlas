@@ -63,6 +63,38 @@ class SerializeSortFieldsTest(unittest.TestCase):
         self.assertEqual(3.5, data['popularity'])
 
 
+class FlatpakIconFallbackTest(unittest.TestCase):
+    """Flatpak search results carry no icon; _serialize_pkg derives the predictable Flathub CDN URL."""
+
+    def setUp(self):
+        self.api = AtlasApi(Mock(), Mock())
+
+    def _pkg(self, type_, app_id, icon_url=None):
+        p = Mock()
+        p.name = 'X'; p.description = ''; p.version = '1'; p.latest_version = '1'
+        p.installed = False; p.update = False; p.icon_url = icon_url; p.size = 1; p.categories = []
+        p.id = app_id
+        p.get_publisher.return_value = ''
+        p.get_type.return_value = type_
+        for a in ('can_be_run', 'can_be_downgraded', 'has_info', 'has_history',
+                  'is_update_ignored', 'supports_ignored_updates'):
+            getattr(p, a).return_value = False
+        return p
+
+    def test_flatpak_without_icon_gets_flathub_cdn_url(self):
+        data = self.api._serialize_pkg(self._pkg('flatpak', 'com.valvesoftware.Steam'))
+        self.assertEqual('https://dl.flathub.org/repo/appstream/x86_64/icons/128x128/com.valvesoftware.Steam.png',
+                         data['icon_url'])
+
+    def test_flatpak_with_existing_icon_is_not_overridden(self):
+        data = self.api._serialize_pkg(self._pkg('flatpak', 'com.x.Y', icon_url='data:image/png;base64,AAAA'))
+        self.assertEqual('data:image/png;base64,AAAA', data['icon_url'])
+
+    def test_non_flatpak_gets_no_cdn_fallback(self):
+        data = self.api._serialize_pkg(self._pkg('aur', None))
+        self.assertEqual('', data['icon_url'])
+
+
 class GetOrphansTest(unittest.TestCase):
     def setUp(self):
         self.manager = Mock()

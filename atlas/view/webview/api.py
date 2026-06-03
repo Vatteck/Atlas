@@ -289,6 +289,14 @@ class AtlasApi:
         except Exception:
             pkg_type = pkg.gem_name
 
+        app_id = getattr(pkg, 'id', None)
+        icon_url = self._get_valid_icon_url(pkg.icon_url)
+        # Flatpak search results carry no icon (it's only fetched on the detail view). Derive the
+        # predictable Flathub CDN icon URL from the app_id so the frontend lazy-loader can show it
+        # (it probes silently and falls back to the letter avatar on 404 / non-Flathub remotes).
+        if not icon_url and app_id and str(pkg_type).lower() == 'flatpak':
+            icon_url = f'https://dl.flathub.org/repo/appstream/x86_64/icons/128x128/{app_id}.png'
+
         return {
             'id': pkg_id,
             'name': pkg.name or '',
@@ -298,7 +306,7 @@ class AtlasApi:
             'type': pkg_type,
             'installed': bool(pkg.installed),
             'update_available': bool(pkg.update),
-            'icon_url': self._get_valid_icon_url(pkg.icon_url),
+            'icon_url': icon_url,
             'publisher': publisher,
             'size': pkg.size,
             'categories': list(pkg.categories) if pkg.categories else [],
@@ -321,7 +329,7 @@ class AtlasApi:
             'package_base': getattr(pkg, 'package_base', None),
             # gem-native id (e.g. the Flatpak appstream id 'org.gimp.GIMP') — distinct from
             # the registry 'id' above (type:name); used to build the Flathub page link.
-            'app_id': getattr(pkg, 'id', None),
+            'app_id': app_id,
         }
 
     def _get_pkg(self, pkg_id: str):
