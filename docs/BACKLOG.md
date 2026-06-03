@@ -87,13 +87,12 @@ the **safety tier bridges them** (it's *derived* from permissions, not a field).
 
 ## Flatpak (follow-ups to the transparency & control theme)
 
-- **Dedicated Permissions / "Flatseal" page (sidebar).** Currently permission editing lives in each
-  app's detail modal (`⚙ Manage permissions`). A dedicated sidebar page listing all installed
-  Flatpaks with their permissions in one place (Flatseal-style) would make auditing/managing the
-  whole system easier. Reuses the existing `get_flatpak_overrides`/`set_flatpak_override`/
-  `reset_flatpak_overrides` backend; the work is a new nav page + a per-app list UI.
-- *(Possible)* expand the editable toggle set beyond the curated high-impact seven (e.g. per-folder
-  filesystem entries, session/system-bus names) — closer to full Flatseal parity.
+- **Dedicated Flatseal-grade Permissions page (sidebar).** Full design:
+  [plans/2026-06-03-flatpak-permissions-page.md](plans/2026-06-03-flatpak-permissions-page.md).
+  A sidebar page: pick an installed Flatpak → edit its whole sandbox, grouped (Share / Socket /
+  Device / Features / Filesystem / Bus / Environment), each row = label + `flag=value` + switch
+  (Flatseal layout). Reuses the override backend. Increments: (1) page + static toggles, (2)
+  filesystem add/remove + ro/rw, (3) bus/env/persist dynamic lists. Effectively porting Flatseal.
 
 ## Lighter QoL
 
