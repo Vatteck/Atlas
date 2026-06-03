@@ -1030,6 +1030,15 @@ function permissionsPopupHtml(meta) {
             <ul class="perm-list">${rows}</ul>`;
 }
 
+function verificationPopupHtml(meta) {
+    if (meta.verified) {
+        const via = meta.verified_via ? ` (via <code>${escapeHtml(meta.verified_via)}</code>)` : '';
+        return `<p>The developer has <strong>verified</strong> ownership of this app on Flathub${via}, so you're getting it from the official source.</p>`;
+    }
+    return `<p>This app is <strong>not developer-verified</strong> on Flathub. It may be community-maintained or a repackaging rather than published by the original developer — for example, many popular proprietary apps (Spotify, Discord, …) are packaged by volunteers, not the vendor.</p>
+            <p class="popup-note">Common and not necessarily unsafe — but you're trusting whoever maintains the package, not the original vendor.</p>`;
+}
+
 function licensePopupHtml(meta) {
     const lic = meta.license ? `<p class="popup-note">License: <code>${escapeHtml(meta.license)}</code></p>` : '';
     const body = meta.is_free
@@ -1093,8 +1102,8 @@ function openDetailModal(pkg) {
                     : `<span class="meta-badge proprietary clickable" data-popup="license" title="Click for license details">Proprietary ⓘ</span>`);
             }
             parts.push(meta.verified
-                ? `<span class="meta-badge verified" title="Developer-verified on Flathub${meta.verified_via ? ' via ' + escapeHtml(meta.verified_via) : ''}">✓ Verified</span>`
-                : `<span class="meta-badge unverified" title="Not developer-verified on Flathub">⚠ Unverified</span>`);
+                ? `<span class="meta-badge verified clickable" data-popup="verified" title="Click for details">✓ Verified ⓘ</span>`
+                : `<span class="meta-badge unverified clickable" data-popup="verified" title="Click for details">⚠ Unverified ⓘ</span>`);
             if (typeof meta.installs_last_month === 'number') {
                 parts.push(`<span class="meta-badge downloads" title="Installs in the last month (Flathub)">↓ ${meta.installs_last_month.toLocaleString()}/mo</span>`);
             }
@@ -1107,6 +1116,10 @@ function openDetailModal(pkg) {
             const licenseBadge = badgesEl.querySelector('[data-popup="license"]');
             if (licenseBadge) {
                 licenseBadge.addEventListener('click', () => showInfoPopup(meta.is_free ? 'Open source' : 'Proprietary', licensePopupHtml(meta)));
+            }
+            const verifiedBadge = badgesEl.querySelector('[data-popup="verified"]');
+            if (verifiedBadge) {
+                verifiedBadge.addEventListener('click', () => showInfoPopup(meta.verified ? 'Verified developer' : 'Unverified', verificationPopupHtml(meta)));
             }
         });
     }
