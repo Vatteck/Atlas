@@ -78,12 +78,12 @@ the **safety tier bridges them** (it's *derived* from permissions, not a field).
   2026-06-03.** Flatpak results get the predictable Flathub CDN icon
   (`dl.flathub.org/repo/appstream/x86_64/icons/128x128/<app_id>.png`, lazy-probed, letter on 404);
   multi-source cards borrow any source's icon (fixes Steam); nicer gradient avatar.
-- **Installed-app icons from the system icon theme (roadmap).** Search/repo/AUR packages have no
-  icon metadata, but *installed* apps do: resolve the package's `.desktop` `Icon=` (via
-  `pacman -Ql` → parse) → look it up in the GTK icon theme → embed as a data URI. Gives real icons
-  to installed Arch/AUR apps regardless of source (dashboard/installed views especially). Medium
-  effort; backend (uses the `gi` GTK icon theme we already depend on). Honest limit: only helps
-  *installed* packages — non-installed AUR/repo search results still fall back to the letter avatar.
+- ~~**Installed-app icons from the system**~~ ✅ **Shipped 2026-06-03** — see
+  [plans/2026-06-03-installed-app-icons.md](plans/2026-06-03-installed-app-icons.md). `get_pkg_icon`
+  resolves an installed package's icon from its `.desktop` `Icon=` (+ name fallback) via a hicolor/
+  pixmaps filesystem search, lazy + cached. *Possible follow-up:* broaden beyond hicolor/pixmaps to
+  cover theme-specific icons (KDE/breeze, e.g. `konsole`) — would likely need `Gtk.IconTheme`
+  (careful re: thread-safety) or scanning the active theme dirs.
 
 ## Lighter QoL
 

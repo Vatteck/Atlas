@@ -761,11 +761,15 @@ function cardInnerHTML(group, activeIdx) {
 
     const isChecked = selectedPackages.has(pkg.id) ? 'checked' : '';
     const iconUrl = bestIconUrl(group);
+    // Installed apps with no icon URL: ask the backend to resolve one from the system (.desktop /
+    // icon theme), lazily, via data-pkgicon (handled in deferredIconLoad).
+    const installedNoIcon = group.sources.some(s => s.installed) && !iconUrl;
+    const pkgIconAttr = installedNoIcon ? ` data-pkgicon="${escapeHtml(pkg.id)}"` : '';
 
     return `
             <div class="package-header">
                 <input type="checkbox" class="pkg-checkbox" ${isChecked}>
-                <img src="${(iconUrl && iconUrl.startsWith('data:')) ? iconUrl : letterAvatar(pkg)}" data-src="${escapeHtml(getIconDataSrc(iconUrl))}" class="package-icon" alt="${escapeHtml(pkg.name)} icon" loading="lazy" decoding="async">
+                <img src="${(iconUrl && iconUrl.startsWith('data:')) ? iconUrl : letterAvatar(pkg)}" data-src="${escapeHtml(getIconDataSrc(iconUrl))}"${pkgIconAttr} class="package-icon" alt="${escapeHtml(pkg.name)} icon" loading="lazy" decoding="async">
                 <div class="package-info">
                     <h3 class="package-title" title="${escapeHtml(pkg.name)}">${escapeHtml(pkg.name)}</h3>
                     <div class="package-publisher">
@@ -858,15 +862,26 @@ function deferredIconLoad() {
                         probe.onload = () => { img.src = remoteSrc; };
                         probe.src = remoteSrc;
                     }
-                    // Stop observing once probed, regardless of success
+                    // Installed app with no icon URL: ask the backend to resolve one from the system.
+                    const pkgIconId = img.getAttribute('data-pkgicon');
+                    if (pkgIconId) {
+                        pyApiCall('get_pkg_icon', pkgIconId).then(uri => {
+                            if (!uri) return;
+                            const probe = new Image();  // only swap if it actually decodes (keep the avatar otherwise)
+                            probe.onload = () => { img.src = uri; };
+                            probe.src = uri;
+                        });
+                    }
+                    // Stop observing once handled, regardless of success
                     img.removeAttribute('data-src');
+                    img.removeAttribute('data-pkgicon');
                     observer.unobserve(img);
                 }
             });
         }, { rootMargin: '200px' }); // probe slightly before scrolling into view
     }
 
-    const imgs = packagesGrid.querySelectorAll('img.package-icon[data-src]');
+    const imgs = packagesGrid.querySelectorAll('img.package-icon[data-src], img.package-icon[data-pkgicon]');
     imgs.forEach(img => {
         window.iconObserver.observe(img);
     });

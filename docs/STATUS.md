@@ -69,8 +69,17 @@ re-add a native extension without a measured win. Details in the historical
   the Flatpak icon instead of showing a letter. (3) **Polished letter avatar** — gradient sheen +
   rounded tile + translucent glyph (was a flat square). Non-installed AUR/repo packages still have
   no icon source anywhere → avatar (inherent). Tests: `test_api.py::FlatpakIconFallbackTest` (3).
-  Roadmap (BACKLOG "Icons"): installed-app icons from the system icon theme (`.desktop` `Icon=` →
-  GTK theme → embed). **Needs a GUI eyeball** (Flatpak/Steam icons now load).
+  **Installed-app icons (layer 4, 2026-06-03):** installed packages with no icon now resolve one
+  from the system — `AtlasApi.get_pkg_icon(pkg_id)` parses the package's `.desktop` `Icon=`
+  (`pacman -Ql`), falls back to an icon named after the package, finds the file in hicolor/pixmaps
+  (plain FS search — no `Gtk.IconTheme`, for thread-safety), and base64-embeds it. Lazy + cached:
+  the frontend stamps `data-pkgicon` on installed icon-less cards and the IntersectionObserver
+  fetches + probes before swapping. Live-verified: steam→PNG, firefox→SVG. **Limits (graceful, →
+  avatar):** SVG/PNG only (XPM can't render in WebKitGTK); only hicolor+pixmaps searched, so
+  theme-specific icons (KDE/breeze, e.g. konsole) aren't found. Tests:
+  `test_api.py::InstalledIconResolveTest` (5). Plan:
+  [plans/2026-06-03-installed-app-icons.md](plans/2026-06-03-installed-app-icons.md). **Needs a GUI
+  eyeball.**
 - **Fix: AUR installs crashed in the webview (`file_downloader=None`) (2026-06-02):** every AUR
   install/build threw `AttributeError: 'NoneType' object has no attribute 'is_multithreaded'` —
   `_pre_download_source` called `self.context.file_downloader.is_multithreaded()`, but the webview

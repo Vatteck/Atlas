@@ -264,6 +264,87 @@ class AtlasApi:
             return ''
         return icon_url
 
+    # Standard icon locations searched for an installed app's icon. Plain filesystem search (no
+    # Gtk.IconTheme — that isn't safe off the GTK main thread). SVG/mid-size first (small data URIs).
+    _ICON_DIRS = (
+        '/usr/share/icons/hicolor/scalable/apps',
+        '/usr/share/icons/hicolor/128x128/apps',
+        '/usr/share/icons/hicolor/256x256/apps',
+        '/usr/share/icons/hicolor/64x64/apps',
+        '/usr/share/icons/hicolor/512x512/apps',
+        '/usr/share/icons/hicolor/48x48/apps',
+        '/usr/share/pixmaps',
+    )
+    _ICON_EXTS = ('.svg', '.png')  # web-renderable only — WebKitGTK can't display .xpm in <img>
+
+    @staticmethod
+    def _desktop_icon_name(desktop_text: str) -> Optional[str]:
+        """The `Icon=` value from a .desktop file's first occurrence, or None."""
+        for line in (desktop_text or '').splitlines():
+            line = line.strip()
+            if line.startswith('Icon='):
+                return line[5:].strip() or None
+        return None
+
+    def _find_icon_file(self, name: str) -> Optional[str]:
+        """Resolve an icon name (or absolute path) to a file under the standard icon dirs."""
+        if not name:
+            return None
+        if name.startswith('/'):
+            return name if os.path.isfile(name) else None
+        candidates = list(dict.fromkeys([name, os.path.splitext(name)[0]]))  # name + stem, deduped
+        for d in self._ICON_DIRS:
+            for cand in candidates:
+                for ext in self._ICON_EXTS:
+                    path = os.path.join(d, cand + ext)
+                    if os.path.isfile(path):
+                        return path
+        return None
+
+    def _resolve_installed_icon(self, pkgname: str) -> str:
+        """Find an installed package's icon (via its .desktop `Icon=`, then by package name) and
+        return it as a base64 data URI, or '' if none found."""
+        import shlex
+        names = []
+        try:
+            out = run_cmd(f'pacman -Ql {shlex.quote(pkgname)}', ignore_return_code=True, print_error=False) or ''
+            for line in out.splitlines():
+                line = line.strip()
+                if line.endswith('.desktop') and '/applications/' in line:
+                    path = line.split(' ', 1)[1].strip() if ' ' in line else line
+                    try:
+                        with open(path) as f:
+                            nm = self._desktop_icon_name(f.read())
+                        if nm:
+                            names.append(nm)
+                    except Exception:
+                        continue
+        except Exception as e:
+            self.logger.debug(f"could not read files for '{pkgname}': {e}")
+        names.append(pkgname)  # fallback: icon named after the package
+        for nm in names:
+            path = self._find_icon_file(nm)
+            if path:
+                return self._get_valid_icon_url(path)  # base64 data URI
+        return ''
+
+    def get_pkg_icon(self, pkg_id: str) -> dict:
+        """Lazily resolve an *installed* package's icon from the system (.desktop / icon theme dirs),
+        for cards that have no icon otherwise. Cached per pkg_id; returns '' when none found."""
+        if not hasattr(self, '_installed_icon_cache'):
+            self._installed_icon_cache = {}
+        if pkg_id in self._installed_icon_cache:
+            return {'status': 'ok', 'data': self._installed_icon_cache[pkg_id]}
+        data = ''
+        pkg = self._get_pkg(pkg_id)
+        if pkg is not None and getattr(pkg, 'installed', False):
+            try:
+                data = self._resolve_installed_icon(pkg.name or '')
+            except Exception as e:
+                self.logger.debug(f"get_pkg_icon failed for {pkg_id}: {e}")
+        self._installed_icon_cache[pkg_id] = data
+        return {'status': 'ok', 'data': data}
+
     def _get_pkg_id(self, pkg) -> str:
         try:
             pkg_type = pkg.get_type() or pkg.gem_name

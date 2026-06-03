@@ -95,6 +95,50 @@ class FlatpakIconFallbackTest(unittest.TestCase):
         self.assertEqual('', data['icon_url'])
 
 
+class InstalledIconResolveTest(unittest.TestCase):
+    """get_pkg_icon: resolve an installed app's icon from .desktop / icon theme dirs."""
+
+    def setUp(self):
+        self.api = AtlasApi(Mock(), Mock())
+
+    def test_desktop_icon_name_parsing(self):
+        self.assertEqual('firefox', self.api._desktop_icon_name('[Desktop Entry]\nName=Firefox\nIcon=firefox\n'))
+        self.assertIsNone(self.api._desktop_icon_name('[Desktop Entry]\nName=X\n'))
+
+    def test_find_icon_file_searches_standard_dirs(self):
+        import tempfile, os
+        d = tempfile.mkdtemp()
+        apps = os.path.join(d, 'hicolor', 'scalable', 'apps')
+        os.makedirs(apps)
+        open(os.path.join(apps, 'gimp.svg'), 'w').close()
+        with patch.object(AtlasApi, '_ICON_DIRS', (apps,)):
+            self.assertTrue(self.api._find_icon_file('gimp').endswith('gimp.svg'))
+            self.assertIsNone(self.api._find_icon_file('nonexistent'))
+
+    def test_find_icon_file_accepts_absolute_path(self):
+        import tempfile, os
+        fd, p = tempfile.mkstemp(suffix='.png'); os.close(fd)
+        self.assertEqual(p, self.api._find_icon_file(p))
+        self.assertIsNone(self.api._find_icon_file('/no/such/icon.png'))
+
+    def test_get_pkg_icon_empty_for_non_installed(self):
+        pkg = Mock(); pkg.installed = False; pkg.name = 'x'
+        with patch.object(self.api, '_get_pkg', return_value=pkg):
+            res = self.api.get_pkg_icon('aur:x')
+        self.assertEqual('ok', res['status'])
+        self.assertEqual('', res['data'])
+
+    def test_get_pkg_icon_resolves_and_caches_for_installed(self):
+        pkg = Mock(); pkg.installed = True; pkg.name = 'gimp'
+        with patch.object(self.api, '_get_pkg', return_value=pkg), \
+             patch.object(self.api, '_resolve_installed_icon', return_value='data:image/png;base64,AAAA') as mock_resolve:
+            r1 = self.api.get_pkg_icon('arch:gimp')
+            r2 = self.api.get_pkg_icon('arch:gimp')  # cached → resolver not called again
+        self.assertEqual('data:image/png;base64,AAAA', r1['data'])
+        self.assertEqual('data:image/png;base64,AAAA', r2['data'])
+        mock_resolve.assert_called_once()
+
+
 class GetOrphansTest(unittest.TestCase):
     def setUp(self):
         self.manager = Mock()
