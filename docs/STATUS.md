@@ -91,7 +91,10 @@ re-add a native extension without a measured win. Details in the historical
   set_permission,reset_permissions}` → `AtlasApi.{get,set,reset}_flatpak_override(s)`. Toggles revert on
   failure, effective next launch. Live-verified parsing (Discord). Tests: `test_permissions.py` (now 15).
   **The Flatpak transparency & control theme is now complete** (metadata badges → permissions+safety →
-  click-popups → editing). **Needs a GUI eyeball** (toggling writes the override file).
+  click-popups → editing). **Polish (2026-06-03):** each toggle now shows an explanatory sub-line +
+  hover tooltip (`EDITABLE` entries carry `detail`); the "Manage permissions" button got proper
+  spacing/alignment. A **dedicated Flatseal-style Permissions page** (sidebar) is roadmapped in
+  BACKLOG (reuses the same backend). **Needs a GUI eyeball** (toggling writes the override file).
   Plan: [plans/2026-06-03-flatpak-transparency.md](plans/2026-06-03-flatpak-transparency.md).
   **Needs a GUI eyeball** (open a Flatpak's detail → badges + permissions).
 - **Fix: installed AUR-only packages mislabeled as official-repo ("Arch") (2026-06-03):** a

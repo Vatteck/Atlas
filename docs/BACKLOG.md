@@ -85,6 +85,16 @@ the **safety tier bridges them** (it's *derived* from permissions, not a field).
   cover theme-specific icons (KDE/breeze, e.g. `konsole`) — would likely need `Gtk.IconTheme`
   (careful re: thread-safety) or scanning the active theme dirs.
 
+## Flatpak (follow-ups to the transparency & control theme)
+
+- **Dedicated Permissions / "Flatseal" page (sidebar).** Currently permission editing lives in each
+  app's detail modal (`⚙ Manage permissions`). A dedicated sidebar page listing all installed
+  Flatpaks with their permissions in one place (Flatseal-style) would make auditing/managing the
+  whole system easier. Reuses the existing `get_flatpak_overrides`/`set_flatpak_override`/
+  `reset_flatpak_overrides` backend; the work is a new nav page + a per-app list UI.
+- *(Possible)* expand the editable toggle set beyond the curated high-impact seven (e.g. per-folder
+  filesystem entries, session/system-bus names) — closer to full Flatseal parity.
+
 ## Lighter QoL
 
 - **Keyboard shortcuts** — `/` focuses search, `Esc` closes modals, etc.

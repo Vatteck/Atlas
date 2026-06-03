@@ -1901,12 +1901,16 @@ body {
 .popup-note code { background: rgba(127,127,127,0.15); border-radius: 4px; padding: 1px 5px; }
 
 /* Flatpak permission editor (toggles) */
-#detail-perms-action { margin-top: 12px; }
 #detail-perms-action:empty { display: none; }
-.perm-toggles { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
-.perm-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 4px; }
-.perm-toggle-label { font-size: 14px; color: var(--text-primary); }
-.perm-toggle-label.risky::before { content: '⚠ '; color: #d97706; }
+#detail-perms-action { display: flex; margin: 16px 0 20px; }
+#detail-perms-action .btn { margin-left: 0; }     /* left-aligned with the modal body content */
+.perm-toggles { display: flex; flex-direction: column; gap: 2px; margin-bottom: 16px; }
+.perm-toggle { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 4px; border-bottom: 1px solid var(--border-color); }
+.perm-toggle:last-child { border-bottom: none; }
+.perm-toggle-label { display: flex; flex-direction: column; gap: 2px; }
+.perm-toggle-name { font-size: 14px; font-weight: 500; color: var(--text-primary); }
+.perm-toggle-name.risky::before { content: '⚠ '; color: #d97706; }
+.perm-toggle-detail { font-size: 12px; font-weight: 400; color: var(--text-secondary); }
 .perm-toggle input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; }
 
 /* Flatpak permissions list */

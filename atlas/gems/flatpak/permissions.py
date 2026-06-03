@@ -106,19 +106,26 @@ _LABELS = {'unsafe': 'Potentially unsafe', 'moderate': 'Limited sandbox', 'safe'
 # read its current state, and the `flatpak override --user` flags to turn it on/off.
 EDITABLE = [
     {'key': 'network', 'label': 'Network access', 'category': 'shared', 'token': 'network',
-     'on': '--share=network', 'off': '--unshare=network', 'risky': True},
+     'on': '--share=network', 'off': '--unshare=network', 'risky': True,
+     'detail': 'Can send and receive data over the internet.'},
     {'key': 'x11', 'label': 'Legacy windowing (X11)', 'category': 'sockets', 'token': 'x11',
-     'on': '--socket=x11', 'off': '--nosocket=x11', 'risky': True},
+     'on': '--socket=x11', 'off': '--nosocket=x11', 'risky': True,
+     'detail': 'Uses X11, which is not isolated — other apps could read its input or capture its window.'},
     {'key': 'wayland', 'label': 'Wayland windowing', 'category': 'sockets', 'token': 'wayland',
-     'on': '--socket=wayland', 'off': '--nosocket=wayland', 'risky': False},
+     'on': '--socket=wayland', 'off': '--nosocket=wayland', 'risky': False,
+     'detail': 'Uses the sandboxed Wayland display server (preferred over X11).'},
     {'key': 'audio', 'label': 'Audio & microphone', 'category': 'sockets', 'token': 'pulseaudio',
-     'on': '--socket=pulseaudio', 'off': '--nosocket=pulseaudio', 'risky': True},
+     'on': '--socket=pulseaudio', 'off': '--nosocket=pulseaudio', 'risky': True,
+     'detail': 'Can play audio and record from the microphone.'},
     {'key': 'devices', 'label': 'All devices (webcam, etc.)', 'category': 'devices', 'token': 'all',
-     'on': '--device=all', 'off': '--nodevice=all', 'risky': True},
+     'on': '--device=all', 'off': '--nodevice=all', 'risky': True,
+     'detail': 'Can access all devices, including webcams and game controllers.'},
     {'key': 'home', 'label': 'Home folder', 'category': 'filesystems', 'token': 'home',
-     'on': '--filesystem=home', 'off': '--nofilesystem=home', 'risky': True},
+     'on': '--filesystem=home', 'off': '--nofilesystem=home', 'risky': True,
+     'detail': 'Can read and write all files in your home folder.'},
     {'key': 'host', 'label': 'All system files', 'category': 'filesystems', 'token': 'host',
-     'on': '--filesystem=host', 'off': '--nofilesystem=host', 'risky': True},
+     'on': '--filesystem=host', 'off': '--nofilesystem=host', 'risky': True,
+     'detail': 'Can read and write all files on the system.'},
 ]
 _EDITABLE_BY_KEY = {t['key']: t for t in EDITABLE}
 
@@ -147,7 +154,7 @@ def parse_context(show_permissions_output: str) -> Dict[str, set]:
 
 def editable_toggles(context: Dict[str, set]) -> List[Dict]:
     """Current on/off state of each editable toggle, from a parsed [Context]."""
-    return [{'key': t['key'], 'label': t['label'], 'risky': t['risky'],
+    return [{'key': t['key'], 'label': t['label'], 'risky': t['risky'], 'detail': t['detail'],
              'enabled': t['token'] in (context.get(t['category']) or set())}
             for t in EDITABLE]
 

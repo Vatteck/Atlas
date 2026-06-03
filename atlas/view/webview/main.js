@@ -1029,8 +1029,11 @@ async function openPermissionsEditor(pkg) {
         return;
     }
     const rows = data.toggles.map(t => `
-        <label class="perm-toggle">
-            <span class="perm-toggle-label ${t.risky ? 'risky' : ''}">${escapeHtml(t.label)}</span>
+        <label class="perm-toggle" title="${escapeHtml(t.detail || '')}">
+            <span class="perm-toggle-label">
+                <span class="perm-toggle-name ${t.risky ? 'risky' : ''}">${escapeHtml(t.label)}</span>
+                ${t.detail ? `<span class="perm-toggle-detail">${escapeHtml(t.detail)}</span>` : ''}
+            </span>
             <input type="checkbox" data-perm-key="${escapeHtml(t.key)}" ${t.enabled ? 'checked' : ''}>
         </label>`).join('');
     showInfoPopup('Manage permissions', `

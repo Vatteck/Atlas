@@ -94,6 +94,10 @@ class EditableTogglesTest(unittest.TestCase):
         # Session Bus Policy lines are not mistaken for context entries
         self.assertNotIn('org.kde.StatusNotifierWatcher', ctx['shared'])
 
+    def test_editable_toggles_carry_detail_text(self):
+        toggles = perms.editable_toggles(perms.parse_context(SHOW_PERMS))
+        self.assertTrue(all(t.get('detail') for t in toggles))  # every toggle has tooltip text
+
     def test_editable_toggles_reflect_state(self):
         states = {t['key']: t['enabled'] for t in perms.editable_toggles(perms.parse_context(SHOW_PERMS))}
         self.assertTrue(states['network'])
