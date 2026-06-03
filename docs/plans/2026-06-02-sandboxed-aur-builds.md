@@ -1,8 +1,21 @@
 # Sandboxed AUR builds — clean-chroot building ("Vault") — 2026-06-02
 
-> **Status: design note only (not implemented).** Captures the idea, prior art, and a
-> strangler-fig plan. Needs sign-off before implementation. Supersedes the one-line
+> **Status: IN PROGRESS (signed off 2026-06-03 — "start layer 3").** Supersedes the one-line
 > "Container sandboxing (Vault) — aspirational" entry in BACKLOG.md.
+>
+> **Decisions locked at sign-off:** off by default (`aur_build_chroot`, host build stays the proven
+> path); v1 dep model = **`-I` injection** (no LocalRepo); default chroot dir =
+> `/var/lib/atlas/aurchroot` (configurable); graceful fallback to the host build whenever devtools
+> is absent or chroot setup fails.
+>
+> **Increments:**
+> 1. ✅ **Engine (2026-06-03):** pure `chroot.py` — `available()`/`missing_tools()` precondition
+>    checks + argv construction (`create_root_cmd`/`update_root_cmd`/`build_cmd`, incl. `-I`
+>    injection). Fully unit-tested (`test_chroot.py`, 12). No wiring yet — commits to nothing.
+> 2. ⏳ Config toggle + chroot lifecycle (create/update) + swap into `_build` (`controller.py:2215`),
+>    single-package builds, **host-build fallback**. Prove on a real package.
+> 3. ⏳ `-I` injection wired for AUR dep chains (feed each built dep into the dependent's build).
+> 4. ⏳ Settings UI toggle + makepkg.conf reconciliation (custom conf belongs *inside* the chroot).
 
 ## Goal
 
