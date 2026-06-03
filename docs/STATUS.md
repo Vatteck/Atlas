@@ -82,7 +82,9 @@ re-add a native extension without a measured win. Details in the historical
   **✓ Verified live (2026-06-03):** built `yay-bin` in a fresh chroot end-to-end — products landed in
   the package dir owned by the build user (pacman install works unchanged), deps resolved in-chroot.
   Fixed a real bug the live test surfaced: `mkarchroot`'s `readlink -f <dir>/root` needs the parent
-  dir to exist, so `_build_in_chroot` now `mkdir -p`s the chroot dir first. **Remaining:** (3) `-I`
+  dir to exist, so `_build_in_chroot` now `mkdir -p`s the chroot dir first. **Settings toggle done**
+  (2026-06-03): "Build AUR packages in a clean chroot" in the AUR-safety section, disabled with an
+  "install devtools" hint when unavailable, honest help text. **Only remaining:** (3) `-I`
   dep-chain injection + reconcile the
   redundant host-side dep install; (4) Settings UI toggle. Plan:
   [plans/2026-06-02-sandboxed-aur-builds.md](plans/2026-06-02-sandboxed-aur-builds.md).

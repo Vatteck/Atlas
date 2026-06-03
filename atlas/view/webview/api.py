@@ -1272,11 +1272,20 @@ class AtlasApi:
 
             arch_man = self._manager_by_gem('arch')
             arch_check_pkgbuild = True
+            arch_build_chroot = False
+            arch_chroot_available = False
             if arch_man is not None:
                 try:
-                    arch_check_pkgbuild = bool(arch_man.configman.get_config().get('aur_check_pkgbuild', True))
+                    aconf = arch_man.configman.get_config()
+                    arch_check_pkgbuild = bool(aconf.get('aur_check_pkgbuild', True))
+                    arch_build_chroot = bool(aconf.get('aur_build_chroot', False))
                 except Exception:
                     arch_check_pkgbuild = True
+                try:
+                    from atlas.gems.arch import chroot
+                    arch_chroot_available = chroot.available()
+                except Exception:
+                    arch_chroot_available = False
 
             return {'status': 'ok', 'data': {
                 'types': types,
@@ -1298,6 +1307,8 @@ class AtlasApi:
                 'arch': {
                     'available': arch_man is not None,
                     'check_pkgbuild': arch_check_pkgbuild,
+                    'build_chroot': arch_build_chroot,
+                    'chroot_available': arch_chroot_available,
                     'mirror_tool': (self._mirror_regen_cmd() or [None])[0],
                 },
             }}
@@ -1361,11 +1372,14 @@ class AtlasApi:
                     flatpak_man.configman.save_config(fconf)
 
             arch = settings.get('arch')
-            if isinstance(arch, dict) and 'check_pkgbuild' in arch:
+            if isinstance(arch, dict) and ('check_pkgbuild' in arch or 'build_chroot' in arch):
                 arch_man = self._manager_by_gem('arch')
                 if arch_man is not None:
                     aconf = arch_man.configman.get_config()
-                    aconf['aur_check_pkgbuild'] = bool(arch['check_pkgbuild'])
+                    if 'check_pkgbuild' in arch:
+                        aconf['aur_check_pkgbuild'] = bool(arch['check_pkgbuild'])
+                    if 'build_chroot' in arch:
+                        aconf['aur_build_chroot'] = bool(arch['build_chroot'])
                     arch_man.configman.save_config(aconf)
 
             return {'status': 'ok'}

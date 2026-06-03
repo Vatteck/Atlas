@@ -33,8 +33,14 @@
 > 3. ⏳ `-I` injection wired for AUR dep chains; reconcile Atlas's own host-side dep install
 >    (`_handle_aur_package_deps_and_keys`) which is redundant/wrong in chroot mode (chroot
 >    `--syncdeps` resolves repo deps itself).
-> 4. ⏳ Settings UI toggle + makepkg.conf reconciliation (custom conf already passed to `mkarchroot -M`
->    on create; verify it's honored per-build).
+> 4. ✅ **Settings toggle (2026-06-03):** "Build AUR packages in a clean chroot" in the AUR-safety
+>    settings section (`get_app_settings`/`save_app_settings` arch block: `build_chroot` +
+>    `chroot_available`). Disabled with an "install devtools" hint when `chroot.available()` is False;
+>    honest help text (isolates the build, ~1 GB first build, *not* package-safety). makepkg.conf is
+>    passed to `mkarchroot -M` on create when `optimize` + a custom conf exist (per-build honoring TBD,
+>    minor).
+>
+> **Only `-I` AUR dep-chain injection (increment 3) remains** for full v1.
 
 ## Goal
 

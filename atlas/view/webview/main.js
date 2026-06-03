@@ -2521,6 +2521,13 @@ async function renderSettings() {
                 <span class="settings-row-label">Scan PKGBUILDs before building (AUR)</span>
             </label>
             <p class="settings-help">A heuristic helper that flags risky-looking lines (pipe-to-shell, base64, writes to <code>~/.ssh</code>, …) for a second look before an AUR build. <strong>Not a safety check</strong> — a clean result doesn't mean a package is safe.</p>
+            <label class="settings-row ${arch.chroot_available ? '' : 'disabled'}" title="Build AUR packages in a clean systemd-nspawn chroot (like paru/aurutils) instead of against your live system">
+                <input type="checkbox" data-arch-key="build_chroot" ${arch.build_chroot ? 'checked' : ''} ${arch.chroot_available ? '' : 'disabled'}>
+                <span class="settings-row-label">Build AUR packages in a clean chroot</span>
+            </label>
+            <p class="settings-help">${arch.chroot_available
+                ? 'Isolates the <em>build</em> so a build script can\'t touch your <code>$HOME</code>/system, and enforces clean dependencies. The first build downloads a ~1&nbsp;GB base chroot (reused afterward). <strong>It does not make a malicious package safe</strong> — the result is still installed with pacman. Falls back to the normal build if the chroot fails.'
+                : 'Install the <code>devtools</code> package to enable this (provides <code>makechrootpkg</code>).'}</p>
         </section>` : '';
 
     const mirrorsSection = arch.available ? `
