@@ -44,6 +44,12 @@ class ChrootCmdTest(unittest.TestCase):
     def test_build_cmd_no_double_dash_when_no_makepkg_args(self):
         self.assertNotIn('--', chroot.build_cmd(self.DIR, makepkg_args=[]))
 
+    def test_build_cmd_makepkg_user_emits_U_flag(self):
+        cmd = chroot.build_cmd(self.DIR, makepkg_user='atlas-aur')
+        self.assertEqual(['makechrootpkg', '-r', self.DIR, '-U', 'atlas-aur', '-c'], cmd)
+        # no -U when unset (unprivileged path relies on SUDO_USER)
+        self.assertNotIn('-U', chroot.build_cmd(self.DIR, makepkg_user=None))
+
 
 class ChrootAvailabilityTest(unittest.TestCase):
     def test_available_true_when_all_present(self):

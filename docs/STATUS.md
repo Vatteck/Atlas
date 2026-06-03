@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §8). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-03 (AUR PKGBUILD review — rich rendered modal)
+**Last updated:** 2026-06-03 (Layer 3 — clean-chroot AUR builds, increments 1+2)
 **Version:** 0.10.7
 **Working branch:** `master` (use short-lived branches for larger features; run `git branch` to see what's active)
 
@@ -70,6 +70,19 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **AUR safety Layer 3 — clean-chroot builds, increments 1+2 (2026-06-03):** opt-in building of AUR
+  packages in a devtools clean chroot (`makechrootpkg`), like paru/aurutils. **Engine** (`chroot.py`):
+  `available()`/`missing_tools()` + argv builders (`create_root_cmd`/`update_root_cmd`/`build_cmd`,
+  incl. `-U <user>` and `-I` injection). **Wiring** (`controller._build_in_chroot`): create-if-absent
+  / update-else / build, swapped into `_build` behind `aur_build_chroot` (off) with a **host-build
+  fallback** (devtools missing or chroot setup fails → never blocks an install). Privilege model
+  **verified from the devtools source** (devtools installed on this box to confirm): run the tools as
+  root; pass `-U atlas-aur` in the root path (makechrootpkg forbids root makepkg), rely on `SUDO_USER`
+  in the unprivileged path. Tests: +18 (`test_chroot.py` 13, `test_chroot_build.py` 5); suite 419.
+  **⚠ Not yet run live** — a real chroot build needs root + ~1 GB + minutes; one real end-to-end build
+  is required before trusting the toggle. **Remaining:** (3) `-I` dep-chain injection + reconcile the
+  redundant host-side dep install; (4) Settings UI toggle. Plan:
+  [plans/2026-06-02-sandboxed-aur-builds.md](plans/2026-06-02-sandboxed-aur-builds.md).
 - **AUR PKGBUILD review — rich rendered modal (2026-06-03):** the advisory pre-build review (which
   already scanned + diffed) now *renders* properly instead of dumping a plain-text wall into the
   confirm modal. New `pkgbuild_audit.diff_lines()` returns a structured unified diff

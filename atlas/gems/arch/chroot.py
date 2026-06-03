@@ -65,20 +65,27 @@ def update_root_cmd(chroot_dir: str) -> List[str]:
 
 
 def build_cmd(chroot_dir: str, inject_pkgs: Optional[Iterable[str]] = None, clean: bool = True,
-              namcap: bool = False, makepkg_args: Optional[Iterable[str]] = None) -> List[str]:
-    """`makechrootpkg -r <chrootdir> [-c] [-n] [-I <pkg> ...] [-- <makepkg args>]`, run in the
-    package directory.
+              namcap: bool = False, makepkg_user: Optional[str] = None,
+              makepkg_args: Optional[Iterable[str]] = None) -> List[str]:
+    """`makechrootpkg -r <chrootdir> [-U <user>] [-c] [-n] [-I <pkg> ...] [-- <makepkg args>]`, run
+    in the package directory.
 
     - `-r <chrootdir>`: the chroot to build in (a copy of `<chrootdir>/root` is used).
+    - `-U <user>`: run the inner `makepkg` as this (unprivileged) user. **Required when we invoke
+      makechrootpkg as root directly**, because it otherwise defaults makepkg's user to `$USER`
+      (root) and refuses to build ("Running makepkg as root is not allowed"). Must be a real,
+      non-root user (Atlas's build user, created via `useradd`).
     - `-c`: clean the working copy first (a fresh, reproducible build env).
     - `-n`: run `namcap` on the result.
     - `-I <pkg>`: install a local package into the copy before building — how we inject
       already-built AUR dependencies (v1 dep model; no LocalRepo to manage). Repo deps are
       resolved inside the chroot from the mirrors automatically.
     - makepkg args after `--` are forwarded to the inner `makepkg`. Note: do **not** pass
-      `--nodeps` here (unlike the host build) — the chroot resolves deps itself.
+      `--nodeps` here (unlike the host build) — the chroot resolves deps itself (`--syncdeps`).
     """
     cmd = [MAKECHROOTPKG, '-r', chroot_dir]
+    if makepkg_user:
+        cmd += ['-U', makepkg_user]
     if clean:
         cmd.append('-c')
     if namcap:

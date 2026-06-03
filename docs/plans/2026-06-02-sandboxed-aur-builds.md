@@ -12,10 +12,25 @@
 > 1. ✅ **Engine (2026-06-03):** pure `chroot.py` — `available()`/`missing_tools()` precondition
 >    checks + argv construction (`create_root_cmd`/`update_root_cmd`/`build_cmd`, incl. `-I`
 >    injection). Fully unit-tested (`test_chroot.py`, 12). No wiring yet — commits to nothing.
-> 2. ⏳ Config toggle + chroot lifecycle (create/update) + swap into `_build` (`controller.py:2215`),
->    single-package builds, **host-build fallback**. Prove on a real package.
-> 3. ⏳ `-I` injection wired for AUR dep chains (feed each built dep into the dependent's build).
-> 4. ⏳ Settings UI toggle + makepkg.conf reconciliation (custom conf belongs *inside* the chroot).
+> 2. ✅ **Config + lifecycle + wiring (2026-06-03):** `aur_build_chroot` / `aur_build_chroot_dir`
+>    config (off; default dir `/var/lib/atlas/aurchroot`). `controller._build_in_chroot` creates the
+>    chroot if absent (`mkarchroot`), else updates it (`arch-nspawn pacman -Syu`), then builds
+>    (`makechrootpkg`) in the package dir; swapped into `_build` with a **host-build fallback**
+>    (returns None → `makepkg.build`). Unit-tested (`test_chroot_build.py`, 5 + `test_chroot.py` 13).
+>    **Privilege model VERIFIED from the devtools source** (not guessed — devtools was installed to
+>    confirm): `check_root` (archroot.sh) no-ops when already root, else self-execs via sudo → so we
+>    run mkarchroot/arch-nspawn/makechrootpkg **as root** (directly when the app is root; via
+>    `sudo -S`+root_password otherwise). makechrootpkg refuses to run makepkg as root (line 382), so
+>    we pass **`-U <build_user>`** in the root path (`atlas-aur`, created by `add_package_builder_user`);
+>    the unprivileged path relies on the `SUDO_USER` our `sudo -S` sets. Copy-dir "root" collision is
+>    self-guarded (line 45); default makepkg args already include `--skipinteg`/`--syncdeps`, so we
+>    pass no extra makepkg args. **NOT yet run live** (a real chroot build needs root + ~1 GB +
+>    minutes) — needs one real end-to-end build before the toggle is trusted.
+> 3. ⏳ `-I` injection wired for AUR dep chains; reconcile Atlas's own host-side dep install
+>    (`_handle_aur_package_deps_and_keys`) which is redundant/wrong in chroot mode (chroot
+>    `--syncdeps` resolves repo deps itself).
+> 4. ⏳ Settings UI toggle + makepkg.conf reconciliation (custom conf already passed to `mkarchroot -M`
+>    on create; verify it's honored per-build).
 
 ## Goal
 

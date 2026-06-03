@@ -39,7 +39,7 @@ from atlas.gems.arch import aur, pacman, message, confirmation, disk, git, \
     gpg, URL_CATEGORIES_FILE, CATEGORIES_FILE_PATH, CUSTOM_MAKEPKG_FILE, \
     get_icon_path, database, mirrors, sorting, cpu_manager, UPDATES_IGNORED_FILE, \
     ARCH_CONFIG_DIR, EDITABLE_PKGBUILDS_FILE, URL_GPG_SERVERS, rebuild_detector, makepkg, sshell, get_repo_icon_path, \
-    pkgbuild_audit
+    pkgbuild_audit, chroot
 from atlas.gems.arch.aur import AURClient
 from atlas.gems.arch.config import get_build_dir, ArchConfigManager
 from atlas.gems.arch.confirmation import confirm_missing_deps
@@ -2184,6 +2184,53 @@ class ArchManager(SoftwareManager, SettingsController):
 
         return srcinfo
 
+    def _chroot_dir(self, config: dict) -> str:
+        return config.get('aur_build_chroot_dir') or chroot.DEFAULT_CHROOT_DIR
+
+    def _chroot_root_proc(self, context: TransactionContext, cmd: list, cwd: str = '.') -> Tuple[bool, str]:
+        """Run a devtools/chroot command with root privileges, matching how Atlas escalates
+        elsewhere: when the app is already root, run it directly; otherwise via `sudo -S` with the
+        root password. devtools' own `check_root` then no-ops because we're already root."""
+        root_pwd = None if context.root_user else context.root_password
+        return context.handler.handle_simple(SimpleProcess(cmd, cwd=cwd, root_password=root_pwd))
+
+    def _build_in_chroot(self, context: TransactionContext, optimize: bool) -> Optional[Tuple[bool, str]]:
+        """Build the package in a devtools **clean chroot** (makechrootpkg). Returns ``(success,
+        output)``, or ``None`` to signal *fall back to the host build* (devtools missing, or chroot
+        setup failed) — a chroot problem must never block an install. Isolates the build only; it
+        does not make a malicious package safe (see chroot.py / the plan doc)."""
+        if not chroot.available():
+            missing = ', '.join(chroot.missing_tools())
+            context.watcher.print(f"[chroot] devtools missing ({missing}); using the host build instead.")
+            self.logger.warning(f"aur_build_chroot is on but devtools is unavailable ({missing}); host build fallback")
+            return None
+
+        # The inner makepkg must run as a non-root user. When Atlas runs as root we pass our created
+        # build user explicitly (makechrootpkg would otherwise default makepkg to root and refuse);
+        # when Atlas runs unprivileged, our `sudo -S` sets SUDO_USER and makechrootpkg adopts it.
+        if context.root_user and not self.add_package_builder_user(context.handler):
+            return None
+        build_user = self.pkgbuilder_user if context.root_user else None
+
+        chroot_dir = self._chroot_dir(context.config)
+        makepkg_conf = CUSTOM_MAKEPKG_FILE if (optimize and os.path.exists(CUSTOM_MAKEPKG_FILE)) else None
+
+        if not chroot.root_exists(chroot_dir):
+            context.watcher.change_substatus('Creating clean build chroot (one-time; downloads base-devel)…')
+            self.logger.info(f"Creating build chroot at '{chroot_dir}'")
+            created, _ = self._chroot_root_proc(context, chroot.create_root_cmd(chroot_dir, makepkg_conf=makepkg_conf))
+            if not created:
+                self.logger.error("Could not create the build chroot; falling back to host build")
+                context.watcher.print('[chroot] could not create the chroot — using the host build instead.')
+                return None
+        else:
+            context.watcher.change_substatus('Updating build chroot…')
+            self._chroot_root_proc(context, chroot.update_root_cmd(chroot_dir))  # non-fatal: a stale chroot still builds
+
+        context.watcher.change_substatus(self.i18n['arch.building.package'].format(bold(context.name)))
+        cmd = chroot.build_cmd(chroot_dir, makepkg_user=build_user)
+        return self._chroot_root_proc(context, cmd, cwd=context.project_dir)
+
     def _build(self, context: TransactionContext) -> bool:
         self._edit_pkgbuild_and_update_context(context)
 
@@ -2212,11 +2259,16 @@ class ArchManager(SoftwareManager, SettingsController):
         pkgbuilt = False
 
         try:
-            pkgbuilt, output = makepkg.build(pkgdir=context.project_dir,
-                                             optimize=optimize,
-                                             handler=context.handler,
-                                             custom_pkgbuild=context.custom_pkgbuild_path,
-                                             custom_user=self.pkgbuilder_user)
+            # Clean-chroot build (opt-in) with a fallback to the proven host build: _build_in_chroot
+            # returns None when the chroot path is unavailable/failed, so an install is never blocked.
+            result = self._build_in_chroot(context, optimize) if context.config.get('aur_build_chroot') else None
+            if result is None:
+                result = makepkg.build(pkgdir=context.project_dir,
+                                       optimize=optimize,
+                                       handler=context.handler,
+                                       custom_pkgbuild=context.custom_pkgbuild_path,
+                                       custom_user=self.pkgbuilder_user)
+            pkgbuilt, output = result
         finally:
             if cpus_changed and cpu_prev_governors:
                 self.logger.info("Restoring CPU governors")
