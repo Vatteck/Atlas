@@ -75,9 +75,13 @@ re-add a native extension without a measured win. Details in the historical
   (`{title, detail, level: safe|warn|danger}`, GNOME-Software-style), `safety()` → advisory tier
   (`unsafe`→"Potentially unsafe" / `moderate` / `safe`). `flathub.permissions()` fetches; folded into
   `get_flathub_metadata` (one extra summary call). Detail modal: a **safety badge** in the badges row
-  + a **permissions list** section (color-coded by level), both clearly labeled *advisory, not a
-  guarantee*. Live-verified vs Flathub (Dropbox → unsafe: home/+tmp/X11 danger, audio/network/
-  non-portal/proprietary warn). Tests: `test_permissions.py` (11). Next: #4 Flatseal-style editing.
+  + a **permissions list**, both clearly labeled *advisory, not a guarantee*. Live-verified vs
+  Flathub (Dropbox → unsafe: home/+tmp/X11 danger, audio/network/non-portal/proprietary warn). Tests:
+  `test_permissions.py` (11). **Click-to-popup UX (2026-06-03):** the permissions list moved into a
+  click-triggered popup — the **safety badge** (now `… ⓘ`) opens the color-coded permission
+  breakdown, and the **license badge** opens a FOSS-vs-proprietary explanation + the SPDX license.
+  Generic `#info-popup` modal (z-index 400, above the detail modal) + `showInfoPopup()`; frontend-only.
+  Next: #4 Flatseal-style editing.
   Plan: [plans/2026-06-03-flatpak-transparency.md](plans/2026-06-03-flatpak-transparency.md).
   **Needs a GUI eyeball** (open a Flatpak's detail → badges + permissions).
 - **Fix: installed AUR-only packages mislabeled as official-repo ("Arch") (2026-06-03):** a

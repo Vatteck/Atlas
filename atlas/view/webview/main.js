@@ -1007,6 +1007,37 @@ async function renderDetailHistory(pkg) {
 const SKIP_DETAIL_KEYS = new Set(['id', 'name', 'version', 'description']);
 
 // Package Detail Modal View
+// Generic client-side info popup (stacks above the detail modal). Body is trusted HTML built here.
+function showInfoPopup(title, bodyHtml) {
+    document.getElementById('info-popup-title').textContent = title || '';
+    document.getElementById('info-popup-body').innerHTML = bodyHtml || '';
+    document.getElementById('info-popup').classList.remove('hidden');
+}
+function closeInfoPopup() {
+    document.getElementById('info-popup').classList.add('hidden');
+}
+document.getElementById('info-popup-close').addEventListener('click', closeInfoPopup);
+document.querySelector('#info-popup .modal-backdrop').addEventListener('click', closeInfoPopup);
+document.getElementById('info-popup').addEventListener('keydown', (e) => { if (e.key === 'Escape') closeInfoPopup(); });
+
+function permissionsPopupHtml(meta) {
+    const rows = (meta.permissions || []).map(p => `
+        <li class="perm-item perm-${escapeHtml(p.level)}">
+            <span class="perm-title">${escapeHtml(p.title)}</span>
+            <span class="perm-detail">${escapeHtml(p.detail)}</span>
+        </li>`).join('');
+    return `<p class="popup-note">These are the sandbox permissions this app <strong>declares</strong> — what it <em>can</em> access, not what it necessarily does. This is an advisory summary, not a safety guarantee.</p>
+            <ul class="perm-list">${rows}</ul>`;
+}
+
+function licensePopupHtml(meta) {
+    const lic = meta.license ? `<p class="popup-note">License: <code>${escapeHtml(meta.license)}</code></p>` : '';
+    const body = meta.is_free
+        ? `<p>This app uses a <strong>free / open-source license</strong>. Its source code is publicly available, so it can be independently inspected and audited.</p>`
+        : `<p>This app uses a <strong>proprietary license</strong>. Its source code is not public, so it cannot be independently audited — you're trusting the developer.</p>`;
+    return body + lic;
+}
+
 function openDetailModal(pkg) {
     const detailIcon = document.getElementById('detail-icon');
     detailIcon.src = getIconSrc(pkg.icon_url);
@@ -1045,22 +1076,21 @@ function openDetailModal(pkg) {
 
     detailModal.classList.remove('hidden');
 
-    // Flathub metadata badges + permissions/safety (Flatpak only).
+    // Flathub metadata badges (Flatpak only). The safety + license badges are clickable → popup.
     const badgesEl = document.getElementById('detail-badges');
-    const permsEl = document.getElementById('detail-permissions');
     badgesEl.innerHTML = '';
-    permsEl.innerHTML = '';
     if (normalizeType(pkg.type) === 'flatpak') {
         pyApiCall('get_flatpak_meta', pkg.id).then(meta => {
             if (!meta || !Object.keys(meta).length) return;
             const parts = [];
+            const hasPerms = (meta.permissions || []).length > 0;
             if (meta.safety && meta.safety.level) {
-                parts.push(`<span class="meta-badge safety-${escapeHtml(meta.safety.level)}" title="Advisory — based on the permissions this app declares, not a guarantee">${escapeHtml(meta.safety.label || '')}</span>`);
+                parts.push(`<span class="meta-badge safety-${escapeHtml(meta.safety.level)}${hasPerms ? ' clickable' : ''}" data-popup="safety" title="${hasPerms ? 'Click for the permission details — ' : ''}advisory, based on declared permissions (not a guarantee)">${escapeHtml(meta.safety.label || '')}${hasPerms ? ' ⓘ' : ''}</span>`);
             }
             if (typeof meta.is_free === 'boolean') {
                 parts.push(meta.is_free
-                    ? `<span class="meta-badge foss" title="${escapeHtml(meta.license || 'Free/open-source license')}">Open Source</span>`
-                    : `<span class="meta-badge proprietary" title="${escapeHtml(meta.license || 'Proprietary license')}">Proprietary</span>`);
+                    ? `<span class="meta-badge foss clickable" data-popup="license" title="Click for license details">Open Source ⓘ</span>`
+                    : `<span class="meta-badge proprietary clickable" data-popup="license" title="Click for license details">Proprietary ⓘ</span>`);
             }
             parts.push(meta.verified
                 ? `<span class="meta-badge verified" title="Developer-verified on Flathub${meta.verified_via ? ' via ' + escapeHtml(meta.verified_via) : ''}">✓ Verified</span>`
@@ -1070,14 +1100,13 @@ function openDetailModal(pkg) {
             }
             badgesEl.innerHTML = parts.join('');
 
-            const perms = meta.permissions || [];
-            if (perms.length) {
-                const rows = perms.map(p => `
-                    <li class="perm-item perm-${escapeHtml(p.level)}">
-                        <span class="perm-title">${escapeHtml(p.title)}</span>
-                        <span class="perm-detail">${escapeHtml(p.detail)}</span>
-                    </li>`).join('');
-                permsEl.innerHTML = `<div class="detail-section-title">Permissions <span class="perm-note">(declared sandbox access — advisory, not a guarantee)</span></div><ul class="perm-list">${rows}</ul>`;
+            const safetyBadge = badgesEl.querySelector('[data-popup="safety"]');
+            if (safetyBadge && hasPerms) {
+                safetyBadge.addEventListener('click', () => showInfoPopup(meta.safety.label || 'Permissions', permissionsPopupHtml(meta)));
+            }
+            const licenseBadge = badgesEl.querySelector('[data-popup="license"]');
+            if (licenseBadge) {
+                licenseBadge.addEventListener('click', () => showInfoPopup(meta.is_free ? 'Open source' : 'Proprietary', licensePopupHtml(meta)));
             }
         });
     }

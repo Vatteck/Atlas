@@ -1891,11 +1891,16 @@ body {
 .meta-badge.safety-moderate { color: #d97706; border-color: rgba(217, 119, 6, 0.4); }
 .meta-badge.safety-safe { color: #16a34a; border-color: rgba(22, 163, 74, 0.4); }
 
-/* Flatpak permissions list (detail view) */
-.detail-permissions:empty { display: none; }
-.detail-permissions { margin-top: 18px; }
-.detail-section-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); margin-bottom: 10px; }
-.perm-note { text-transform: none; letter-spacing: 0; font-weight: 400; opacity: 0.8; }
+/* Clickable badges (open an info popup) */
+.meta-badge.clickable { cursor: pointer; }
+.meta-badge.clickable:hover { filter: brightness(1.15); }
+
+/* Info popup stacks above the detail modal (.modal is z-index 300) */
+#info-popup { z-index: 400; }
+.popup-note { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin: 0 0 14px; }
+.popup-note code { background: rgba(127,127,127,0.15); border-radius: 4px; padding: 1px 5px; }
+
+/* Flatpak permissions list */
 .perm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .perm-item { display: flex; flex-direction: column; gap: 1px; padding: 8px 12px; border-radius: var(--radius-md, 8px); border-left: 3px solid var(--border-color); background: var(--bg-surface); }
 .perm-item.perm-danger { border-left-color: #dc2626; }

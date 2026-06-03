@@ -193,7 +193,6 @@
                 <div id="detail-badges" class="detail-badges"></div>
                 <div id="detail-screenshots" class="detail-screenshots hidden"></div>
                 <p id="detail-description" class="modal-description"></p>
-                <div id="detail-permissions" class="detail-permissions"></div>
                 <div class="detail-section">
                     <h3>Details</h3>
                     <table id="detail-table" class="detail-table"></table>
@@ -296,6 +295,22 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" id="news-gate-cancel-btn">Cancel</button>
                 <button class="btn btn-primary" id="news-gate-proceed-btn">Proceed with upgrade</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generic info popup (e.g. clicking a Flatpak safety/license badge) -->
+    <div id="info-popup" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content password-modal-content">
+            <div class="modal-header">
+                <div class="modal-header-left">
+                    <div><h2 id="info-popup-title"></h2></div>
+                </div>
+                <button class="modal-close" id="info-popup-close" aria-label="Close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="info-popup-body"></div>
             </div>
         </div>
     </div>
