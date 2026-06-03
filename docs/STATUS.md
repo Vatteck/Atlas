@@ -59,6 +59,19 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Dedicated Flatpak Permissions page — Flatseal-grade, increment 1 (2026-06-03):** a new
+  **Permissions** sidebar page, **master/detail**: installed-Flatpak list (reuses `get_installed`,
+  filtered to flatpak) → the selected app's permissions grouped (Share / Socket / Device / Features),
+  each row = label + `flag=value` sub-label + an **iOS-style switch**, with per-app **Reset to
+  defaults**. Refactored `permissions.py` to a generic scheme: `_CATEGORIES` + `GROUPS` +
+  `grouped_toggles()`; `parse_context` now also reads `features`/`persistent`; `override_flag` is
+  generic over `"<category>:<value>"` keys (`--allow/--disallow` for features, etc.). The in-modal
+  quick editor was refactored onto the same scheme (kept — "keep both" per the UX call). New
+  `FlatpakManager.get_grouped_permissions` + `AtlasApi.get_flatpak_grouped_permissions`; set/reset
+  reuse the existing override path. Tests: `test_permissions.py` (18). Live-verified grouped output
+  (Discord). Remaining increments (BACKLOG/plan): (2) Filesystem add/remove + ro/rw, (3) Bus/Env/Persist
+  dynamic lists. Plan: [plans/2026-06-03-flatpak-permissions-page.md](plans/2026-06-03-flatpak-permissions-page.md).
+  **Needs a GUI eyeball** (page layout, switches, toggling).
 - **Flatpak transparency — metadata badges (theme increment 1, 2026-06-03):** the detail modal now
   shows Flathub badges for Flatpaks: **Open Source / Proprietary** (from `is_free_license` — Flathub
   pre-classifies, no SPDX parsing), **✓ Verified / ⚠ Unverified** (from the appstream

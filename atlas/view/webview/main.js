@@ -1007,6 +1007,87 @@ async function renderDetailHistory(pkg) {
 const SKIP_DETAIL_KEYS = new Set(['id', 'name', 'version', 'description']);
 
 // Package Detail Modal View
+// --- Permissions page (Flatseal-style, master/detail) ----------------------
+let permsPageApps = [];
+let permsPageSelected = null;
+
+async function renderPermissionsPage() {
+    packagesGrid.innerHTML = `<div class="state-container"><div class="spinner"></div><p>Loading installed Flatpaks…</p></div>`;
+    const installed = await pyApiCall('get_installed', 'all');
+    permsPageApps = (installed || []).filter(p => normalizeType(p.type) === 'flatpak')
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    if (!permsPageApps.length) {
+        packagesGrid.innerHTML = `<div class="news-empty">No installed Flatpaks. Install a Flatpak app to manage its permissions here.</div>`;
+        return;
+    }
+    if (!permsPageApps.some(a => a.id === permsPageSelected)) permsPageSelected = permsPageApps[0].id;
+
+    packagesGrid.innerHTML = `
+        <div class="perms-page">
+            <aside class="perms-applist" id="perms-applist"></aside>
+            <section class="perms-detail" id="perms-detail"></section>
+        </div>`;
+    renderPermsAppList();
+    renderPermsDetail(permsPageSelected);
+}
+
+function renderPermsAppList() {
+    const el = document.getElementById('perms-applist');
+    el.innerHTML = permsPageApps.map(a => `
+        <button class="perms-app ${a.id === permsPageSelected ? 'active' : ''}" data-app-id="${escapeHtml(a.id)}">
+            <img class="perms-app-icon" src="${(a.icon_url && a.icon_url.startsWith('data:')) ? a.icon_url : letterAvatar(a)}" data-src="${escapeHtml(getIconDataSrc(a.icon_url))}" alt="" loading="lazy">
+            <span class="perms-app-name">${escapeHtml(a.name)}</span>
+        </button>`).join('');
+    el.querySelectorAll('.perms-app').forEach(b => b.addEventListener('click', () => {
+        permsPageSelected = b.getAttribute('data-app-id');
+        renderPermsAppList();
+        renderPermsDetail(permsPageSelected);
+    }));
+    if (window.iconObserver) el.querySelectorAll('img.perms-app-icon[data-src]').forEach(i => window.iconObserver.observe(i));
+}
+
+async function renderPermsDetail(appId) {
+    const el = document.getElementById('perms-detail');
+    const app = permsPageApps.find(a => a.id === appId);
+    el.innerHTML = `<div class="state-container"><div class="spinner"></div></div>`;
+    const data = await pyApiCall('get_flatpak_grouped_permissions', appId);
+    if (!data || !data.editable) {
+        el.innerHTML = `<div class="news-empty">Permissions aren't available for this app.</div>`;
+        return;
+    }
+    const groups = (data.groups || []).map(g => `
+        <div class="perms-group">
+            <div class="perms-group-head"><h3>${escapeHtml(g.title)}</h3><p>${escapeHtml(g.subtitle)}</p></div>
+            <div class="perms-rows">
+                ${g.items.map(t => `
+                    <label class="perms-row" title="${escapeHtml(t.detail || '')}">
+                        <span class="perms-row-text">
+                            <span class="perms-row-name ${t.risky ? 'risky' : ''}">${escapeHtml(t.label)}</span>
+                            <span class="perms-row-flag">${escapeHtml(t.flag)}</span>
+                        </span>
+                        <span class="switch"><input type="checkbox" data-perm-key="${escapeHtml(t.key)}" ${t.enabled ? 'checked' : ''}><span class="switch-track"></span></span>
+                    </label>`).join('')}
+            </div>
+        </div>`).join('');
+    el.innerHTML = `
+        <div class="perms-detail-head">
+            <h2>${escapeHtml(app ? app.name : appId)}</h2>
+            <button class="btn btn-outline" id="perms-reset-all">Reset to defaults</button>
+        </div>
+        <p class="popup-note">Changes are saved as per-user overrides (no root needed) and take effect the next time the app starts.</p>
+        ${groups}`;
+
+    el.querySelectorAll('input[data-perm-key]').forEach(cb => cb.addEventListener('change', async () => {
+        const r = await pyApiCall('set_flatpak_override', appId, cb.getAttribute('data-perm-key'), cb.checked);
+        if (r && r.status === 'ok') showToast('Permissions', 'Updated — effective next launch', 'success');
+        else cb.checked = !cb.checked;
+    }));
+    document.getElementById('perms-reset-all').addEventListener('click', async () => {
+        const r = await pyApiCall('reset_flatpak_overrides', appId);
+        if (r && r.status === 'ok') { showToast('Permissions', 'Reset to defaults', 'success'); renderPermsDetail(appId); }
+    });
+}
+
 // Generic client-side info popup (stacks above the detail modal). Body is trusted HTML built here.
 function showInfoPopup(title, bodyHtml) {
     document.getElementById('info-popup-title').textContent = title || '';
@@ -2340,6 +2421,11 @@ function activateView(viewName) {
         loadingState.classList.add('hidden');
         packagesGrid.style.display = 'block';
         renderBrowse();
+    } else if (viewName === 'permissions') {
+        emptyState.classList.add('hidden');
+        loadingState.classList.add('hidden');
+        packagesGrid.style.display = 'block';
+        renderPermissionsPage();
     } else {
         fetchPackages();
     }

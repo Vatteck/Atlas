@@ -100,22 +100,47 @@ class EditableTogglesTest(unittest.TestCase):
 
     def test_editable_toggles_reflect_state(self):
         states = {t['key']: t['enabled'] for t in perms.editable_toggles(perms.parse_context(SHOW_PERMS))}
-        self.assertTrue(states['network'])
-        self.assertTrue(states['x11'])
-        self.assertTrue(states['devices'])
-        self.assertTrue(states['home'])
-        self.assertFalse(states['host'])   # not granted
+        self.assertTrue(states['share:network'])
+        self.assertTrue(states['socket:x11'])
+        self.assertTrue(states['device:all'])
+        self.assertTrue(states['filesystem:home'])
+        self.assertFalse(states['filesystem:host'])   # not granted
 
     def test_editable_toggles_all_off_for_empty(self):
         states = {t['key']: t['enabled'] for t in perms.editable_toggles(perms.parse_context(''))}
         self.assertTrue(all(v is False for v in states.values()))
 
     def test_override_flag_mapping(self):
-        self.assertEqual('--unshare=network', perms.override_flag('network', False))
-        self.assertEqual('--share=network', perms.override_flag('network', True))
-        self.assertEqual('--nosocket=x11', perms.override_flag('x11', False))
-        self.assertEqual('--nofilesystem=host', perms.override_flag('host', False))
+        self.assertEqual('--unshare=network', perms.override_flag('share:network', False))
+        self.assertEqual('--share=network', perms.override_flag('share:network', True))
+        self.assertEqual('--nosocket=x11', perms.override_flag('socket:x11', False))
+        self.assertEqual('--nofilesystem=host', perms.override_flag('filesystem:host', False))
+        self.assertEqual('--allow=bluetooth', perms.override_flag('feature:bluetooth', True))
+        self.assertEqual('--disallow=bluetooth', perms.override_flag('feature:bluetooth', False))
         self.assertIsNone(perms.override_flag('bogus', True))
+        self.assertIsNone(perms.override_flag('socket:', True))  # empty value
+
+
+class GroupedTogglesTest(unittest.TestCase):
+    def test_groups_and_flag_labels(self):
+        groups = perms.grouped_toggles(perms.parse_context(SHOW_PERMS))
+        titles = [g['title'] for g in groups]
+        self.assertEqual(['Share', 'Socket', 'Device', 'Features'], titles)
+        share = next(g for g in groups if g['title'] == 'Share')
+        net = next(i for i in share['items'] if i['key'] == 'share:network')
+        self.assertTrue(net['enabled'])
+        self.assertEqual('share=network', net['flag'])     # manifest-style sub-label
+        feat = next(g for g in groups if g['title'] == 'Features')
+        bt = next(i for i in feat['items'] if i['key'] == 'feature:bluetooth')
+        self.assertEqual('allow=bluetooth', bt['flag'])    # features use the 'allow' manifest key
+        self.assertFalse(bt['enabled'])
+
+    def test_features_parsed_from_context(self):
+        ctx = perms.parse_context("[Context]\nfeatures=devel;bluetooth;\n")
+        self.assertEqual({'devel', 'bluetooth'}, ctx['features'])
+        groups = perms.grouped_toggles(ctx)
+        feat = next(g for g in groups if g['title'] == 'Features')
+        self.assertTrue(next(i for i in feat['items'] if i['key'] == 'feature:devel')['enabled'])
 
 
 if __name__ == '__main__':

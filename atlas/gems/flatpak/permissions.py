@@ -102,38 +102,76 @@ _LABELS = {'unsafe': 'Potentially unsafe', 'moderate': 'Limited sandbox', 'safe'
 
 
 # --- editable overrides (Flatseal-style) -----------------------------------------------------
-# A curated set of high-impact toggles. Each maps a key to the [Context] category+token used to
-# read its current state, and the `flatpak override --user` flags to turn it on/off.
-EDITABLE = [
-    {'key': 'network', 'label': 'Network access', 'category': 'shared', 'token': 'network',
-     'on': '--share=network', 'off': '--unshare=network', 'risky': True,
-     'detail': 'Can send and receive data over the internet.'},
-    {'key': 'x11', 'label': 'Legacy windowing (X11)', 'category': 'sockets', 'token': 'x11',
-     'on': '--socket=x11', 'off': '--nosocket=x11', 'risky': True,
-     'detail': 'Uses X11, which is not isolated — other apps could read its input or capture its window.'},
-    {'key': 'wayland', 'label': 'Wayland windowing', 'category': 'sockets', 'token': 'wayland',
-     'on': '--socket=wayland', 'off': '--nosocket=wayland', 'risky': False,
-     'detail': 'Uses the sandboxed Wayland display server (preferred over X11).'},
-    {'key': 'audio', 'label': 'Audio & microphone', 'category': 'sockets', 'token': 'pulseaudio',
-     'on': '--socket=pulseaudio', 'off': '--nosocket=pulseaudio', 'risky': True,
-     'detail': 'Can play audio and record from the microphone.'},
-    {'key': 'devices', 'label': 'All devices (webcam, etc.)', 'category': 'devices', 'token': 'all',
-     'on': '--device=all', 'off': '--nodevice=all', 'risky': True,
-     'detail': 'Can access all devices, including webcams and game controllers.'},
-    {'key': 'home', 'label': 'Home folder', 'category': 'filesystems', 'token': 'home',
-     'on': '--filesystem=home', 'off': '--nofilesystem=home', 'risky': True,
-     'detail': 'Can read and write all files in your home folder.'},
-    {'key': 'host', 'label': 'All system files', 'category': 'filesystems', 'token': 'host',
-     'on': '--filesystem=host', 'off': '--nofilesystem=host', 'risky': True,
-     'detail': 'Can read and write all files on the system.'},
+# Generic scheme so one mapping serves both the in-modal quick editor and the full page. A toggle's
+# key is "<category>:<value>" (e.g. "socket:x11"). _CATEGORIES maps a category to its [Context] key
+# (for reading current state) + the on/off `flatpak override` flag prefixes + the manifest display key.
+_CATEGORIES = {
+    'share':      ('shared',      '--share=',      '--unshare=',      'share'),
+    'socket':     ('sockets',     '--socket=',     '--nosocket=',     'socket'),
+    'device':     ('devices',     '--device=',     '--nodevice=',     'device'),
+    'feature':    ('features',    '--allow=',      '--disallow=',     'allow'),
+    'filesystem': ('filesystems', '--filesystem=', '--nofilesystem=', 'filesystem'),
+}
+
+# Full grouped static-toggle spec (Flatseal-style). item = (value, label, detail, risky).
+GROUPS = [
+    {'category': 'share', 'title': 'Share', 'subtitle': 'Subsystems shared with the host system', 'items': [
+        ('network', 'Network', 'Can access the network / internet', True),
+        ('ipc', 'Inter-process communication', 'Can share IPC (e.g. X11 SHM) with the host', False),
+    ]},
+    {'category': 'socket', 'title': 'Socket', 'subtitle': 'Well-known sockets available in the sandbox', 'items': [
+        ('x11', 'X11 windowing system', 'Not isolated — other apps can read input or capture its window', True),
+        ('wayland', 'Wayland windowing system', 'The sandboxed display server (preferred)', False),
+        ('fallback-x11', 'Fallback to X11', 'Uses X11 when Wayland is unavailable', True),
+        ('pulseaudio', 'PulseAudio sound server', 'Can play audio and record from the microphone', True),
+        ('session-bus', 'D-Bus session bus', 'Full, unfiltered access to the session bus', True),
+        ('system-bus', 'D-Bus system bus', 'Full, unfiltered access to the system bus', True),
+        ('ssh-auth', 'Secure Shell agent', 'Can use your SSH authentication agent', True),
+        ('pcsc', 'Smart cards', 'Can access smart cards', False),
+        ('cups', 'Printing system', 'Can talk to the CUPS printing service', False),
+        ('gpg-agent', 'GPG agent', 'Can use your GPG agent', True),
+        ('inherit-wayland-socket', 'Inherit Wayland socket', 'Inherits the parent process Wayland socket', False),
+    ]},
+    {'category': 'device', 'title': 'Device', 'subtitle': 'Devices available in the sandbox', 'items': [
+        ('dri', 'GPU acceleration', 'Hardware-accelerated graphics', False),
+        ('input', 'Input devices', 'Gamepads, joysticks, etc.', True),
+        ('usb', 'USB devices', 'Can access USB devices', True),
+        ('kvm', 'Virtualization (KVM)', 'Hardware virtualization', True),
+        ('shm', 'Shared memory', 'Shared memory with the host', True),
+        ('all', 'All devices', 'All devices, including webcams', True),
+    ]},
+    {'category': 'feature', 'title': 'Features', 'subtitle': 'Extra sandbox features', 'items': [
+        ('devel', 'Development syscalls', 'ptrace/perf — used by debuggers', True),
+        ('multiarch', 'Multiarch', 'Can run binaries of other architectures', False),
+        ('bluetooth', 'Bluetooth', 'Can use Bluetooth', True),
+        ('canbus', 'CAN bus', 'Can use the CAN bus', True),
+        ('per-app-dev-shm', 'Per-app /dev/shm', 'Uses an isolated /dev/shm', False),
+    ]},
 ]
-_EDITABLE_BY_KEY = {t['key']: t for t in EDITABLE}
+
+# The curated subset shown in the in-modal quick editor: (key, label, detail, risky).
+_MODAL = [
+    ('share:network', 'Network access', 'Can send and receive data over the internet.', True),
+    ('socket:x11', 'Legacy windowing (X11)', 'X11 is not isolated — other apps could read its input or capture its window.', True),
+    ('socket:wayland', 'Wayland windowing', 'Uses the sandboxed Wayland display server (preferred over X11).', False),
+    ('socket:pulseaudio', 'Audio & microphone', 'Can play audio and record from the microphone.', True),
+    ('device:all', 'All devices (webcam, etc.)', 'Can access all devices, including webcams and game controllers.', True),
+    ('filesystem:home', 'Home folder', 'Can read and write all files in your home folder.', True),
+    ('filesystem:host', 'All system files', 'Can read and write all files on the system.', True),
+]
+
+
+def _enabled(key: str, context: Dict[str, set]) -> bool:
+    category, _, value = key.partition(':')
+    spec = _CATEGORIES.get(category)
+    return bool(spec) and value in (context.get(spec[0]) or set())
 
 
 def parse_context(show_permissions_output: str) -> Dict[str, set]:
-    """Parse `flatpak info --show-permissions` [Context] into {shared, sockets, devices,
-    filesystems} sets (filesystem `:ro`/`:rw` access modes stripped)."""
-    cats = {'shared': set(), 'sockets': set(), 'devices': set(), 'filesystems': set()}
+    """Parse `flatpak info --show-permissions` [Context] into per-category sets
+    (filesystem `:ro`/`:rw` access modes stripped)."""
+    cats = {c[0]: set() for c in _CATEGORIES.values()}  # shared/sockets/devices/features/filesystems
+    cats['persistent'] = set()
     in_context = False
     for raw in (show_permissions_output or '').splitlines():
         line = raw.strip()
@@ -152,19 +190,32 @@ def parse_context(show_permissions_output: str) -> Dict[str, set]:
     return cats
 
 
+def grouped_toggles(context: Dict[str, set]) -> List[Dict]:
+    """Full Flatseal-style grouped toggle state for the permissions page."""
+    groups = []
+    for g in GROUPS:
+        display_key = _CATEGORIES[g['category']][3]
+        items = [{'key': f"{g['category']}:{value}", 'label': label, 'detail': detail,
+                  'flag': f"{display_key}={value}", 'risky': risky,
+                  'enabled': _enabled(f"{g['category']}:{value}", context)}
+                 for (value, label, detail, risky) in g['items']]
+        groups.append({'title': g['title'], 'subtitle': g['subtitle'], 'items': items})
+    return groups
+
+
 def editable_toggles(context: Dict[str, set]) -> List[Dict]:
-    """Current on/off state of each editable toggle, from a parsed [Context]."""
-    return [{'key': t['key'], 'label': t['label'], 'risky': t['risky'], 'detail': t['detail'],
-             'enabled': t['token'] in (context.get(t['category']) or set())}
-            for t in EDITABLE]
+    """The curated quick-editor toggles (in-modal), with current state."""
+    return [{'key': key, 'label': label, 'detail': detail, 'risky': risky, 'enabled': _enabled(key, context)}
+            for (key, label, detail, risky) in _MODAL]
 
 
 def override_flag(key: str, enabled: bool) -> Optional[str]:
-    """The `flatpak override --user` flag to set a toggle on/off, or None for an unknown key."""
-    spec = _EDITABLE_BY_KEY.get(key)
-    if not spec:
+    """The `flatpak override --user` flag for a "<category>:<value>" toggle, or None if unknown."""
+    category, _, value = key.partition(':')
+    spec = _CATEGORIES.get(category)
+    if not spec or not value:
         return None
-    return spec['on'] if enabled else spec['off']
+    return (spec[1] if enabled else spec[2]) + value
 
 
 def safety(perms: Optional[Dict], is_free: bool = True) -> Dict:

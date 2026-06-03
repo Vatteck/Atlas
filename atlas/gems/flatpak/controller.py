@@ -415,6 +415,15 @@ class FlatpakManager(SoftwareManager, SettingsController):
         context = permissions.parse_context(out or '')
         return {'editable': True, 'toggles': permissions.editable_toggles(context)}
 
+    def get_grouped_permissions(self, pkg: FlatpakApplication) -> dict:
+        """Full Flatseal-style grouped permission toggles for an installed Flatpak (for the
+        dedicated Permissions page)."""
+        if not pkg.installed or not pkg.id:
+            return {'editable': False, 'groups': []}
+        out = flatpak.show_permissions(pkg.id, pkg.branch or '', pkg.installation)
+        context = permissions.parse_context(out or '')
+        return {'editable': True, 'groups': permissions.grouped_toggles(context)}
+
     def set_permission(self, pkg: FlatpakApplication, key: str, enabled: bool) -> bool:
         """Apply one toggle via `flatpak override --user` (no root). Returns success."""
         flag = permissions.override_flag(key, enabled)

@@ -37,10 +37,13 @@ filesystems/features/persistent), `[Session Bus Policy]`, `[System Bus Policy]`,
 
 ## Increments
 
-1. **Page scaffold + static toggles** (Share / Socket / Device / Features). App picker + grouped
-   switch cards with flag sub-labels. Backend: grouped spec (extend `permissions.EDITABLE` into
-   `EDITABLE_GROUPS`), parse `features`/`persistent` in `parse_context`, `--allow/--disallow` in
-   `override_flag`. The bulk of Flatseal's common toggles; pure logic stays unit-tested.
+1. ~~**Page scaffold + static toggles**~~ ✅ **Done (2026-06-03).** Sidebar "Permissions" page,
+   **master/detail** (installed-Flatpak list ← reuses `get_installed` → grouped permissions), iOS-style
+   switches, `flag=value` sub-labels, per-app Reset. Backend: generic `_CATEGORIES` + `GROUPS` spec +
+   `grouped_toggles()`, `parse_context` now also reads `features`/`persistent`, `override_flag` is
+   generic over `"<category>:<value>"` keys (`--allow/--disallow` for features). Modal quick-editor
+   refactored onto the same scheme (kept). Decisions: master/detail, iOS switches, keep both editors.
+   Tests: `test_permissions.py` (18). Live-verified grouped output (Discord). **Needs a GUI eyeball.**
 2. **Filesystem section**: predefined dir toggles + custom-path add/remove + ro/rw mode.
 3. **Bus (talk/own) + Environment + Persist**: dynamic add/remove lists (parse the bus/env sections;
    `--talk-name`/`--no-talk-name`, `--env`, `--persist`).

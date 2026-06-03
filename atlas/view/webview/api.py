@@ -1096,6 +1096,17 @@ class AtlasApi:
             self.logger.error(f"get_flatpak_overrides failed: {e}")
             return {'status': 'ok', 'data': {'editable': False, 'toggles': []}}
 
+    def get_flatpak_grouped_permissions(self, pkg_id: str) -> dict:
+        """Full grouped permission toggles (Flatseal-style) for the dedicated Permissions page."""
+        try:
+            pkg, man = self._flatpak_pkg_and_manager(pkg_id)
+            if not man or not hasattr(man, 'get_grouped_permissions'):
+                return {'status': 'ok', 'data': {'editable': False, 'groups': []}}
+            return {'status': 'ok', 'data': man.get_grouped_permissions(pkg)}
+        except Exception as e:
+            self.logger.error(f"get_flatpak_grouped_permissions failed: {e}")
+            return {'status': 'ok', 'data': {'editable': False, 'groups': []}}
+
     def set_flatpak_override(self, pkg_id: str, key: str, enabled: bool) -> dict:
         """Toggle one permission via `flatpak override --user` (no root)."""
         try:
