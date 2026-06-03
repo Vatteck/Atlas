@@ -28,9 +28,9 @@ archlinux.org news since the last sync before a full upgrade) — see Done. Next
 
 Pulling from **[BACKLOG.md](BACKLOG.md)**. Near-term candidates:
 
-- **Arch safety net** — remaining: `.pacnew` merge assist (we already *detect* `.pacnew`/`.pacsave`
-  on the Updates view; add a button to launch `pacdiff` in a terminal to merge them). ✅ Gate
-  "Update All" on Arch news is **done** (see Done).
+- ✅ **Arch safety net is done** — both the Update-All news gate and the `.pacnew` merge-assist
+  button shipped (see Done). The Arch safety-net theme is now complete.
+- **Exploratory:** container sandboxing ("Vault").
 - Note: **keyboard shortcuts** and the **selection toolbar** backlog items already look largely
   shipped (shortcuts help button + batch install/uninstall bar) — confirm before re-picking.
 
@@ -55,6 +55,17 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **`.pacnew` merge assist (2026-06-02):** the `.pacnew`/`.pacsave` notice on the Updates view now
+  has an **"Open pacdiff in a terminal"** button. Backend (`api.py`): `_find_terminal()` resolves an
+  available emulator (honors `$TERMINAL`, then a curated list whose exec flag takes args separately:
+  `konsole -e`, `gnome-terminal --`, `alacritty -e`, `kitty`, `foot`, `wezterm start --`,
+  `xfce4-terminal -x`, `xterm -e`), and `launch_pacdiff()` spawns `[*term, 'sudo', 'pacdiff']`
+  detached (`start_new_session=True`). Errors cleanly if `pacdiff` is missing (→ install
+  pacman-contrib) or no terminal is found. We only *launch* the standard tool — no merging/removal
+  inside Atlas. Frontend: button in `renderUpdatesNotice` + `.config-notice-actions` style. Tests:
+  `test_api.py::ArchSafetyNetTest` (3 new). Terminal resolution verified live (`konsole -e`); the
+  actual launch needs a GUI eyeball (opens a sudo terminal). Plan:
+  [plans/2026-06-02-pacnew-merge-assist.md](plans/2026-06-02-pacnew-merge-assist.md).
 - **Gate "Update All" on Arch news (2026-06-02):** before a full upgrade, warn about
   archlinux.org news published since the last DB sync (the "didn't read the news, pacman broke"
   guard). Backend (`api.py`): `_fetch_arch_news_items()` (shared RSS parser, now also keeps a raw

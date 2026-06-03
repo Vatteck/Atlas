@@ -722,6 +722,50 @@ class AtlasApi:
             self.logger.error(f"get_pacnew_files failed: {e}")
             return {'status': 'error', 'message': str(e), 'data': {'files': [], 'count': 0}}
 
+    # Terminal emulators whose exec flag takes the command as SEPARATE args (no shell-quoting).
+    # Order = preference. `$TERMINAL` is honored first (see _find_terminal).
+    _TERMINAL_LAUNCHERS = (
+        ('konsole', ['konsole', '-e']),
+        ('gnome-terminal', ['gnome-terminal', '--']),
+        ('alacritty', ['alacritty', '-e']),
+        ('kitty', ['kitty']),
+        ('foot', ['foot']),
+        ('wezterm', ['wezterm', 'start', '--']),
+        ('xfce4-terminal', ['xfce4-terminal', '-x']),
+        ('xterm', ['xterm', '-e']),
+    )
+
+    def _find_terminal(self):
+        """argv prefix of an available terminal emulator (command appended as separate args), or
+        None. Honors $TERMINAL first, then the curated priority list."""
+        launchers = dict(self._TERMINAL_LAUNCHERS)
+        env_term = os.environ.get('TERMINAL')
+        if env_term and shutil.which(env_term):
+            return list(launchers.get(env_term, [env_term, '-e']))
+        for binary, prefix in self._TERMINAL_LAUNCHERS:
+            if shutil.which(binary):
+                return list(prefix)
+        return None
+
+    def launch_pacdiff(self) -> dict:
+        """Open `sudo pacdiff` (from pacman-contrib) in a terminal so the user can merge the
+        .pacnew/.pacsave files interactively. We just launch the standard tool — no merging or
+        removal happens inside Atlas."""
+        import subprocess
+        if not shutil.which('pacdiff'):
+            return {'status': 'error', 'message': 'pacdiff not found — install the "pacman-contrib" package.'}
+        term = self._find_terminal()
+        if not term:
+            return {'status': 'error', 'message': 'No supported terminal emulator found — run "sudo pacdiff" manually.'}
+        cmd = term + ['sudo', 'pacdiff']
+        try:
+            subprocess.Popen(cmd, start_new_session=True)  # detached; owns its own TTY
+            self.logger.info(f"Launched pacdiff: {' '.join(cmd)}")
+            return {'status': 'ok'}
+        except Exception as e:
+            self.logger.error(f"Could not launch pacdiff: {e}")
+            return {'status': 'error', 'message': str(e)}
+
     def get_updates(self, pkg_type: str = 'all') -> dict:
         try:
             self.logger.info("get_updates called")

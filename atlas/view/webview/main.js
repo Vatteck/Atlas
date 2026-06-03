@@ -1782,9 +1782,17 @@ async function renderUpdatesNotice() {
     el.innerHTML = `
         <div class="config-notice">
             <div class="config-notice-title">⚠ ${escapeHtml(res.count)} configuration file${res.count > 1 ? 's' : ''} need review</div>
-            <p class="config-notice-body">These <code>.pacnew</code>/<code>.pacsave</code> files were installed alongside updates and may need merging with your current config. Review them with <code>sudo pacdiff</code> (from <code>pacman-contrib</code>), then remove the <code>.pacnew</code> file.</p>
+            <p class="config-notice-body">These <code>.pacnew</code>/<code>.pacsave</code> files were installed alongside updates and may need merging with your current config. Review them with <code>pacdiff</code> (from <code>pacman-contrib</code>), then remove the <code>.pacnew</code> file.</p>
             <ul class="config-notice-list">${list}</ul>
+            <div class="config-notice-actions">
+                <button class="btn btn-outline" id="pacdiff-btn">Open pacdiff in a terminal</button>
+            </div>
         </div>`;
+    const pacdiffBtn = document.getElementById('pacdiff-btn');
+    if (pacdiffBtn) pacdiffBtn.addEventListener('click', async () => {
+        const r = await pyApiCall('launch_pacdiff');  // null on error (toast already shown)
+        if (r) showToast('pacdiff', 'Opened pacdiff in a terminal — merge the files there', 'info');
+    });
 }
 
 // Action Handlers

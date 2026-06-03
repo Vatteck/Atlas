@@ -881,6 +881,33 @@ class ArchSafetyNetTest(unittest.TestCase):
     def test_last_db_sync_time_none_without_sync_dbs(self, _mock_glob):
         self.assertIsNone(self.api._last_db_sync_time())
 
+    # --- launch_pacdiff (the .pacnew merge assist) -------------------------- #
+    @patch.dict('os.environ', {'TERMINAL': ''})  # don't let a real $TERMINAL skew the test
+    @patch('atlas.view.webview.api.shutil.which', return_value=None)
+    def test_launch_pacdiff_errors_when_pacdiff_missing(self, _which):
+        res = self.api.launch_pacdiff()
+        self.assertEqual('error', res['status'])
+        self.assertIn('pacman-contrib', res['message'])
+
+    @patch.dict('os.environ', {'TERMINAL': ''})
+    def test_launch_pacdiff_errors_when_no_terminal(self):
+        # pacdiff present, but no terminal emulator on PATH
+        with patch('atlas.view.webview.api.shutil.which', side_effect=lambda b: '/usr/bin/pacdiff' if b == 'pacdiff' else None):
+            res = self.api.launch_pacdiff()
+        self.assertEqual('error', res['status'])
+        self.assertIn('terminal', res['message'].lower())
+
+    @patch.dict('os.environ', {'TERMINAL': ''})
+    def test_launch_pacdiff_spawns_terminal_with_sudo_pacdiff(self):
+        found = {'pacdiff', 'konsole'}
+        with patch('atlas.view.webview.api.shutil.which', side_effect=lambda b: f'/usr/bin/{b}' if b in found else None), \
+             patch('subprocess.Popen') as mock_popen:
+            res = self.api.launch_pacdiff()
+        self.assertEqual('ok', res['status'])
+        argv = mock_popen.call_args[0][0]
+        self.assertEqual(['konsole', '-e', 'sudo', 'pacdiff'], argv)
+        self.assertTrue(mock_popen.call_args[1].get('start_new_session'))
+
 
 class RichDetailTest(unittest.TestCase):
     """Detail-modal extras: get_screenshots (Flatpak/AppImage) and get_history."""
