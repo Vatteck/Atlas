@@ -1050,6 +1050,28 @@ class AtlasApi:
             traceback.print_exc()
             return {'status': 'error', 'message': str(e)}
 
+    def get_flatpak_meta(self, pkg_id: str) -> dict:
+        """Flathub metadata for the detail-view badges (license FOSS/proprietary, developer
+        verification, downloads/month). Returns empty data for non-Flatpak packages. Best-effort —
+        never raises into the UI."""
+        try:
+            pkg = self._get_pkg(pkg_id)
+            ptype = ''
+            try:
+                ptype = str(pkg.get_type() or '').lower()
+            except Exception:
+                pass
+            app_id = getattr(pkg, 'id', None)
+            if pkg is None or ptype != 'flatpak' or not app_id:
+                return {'status': 'ok', 'data': {}}
+            flatpak_man = self._manager_by_gem('flatpak')
+            if flatpak_man is None or not hasattr(flatpak_man, 'get_flathub_metadata'):
+                return {'status': 'ok', 'data': {}}
+            return {'status': 'ok', 'data': flatpak_man.get_flathub_metadata(app_id) or {}}
+        except Exception as e:
+            self.logger.error(f"get_flatpak_meta failed: {e}")
+            return {'status': 'ok', 'data': {}}
+
     def get_screenshots(self, pkg_id: str) -> dict:
         """Screenshot URLs for the detail modal (Flatpak/AppImage have them; Arch doesn't).
         Returns {status, data:[url, ...]}; an empty list is a valid 'ok' result."""

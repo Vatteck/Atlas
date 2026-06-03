@@ -1045,6 +1045,28 @@ function openDetailModal(pkg) {
 
     detailModal.classList.remove('hidden');
 
+    // Flathub metadata badges (Flatpak only): license FOSS/proprietary, verified, downloads.
+    const badgesEl = document.getElementById('detail-badges');
+    badgesEl.innerHTML = '';
+    if (normalizeType(pkg.type) === 'flatpak') {
+        pyApiCall('get_flatpak_meta', pkg.id).then(meta => {
+            if (!meta || !Object.keys(meta).length) return;
+            const parts = [];
+            if (typeof meta.is_free === 'boolean') {
+                parts.push(meta.is_free
+                    ? `<span class="meta-badge foss" title="${escapeHtml(meta.license || 'Free/open-source license')}">Open Source</span>`
+                    : `<span class="meta-badge proprietary" title="${escapeHtml(meta.license || 'Proprietary license')}">Proprietary</span>`);
+            }
+            parts.push(meta.verified
+                ? `<span class="meta-badge verified" title="Developer-verified on Flathub${meta.verified_via ? ' via ' + escapeHtml(meta.verified_via) : ''}">✓ Verified</span>`
+                : `<span class="meta-badge unverified" title="Not developer-verified on Flathub">⚠ Unverified</span>`);
+            if (typeof meta.installs_last_month === 'number') {
+                parts.push(`<span class="meta-badge downloads" title="Installs in the last month (Flathub)">↓ ${meta.installs_last_month.toLocaleString()}/mo</span>`);
+            }
+            badgesEl.innerHTML = parts.join('');
+        });
+    }
+
     // Rich detail extras (read-only): screenshots for Flatpak/AppImage and version history.
     renderDetailScreenshots(pkg);
     renderDetailHistory(pkg);

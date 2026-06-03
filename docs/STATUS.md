@@ -59,6 +59,17 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Flatpak transparency — metadata badges (theme increment 1, 2026-06-03):** the detail modal now
+  shows Flathub badges for Flatpaks: **Open Source / Proprietary** (from `is_free_license` — Flathub
+  pre-classifies, no SPDX parsing), **✓ Verified / ⚠ Unverified** (from the appstream
+  `metadata['flathub::verification::*']`, already fetched — no extra call), and **downloads/month**
+  (one `/api/v2/stats/<id>` call). `flathub.metadata_badges` + `installs_last_month` →
+  `FlatpakManager.get_flathub_metadata` → `AtlasApi.get_flatpak_meta` (empty for non-Flatpak) →
+  `#detail-badges` row in `openDetailModal` + `.meta-badge` styles. Best-effort/graceful. Live-verified
+  (GIMP: FOSS/verified/67k; Spotify: proprietary/unverified/135k). Tests: `test_flathub.py` (+5),
+  `test_api.py::FlatpakMetaTest` (2). Plan + remaining increments (permissions display → safety tier →
+  Flatseal-style editing): [plans/2026-06-03-flatpak-transparency.md](plans/2026-06-03-flatpak-transparency.md).
+  **Needs a GUI eyeball** (open a Flatpak's detail → badges row).
 - **Fix: installed AUR-only packages mislabeled as official-repo ("Arch") (2026-06-03):** a
   foreign installed package (repro: `atlas-pm-git`) showed a bogus two-source "Arch ● AUR" card.
   Trace: `read_installed` buckets a `not_signed` package that's missing from the (stale) cached AUR

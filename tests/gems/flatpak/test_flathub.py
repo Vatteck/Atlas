@@ -116,3 +116,36 @@ class FlathubV2Test(TestCase):
     def test_release_date_from_iso_when_no_timestamp(self):
         info = flathub.app_info({'name': 'X', 'releases': [{'version': '1', 'date': '2024-05-01'}]})
         self.assertEqual(datetime(2024, 5, 1), info['release_date'])
+
+    # --- metadata badges (license / verification) ------------------------- #
+    def test_metadata_badges_foss_verified(self):
+        b = flathub.metadata_badges({
+            'project_license': 'GPL-3.0+', 'is_free_license': True,
+            'metadata': {'flathub::verification::verified': True,
+                         'flathub::verification::website': 'gimp.org'},
+        })
+        self.assertTrue(b['is_free'])
+        self.assertTrue(b['verified'])
+        self.assertEqual('gimp.org', b['verified_via'])
+        self.assertEqual('GPL-3.0+', b['license'])
+
+    def test_metadata_badges_proprietary_unverified(self):
+        b = flathub.metadata_badges({'project_license': 'LicenseRef-proprietary',
+                                     'is_free_license': False, 'metadata': {}})
+        self.assertFalse(b['is_free'])
+        self.assertFalse(b['verified'])
+        self.assertIsNone(b['verified_via'])
+
+    def test_metadata_badges_empty(self):
+        self.assertEqual({}, flathub.metadata_badges(None))
+        self.assertEqual({}, flathub.metadata_badges({}))
+
+    def test_installs_last_month(self):
+        client = Mock()
+        client.get.return_value = Mock(status_code=200, json=lambda: {'installs_last_month': 67823})
+        self.assertEqual(67823, flathub.installs_last_month(client, 'org.gimp.GIMP'))
+
+    def test_installs_last_month_failure_is_none(self):
+        client = Mock()
+        client.get.return_value = None
+        self.assertIsNone(flathub.installs_last_month(client, 'x'))

@@ -95,6 +95,31 @@ class FlatpakIconFallbackTest(unittest.TestCase):
         self.assertEqual('', data['icon_url'])
 
 
+class FlatpakMetaTest(unittest.TestCase):
+    """get_flatpak_meta dispatches to the flatpak gem only for Flatpak packages."""
+
+    def setUp(self):
+        self.api = AtlasApi(Mock(), Mock())
+
+    def test_non_flatpak_returns_empty(self):
+        pkg = Mock(); pkg.id = 'x'; pkg.get_type.return_value = 'aur'
+        with patch.object(self.api, '_get_pkg', return_value=pkg):
+            res = self.api.get_flatpak_meta('aur:x')
+        self.assertEqual({}, res['data'])
+
+    def test_flatpak_dispatches_to_gem(self):
+        pkg = Mock(); pkg.id = 'org.gimp.GIMP'; pkg.get_type.return_value = 'flatpak'
+        gem = Mock()
+        gem.get_flathub_metadata.return_value = {'is_free': True, 'verified': True,
+                                                 'installs_last_month': 67823}
+        with patch.object(self.api, '_get_pkg', return_value=pkg), \
+             patch.object(self.api, '_manager_by_gem', return_value=gem):
+            res = self.api.get_flatpak_meta('flatpak:gimp')
+        self.assertTrue(res['data']['is_free'])
+        self.assertTrue(res['data']['verified'])
+        gem.get_flathub_metadata.assert_called_once_with('org.gimp.GIMP')
+
+
 class InstalledIconResolveTest(unittest.TestCase):
     """get_pkg_icon: resolve an installed app's icon from .desktop / icon theme dirs."""
 

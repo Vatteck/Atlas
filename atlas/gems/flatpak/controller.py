@@ -386,6 +386,19 @@ class FlatpakManager(SoftwareManager, SettingsController):
         else:
             return flathub.app_info(flathub.get_appstream(self.http_client, app.id, logger=self.context.logger))
 
+    def get_flathub_metadata(self, app_id: str) -> dict:
+        """Display metadata for the detail-view badges: license FOSS/proprietary, developer
+        verification, and monthly downloads (Flathub v2). Best-effort; empty dict on miss."""
+        if not app_id:
+            return {}
+        data = flathub.get_appstream(self.http_client, app_id, logger=self.context.logger)
+        badges = flathub.metadata_badges(data)
+        if not badges:
+            return {}
+        badges['installs_last_month'] = flathub.installs_last_month(self.http_client, app_id,
+                                                                    logger=self.context.logger)
+        return badges
+
     def get_history(self, pkg: FlatpakApplication, full_commit_str: bool = False) -> PackageHistory:
         pkg.commit = flatpak.get_commit(pkg.id, pkg.branch, pkg.installation)
         pkg_commit = pkg.commit if pkg.commit else None

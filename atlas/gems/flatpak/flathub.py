@@ -102,6 +102,35 @@ def app_info(data: Optional[dict]) -> dict:
     return {k: v for k, v in info.items() if v}
 
 
+def metadata_badges(data: Optional[dict]) -> dict:
+    """Display badges from the v2 AppStream payload: license FOSS/proprietary + developer
+    verification. (Downloads come separately from the stats endpoint.) Empty dict if no data."""
+    if not data:
+        return {}
+    meta = data.get('metadata') or {}
+    return {
+        'license': data.get('project_license'),
+        'is_free': bool(data.get('is_free_license')),
+        'verified': bool(meta.get('flathub::verification::verified')),
+        'verified_via': meta.get('flathub::verification::website')
+                        or meta.get('flathub::verification::login_provider') or None,
+    }
+
+
+def installs_last_month(http_client, app_id: str, logger=None) -> Optional[int]:
+    """Monthly install count from the Flathub stats endpoint, or None. Best-effort."""
+    if not app_id:
+        return None
+    try:
+        res = http_client.get('{}/stats/{}'.format(FLATHUB_API_URL, app_id), single_call=True)
+        if res is not None and 200 <= res.status_code < 300:
+            return res.json().get('installs_last_month')
+    except Exception as e:
+        if logger is not None:
+            logger.debug("flathub stats fetch failed for '%s': %s", app_id, e)
+    return None
+
+
 def _release_date(release: dict) -> Optional[datetime]:
     """v2 releases carry a unix `timestamp` (string) and sometimes an ISO `date`."""
     ts = release.get('timestamp')
