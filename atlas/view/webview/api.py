@@ -766,6 +766,41 @@ class AtlasApi:
             self.logger.error(f"Could not launch pacdiff: {e}")
             return {'status': 'error', 'message': str(e)}
 
+    def _mirror_regen_cmd(self):
+        """argv to regenerate /etc/pacman.d/mirrorlist with an installed Arch mirror tool, or None.
+        reflector (the Arch standard, writes the file via --save) is preferred; rate-mirrors is a
+        fallback. NOT cachyos-rate-mirrors — that targets the CachyOS mirrorlist, not this file."""
+        if shutil.which('reflector'):
+            return ['reflector', '--protocol', 'https', '--latest', '20', '--sort', 'rate',
+                    '--download-timeout', '5', '--save', '/etc/pacman.d/mirrorlist']
+        if shutil.which('rate-mirrors'):
+            return ['rate-mirrors', '--allow-root', '--save=/etc/pacman.d/mirrorlist', 'arch']
+        return None
+
+    def regenerate_mirrorlist(self) -> dict:
+        """Regenerate the Arch mirror list (/etc/pacman.d/mirrorlist) with reflector/rate-mirrors.
+        Needs root. The safe alternative to merging a mirrorlist.pacnew (which wipes your servers).
+        Can take up to a minute (it speed-tests mirrors)."""
+        cmd = self._mirror_regen_cmd()
+        if not cmd:
+            return {'status': 'error', 'message': 'No mirror tool found — install "reflector" (or rate-mirrors).'}
+        pwd = self.ensure_root_password()
+        if pwd is None:
+            return {'status': 'cancelled'}
+        try:
+            self.logger.info(f"Regenerating mirrorlist: {' '.join(cmd)}")
+            proc = new_root_subprocess(cmd, root_password=pwd)
+            _, err = proc.communicate()
+            if proc.returncode != 0:
+                msg = (err or b'').decode(errors='replace').strip() or 'mirror refresh failed'
+                self.logger.error(f"regenerate_mirrorlist: {msg}")
+                return {'status': 'error', 'message': msg[:300]}
+            self._notify('Mirror list regenerated')
+            return {'status': 'ok', 'tool': cmd[0]}
+        except Exception as e:
+            self.logger.error(f"regenerate_mirrorlist failed: {e}")
+            return {'status': 'error', 'message': str(e)}
+
     def get_updates(self, pkg_type: str = 'all') -> dict:
         try:
             self.logger.info("get_updates called")

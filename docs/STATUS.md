@@ -62,10 +62,14 @@ re-add a native extension without a measured win. Details in the historical
 - **`.pacnew` mirrorlist caution (2026-06-02):** the `.pacnew` notice now shows a pointed warning
   when `/etc/pacman.d/mirrorlist` is among the flagged files — overwriting it with pacdiff replaces
   your servers with the stock all-commented list (a user hit exactly this while testing the pacdiff
-  button). Steers to regenerate (reflector/rate-mirrors) or discard the `.pacnew`. Frontend-only
-  (`renderUpdatesNotice` + `.config-notice-warn`). Follow-up (not done): a working "Regenerate mirror
-  list" action — see [plans/2026-06-02-arch-mirror-refresh.md](plans/2026-06-02-arch-mirror-refresh.md)
-  (also fixes the Manjaro-leftover refresh, see Known gaps).
+  button). Steers to regenerate or discard the `.pacnew`, and (when mirrorlist is flagged) offers a
+  **"Regenerate mirror list" button**: `AtlasApi.regenerate_mirrorlist()` runs **reflector**
+  (`--protocol https --latest 20 --sort rate --download-timeout 5 --save /etc/pacman.d/mirrorlist`;
+  rate-mirrors fallback; *not* cachyos-rate-mirrors — that targets the CachyOS list) via the root
+  broker. The Arch-correct counterpart to the dead Manjaro `refresh_mirrors` (Known gaps). Tests:
+  `test_api.py::ArchSafetyNetTest` (+4). Live-verified the command matches what fixed a real box.
+  Still TODO: fix the *gem's* `refresh_mirrors` custom action too —
+  [plans/2026-06-02-arch-mirror-refresh.md](plans/2026-06-02-arch-mirror-refresh.md).
 - **AUR safety — heuristic PKGBUILD scanner engine (2026-06-02):** first increment of the "AUR
   safety" theme. New pure module `atlas/gems/arch/pkgbuild_audit.py` — `scan(text)` returns advisory
   findings (`{line_no, line, rule, severity, why}`) for suspicious PKGBUILD/.install constructs:

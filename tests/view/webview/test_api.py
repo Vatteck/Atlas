@@ -921,6 +921,42 @@ class ArchSafetyNetTest(unittest.TestCase):
         self.assertEqual(['konsole', '-e', 'sudo', 'pacdiff'], argv)
         self.assertTrue(mock_popen.call_args[1].get('start_new_session'))
 
+    # --- regenerate_mirrorlist --------------------------------------------- #
+    def test_regen_mirrorlist_errors_when_no_tool(self):
+        with patch('atlas.view.webview.api.shutil.which', return_value=None):
+            res = self.api.regenerate_mirrorlist()
+        self.assertEqual('error', res['status'])
+        self.assertIn('reflector', res['message'])
+
+    def test_regen_mirrorlist_prefers_reflector_and_saves(self):
+        with patch('atlas.view.webview.api.shutil.which', side_effect=lambda b: '/usr/bin/reflector' if b == 'reflector' else None), \
+             patch.object(self.api, 'ensure_root_password', return_value='pw'), \
+             patch('atlas.view.webview.api.new_root_subprocess') as mock_proc, \
+             patch.object(self.api, '_notify'):
+            mock_proc.return_value.communicate.return_value = (b'', b'')
+            mock_proc.return_value.returncode = 0
+            res = self.api.regenerate_mirrorlist()
+        self.assertEqual('ok', res['status'])
+        argv = mock_proc.call_args[0][0]
+        self.assertEqual('reflector', argv[0])
+        self.assertIn('/etc/pacman.d/mirrorlist', argv)
+
+    def test_regen_mirrorlist_cancelled_without_password(self):
+        with patch('atlas.view.webview.api.shutil.which', return_value='/usr/bin/reflector'), \
+             patch.object(self.api, 'ensure_root_password', return_value=None):
+            res = self.api.regenerate_mirrorlist()
+        self.assertEqual('cancelled', res['status'])
+
+    def test_regen_mirrorlist_reports_tool_failure(self):
+        with patch('atlas.view.webview.api.shutil.which', side_effect=lambda b: '/usr/bin/reflector' if b == 'reflector' else None), \
+             patch.object(self.api, 'ensure_root_password', return_value='pw'), \
+             patch('atlas.view.webview.api.new_root_subprocess') as mock_proc:
+            mock_proc.return_value.communicate.return_value = (b'', b'no mirrors found')
+            mock_proc.return_value.returncode = 1
+            res = self.api.regenerate_mirrorlist()
+        self.assertEqual('error', res['status'])
+        self.assertIn('no mirrors', res['message'])
+
 
 class RichDetailTest(unittest.TestCase):
     """Detail-modal extras: get_screenshots (Flatpak/AppImage) and get_history."""

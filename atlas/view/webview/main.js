@@ -1792,12 +1792,25 @@ async function renderUpdatesNotice() {
             <ul class="config-notice-list">${list}</ul>
             <div class="config-notice-actions">
                 <button class="btn btn-outline" id="pacdiff-btn">Open pacdiff in a terminal</button>
+                ${hasMirrorlist ? '<button class="btn btn-outline" id="regen-mirrors-btn">Regenerate mirror list</button>' : ''}
             </div>
         </div>`;
     const pacdiffBtn = document.getElementById('pacdiff-btn');
     if (pacdiffBtn) pacdiffBtn.addEventListener('click', async () => {
         const r = await pyApiCall('launch_pacdiff');  // null on error (toast already shown)
         if (r) showToast('pacdiff', 'Opened pacdiff in a terminal — merge the files there', 'info');
+    });
+    const regenBtn = document.getElementById('regen-mirrors-btn');
+    if (regenBtn) regenBtn.addEventListener('click', async () => {
+        regenBtn.classList.add('loading');
+        showToast('Mirrors', 'Regenerating the mirror list — this can take up to a minute…', 'info');
+        const r = await pyApiCall('regenerate_mirrorlist');  // null on error (toast shown)
+        regenBtn.classList.remove('loading');
+        if (r && r.status === 'ok') {
+            showToast('Mirrors', `Mirror list regenerated via ${r.tool || 'reflector'} — run a sync to refresh`, 'success');
+        } else if (r && r.status === 'cancelled') {
+            showToast('Mirrors', 'Mirror regeneration cancelled', 'info');
+        }
     });
 }
 
