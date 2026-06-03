@@ -2030,6 +2030,17 @@ async function renderSettings() {
             <p class="settings-help">Tray changes take effect the next time Atlas starts.</p>
         </section>`;
 
+    const arch = data.arch || {};
+    const archSection = arch.available ? `
+        <section class="settings-section">
+            <h3>AUR safety</h3>
+            <label class="settings-row" title="Heuristically scan a PKGBUILD before building and flag suspicious lines">
+                <input type="checkbox" data-arch-key="check_pkgbuild" ${arch.check_pkgbuild ? 'checked' : ''}>
+                <span class="settings-row-label">Scan PKGBUILDs before building (AUR)</span>
+            </label>
+            <p class="settings-help">A heuristic helper that flags risky-looking lines (pipe-to-shell, base64, writes to <code>~/.ssh</code>, …) for a second look before an AUR build. <strong>Not a safety check</strong> — a clean result doesn't mean a package is safe.</p>
+        </section>` : '';
+
     packagesGrid.innerHTML = `
         <div class="settings-page">
             <section class="settings-section">
@@ -2043,6 +2054,7 @@ async function renderSettings() {
                 ${generalRows}
             </section>
             ${traySection}
+            ${archSection}
             <section class="settings-section">
                 <h3>Backup</h3>
                 <p class="settings-help">Save the list of installed apps to <code>~/atlas-manifest.json</code>, or reinstall everything from it (handy for migrating or after a reinstall).</p>
@@ -2087,6 +2099,12 @@ async function saveSettings() {
         if (Number.isFinite(mins)) tray.update_check_interval = Math.max(0, mins);
     }
     payload.tray = tray;
+
+    const arch = {};
+    packagesGrid.querySelectorAll('input[data-arch-key]').forEach(el => {
+        arch[el.getAttribute('data-arch-key')] = el.checked;
+    });
+    if (Object.keys(arch).length) payload.arch = arch;
 
     const res = await pyApiCall('save_app_settings', payload);
     btn.classList.remove('loading');

@@ -1027,6 +1027,14 @@ class AtlasApi:
             except Exception:
                 TRAY_AVAILABLE = False
 
+            arch_man = self._manager_by_gem('arch')
+            arch_check_pkgbuild = True
+            if arch_man is not None:
+                try:
+                    arch_check_pkgbuild = bool(arch_man.configman.get_config().get('aur_check_pkgbuild', True))
+                except Exception:
+                    arch_check_pkgbuild = True
+
             return {'status': 'ok', 'data': {
                 'types': types,
                 'flatpak_available': flatpak_man is not None,
@@ -1043,6 +1051,10 @@ class AtlasApi:
                     'enabled': bool(tray_cfg.get('enabled', True)),
                     'minimize_to_tray': bool(tray_cfg.get('minimize_to_tray', False)),
                     'update_check_interval': int(tray_cfg.get('update_check_interval', 60) or 0),
+                },
+                'arch': {
+                    'available': arch_man is not None,
+                    'check_pkgbuild': arch_check_pkgbuild,
                 },
             }}
         except Exception as e:
@@ -1103,6 +1115,14 @@ class AtlasApi:
                     level = settings.get('flatpak_installation_level') or None
                     fconf['installation_level'] = level if level in ('system', 'user') else None
                     flatpak_man.configman.save_config(fconf)
+
+            arch = settings.get('arch')
+            if isinstance(arch, dict) and 'check_pkgbuild' in arch:
+                arch_man = self._manager_by_gem('arch')
+                if arch_man is not None:
+                    aconf = arch_man.configman.get_config()
+                    aconf['aur_check_pkgbuild'] = bool(arch['check_pkgbuild'])
+                    arch_man.configman.save_config(aconf)
 
             return {'status': 'ok'}
         except Exception as e:

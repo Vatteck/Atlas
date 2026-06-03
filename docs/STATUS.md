@@ -76,8 +76,10 @@ re-add a native extension without a measured win. Details in the historical
   aborts the build. Added `white-space: pre-wrap` to `#confirm-message`/`#message-body` so the
   multi-line advisory renders. Tests: `tests/gems/arch/test_pkgbuild_audit_gate.py` (6). **Behavior
   change to AUR installs — needs a GUI eyeball** (flagged pkg → advisory appears; clean pkg → no
-  interruption). Still TODO: a Settings toggle for `aur_check_pkgbuild`, and the **diff-since-last-build**
-  view (layer 1). Design:
+  interruption). A **Settings toggle** ("AUR safety → Scan PKGBUILDs before building") now exposes
+  `aur_check_pkgbuild` via the webview Settings page (`get_app_settings`/`save_app_settings` gained an
+  `arch` block; `test_api.py::AppSettingsTest` +2). Still TODO: the **diff-since-last-build** view
+  (layer 1). Design:
   [plans/2026-06-02-aur-pkgbuild-review.md](plans/2026-06-02-aur-pkgbuild-review.md). The chroot-build
   layer is a separate design note ([plans/2026-06-02-sandboxed-aur-builds.md](plans/2026-06-02-sandboxed-aur-builds.md)),
   not started.
