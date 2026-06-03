@@ -502,7 +502,21 @@ class ArchManager(SoftwareManager, SettingsController):
     def _fill_repo_updates(self, updates: dict):
         updates.update(pacman.list_repository_updates())
 
-    def _fill_repo_pkgs(self, repo_pkgs: dict, pkgs: list, aur_index: Optional[Set[str]], disk_loader: DiskCacheLoader):
+    def _confirm_removed_from_aur(self, names: list) -> Set[str]:
+        """Of the given foreign packages missing from the *cached* AUR index, which are GENUINELY
+        not on the AUR — verified against the live RPC. Returns empty on RPC failure (uncertain →
+        flag nothing), so a stale index never false-flags a freshly-published package as removed."""
+        try:
+            info = self.aur_client.get_info(names)
+        except Exception as e:
+            self.logger.debug(f"AUR removal check failed: {e}")
+            return set()
+        if info is None:  # RPC unavailable/offline — uncertain, flag nothing
+            return set()
+        present = {i.get('Name') for i in info if i.get('Name')}  # info may be [] (none on AUR)
+        return {n for n in names if n not in present}
+
+    def _fill_repo_pkgs(self, repo_pkgs: dict, pkgs: list, removed_from_aur: Optional[Set[str]], disk_loader: DiskCacheLoader):
         updates = {}
 
         thread_updates = Thread(target=self._fill_repo_updates, args=(updates,), daemon=True)
@@ -545,7 +559,9 @@ class ArchManager(SoftwareManager, SettingsController):
                 # a real repo name here, so they're unaffected.
                 pkg.repository = 'aur'
 
-                if aur_index and pkg.name not in aur_index:
+                # Only flag "removed from AUR" when the live RPC *confirmed* it's gone — never from
+                # a stale cached index alone (that false-flags freshly-published packages).
+                if removed_from_aur and pkg.name in removed_from_aur:
                     removed_cat = self.i18n['arch.category.remove_from_aur']
 
                     if removed_cat not in pkg.categories:
@@ -596,6 +612,7 @@ class ArchManager(SoftwareManager, SettingsController):
         installed = pacman.map_packages(names=names)
 
         aur_pkgs, repo_pkgs, aur_index = None, None, None
+        removed_from_aur = set()
 
         if repos_supported:
             repo_pkgs = installed['signed']
@@ -607,15 +624,21 @@ class ArchManager(SoftwareManager, SettingsController):
 
                 aur_index = self.aur_client.read_index()
 
-                for pkg in {*installed['not_signed']}:
-                    if pkg not in aur_index:
-                        if repos_supported:
-                            repo_pkgs[pkg] = installed['not_signed'][pkg]
+                not_in_index = [pkg for pkg in {*installed['not_signed']} if pkg not in aur_index]
+                for pkg in not_in_index:
+                    if repos_supported:
+                        repo_pkgs[pkg] = installed['not_signed'][pkg]
 
-                        if aur_supported and installed['not_signed']:
-                            del installed['not_signed'][pkg]
+                    if installed['not_signed']:
+                        del installed['not_signed'][pkg]
 
                 aur_pkgs = installed['not_signed']
+
+                # The cached index can be stale (a just-published AUR pkg won't be in it yet), so
+                # confirm the misses against the live AUR RPC — only the ones it says are truly gone
+                # get the "removed from AUR" flag. (Routing is unchanged; this just fixes the flag.)
+                if not_in_index and repos_supported:
+                    removed_from_aur = self._confirm_removed_from_aur(not_in_index)
             elif repos_supported:
                 repo_pkgs.update(installed['not_signed'])
 
@@ -632,7 +655,7 @@ class ArchManager(SoftwareManager, SettingsController):
                 map_threads.append(t)
 
             if repo_pkgs:
-                t = Thread(target=self._fill_repo_pkgs, args=(repo_pkgs, pkgs, aur_index, disk_loader), daemon=True)
+                t = Thread(target=self._fill_repo_pkgs, args=(repo_pkgs, pkgs, removed_from_aur, disk_loader), daemon=True)
                 t.start()
                 map_threads.append(t)
 

@@ -68,10 +68,14 @@ re-add a native extension without a measured win. Details in the historical
   Fix (`controller._fill_repo_pkgs`): a package pacman can't place in any real repo is **foreign**
   (AUR/community/local), not official-repo — label it **`'aur'`** instead of `None`. Surgical: genuine
   repo packages always get a real repo name from `-Si`, so they're untouched; no code relies on
-  `repository is None`. Tests: `tests/gems/arch/test_repo_classification.py` (3). **Residual (separate,
-  index-freshness):** a freshly-published AUR package missing from the local index still gets a
-  "Removed from AUR" category hint (false positive until the index refreshes) — cosmetic, not the
-  source label. **Needs a GUI eyeball** (search "atlas" → single AUR card, not Arch+AUR).
+  `repository is None`. **Index-freshness follow-up (2026-06-03):** the "Removed from AUR" category
+  was flagged purely from the *stale cached index*, false-flagging just-published packages. Now
+  `read_installed` RPC-verifies the index misses (`_confirm_removed_from_aur` → one batched
+  `aur_client.get_info`) and only flags packages the **live RPC confirms are gone**; RPC
+  failure/offline flags nothing (uncertain, not "all removed"). `_fill_repo_pkgs` takes the
+  confirmed-removed set instead of doing the index check. Tests:
+  `tests/gems/arch/test_repo_classification.py` (8: classification + RPC verification).
+  **Needs a GUI eyeball** (search "atlas" → single AUR card, no false "Removed from AUR").
 - **Better package icons (2026-06-03):** the grid was almost all letter-avatars (search results
   carry no icon for any source; icons were only fetched on the detail view). Three fixes:
   (1) **Flatpak icons in search** — `_serialize_pkg` derives the predictable Flathub CDN icon URL
