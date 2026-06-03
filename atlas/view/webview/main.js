@@ -1772,6 +1772,20 @@ async function renderCategoryPackages(key, label) {
     header.querySelector('.browse-back').addEventListener('click', renderBrowse);
 }
 
+// Regenerate /etc/pacman.d/mirrorlist (reflector/rate-mirrors via the root broker). Shared by the
+// .pacnew mirrorlist caution and the Settings → Mirrors button.
+async function regenerateMirrors(btnEl) {
+    if (btnEl) btnEl.classList.add('loading');
+    showToast('Mirrors', 'Regenerating the mirror list — this can take up to a minute…', 'info');
+    const r = await pyApiCall('regenerate_mirrorlist');  // null on error (toast already shown)
+    if (btnEl) btnEl.classList.remove('loading');
+    if (r && r.status === 'ok') {
+        showToast('Mirrors', `Mirror list regenerated via ${r.tool || 'reflector'} — run a sync to refresh`, 'success');
+    } else if (r && r.status === 'cancelled') {
+        showToast('Mirrors', 'Mirror regeneration cancelled', 'info');
+    }
+}
+
 // Notice on the Updates view: .pacnew/.pacsave config files pacman left for manual review.
 async function renderUpdatesNotice() {
     const el = document.getElementById('updates-notice');
@@ -1801,17 +1815,7 @@ async function renderUpdatesNotice() {
         if (r) showToast('pacdiff', 'Opened pacdiff in a terminal — merge the files there', 'info');
     });
     const regenBtn = document.getElementById('regen-mirrors-btn');
-    if (regenBtn) regenBtn.addEventListener('click', async () => {
-        regenBtn.classList.add('loading');
-        showToast('Mirrors', 'Regenerating the mirror list — this can take up to a minute…', 'info');
-        const r = await pyApiCall('regenerate_mirrorlist');  // null on error (toast shown)
-        regenBtn.classList.remove('loading');
-        if (r && r.status === 'ok') {
-            showToast('Mirrors', `Mirror list regenerated via ${r.tool || 'reflector'} — run a sync to refresh`, 'success');
-        } else if (r && r.status === 'cancelled') {
-            showToast('Mirrors', 'Mirror regeneration cancelled', 'info');
-        }
-    });
+    if (regenBtn) regenBtn.addEventListener('click', () => regenerateMirrors(regenBtn));
 }
 
 // Action Handlers
@@ -2060,6 +2064,15 @@ async function renderSettings() {
             <p class="settings-help">A heuristic helper that flags risky-looking lines (pipe-to-shell, base64, writes to <code>~/.ssh</code>, …) for a second look before an AUR build. <strong>Not a safety check</strong> — a clean result doesn't mean a package is safe.</p>
         </section>` : '';
 
+    const mirrorsSection = arch.available ? `
+        <section class="settings-section">
+            <h3>Mirrors</h3>
+            <p class="settings-help">Rebuild <code>/etc/pacman.d/mirrorlist</code> with the fastest mirrors${arch.mirror_tool ? ` (via <code>${escapeHtml(arch.mirror_tool)}</code>)` : ''}. Takes up to a minute. ${arch.mirror_tool ? '' : '<strong>Install <code>reflector</code> to enable this.</strong>'}</p>
+            <div class="settings-actions">
+                <button id="settings-regen-mirrors-btn" class="btn btn-outline" ${arch.mirror_tool ? '' : 'disabled'}>Regenerate mirror list</button>
+            </div>
+        </section>` : '';
+
     packagesGrid.innerHTML = `
         <div class="settings-page">
             <section class="settings-section">
@@ -2074,6 +2087,7 @@ async function renderSettings() {
             </section>
             ${traySection}
             ${archSection}
+            ${mirrorsSection}
             <section class="settings-section">
                 <h3>Backup</h3>
                 <p class="settings-help">Save the list of installed apps to <code>~/atlas-manifest.json</code>, or reinstall everything from it (handy for migrating or after a reinstall).</p>
@@ -2090,6 +2104,8 @@ async function renderSettings() {
     document.getElementById('settings-save-btn').addEventListener('click', saveSettings);
     document.getElementById('settings-export-btn').addEventListener('click', exportPackages);
     document.getElementById('settings-import-btn').addEventListener('click', importPackages);
+    const regenMirrorsBtn = document.getElementById('settings-regen-mirrors-btn');
+    if (regenMirrorsBtn) regenMirrorsBtn.addEventListener('click', () => regenerateMirrors(regenMirrorsBtn));
 }
 
 async function saveSettings() {

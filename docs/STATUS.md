@@ -79,7 +79,10 @@ re-add a native extension without a measured win. Details in the historical
   rate-mirrors fallback; *not* cachyos-rate-mirrors — that targets the CachyOS list) via the root
   broker. The Arch-correct counterpart to the dead Manjaro `refresh_mirrors` (Known gaps). Tests:
   `test_api.py::ArchSafetyNetTest` (+4). Live-verified the command matches what fixed a real box.
-  Still TODO: fix the *gem's* `refresh_mirrors` custom action too —
+  Also exposed an **always-available "Regenerate mirror list" button in Settings → Mirrors** (not
+  just the `.pacnew` caution): shared `regenerateMirrors()` JS helper; `get_app_settings` arch block
+  now reports `mirror_tool` so the button disables with an "install reflector" hint when no tool is
+  found. Still TODO: fix the *gem's* `refresh_mirrors` custom action too —
   [plans/2026-06-02-arch-mirror-refresh.md](plans/2026-06-02-arch-mirror-refresh.md).
 - **AUR safety — heuristic PKGBUILD scanner engine (2026-06-02):** first increment of the "AUR
   safety" theme. New pure module `atlas/gems/arch/pkgbuild_audit.py` — `scan(text)` returns advisory

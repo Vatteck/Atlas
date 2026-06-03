@@ -1090,6 +1090,7 @@ class AtlasApi:
                 'arch': {
                     'available': arch_man is not None,
                     'check_pkgbuild': arch_check_pkgbuild,
+                    'mirror_tool': (self._mirror_regen_cmd() or [None])[0],
                 },
             }}
         except Exception as e:

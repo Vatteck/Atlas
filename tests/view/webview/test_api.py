@@ -222,6 +222,7 @@ class AppSettingsTest(unittest.TestCase):
         self.assertIn('arch', data)
         self.assertTrue(data['arch']['available'])
         self.assertTrue(data['arch']['check_pkgbuild'])
+        self.assertIn('mirror_tool', data['arch'])  # None or the detected tool name
 
     def test_save_app_settings_persists_arch_check_pkgbuild(self):
         res = self.api.save_app_settings({'arch': {'check_pkgbuild': False}})
