@@ -110,6 +110,36 @@ def diff(old_text: str, new_text: str, max_lines: int = 240) -> str:
     return '\n'.join(lines)
 
 
+def diff_lines(old_text: str, new_text: str, max_lines: int = 240) -> List[Dict]:
+    """Structured unified diff for rich rendering: a list of {kind, text} where kind is
+    'meta' (---/+++ file headers), 'hunk' (@@ … @@), 'add' (+), 'del' (-) or 'ctx' (unchanged).
+    Empty list if identical. Truncated to keep the modal manageable."""
+    import difflib
+    old = (old_text or '').splitlines()
+    new = (new_text or '').splitlines()
+    raw = list(difflib.unified_diff(old, new, fromfile='PKGBUILD (last built)',
+                                    tofile='PKGBUILD (new)', lineterm=''))
+    if not raw:
+        return []
+    truncated = len(raw) - max_lines if len(raw) > max_lines else 0
+    out: List[Dict] = []
+    for ln in raw[:max_lines]:
+        if ln.startswith('+++') or ln.startswith('---'):
+            kind = 'meta'
+        elif ln.startswith('@@'):
+            kind = 'hunk'
+        elif ln.startswith('+'):
+            kind = 'add'
+        elif ln.startswith('-'):
+            kind = 'del'
+        else:
+            kind = 'ctx'
+        out.append({'kind': kind, 'text': ln})
+    if truncated:
+        out.append({'kind': 'meta', 'text': f'… (diff truncated — {truncated} more lines)'})
+    return out
+
+
 def summarize(findings: List[Dict]) -> Dict:
     """Small rollup for the UI banner: counts by severity + total."""
     warn = sum(1 for f in findings if f['severity'] == WARN)

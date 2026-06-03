@@ -126,6 +126,29 @@ class ScanMechanicsTest(unittest.TestCase):
         self.assertEqual(s['total'], s['warn'] + s['info'])
         self.assertGreaterEqual(s['warn'], 1)
 
+    def test_diff_lines_empty_when_identical(self):
+        self.assertEqual([], audit.diff_lines('pkgver=1\n', 'pkgver=1\n'))
+
+    def test_diff_lines_classifies_each_line(self):
+        rows = audit.diff_lines('pkgver=1\n', 'pkgver=2\n')
+        kinds = {r['kind'] for r in rows}
+        self.assertEqual({'meta', 'hunk', 'add', 'del'}, kinds)
+        added = [r['text'] for r in rows if r['kind'] == 'add']
+        removed = [r['text'] for r in rows if r['kind'] == 'del']
+        self.assertTrue(any(t.startswith('+pkgver=2') for t in added))
+        self.assertTrue(any(t.startswith('-pkgver=1') for t in removed))
+        # context lines (unchanged) keep their leading space and are tagged 'ctx'
+        ctx = audit.diff_lines('a\nb\nc\n', 'a\nX\nc\n')
+        self.assertTrue(any(r['kind'] == 'ctx' and r['text'] == ' a' for r in ctx))
+
+    def test_diff_lines_truncates_with_a_meta_marker(self):
+        old = '\n'.join(f'line{i}' for i in range(500))
+        new = '\n'.join(f'changed{i}' for i in range(500))
+        rows = audit.diff_lines(old, new, max_lines=50)
+        self.assertEqual(51, len(rows))                       # max_lines + the truncation marker
+        self.assertEqual('meta', rows[-1]['kind'])
+        self.assertIn('truncated', rows[-1]['text'])
+
 
 if __name__ == '__main__':
     unittest.main()

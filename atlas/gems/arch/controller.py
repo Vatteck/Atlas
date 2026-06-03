@@ -2126,34 +2126,34 @@ class ArchManager(SoftwareManager, SettingsController):
         # On an update, show what changed in the PKGBUILD since the last build (the "compromised
         # release" guard). The fresh clone is shallow, so fetch the old revision from AUR's cgit by
         # commit and diff in Python. Best-effort: any failure just omits the diff.
-        diff_text = ''
+        diff_data = []
         old_commit = getattr(getattr(context, 'pkg', None), 'commit', None)
         if old_commit and not getattr(context, 'new_pkg', False) and new_text:
             old_text = self._fetch_pkgbuild_at_commit(context.get_base_name(), old_commit)
             if old_text:
-                diff_text = pkgbuild_audit.diff(old_text, new_text)
+                diff_data = pkgbuild_audit.diff_lines(old_text, new_text)
 
-        if not warns and not diff_text:
+        if not warns and not diff_data:
             return True
 
-        sections = []
-        if diff_text:
+        if diff_data:
             self.logger.info(f"PKGBUILD changed since last build for '{context.name}'")
-            sections.append("Changed since your last build:\n" + diff_text)
         if warns:
             self.logger.info(f"PKGBUILD audit for '{context.name}' flagged {len(warns)} line(s)")
-            bullets = '\n'.join(f"• L{f['line_no']}: {f['why']}\n    {f['line'][:160]}" for f in warns[:20])
-            if len(warns) > 20:
-                bullets += f"\n• …and {len(warns) - 20} more"
-            sections.append(f"Flagged {len(warns)} line(s) worth a look:\n{bullets}")
 
-        body = (f"Review {bold(context.name)}'s PKGBUILD before building:\n\n"
-                + "\n\n".join(sections)
-                + f"\n\n{pkgbuild_audit.DISCLAIMER}\n\nBuild this package anyway?")
+        # Structured payload for the rich review modal (colored diff + severity-flagged lines).
+        # The plain body is the fallback if the modal can't render the review block.
+        review = {
+            'name': context.name,
+            'summary': pkgbuild_audit.summarize(findings),
+            'diff': diff_data,
+            'findings': findings,
+        }
+        body = (f"Review what {context.name} will run before building. {pkgbuild_audit.DISCLAIMER}")
 
         return context.watcher.request_confirmation(title='Review PKGBUILD', body=body,
                                                     confirmation_label='Build anyway',
-                                                    deny_label='Cancel')
+                                                    deny_label='Cancel', review=review)
 
     def _fetch_pkgbuild_at_commit(self, base: str, commit: str) -> Optional[str]:
         """Fetch a PKGBUILD at a specific commit from AUR's cgit (for the diff-since-last-build).

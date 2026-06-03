@@ -88,8 +88,11 @@ class AuditGateTest(unittest.TestCase):
         self.mgr._fetch_pkgbuild_at_commit = Mock(return_value='pkgname=foo\n# old version\n')
         self.assertTrue(self.mgr._audit_pkgbuild(ctx))
         ctx.watcher.request_confirmation.assert_called_once()
-        body = ctx.watcher.request_confirmation.call_args.kwargs['body']
-        self.assertIn('Changed since your last build', body)
+        # the diff is now passed as structured data for the rich review modal, not in the body text
+        review = ctx.watcher.request_confirmation.call_args.kwargs['review']
+        self.assertTrue(review['diff'])
+        kinds = {d['kind'] for d in review['diff']}
+        self.assertTrue({'add', 'del'} & kinds)   # the version line changed
 
     def test_update_with_identical_pkgbuild_does_not_prompt(self):
         self._write_pkgbuild(CLEAN)

@@ -102,7 +102,8 @@ class WebviewWatcher(ProcessWatcher):
                     confirmation_label=confirmation_label,
                     deny_label=deny_label,
                     deny_button=deny_button,
-                    components=self._serialize_components(components))
+                    components=self._serialize_components(components),
+                    review=kwargs.get('review'))
                 if confirmed and components:
                     self._apply_selections(components, selections)
                 return confirmed

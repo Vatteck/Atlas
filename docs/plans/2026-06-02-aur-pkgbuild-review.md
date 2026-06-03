@@ -72,10 +72,21 @@ advisory summary. Keep the **edit** capability. Exact rendering TBD with the web
 
 ## Build order / increments
 
-1. **`pkgbuild_audit.scan()` + tests** (this is layer 2's engine; pure, no UI) ← start here.
-2. `git.diff()` helper + last-built-commit lookup (+ tests).
-3. Wire both into the review UI (diff view + flag annotations + "not a verdict" banner).
-4. (Later) expose a setting to always-review AUR PKGBUILDs (stronger default than edit-on-ask).
+1. ~~**`pkgbuild_audit.scan()` + tests**~~ ✅ Done (`3b4c43b`).
+2. ~~diff-since-last-build + commit lookup~~ ✅ Done (`0090959`) — uses AUR cgit fetch-by-commit
+   (`_fetch_pkgbuild_at_commit`) rather than a `git.diff` helper, since the clone is shallow.
+3. ~~Wire into the review UI~~ ✅ Done. Advisory gate (`30fa297`) runs before every AUR build; the
+   review now **renders richly** (2026-06-03): `pkgbuild_audit.diff_lines()` → structured diff,
+   `_audit_pkgbuild` sends a `{name, summary, diff, findings}` `review` payload through
+   `request_confirmation`→`prompt_confirmation`→`showConfirmModal`; `renderPkgbuildReview()` draws
+   the colored +/- diff + severity-flagged lines + "not a verdict" banner. **Resolved open Qs:**
+   the build flow *does* persist the built commit (`pkg.commit`); rendering reuses the confirm
+   modal (no purpose-built view needed) — the blocking decision flow stays intact.
+4. ~~Setting to review AUR PKGBUILDs~~ ✅ Done — `aur_check_pkgbuild` config + `check_pkgbuild`
+   toggle in webview Settings (defaults on).
+
+**Layers 1 + 2 of the AUR-safety theme are complete.** Only layer 3 (sandboxed chroot builds)
+remains, tracked in its own plan.
 
 ## Open questions
 

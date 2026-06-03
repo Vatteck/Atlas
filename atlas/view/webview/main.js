@@ -566,11 +566,50 @@ function collectComponentSelections(comps) {
     return comps.map(c => c.reader());
 }
 
+// Rich PKGBUILD review block inside the confirm modal (advisory AUR safety helper). Renders the
+// colored diff-since-last-build + severity-flagged lines. `review` is null for ordinary confirms.
+function renderPkgbuildReview(review) {
+    const host = document.getElementById('confirm-review');
+    const content = document.querySelector('#confirm-modal .modal-content');
+    if (!review) {
+        host.style.display = 'none';
+        host.innerHTML = '';
+        if (content) content.classList.remove('has-review');
+        return;
+    }
+    const s = review.summary || {};
+    const banner = (s.warn || s.info)
+        ? `<div class="review-banner ${s.warn ? 'warn' : 'info'}">⚠ ${s.warn || 0} line${s.warn === 1 ? '' : 's'} worth a look${s.info ? ` · ${s.info} minor` : ''} — a hint, not a safety check</div>`
+        : '';
+
+    let diffHtml = '';
+    if ((review.diff || []).length) {
+        const rows = review.diff.map(d =>
+            `<div class="diff-line diff-${d.kind}">${escapeHtml(d.text)}</div>`).join('');
+        diffHtml = `<h4 class="review-h">Changed since your last build</h4><div class="review-diff">${rows}</div>`;
+    }
+
+    let findHtml = '';
+    if ((review.findings || []).length) {
+        const items = review.findings.map(f => `
+            <li class="review-finding sev-${escapeHtml(f.severity)}">
+                <div class="finding-head"><span class="finding-line">L${f.line_no}</span>${escapeHtml(f.why)}</div>
+                <code class="finding-code">${escapeHtml((f.line || '').slice(0, 200))}</code>
+            </li>`).join('');
+        findHtml = `<h4 class="review-h">Lines worth a look</h4><ul class="review-findings">${items}</ul>`;
+    }
+
+    host.innerHTML = banner + diffHtml + findHtml;
+    host.style.display = 'block';
+    if (content) content.classList.add('has-review');
+}
+
 window.showConfirmModal = (opts) => {
     opts = opts || {};
     confirmResolved = false;
     document.getElementById('confirm-title').textContent = opts.title || 'Confirm';
     document.getElementById('confirm-message').textContent = opts.message || '';
+    renderPkgbuildReview(opts.review);
     renderConfirmComponents(opts.components);
     const acceptBtn = document.getElementById('confirm-accept-btn');
     const denyBtn = document.getElementById('confirm-deny-btn');

@@ -177,7 +177,8 @@ class AtlasApi:
                             confirmation_label: Optional[str] = None,
                             deny_label: Optional[str] = None,
                             deny_button: bool = True,
-                            components: Optional[list] = None) -> Tuple[bool, Optional[list]]:
+                            components: Optional[list] = None,
+                            review: Optional[dict] = None) -> Tuple[bool, Optional[list]]:
         """Show a blocking confirmation modal; return ``(confirmed, selections)``.
 
         `components` is an already-serialized list of input components (checkbox lists,
@@ -200,6 +201,7 @@ class AtlasApi:
                 'denyLabel': deny_label or 'No',
                 'showDeny': bool(deny_button),
                 'components': components or [],
+                'review': review or None,
             })
             try:
                 self.window.evaluate_js(f"showConfirmModal({payload})")

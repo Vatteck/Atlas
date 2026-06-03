@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §8). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-03 (Flatpak Permissions page — bus + environment, tabs)
+**Last updated:** 2026-06-03 (AUR PKGBUILD review — rich rendered modal)
 **Version:** 0.10.7
 **Working branch:** `master` (use short-lived branches for larger features; run `git branch` to see what's active)
 
@@ -28,12 +28,23 @@ archlinux.org news since the last sync before a full upgrade) — see Done. Next
 
 Pulling from **[BACKLOG.md](BACKLOG.md)**. Near-term candidates:
 
-- **AUR safety theme (in progress):** layered defense for AUR installs. ✅ Heuristic PKGBUILD
-  scanner *engine* landed (see Done). **Next increment:** wire it into the PKGBUILD review UI +
-  add a **diff-since-last-build** view (layer 1 — `git.diff` helper + last-built-commit lookup).
-  Later: **sandboxed chroot builds** (layer 3 —
-  [plans/2026-06-02-sandboxed-aur-builds.md](plans/2026-06-02-sandboxed-aur-builds.md)). Honest
-  framing throughout: these are *helpers*, not malware detection (don't auto-block / show "safe").
+- **AUR safety theme — layers 1 + 2 DONE & shipped.** The heuristic scanner
+  (`pkgbuild_audit.scan`), the **advisory build gate** (`controller._audit_pkgbuild`, runs before
+  every AUR build, never auto-blocks), the **diff-since-last-build** (fetches the old PKGBUILD from
+  AUR cgit by commit, diffs in Python), and the `check_pkgbuild` **Settings toggle** all landed
+  (commits `3b4c43b`, `30fa297`, `0090959`). Two remaining threads:
+    - **UI polish (open):** the diff + flagged lines are currently jammed into a plain-text
+      `request_confirmation` body (rendered via `.textContent` — no color/monospace). A proper
+      rendered review (red/green diff, monospace, severity-highlighted flagged lines) is the win,
+      since this is the moment a user decides to trust an AUR update.
+    - **Layer 3 (later, big):** **sandboxed chroot builds** —
+      [plans/2026-06-02-sandboxed-aur-builds.md](plans/2026-06-02-sandboxed-aur-builds.md).
+  Honest framing throughout: these are *helpers*, not malware detection (don't auto-block / show "safe").
+  **Update (2026-06-03):** the **UI polish thread is done** — the review now renders richly in the
+  confirm modal (colored +/- diff, monospace, severity-flagged lines, advisory banner) via a
+  structured `review` payload threaded through `request_confirmation`→`prompt_confirmation`→
+  `showConfirmModal` (the blocking decision flow is untouched). **Needs a GUI eyeball.** Only
+  **Layer 3 (chroot)** remains in this theme.
 - ✅ **Arch safety net (system-level) is done** — Update-All news gate + `.pacnew` merge-assist button.
 - Note: **keyboard shortcuts** and the **selection toolbar** backlog items already look largely
   shipped (shortcuts help button + batch install/uninstall bar) — confirm before re-picking.
@@ -59,6 +70,16 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **AUR PKGBUILD review — rich rendered modal (2026-06-03):** the advisory pre-build review (which
+  already scanned + diffed) now *renders* properly instead of dumping a plain-text wall into the
+  confirm modal. New `pkgbuild_audit.diff_lines()` returns a structured unified diff
+  (`{kind: meta/hunk/add/del/ctx, text}`); `_audit_pkgbuild` builds a `{name, summary, diff,
+  findings}` `review` payload threaded through `request_confirmation` → `prompt_confirmation` →
+  `showConfirmModal`. JS `renderPkgbuildReview()` draws a colored +/- diff (monospace, scrollable),
+  severity-flagged lines, and an advisory banner ("N lines worth a look — a hint, not a safety
+  check"); the modal widens (`has-review`). The blocking decision flow (`submit_confirmation` +
+  threading.Event) is untouched — only rendering changed. Tests: +4 (`diff_lines`); gate test
+  updated to assert the structured `review` kwarg; full suite 401. **Needs a GUI eyeball.**
 - **Flatpak Permissions page — increment 3: Bus + Environment, + tabs (2026-06-03):** two more
   tabs on the Permissions page. **Bus**: session + system D-Bus name grants — list (entries
   revoked to `=none` are dropped), add (name + talk/own policy), remove. **Environment**: env-var
