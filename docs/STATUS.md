@@ -35,32 +35,29 @@ GUI eyeball. Plan: [plans/2026-06-04-polish-tail.md](plans/2026-06-04-polish-tai
 
 ## Next
 
-Pulling from **[BACKLOG.md](BACKLOG.md)**. The planned themes are all shipped; what's left is small
-follow-ups. The 2026-06-03 Browse/icon follow-ups shipped this session (see Done):
+The small follow-up tail is done and GUI-verified (Flatpak-in-Browse + theme-aware icons both
+eyeballed 2026-06-04; thread-pool deferred with no measured reason). The forward menu now lives in
+**[BACKLOG.md](BACKLOG.md)**, which absorbed the polish/QoL roadmap (vision + open work + non-goals;
+the old `hroadmap.md` was folded in and deleted). Highest-value open items there, roughly in order:
 
-- **Browse follow-up — done for Flatpak; AUR is infeasible.** Browse now lists Arch repo + Flatpak
-  (Flathub) per category. **AUR has no category source** — the RPC v5 carries no categories (only
-  freeform per-package Keywords; the pre-4.0 AUR categories were dropped), so AUR Browse-by-category
-  can't be done without scraping/heuristics. Not pursuing it. **Needs a GUI eyeball** (open a bucket →
-  Arch + Flatpak cards; network-dependent).
-- **Installed-app icons follow-up — done.** Resolution now searches the active icon theme + its
-  Inherits chain (filesystem-only, no `Gtk.IconTheme`) before hicolor/pixmaps, so theme-specific
-  icons (e.g. `konsole` in Papirus/breeze) resolve. **Needs a GUI eyeball** (themed installed app
-  that previously showed a letter avatar).
-- **Thread-pool follow-up — deferred (decision recorded).** Routing the controller's ad-hoc
-  `Thread(...)` spawns through a shared pool is marginal and has **no measured reason** (golden rule
-  #6). They're short-lived per-action fan-outs, not a hot loop; no measured contention. Left as-is on
-  purpose — see the plan doc.
-- **GUI verification status (2026-06-03):** user GUI-verified the Flatpak Permissions page,
-  clean-chroot toggle (built `protonup-qt` end-to-end), AUR maintainer/update badges, the empty-state,
-  the Browse sprint-1 smoke checklist, downgrade, and the screenshot lightbox. **Open this session:**
-  Flatpak in Browse categories + theme-aware installed icons (both need a GUI eyeball — network/theme
-  dependent, can't be driven headless).
+- **Dashboard "Attention Center"** — make the dashboard answer "what needs my attention today?"
+  (lazy cards: updates split, system safety, reclaim space, recent activity, AUR/Flatpak safety).
+  Most backends already exist; mostly a `get_dashboard_summary` + UI.
+- **AUR discovery buckets** (Popular / Recently-updated / VCS / binary) — the *feasible* form of AUR
+  Browse (categories are infeasible). Needs the heavier `packages-meta-ext-v1.json.gz` dump, not just
+  the names index — a real data-source decision.
+- **Source-comparison panel + universal transaction preview** — the multi-source decision UX.
+- **System Health page / `.pacnew` center / mirror polish** — the "Arch cockpit" (backends largely
+  exist from the safety-net + maintenance-hub work).
+- **GUI sugar:** command palette (`Ctrl+K`), density modes, contextual topbar, finish empty/error
+  states. Frontend-only, high perceived polish.
 
-> **Handoff note (next agent):** `feat/webview-polish-sprint-1` was fast-forward merged into local
-> `master`, then `feat/webview-polish-sprint-2` was cut for the next pass. No sprint-2 functional
-> changes yet. 442 tests pass locally. Last functional commits before sprint 1:
-> `1218edc` (Merge PR #3), `9ea20e1` (screenshot strip/lightbox styling), `7feaa31` (fix AUR maintainer change warning for uninstalled), `ab13e93` (mock run_cmd in AurMetaTest).
+See BACKLOG's **Non-goals** for what we've decided *against* (AI recs, YaST-style control center,
+auto-`.pacnew`-merge, Rust/Qt, fake AUR categories).
+
+> **Handoff note (next agent):** sprints 1 + 2 are fast-forward merged into `master` and pushed;
+> **released 0.11.0** (tag `v0.11.0` pushed; `CHANGELOG.md` written). 451 tests pass. **AUR publish
+> not done** — outward-facing; run `linux_dist/arch/publish-aur.sh` when ready.
 > Known external (not Atlas): the AUR `antigravity` 2.0.11 update fails to build — upstream source
 > URL 404s (Google pulled the tarball). The maintainer-change advisory can't flag `antigravity`
 > (installed before maintainer-caching → no baseline); it works for packages installed since.

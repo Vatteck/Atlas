@@ -1,116 +1,193 @@
-# BACKLOG — feature & QoL ideas
+# BACKLOG — vision, open work & non-goals
 
-> Curated wishlist of features/QoL that aren't yet scheduled. STATUS.md is still the live
-> baton (what's *in progress* / *just shipped*); this file is the longer-horizon menu we
-> pull from. Move an item to a `docs/plans/` doc when it gets picked up, and note the
-> outcome in STATUS.md when it ships.
+> The longer-horizon planning doc: the **product vision** (north star), the **open menu** we
+> pull from, and the **non-goals** we've decided against. STATUS.md is still the live baton
+> (what's *in progress* / *just shipped*); this is the forward map. Move an item to a
+> `docs/plans/` doc when it gets picked up, and note the outcome in STATUS.md when it ships.
 
-**Last updated:** 2026-06-04 (reconciled — Browse Flatpak categories + theme-aware icons + OARS badge confirmed shipped; menu effectively exhausted)
-
-> **State (2026-06-04):** every scheduled item below is shipped. The only remaining sub-item,
-> AUR Browse-by-category, is **infeasible** — the AUR RPC has no category source. New work needs
-> a fresh direction (not yet captured here).
+**Last updated:** 2026-06-04 (folded the polish/QoL roadmap in — vision + open work + non-goals;
+the former `hroadmap.md` was absorbed here and deleted. Its P0 had already shipped.)
 
 ---
 
-## System maintenance (builds on existing orphans + Disk view)
+## North star (product vision)
 
-- ~~**Maintenance / Cleanup hub**~~ ✅ **Shipped 2026-06-02** — see
-  [plans/2026-06-01-maintenance-hub.md](plans/2026-06-01-maintenance-hub.md). Disk view now
-  has a "Reclaim space" panel: orphan packages (checklist), **pacman cache** (`pacman -Sc`,
-  freed amount measured before/after), and **unused Flatpak runtimes**
-  (`flatpak uninstall --unused`, honouring the configured install level).
-- ~~**Downgrade / rollback**~~ ✅ **Shipped 2026-06-02** — see
-  [plans/2026-06-02-downgrade-rollback.md](plans/2026-06-02-downgrade-rollback.md). A
-  **Downgrade** button in the detail modal (when `can_be_downgraded`) wired to the gems'
-  existing `downgrade` via `AtlasApi.downgrade`; the gem picks the target version.
+Atlas should feel like:
 
-## Arch safety net (distinctive, very Arch-specific)
+> **GNOME Software / Discover polish + paru/yay Arch awareness + Flatseal permissions +
+> BleachBit-style cleanup + an Arch news/`.pacnew` safety cockpit** — in one app.
 
-- ~~**Arch news + `.pacnew` detection**~~ ✅ **Shipped 2026-06-02** — see
-  [plans/2026-06-02-arch-safety-net.md](plans/2026-06-02-arch-safety-net.md). A dedicated
-  **News** page (archlinux.org feed) and a **`.pacnew`/`.pacsave` notice** on the Updates
-  view (detect + list + `pacdiff` guidance, read-only).
-  - *Possible follow-ups:* gate/annotate "Update All" with news newer than the last update;
-    assist `.pacnew` merging (launch `pacdiff` in a terminal).
+Not "another package-manager GUI." The angle is a **beautiful GUI for Arch users who still
+want to know what the hell is happening.** The personality we're aiming for:
 
-## Discovery & detail
+- Pretty enough for GUI people; honest enough for Arch people.
+- Safer than Pamac-style "click update and pray" — surfaces the scary parts instead of hiding
+  them under pastel.
+- More Arch-aware than Discover/GNOME Software; less ugly than Octopi.
+- More integrated than hand-stitching `paru` + Flatseal + `pacdiff` + `reflector` + cache
+  cleanup.
 
-- ~~**Rich app detail page**~~ ✅ **Shipped 2026-06-02** — see
-  [plans/2026-06-02-rich-app-detail.md](plans/2026-06-02-rich-app-detail.md). The detail
-  modal now shows a **screenshot strip** (Flatpak/AppImage) and a **version-history** table
-  (installed version highlighted), via newly-wired `get_screenshots`/`get_history`. (The
-  description + dependency/required-by metadata were already in the Details table.)
-  *Follow-up:* in-modal lightbox instead of opening screenshots in the browser.
-- ~~**Browse by category**~~ ✅ **Shipped 2026-06-02** — see
-  [plans/2026-06-02-browse-by-category.md](plans/2026-06-02-browse-by-category.md). A new
-  **Browse** sidebar page: curated top-level buckets (Games / Internet / Audio & Video /
-  Graphics / Development / Office / Utilities / System) built from the shipped
-  `categories.txt`; click one to list its repo packages. Arch-only, I/O-cheap (one
-  `pacman -Sl` + one batched `pacman -Si`, no AUR/network).
-  - *Follow-ups:* sort-within-category ✅ (sprint 1); **Flatpak categories** ✅ **shipped 2026-06-04**
-    (Flathub `/api/v2/collection/category/<Cat>` → merged into each bucket — see
-    [plans/2026-06-04-polish-tail.md](plans/2026-06-04-polish-tail.md)). **AUR categories: infeasible**
-    — the AUR RPC carries no category taxonomy (only freeform Keywords), so there's no source to browse.
+The win condition: **make dangerous Arch maintenance feel calm, visual, and reversible without
+hiding the danger.** Every system-mutating action should feel controlled and explained.
 
-## Flatpak transparency & control (a "Flatseal + Flathub-info" theme)
+---
 
-**Mostly ✅ shipped 2026-06-03.** Detail-modal badges: **Open Source / Proprietary** (`is_free_license`),
-**Verified / Unverified** (Flathub verification metadata), **downloads/month** (`/api/v2/stats`) — all
-clickable to explainer popups. **Permissions list + advisory safety tier** (Safe / Moderate /
-Potentially unsafe, derived from the permission set + license — *advisory, not a verdict*). **Override
-editing**: in-modal quick toggles **and** the full Flatseal-grade **Permissions page** (see the
-shipped item above). Backend in `flathub.py`/`permissions.py`/`flatpak.py`.
+## Open work (the forward menu)
 
-- ~~**OARS age rating + form-factor badges**~~ ✅ **Shipped 2026-06-03** (confirmed 2026-06-04).
-  `flathub.metadata_badges` maps `content_rating_details` → an "N+ / All Ages" badge and `type` →
-  a "Desktop Form Factor" badge; both render in `main.js` (`#detail-badges`).
+Folded from the polish/QoL roadmap. Its **P0 ("finish what shipped") is already done** — Browse
+correctness, stale-render guards, the GUI-verification pass, the icon-theme resolver, and Flatpak
+Browse all shipped in sprints 1–2 (see Shipped / CHANGELOG). What remains, roughly highest-value
+first:
 
-## Icons
+### Store-quality discovery
+- **Dashboard "Attention Center."** Make the dashboard answer *"what needs my attention today?"*
+  Lazy/best-effort cards (fail-open, skeletons OK, never block startup): **Updates** (count +
+  Arch/AUR/Flatpak split + "news before upgrade?"), **System safety** (`.pacnew` count, DB-sync
+  age, pacman lock), **Reclaim space** (orphans, cache estimate, unused runtimes), **Recent
+  activity**, **AUR safety** (chroot/devtools status), **Flatpak permissions** (risky-app count →
+  Permissions page). Most backends already exist; mainly a compact `AtlasApi.get_dashboard_summary`
+  + UI.
+- **Browse 2.0 (Arch polish).** Richer category cards (icon + count + short description),
+  breadcrumbs, persist last-opened category, better category-page skeletons. *(Sort-within-category
+  and Flatpak-in-bucket already shipped; Flatpak landed merged into buckets via `collapseByName`,
+  not as Arch/Flatpak/All tabs — tabs are still an option if the merge proves confusing.)*
+- **AUR discovery buckets (not categories).** AUR has no category taxonomy, so don't fake one —
+  build discovery buckets instead: **Popular**, **Recently updated**, **VCS** (`-git`/`-svn`),
+  **Binary** (`-bin`), etc. *Caveat (refines the roadmap):* the RPC `search` needs a query seed and
+  Atlas only fetches the **names** index (`packages.gz`); enumerating "Popular AUR" offline needs
+  the heavier `packages-meta-ext-v1.json.gz` dump (votes/popularity/dates for all packages). Real
+  feature, but it's a data-source decision, not free.
+- **Better app detail pages.** A **source-comparison panel** (Arch vs AUR vs Flatpak vs AppImage:
+  version, size, maintainer/publisher, trust badges, update availability), **"why this source?"**
+  hints (vetted repo / community AUR build / verified vs community Flatpak), a **dependency summary**
+  (direct / optional / required-by counts), and a **"what will change?"** preview. High value
+  because Atlas is multi-source and most GUIs explain source tradeoffs badly.
 
-- ~~**Flatpak icons in search + multi-source best-icon + polished letter fallback**~~ ✅ **Shipped
-  2026-06-03.** Flatpak results get the predictable Flathub CDN icon
-  (`dl.flathub.org/repo/appstream/x86_64/icons/128x128/<app_id>.png`, lazy-probed, letter on 404);
-  multi-source cards borrow any source's icon (fixes Steam); nicer gradient avatar.
-- ~~**Installed-app icons from the system**~~ ✅ **Shipped 2026-06-03** — see
-  [plans/2026-06-03-installed-app-icons.md](plans/2026-06-03-installed-app-icons.md). `get_pkg_icon`
-  resolves an installed package's icon from its `.desktop` `Icon=` (+ name fallback) via a hicolor/
-  pixmaps filesystem search, lazy + cached.
-  - ~~*Follow-up: theme-specific icons*~~ ✅ **Shipped 2026-06-04** — resolution now searches the
-    active icon theme + its `Inherits` chain first (filesystem-only `index.theme` parsing, **no
-    `Gtk.IconTheme`** → thread-safe), so e.g. `konsole` in Papirus/breeze resolves. See
-    [plans/2026-06-04-polish-tail.md](plans/2026-06-04-polish-tail.md).
+### Operation confidence (the trust layer)
+- **Universal transaction preview** before install/update/remove/downgrade — cards/badges/
+  accordions, *not* a wall of text. Installs: pkgs/source/version/new-deps/optdeps/estimate/AUR
+  warnings/Flatpak-perms. Updates: current→new, source split, AUR maintainer change?, PKGBUILD diff?,
+  Arch news newer than sync?, `.pacnew` present? Uninstall: will-remove + reverse-dep warnings +
+  orphan candidates.
+- **Transaction timeline polish.** Step timeline (resolve → download → build → install → post-
+  checks), copy-full-log, collapse/expand raw output, and a **friendly failure summary** at top
+  (source 404 / PGP key failed / conflict / missing dep / root-auth failed). Raw log stays available.
+- **History / rollback center.** Wrap the existing downgrade in a real History/Activity page:
+  timeline of installs/updates/removals, filter by package/source/action, a per-package History tab,
+  "downgrade available" / "reinstall previous version" affordances, pacman-log links.
 
-## Flatpak (follow-ups to the transparency & control theme)
+### Arch utility cockpit (package-maintenance health only — *not* a YaST)
+- **System Health page.** Package-management health checks, each card = status + short explanation
+  + one safe action + details disclosure: DB-sync age, mirrorlist status/regenerate, pacman lock,
+  keyring freshness, `.pacnew`/`.pacsave`, orphans, cache size, unused runtimes, Flatpak override
+  count, AUR index freshness, chroot availability.
+- **`.pacnew` center.** Promote the notice to a real section: list with **risk labels**
+  (`mirrorlist` = dangerous to overwrite, `pacman.conf` = review, service configs = medium),
+  buttons for open-pacdiff / copy-path / read-only diff / regenerate-mirrorlist. **No auto-merge.**
+- **Mirror manager polish.** Current-mirror summary (country/protocol/last-modified), regenerate
+  options (fastest HTTPS / country / conservative), preview the command, show before/after top
+  mirrors. Don't grow into a full reflector GUI unless it earns it.
 
-- ~~**Dedicated Flatseal-grade Permissions page (sidebar)**~~ ✅ **Shipped 2026-06-03** — see
-  [plans/2026-06-03-flatpak-permissions-page.md](plans/2026-06-03-flatpak-permissions-page.md).
-  Sidebar **Permissions** page, master/detail (installed-Flatpak list → grouped sandbox), iOS-style
-  switches, `flag=value` sub-labels, per-app Reset. All increments done: (1) static toggles
-  Share/Socket/Device/Features, (2) Filesystem (preset dir toggles + ro/rw/create modes +
-  custom-path add/remove), (3) Bus (session/system talk/own) + Environment add/remove. Categories
-  are **tabbed**. All via `flatpak override --user` (no root). *Persist deferred:* `flatpak override`
-  has no negative flag for `--persist`, so clean removal would need override-keyfile editing.
+### GUI polish (low backend, high perceived quality)
+- **Command palette** (`Ctrl+K`/`Ctrl+P`) — search packages, jump to pages, run actions (regenerate
+  mirrors, pacdiff, refresh, toggle grid/list, clear selection, install-selected / update-all).
+  Frontend-only.
+- **Density / layout modes** — Comfortable / Compact / Dense, applied to cards, list rows, detail
+  modal, permissions page, activity logs. `localStorage` first.
+- **Contextual topbar** — show only controls meaningful to the current page (search/filter/sort/
+  grid/select on list views; page-specific actions + breadcrumbs on utility/Browse pages).
+- **Finish empty/error/loading states everywhere** — tailored states (icon + one sentence + one
+  action) for: no Flatpaks, no permissions, no news, no history, no screenshots, no category
+  packages, offline/AUR-unavailable, Flathub rate-limited. *(Context-aware empty state started; finish
+  the rest.)*
+- **Extend stale-render guards** (sprint 1 covered package lists + the detail modal) to the News,
+  Permissions, and Disk pages.
 
-## Lighter QoL
+### Power-user sugar (make it beautiful)
+- **"Why is this installed?"** — explicit vs dependency, required-by list, orphan status, reverse
+  deps.
+- **Dependency tree view** — direct/optional/build deps + required-by + conflict/replaces/provides,
+  as an accordion tree (not node spaghetti).
+- **PKGBUILD viewer as a first-class UI** — syntax-highlighted PKGBUILD, sticky risk summary, line-
+  linked findings, anchored diff, maintainer/source/checksums, `.install` tab. Could become Atlas's
+  signature AUR feature (the scanner/diff backend already exists).
+- **Copy exact command** — "copy equivalent install/update/Flatpak-override/reflector command." GUI
+  stays primary, nothing feels hidden.
 
-- ~~**Keyboard shortcuts**~~ ✅ **Shipped** — `/` focuses search, `Esc` closes modals/popups, plus a
-  shortcuts-help button (`#shortcuts-help-btn`). Global `keydown` handler in `main.js`.
-- ~~**Sort dropdown**~~ ✅ **Shipped 2026-06-02** — see
-  [plans/2026-06-02-sort-dropdown.md](plans/2026-06-02-sort-dropdown.md). Topbar `#sort-filter`:
-  Relevance (default) / Votes / Popularity / Recently updated / Name. Client-side, persisted to
-  `localStorage`; `last_modified` newly serialized for the "recently updated" mode.
-- ~~**Selection toolbar**~~ ✅ **Shipped** — bulk checkboxes + a batch action bar
-  (`AtlasApi.batch_install`/`batch_uninstall`) act on N selected packages at once.
+---
 
-## Bigger / exploratory
+## Non-goals — don't build (yet)
 
-- ~~**System-tray indicator (non-Qt)**~~ ✅ **Shipped** — AppIndicator/SNI tray (icon, show/hide,
-  quit, update-count badge) + a Settings toggle.
-- ~~**Sandboxed AUR builds ("Vault")**~~ ✅ **Shipped & GUI-verified 2026-06-03** — see
-  [plans/2026-06-02-sandboxed-aur-builds.md](plans/2026-06-02-sandboxed-aur-builds.md). Opt-in
-  (`aur_build_chroot`, off by default; Settings toggle) clean-chroot building via `devtools`
-  (`makechrootpkg`/`mkarchroot`/`arch-nspawn`), with **`-I` injection** of already-built AUR deps and
-  a **host-build fallback** when devtools is absent/setup fails. Honest scope kept: isolates the
-  *build*, not a malicious package. Verified end-to-end installing `protonup-qt` (its AUR deps
-  injected into the chroot copy).
+These sound tempting and are traps. They also re-derive the AGENTS.md §3 guardrails.
+
+- **AI package recommendations.** Easy to make cringe, slow, and untrustworthy. If ever: local,
+  optional, framed as *"explain package metadata,"* never *"AI decides what to install."*
+- **A full system control center (YaST).** Atlas is package/system-**maintenance** focused — mirrors,
+  `.pacnew`, cache, runtimes, permissions, AUR build health. Not users/services/kernel/display/
+  network/bluetooth. Keep the boundary.
+- **Automatic `.pacnew` merging.** Show diffs, launch `pacdiff`, warn — never invent config-merge
+  magic (that's how you get angry Arch users with broken boots).
+- **Reintroducing Rust or Qt.** Not for polish, not for "performance vibes." Measure a CPU-bound hot
+  path with a small result and get sign-off, or don't. (AGENTS.md §3.2 + ROADMAP.)
+- **AUR categories pretending to be accurate.** The data is messy; use curated discovery buckets
+  (above), not fake taxonomy.
+
+---
+
+## Shipped (history)
+
+Everything below has shipped — kept as a themed index with plan-doc links. The authoritative
+record is `CHANGELOG.md` (0.11.0) + the STATUS.md Done log.
+
+### System maintenance
+- ~~**Maintenance / Cleanup hub**~~ ✅ **2026-06-02** —
+  [plans/2026-06-01-maintenance-hub.md](plans/2026-06-01-maintenance-hub.md). Disk-view "Reclaim
+  space": orphans (checklist), pacman cache (`pacman -Sc`, freed amount measured), unused Flatpak
+  runtimes.
+- ~~**Downgrade / rollback**~~ ✅ **2026-06-02** —
+  [plans/2026-06-02-downgrade-rollback.md](plans/2026-06-02-downgrade-rollback.md). Detail-modal
+  **Downgrade** button → `AtlasApi.downgrade`; the gem picks the target version.
+
+### Arch safety net
+- ~~**Arch news + `.pacnew` detection**~~ ✅ **2026-06-02** —
+  [plans/2026-06-02-arch-safety-net.md](plans/2026-06-02-arch-safety-net.md). **News** page +
+  `.pacnew`/`.pacsave` notice. Follow-ups also shipped: **Update-All news gate** and **`.pacnew`
+  pacdiff/mirrorlist assist** (these feed the open "System Health" / "`.pacnew` center" items above).
+
+### Discovery & detail
+- ~~**Rich app detail page**~~ ✅ **2026-06-02** —
+  [plans/2026-06-02-rich-app-detail.md](plans/2026-06-02-rich-app-detail.md). Screenshot strip +
+  version history; in-modal lightbox followed.
+- ~~**Browse by category**~~ ✅ **2026-06-02** —
+  [plans/2026-06-02-browse-by-category.md](plans/2026-06-02-browse-by-category.md). Curated buckets
+  from `categories.txt`. Follow-ups: sort-within-category ✅ (sprint 1); **Flatpak categories** ✅
+  **2026-06-04** ([plans/2026-06-04-polish-tail.md](plans/2026-06-04-polish-tail.md)). AUR categories
+  are **infeasible** (no taxonomy) → see "AUR discovery buckets" in Open work instead.
+
+### Flatpak transparency & control
+- **Mostly ✅ 2026-06-03.** Detail badges (Open Source/Proprietary, Verified/Unverified,
+  downloads/month, OARS age rating, form factor), permissions list + advisory safety tier, in-modal
+  override editing, and the full Flatseal-grade **Permissions page**
+  ([plans/2026-06-03-flatpak-permissions-page.md](plans/2026-06-03-flatpak-permissions-page.md)):
+  Share/Socket/Device/Features/Filesystem/Bus/Environment, tabbed, via `flatpak override --user`.
+  *Persist deferred* (no negative flag for `--persist`).
+
+### Icons
+- ~~**Flatpak/multi-source/letter-avatar icons**~~ ✅ **2026-06-03**, ~~**installed-app icons from
+  the system**~~ ✅ **2026-06-03** ([plans/2026-06-03-installed-app-icons.md](plans/2026-06-03-installed-app-icons.md)),
+  and ~~**active-icon-theme resolution**~~ ✅ **2026-06-04**
+  ([plans/2026-06-04-polish-tail.md](plans/2026-06-04-polish-tail.md), theme + `Inherits` chain, no
+  `Gtk.IconTheme`).
+
+### Lighter QoL
+- ~~**Keyboard shortcuts**~~ ✅ (`/` search, `Esc` close, help button), ~~**Sort dropdown**~~ ✅
+  **2026-06-02** ([plans/2026-06-02-sort-dropdown.md](plans/2026-06-02-sort-dropdown.md)),
+  ~~**Selection toolbar**~~ ✅ (`batch_install`/`batch_uninstall`).
+
+### Bigger / exploratory
+- ~~**System-tray indicator (non-Qt)**~~ ✅ AppIndicator/SNI tray (icon, show/hide, quit, update
+  badge) + Settings toggle.
+- ~~**Sandboxed AUR builds**~~ ✅ **& GUI-verified 2026-06-03** —
+  [plans/2026-06-02-sandboxed-aur-builds.md](plans/2026-06-02-sandboxed-aur-builds.md). Opt-in clean-
+  chroot building (`makechrootpkg`) with `-I` dep injection + host-build fallback. Isolates the
+  *build*, not a malicious package.
