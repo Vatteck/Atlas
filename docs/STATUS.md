@@ -61,6 +61,17 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **AUR detail view: update-available + icon fix (2026-06-03).** Two issues a GUI check surfaced on
+  an installed-but-behind AUR package (antigravity 2.0.6 vs 2.0.11): (1) **no update shown** —
+  search results don't run the update check, so the card/modal showed "Uninstall" not "Update";
+  (2) the **icon went blank** in the detail modal. Fixes: `get_aur_maintainer` → **`get_aur_meta`**,
+  now also returns `latest_version` + `update_available` (computed with `vercmp` on installed vs AUR
+  version). The detail modal shows an "↑ Update available (vX)" badge and **swaps the footer button
+  to Update** when the on-demand check finds a newer version; and it now resolves the installed-app
+  icon via `get_pkg_icon` (the same lazy path the cards use) instead of leaving a blank placeholder.
+  Tests: +3 (8 total for `get_aur_meta`). Suite 440. *Caveat:* vercmp is version-string based, so a
+  `-git`/VCS package with a static version string may not show the badge (the Updates page still
+  catches it); fine for the common versioned case.
 - **AUR maintainer info in the detail view (2026-06-03).** Follow-up to the maintainer advisory: it
   was build-time-only (banner in the update review modal) and thus undiscoverable. `openDetailModal`
   now shows, for AUR packages, a **👤 current-maintainer badge** (via new `AtlasApi.get_aur_maintainer`,

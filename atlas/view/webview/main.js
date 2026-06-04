@@ -1409,6 +1409,15 @@ function openDetailModal(pkg) {
         const probe = new Image();
         probe.onload = () => { detailIcon.src = remoteUrl; };
         probe.src = remoteUrl;
+    } else if (pkg.installed && !(pkg.icon_url && pkg.icon_url.startsWith('data:'))) {
+        // Installed app with no usable icon: resolve from the system (.desktop / icon theme), the
+        // same lazy path the cards use — otherwise the modal shows a blank placeholder.
+        pyApiCall('get_pkg_icon', pkg.id).then(uri => {
+            if (!uri) return;
+            const probe = new Image();
+            probe.onload = () => { detailIcon.src = uri; };
+            probe.src = uri;
+        });
     }
     document.getElementById('detail-icon').onerror = function() {
         this.onerror = null;
@@ -1477,14 +1486,18 @@ function openDetailModal(pkg) {
             }
         });
     } else if (normalizeType(pkg.type) === 'aur') {
-        // AUR maintainer badge + a clickable "changed hands since install" advisory (supply-chain
-        // signal). One best-effort RPC; appends to the badge row.
-        pyApiCall('get_aur_maintainer', pkg.id).then(info => {
+        // AUR detail metadata (one best-effort RPC): maintainer badge, a clickable "changed hands"
+        // advisory, and an "update available" badge — search results don't run the update check, so
+        // this is where an installed-but-behind AUR package surfaces its update.
+        pyApiCall('get_aur_meta', pkg.id).then(info => {
             if (!info) return;
             const parts = [];
+            if (info.update_available) {
+                parts.push(`<span class="meta-badge update-avail" title="A newer version is available on the AUR">↑ Update available${info.latest_version ? ` (v${escapeHtml(info.latest_version)})` : ''}</span>`);
+            }
             if (info.maintainer) {
                 parts.push(`<span class="meta-badge" title="Current AUR maintainer">👤 ${escapeHtml(info.maintainer)}</span>`);
-            } else if (info.changed || 'maintainer' in info) {
+            } else if ('maintainer' in info) {
                 parts.push(`<span class="meta-badge proprietary" title="This package currently has no maintainer on the AUR">⚠ Orphaned (no maintainer)</span>`);
             }
             if (info.changed) {
@@ -1493,6 +1506,20 @@ function openDetailModal(pkg) {
             if (parts.length) badgesEl.innerHTML = parts.join('');
             const mb = badgesEl.querySelector('[data-popup="maint"]');
             if (mb) mb.addEventListener('click', () => showInfoPopup('Maintainer changed', maintainerChangePopupHtml(info.changed)));
+
+            // Search didn't know about the update, so the footer built an "Uninstall" button — swap
+            // it for "Update" when the on-demand check finds a newer version.
+            if (info.update_available && pkg.installed && !pkg.update_available) {
+                const old = document.getElementById('detail-action-btn');
+                if (old) {
+                    const upd = document.createElement('button');
+                    upd.className = 'btn btn-primary';
+                    upd.id = 'detail-action-btn';
+                    upd.textContent = 'Update';
+                    upd.onclick = () => { detailModal.classList.add('hidden'); updateApp(pkg.id); };
+                    old.replaceWith(upd);
+                }
+            }
         });
     }
 
@@ -1568,6 +1595,7 @@ function openDetailModal(pkg) {
         if (pkg.update_available) {
             actionBtn = document.createElement('button');
             actionBtn.className = 'btn btn-primary';
+            actionBtn.id = 'detail-action-btn';
             actionBtn.textContent = 'Update';
             actionBtn.onclick = () => {
                 detailModal.classList.add('hidden');
@@ -1576,6 +1604,7 @@ function openDetailModal(pkg) {
         } else {
             actionBtn = document.createElement('button');
             actionBtn.className = 'btn btn-danger';
+            actionBtn.id = 'detail-action-btn';
             actionBtn.textContent = 'Uninstall';
             actionBtn.onclick = () => {
                 detailModal.classList.add('hidden');
@@ -1585,6 +1614,7 @@ function openDetailModal(pkg) {
     } else {
         actionBtn = document.createElement('button');
         actionBtn.className = 'btn btn-primary';
+        actionBtn.id = 'detail-action-btn';
         actionBtn.textContent = 'Install';
         actionBtn.onclick = () => {
             detailModal.classList.add('hidden');

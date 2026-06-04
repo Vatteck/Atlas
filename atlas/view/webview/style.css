@@ -1913,6 +1913,7 @@ body {
 .meta-badge.safety-unsafe { color: #dc2626; border-color: rgba(220, 38, 38, 0.5); }
 .meta-badge.safety-moderate { color: #d97706; border-color: rgba(217, 119, 6, 0.4); }
 .meta-badge.safety-safe { color: #16a34a; border-color: rgba(22, 163, 74, 0.4); }
+.meta-badge.update-avail { color: var(--accent-color, #6366f1); border-color: rgba(99, 102, 241, 0.45); font-weight: 600; }
 
 /* Clickable badges (open an info popup) */
 .meta-badge.clickable { cursor: pointer; }

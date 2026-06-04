@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import shlex
 import shutil
 import threading
 import traceback
@@ -1074,10 +1075,11 @@ class AtlasApi:
             self.logger.error(f"get_flatpak_meta failed: {e}")
             return {'status': 'ok', 'data': {}}
 
-    def get_aur_maintainer(self, pkg_id: str) -> dict:
-        """For an AUR package, the current AUR maintainer plus whether it changed since install
-        (advisory supply-chain signal). data: {maintainer, changed:{old,new}|None}. Empty for
-        non-AUR. One best-effort RPC; never raises into the UI."""
+    def get_aur_meta(self, pkg_id: str) -> dict:
+        """On-demand AUR detail-view metadata: current maintainer, whether the maintainer changed
+        since install (advisory supply-chain signal), the latest AUR version, and whether an update
+        is available (compared with `vercmp`). data: {maintainer, changed:{old,new}|None,
+        latest_version, update_available}. Empty for non-AUR. One best-effort RPC; never raises."""
         try:
             pkg = self._get_pkg(pkg_id)
             if pkg is None or getattr(pkg, 'repository', None) != 'aur':
@@ -1088,12 +1090,26 @@ class AtlasApi:
                 return {'status': 'ok', 'data': {}}
             baseline = getattr(pkg, 'maintainer', None)  # maintainer cached at install (the baseline)
             infos = aur_client.get_info((pkg.name,))
-            current = infos[0].get('Maintainer') if infos else None
+            info = infos[0] if infos else {}
+            current = info.get('Maintainer')
+            latest = info.get('Version')
             # Only a real change when we have a baseline to compare against (older installs lack one).
             changed = {'old': baseline, 'new': current} if (baseline and current != baseline) else None
-            return {'status': 'ok', 'data': {'maintainer': current, 'changed': changed}}
+
+            # Search results don't run the update check, so reflect it here: vercmp installed vs AUR.
+            update_available = False
+            installed_v = getattr(pkg, 'version', None)
+            if getattr(pkg, 'installed', False) and installed_v and latest:
+                try:
+                    out = run_cmd(f'vercmp {shlex.quote(installed_v)} {shlex.quote(latest)}', print_error=False)
+                    update_available = out is not None and int(out.strip()) < 0
+                except (ValueError, AttributeError):
+                    update_available = False
+
+            return {'status': 'ok', 'data': {'maintainer': current, 'changed': changed,
+                                             'latest_version': latest, 'update_available': update_available}}
         except Exception as e:
-            self.logger.error(f"get_aur_maintainer failed: {e}")
+            self.logger.error(f"get_aur_meta failed: {e}")
             return {'status': 'ok', 'data': {}}
 
     def _flatpak_pkg_and_manager(self, pkg_id: str):

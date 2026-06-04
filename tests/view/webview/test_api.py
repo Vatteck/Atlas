@@ -36,48 +36,62 @@ class GetInstalledFilterTest(unittest.TestCase):
         self.assertNotIn('org.freedesktop.Platform', names)
 
 
-class AurMaintainerTest(unittest.TestCase):
-    """get_aur_maintainer: current maintainer + 'changed since install' advisory."""
+class AurMetaTest(unittest.TestCase):
+    """get_aur_meta: current maintainer, 'changed since install' advisory, and update detection."""
 
     def setUp(self):
         self.manager = Mock()
         self.api = AtlasApi(self.manager, Mock())
 
-    def _setup(self, repository='aur', baseline=None, current='AlphaLynx', has_client=True):
+    def _setup(self, repository='aur', baseline=None, current='AlphaLynx', has_client=True,
+               installed=True, version='2.0.6-1', latest='2.0.11-1'):
         pkg = Mock(name='pkg'); pkg.name = 'antigravity'; pkg.repository = repository
-        pkg.maintainer = baseline
+        pkg.maintainer = baseline; pkg.installed = installed; pkg.version = version
         self.api._get_pkg = Mock(return_value=pkg)
         arch_man = Mock()
-        arch_man.aur_client.get_info.return_value = [{'Maintainer': current}] if current is not None else [{}]
+        arch_man.aur_client.get_info.return_value = [{'Maintainer': current, 'Version': latest}]
         self.api._manager_by_gem = Mock(return_value=arch_man if has_client else None)
-        if not has_client:
-            self.api._manager_by_gem = Mock(return_value=None)
         return arch_man
 
     def test_no_baseline_shows_current_maintainer_without_change(self):
         self._setup(baseline=None, current='AlphaLynx')      # antigravity case
-        data = self.api.get_aur_maintainer('antigravity')['data']
+        data = self.api.get_aur_meta('antigravity')['data']
         self.assertEqual('AlphaLynx', data['maintainer'])
         self.assertIsNone(data['changed'])
 
     def test_changed_maintainer_flagged(self):
         self._setup(baseline='HurricanePootis', current='AlphaLynx')
-        data = self.api.get_aur_maintainer('antigravity')['data']
+        data = self.api.get_aur_meta('antigravity')['data']
         self.assertEqual({'old': 'HurricanePootis', 'new': 'AlphaLynx'}, data['changed'])
 
     def test_same_maintainer_not_flagged(self):
         self._setup(baseline='AlphaLynx', current='AlphaLynx')
-        self.assertIsNone(self.api.get_aur_maintainer('antigravity')['data']['changed'])
+        self.assertIsNone(self.api.get_aur_meta('antigravity')['data']['changed'])
 
     def test_now_orphaned_reported(self):
         self._setup(baseline='AlphaLynx', current=None)
-        data = self.api.get_aur_maintainer('antigravity')['data']
+        data = self.api.get_aur_meta('antigravity')['data']
         self.assertIsNone(data['maintainer'])
         self.assertEqual({'old': 'AlphaLynx', 'new': None}, data['changed'])
 
     def test_non_aur_returns_empty(self):
         self._setup(repository='core', baseline='x')
-        self.assertEqual({}, self.api.get_aur_maintainer('bash')['data'])
+        self.assertEqual({}, self.api.get_aur_meta('bash')['data'])
+
+    def test_update_available_when_installed_is_older(self):
+        # real vercmp: 2.0.6-1 < 2.0.11-1
+        self._setup(installed=True, version='2.0.6-1', latest='2.0.11-1')
+        data = self.api.get_aur_meta('antigravity')['data']
+        self.assertEqual('2.0.11-1', data['latest_version'])
+        self.assertTrue(data['update_available'])
+
+    def test_no_update_when_versions_equal(self):
+        self._setup(installed=True, version='2.0.11-1', latest='2.0.11-1')
+        self.assertFalse(self.api.get_aur_meta('antigravity')['data']['update_available'])
+
+    def test_no_update_for_non_installed(self):
+        self._setup(installed=False, version='2.0.6-1', latest='2.0.11-1')
+        self.assertFalse(self.api.get_aur_meta('antigravity')['data']['update_available'])
 
 
 class SerializeSortFieldsTest(unittest.TestCase):
