@@ -1076,6 +1076,26 @@ class AtlasApi:
             self.logger.error(f"get_flatpak_meta failed: {e}")
             return {'status': 'ok', 'data': {}}
 
+    def get_flatpak_card_meta(self, pkg_id: str) -> dict:
+        """Lightweight Flathub metadata for grid cards. Only fetches verification status."""
+        try:
+            pkg = self._get_pkg(pkg_id)
+            ptype = ''
+            try:
+                ptype = str(pkg.get_type() or '').lower()
+            except Exception:
+                pass
+            app_id = getattr(pkg, 'id', None)
+            if pkg is None or ptype != 'flatpak' or not app_id:
+                return {'status': 'ok', 'data': {}}
+            flatpak_man = self._manager_by_gem('flatpak')
+            if flatpak_man is None or not hasattr(flatpak_man, 'get_flathub_card_metadata'):
+                return {'status': 'ok', 'data': {}}
+            return {'status': 'ok', 'data': flatpak_man.get_flathub_card_metadata(app_id) or {}}
+        except Exception as e:
+            self.logger.error(f"get_flatpak_card_meta failed: {e}")
+            return {'status': 'ok', 'data': {}}
+
     def get_aur_meta(self, pkg_id: str) -> dict:
         """On-demand AUR detail-view metadata: current maintainer, whether the maintainer changed
         since install (advisory supply-chain signal), the latest AUR version, and whether an update

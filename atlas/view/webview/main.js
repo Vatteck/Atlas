@@ -958,43 +958,51 @@ function deferredMetaLoad() {
     if (!window.metaObserver) {
         window.metaObserver = new IntersectionObserver((entries, observer) => {
             entries.forEach(entry => {
+                const el = entry.target;
                 if (entry.isIntersecting) {
-                    const el = entry.target;
-                    const id = el.getAttribute('data-meta-id');
-                    const type = el.getAttribute('data-meta-type');
-                    const version = el.getAttribute('data-meta-version');
-                    const basePublisher = el.getAttribute('data-meta-publisher');
-                    
-                    if (type === 'flatpak') {
-                        pyApiCall('get_flatpak_meta', id).then(meta => {
-                            if (!meta) return;
-                            const devName = escapeHtml(meta.developer_name || basePublisher || 'Unknown Developer');
-                            const verifiedHtml = meta.verified 
-                                ? `<span class="material-symbols-outlined verified-icon" style="font-size: 14px; margin-left: 2px;" title="Verified by Flathub">verified</span>` 
-                                : ``;
-                            el.innerHTML = `<span style="display:inline-flex;align-items:center;">${devName}${verifiedHtml}</span> <span style="opacity: 0.5;">•</span> v${version}`;
-                        });
-                    } else if (type === 'aur') {
-                        pyApiCall('get_aur_meta', id).then(info => {
-                            if (!info) return;
-                            let devName = escapeHtml(info.maintainer || basePublisher || 'Unknown');
-                            let warnHtml = '';
-                            if (!info.maintainer && 'maintainer' in info) {
-                                devName = '<span class="text-danger">Orphaned</span>';
-                                warnHtml = `<span class="material-symbols-outlined text-danger" style="font-size: 14px; margin-left: 2px;" title="No maintainer">error</span>`;
-                            } else {
-                                warnHtml = `<span class="material-symbols-outlined unverified-icon" style="font-size: 14px; margin-left: 2px;" title="AUR community package">info</span>`;
-                            }
-                            el.innerHTML = `<span style="display:inline-flex;align-items:center;">${devName}${warnHtml}</span> <span style="opacity: 0.5;">•</span> v${version}`;
-                        });
+                    // Debounce fetch so fast scrolling doesn't spam the Python backend / Flathub API
+                    el._metaTimeout = setTimeout(() => {
+                        const id = el.getAttribute('data-meta-id');
+                        const type = el.getAttribute('data-meta-type');
+                        const version = el.getAttribute('data-meta-version');
+                        const basePublisher = el.getAttribute('data-meta-publisher');
+                        
+                        if (type === 'flatpak') {
+                            pyApiCall('get_flatpak_card_meta', id).then(meta => {
+                                if (!meta) return;
+                                const devName = escapeHtml(meta.developer_name || basePublisher || 'Unknown Developer');
+                                const verifiedHtml = meta.verified 
+                                    ? `<span class="material-symbols-outlined verified-icon" style="font-size: 14px; margin-left: 2px;" title="Verified by Flathub">verified</span>` 
+                                    : `<span class="material-symbols-outlined unverified-icon" style="font-size: 14px; margin-left: 2px;" title="Community maintained (Not verified)">info</span>`;
+                                el.innerHTML = `<span style="display:inline-flex;align-items:center;">${devName}${verifiedHtml}</span> <span style="opacity: 0.5;">•</span> v${version}`;
+                            });
+                        } else if (type === 'aur') {
+                            pyApiCall('get_aur_meta', id).then(info => {
+                                if (!info) return;
+                                let devName = escapeHtml(info.maintainer || basePublisher || 'Unknown');
+                                let warnHtml = '';
+                                if (!info.maintainer && 'maintainer' in info) {
+                                    devName = '<span class="text-danger">Orphaned</span>';
+                                    warnHtml = `<span class="material-symbols-outlined text-danger" style="font-size: 14px; margin-left: 2px;" title="No maintainer">error</span>`;
+                                } else {
+                                    warnHtml = `<span class="material-symbols-outlined unverified-icon" style="font-size: 14px; margin-left: 2px;" title="AUR community package">info</span>`;
+                                }
+                                el.innerHTML = `<span style="display:inline-flex;align-items:center;">${devName}${warnHtml}</span> <span style="opacity: 0.5;">•</span> v${version}`;
+                            });
+                        }
+                        
+                        // Stop observing once handled
+                        el.removeAttribute('data-meta-id');
+                        observer.unobserve(el);
+                    }, 300);
+                } else {
+                    if (el._metaTimeout) {
+                        clearTimeout(el._metaTimeout);
+                        el._metaTimeout = null;
                     }
-                    
-                    // Stop observing once handled
-                    el.removeAttribute('data-meta-id');
-                    observer.unobserve(el);
                 }
             });
-        }, { rootMargin: '100px' });
+        }, { rootMargin: '50px' });
     }
 
     const metas = packagesGrid.querySelectorAll('.package-publisher[data-meta-id]');

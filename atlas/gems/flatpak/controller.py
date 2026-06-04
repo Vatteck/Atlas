@@ -406,6 +406,16 @@ class FlatpakManager(SoftwareManager, SettingsController):
             badges['safety'] = permissions.safety(perms, is_free=is_free)
         return badges
 
+    def get_flathub_card_metadata(self, app_id: str) -> dict:
+        """Lightweight Flathub metadata for grid cards. Only fetches appstream metadata."""
+        if not app_id:
+            return {}
+        data = flathub.get_appstream(self.http_client, app_id, logger=self.context.logger)
+        badges = flathub.metadata_badges(data)
+        if not badges:
+            return {}
+        return badges
+
     def get_permission_toggles(self, pkg: FlatpakApplication) -> dict:
         """Editable permission toggles for an INSTALLED Flatpak (Flatseal-style). Reads the effective
         [Context] via `flatpak info --show-permissions`. Empty/editable=False for non-installed."""
