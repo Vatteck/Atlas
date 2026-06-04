@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §8). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-03 (QoL polish: AUR maintainer/update in detail view, empty-state, index gunzip fix; 440 tests green, tree clean & pushed)
+**Last updated:** 2026-06-03 (Fix: uninstalled AUR packages showed "Changed Maintainer" badge; 441 tests green, tree clean)
 **Version:** 0.10.7
 **Working branch:** `master` (use short-lived branches for larger features; run `git branch` to see what's active)
 
@@ -46,7 +46,7 @@ follow-ups:
 - **Lower-value:** route the controller's ad-hoc `Thread(...)` spawns through a shared pool
   (marginal; only with a measured reason).
 
-> **Handoff note (next agent):** working tree clean, on `master`, pushed to origin; 440 tests pass.
+> **Handoff note (next agent):** working tree clean, on `master`, pushed to origin; 441 tests pass.
 > Last commits: `2c72383` empty-state, `3905545` AUR update-in-detail + icon, `e9a530e` maintainer
 > in detail, `9a624be` maintainer-change advisory, `26827bd`+`ec1c616` **AUR index gunzip fix**
 > (the index was gzip garbage — broke AUR-dep resolution; the on-disk index was regenerated this
@@ -67,6 +67,8 @@ re-add a native extension without a measured win. Details in the historical
 ---
 
 ## Done
+
+- **Fix: uninstalled AUR packages showing "Changed Maintainer" (2026-06-03).** Uninstalled packages showed a maintainer change warning (e.g. "Changed Maintainer: aur -> dcelasun") when viewed in details. Fix: restrict `changed` maintainer advisory check in `get_aur_meta` to installed packages only. Tests: added `test_uninstalled_never_flags_maintainer_change` to `test_api.py`. Suite 441 tests green.
 
 - **Bazaar/Flathub inline header metadata (2026-06-03).** The detail modal's header was redesigned to match Bazaar and Flathub: the package type (e.g. Flatpak, AUR) is now a standalone pill next to the application title. The subtitle area dynamically populates with the developer/maintainer name, a clickable verified/unverified icon badge, and the application version. This cleans up the rich badges grid by moving publisher details into the header. Also implemented deferred meta lazy loading (`IntersectionObserver`) with a 300ms debounce and a lightweight API endpoint (`get_flatpak_card_meta`) to load developer/maintainer names and verification badges inline on grid/list view cards without triggering Flathub rate limits. Tests passed: 440.
 - **Flathub aesthetic polish (2026-06-03).** The detail modal's badges and the permissions popup now closely match the official Flathub aesthetic. (1) **OARS age-rating & Form Factor**: `flathub.py` extracts `content_rating_details` and `type` from the v2 AppStream payload; these surface as simple pill badges ("15+ Age Rating", "Desktop Form Factor"). (2) **Dynamic sizes**: Download and installed sizes are dynamically extracted from the `get_info` RPC callback and prepended to the badges grid. (3) **Circular colored icons**: The Safety, License, and Publisher tiles use Flathub's signature colored circular backgrounds for their Material icons. (4) **Rich permission popup**: The permissions popup extracts up to 3 high-severity permissions into colored circles on the Safety badge itself, and the full popup list now includes a color-graded icon for every permission row. Tests passed: 440.

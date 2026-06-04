@@ -74,6 +74,11 @@ class AurMetaTest(unittest.TestCase):
         self.assertIsNone(data['maintainer'])
         self.assertEqual({'old': 'AlphaLynx', 'new': None}, data['changed'])
 
+    def test_uninstalled_never_flags_maintainer_change(self):
+        self._setup(baseline='HurricanePootis', current='AlphaLynx', installed=False)
+        data = self.api.get_aur_meta('antigravity')['data']
+        self.assertIsNone(data['changed'])
+
     def test_non_aur_returns_empty(self):
         self._setup(repository='core', baseline='x')
         self.assertEqual({}, self.api.get_aur_meta('bash')['data'])

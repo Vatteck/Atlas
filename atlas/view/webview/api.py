@@ -1115,7 +1115,7 @@ class AtlasApi:
             current = info.get('Maintainer')
             latest = info.get('Version')
             # Only a real change when we have a baseline to compare against (older installs lack one).
-            changed = {'old': baseline, 'new': current} if (baseline and current != baseline) else None
+            changed = {'old': baseline, 'new': current} if (getattr(pkg, 'installed', False) and baseline and current != baseline) else None
 
             # Search results don't run the update check, so reflect it here: vercmp installed vs AUR.
             update_available = False
