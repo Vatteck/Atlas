@@ -931,7 +931,7 @@ body {
     background: var(--bg-surface);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
-    width: 600px;
+    width: 720px;
     max-width: 90vw;
     max-height: 80vh;
     display: flex;
@@ -954,7 +954,23 @@ body {
 }
 .modal-header-left { display: flex; align-items: center; gap: 16px; }
 .modal-icon { width: 48px; height: 48px; border-radius: var(--radius-sm); object-fit: contain; background: var(--bg-surface-hover); padding: 6px; }
-.modal-meta { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+.modal-title-group { display: flex; flex-direction: column; }
+.modal-title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 2px; }
+.modal-title-row h2 { margin: 0; }
+#detail-type-badge { font-size: 11px; padding: 2px 8px; margin-top: 2px; }
+
+.modal-meta { 
+    font-size: 13px; 
+    color: var(--text-secondary); 
+    display: flex; 
+    align-items: center; 
+    gap: 6px; 
+}
+.modal-meta .developer-name { font-weight: 500; }
+.modal-meta .meta-separator { opacity: 0.5; font-size: 16px; margin-top: -2px; }
+.modal-meta .verified-icon { color: #3b82f6; font-size: 18px; cursor: pointer; display: flex; }
+.modal-meta .unverified-icon { color: var(--text-secondary); font-size: 18px; cursor: pointer; display: flex; }
+.modal-meta .text-danger { color: #ef4444; }
 .detail-link {
     display: inline-block;
     margin-top: 4px;
@@ -1895,9 +1911,111 @@ body {
     margin-top: 14px;
 }
 
-/* Flatpak detail-view metadata badges (license / verified / downloads) */
-.detail-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-.detail-badges:empty { display: none; }
+/* Rich details metadata grid (Flathub style) */
+.rich-badges-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 24px;
+    margin-bottom: 24px;
+    margin-top: 16px;
+}
+.rich-badges-grid:empty { display: none; }
+
+.rich-badge-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    padding: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.rich-badge-tile.clickable {
+    cursor: pointer;
+}
+
+.rich-badge-tile.clickable:hover {
+    opacity: 0.8;
+}
+
+.rich-badge-icon-container {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 6px;
+}
+
+.rich-badge-icon {
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    color: var(--text-primary);
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.rich-badge-icon .material-symbols-outlined {
+    font-size: 20px;
+}
+
+.rich-badge-title {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.rich-badge-value {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* Base pill style for text values that have NO icons (e.g. sizes) */
+.rich-badge-tile.no-icon .rich-badge-value {
+    background-color: rgba(255, 255, 255, 0.05);
+    padding: 4px 12px;
+    border-radius: 999px;
+    margin-bottom: 4px;
+}
+
+/* Color grading applied to icons and text */
+.rich-badge-tile.safety-safe .rich-badge-value { color: #10b981; }
+.rich-badge-tile.safety-safe .rich-badge-icon { color: #10b981; background-color: rgba(16, 185, 129, 0.15); }
+
+.rich-badge-tile.safety-probably-safe .rich-badge-value { color: #f59e0b; }
+.rich-badge-tile.safety-probably-safe .rich-badge-icon { color: #f59e0b; background-color: rgba(245, 158, 11, 0.15); }
+
+.rich-badge-tile.safety-unsafe .rich-badge-value { color: #ef4444; }
+.rich-badge-tile.safety-unsafe .rich-badge-icon { color: #ef4444; background-color: rgba(239, 68, 68, 0.15); }
+
+.rich-badge-tile.license-proprietary .rich-badge-value { color: #f59e0b; }
+.rich-badge-tile.license-proprietary .rich-badge-icon { color: #f59e0b; background-color: rgba(245, 158, 11, 0.15); }
+
+.rich-badge-tile.license-foss .rich-badge-value { color: #10b981; }
+.rich-badge-tile.license-foss .rich-badge-icon { color: #10b981; background-color: rgba(16, 185, 129, 0.15); }
+
+.rich-badge-tile.verified-true .rich-badge-value { color: #f59e0b; } /* Verified uses yellow/gold on Flathub sometimes? wait, Flathub verified is blue/gold. Let's use blue */
+.rich-badge-tile.verified-true .rich-badge-value { color: #3b82f6; }
+.rich-badge-tile.verified-true .rich-badge-icon { color: #3b82f6; background-color: rgba(59, 130, 246, 0.15); }
+
+.rich-badge-tile.verified-false .rich-badge-value { color: #f59e0b; }
+.rich-badge-tile.verified-false .rich-badge-icon { color: #f59e0b; background-color: rgba(245, 158, 11, 0.15); }
+
+/* Custom coloring for multiple permission icons */
+.perm-icon-danger { color: #ef4444 !important; background-color: rgba(239, 68, 68, 0.15) !important; }
+.perm-icon-warn { color: #f59e0b !important; background-color: rgba(245, 158, 11, 0.15) !important; }
+.perm-icon-safe { color: #10b981 !important; background-color: rgba(16, 185, 129, 0.15) !important; }
+
+/* Hide icon when value is styled like a pill (like sizes) to match flathub */
+.rich-badge-tile.no-icon .rich-badge-icon { display: none; }
 .meta-badge {
     display: inline-flex; align-items: center;
     padding: 4px 10px; border-radius: 999px;
@@ -1996,10 +2114,20 @@ body {
 
 /* Flatpak permissions list */
 .perm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.perm-item { display: flex; flex-direction: column; gap: 1px; padding: 8px 12px; border-radius: var(--radius-md, 8px); border-left: 3px solid var(--border-color); background: var(--bg-surface); }
-.perm-item.perm-danger { border-left-color: #dc2626; }
-.perm-item.perm-warn { border-left-color: #d97706; }
-.perm-item.perm-safe { border-left-color: #16a34a; }
+.perm-list { display: flex; flex-direction: column; gap: 8px; list-style: none; padding: 0; margin: 0; }
+.perm-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 16px;
+    border-radius: var(--radius-md, 8px);
+    background: var(--bg-surface-hover);
+}
+.perm-text-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
 .perm-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
 .perm-detail { font-size: 12px; color: var(--text-secondary); }
 

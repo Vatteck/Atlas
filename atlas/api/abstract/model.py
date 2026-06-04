@@ -92,6 +92,7 @@ class SoftwarePackage(ABC):
         self.installed = installed
         self.update = update
         self.size = size
+        self.download_size = None
         self.categories = categories
         self.license = license
         self.gem_name = self.__module__.split('.')[2]

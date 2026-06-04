@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
 </head>
 <body>
     <div class="app-container">
@@ -185,8 +186,11 @@
             <div class="modal-header">
                 <div class="modal-header-left">
                     <img id="detail-icon" class="modal-icon" src="" alt="">
-                    <div>
-                        <h2 id="detail-name"></h2>
+                    <div class="modal-title-group">
+                        <div class="modal-title-row">
+                            <h2 id="detail-name"></h2>
+                            <span id="detail-type-badge" class="meta-badge"></span>
+                        </div>
                         <div id="detail-meta" class="modal-meta"></div>
                         <a id="detail-link" class="detail-link hidden" href="#" rel="noopener"></a>
                     </div>
@@ -194,7 +198,7 @@
                 <button class="modal-close" id="modal-close" aria-label="Close">✕</button>
             </div>
             <div class="modal-body">
-                <div id="detail-badges" class="detail-badges"></div>
+                <div id="rich-badges-grid" class="rich-badges-grid"></div>
                 <div id="detail-screenshots" class="detail-screenshots hidden"></div>
                 <p id="detail-description" class="modal-description"></p>
                 <div id="detail-perms-action"></div>
