@@ -1464,3 +1464,60 @@ class DashboardSummaryTest(unittest.TestCase):
         self.assertTrue(res['data']['aur']['chroot_enabled'])
 
 
+class SystemHealthTest(unittest.TestCase):
+    """get_system_health: cheap, concurrent, fail-open Arch-cockpit checks."""
+
+    def setUp(self):
+        self.manager = Mock()
+        self.manager.managers = []
+        self.api = AtlasApi(self.manager, Mock())
+
+    def test_aggregates_checks(self):
+        from datetime import datetime, timezone, timedelta
+        synced = datetime.now(timezone.utc) - timedelta(hours=30)
+        with patch.object(self.api, '_last_db_sync_time', return_value=synced), \
+             patch.object(self.api, '_mirror_regen_cmd', return_value=['reflector', '--save']), \
+             patch.object(self.api, 'get_pacnew_files', return_value={'status': 'ok', 'data': {'count': 2}}), \
+             patch.object(self.api, 'get_cleanup_summary', return_value={'status': 'ok', 'data': {
+                 'orphans': {'count': 5},
+                 'pacman_cache': {'available': True, 'total_human': '3.0 GB'},
+                 'flatpak': {'available': True}}}), \
+             patch('os.path.exists', return_value=True):
+            res = self.api.get_system_health()
+
+        self.assertEqual('ok', res['status'])
+        d = res['data']
+        self.assertAlmostEqual(30.0, d['db_sync']['age_hours'], delta=0.2)
+        self.assertEqual('reflector', d['mirrors']['tool'])
+        self.assertTrue(d['lock']['locked'])
+        self.assertEqual(2, d['pacnew']['count'])
+        self.assertEqual(5, d['orphans']['count'])
+        self.assertEqual('3.0 GB', d['cache']['human'])
+        self.assertTrue(d['flatpak']['unused_available'])
+
+    def test_fails_open(self):
+        with patch.object(self.api, '_last_db_sync_time', side_effect=RuntimeError('boom')), \
+             patch.object(self.api, '_mirror_regen_cmd', side_effect=RuntimeError('boom')), \
+             patch.object(self.api, 'get_pacnew_files', side_effect=RuntimeError('boom')), \
+             patch.object(self.api, 'get_cleanup_summary', side_effect=RuntimeError('boom')):
+            res = self.api.get_system_health()
+        self.assertEqual('ok', res['status'])
+        d = res['data']
+        self.assertIsNone(d['db_sync']['age_hours'])
+        self.assertIsNone(d['mirrors']['tool'])
+        self.assertIsNone(d['pacnew']['count'])
+        self.assertIsNone(d['orphans']['count'])
+
+    def test_reads_chroot(self):
+        arch = Mock()
+        arch.__module__ = 'atlas.gems.arch.controller'
+        arch.configman.get_config.return_value = {'aur_build_chroot': True}
+        self.manager.managers = [arch]
+        with patch.object(self.api, '_last_db_sync_time', return_value=None), \
+             patch.object(self.api, '_mirror_regen_cmd', return_value=None), \
+             patch.object(self.api, 'get_pacnew_files', return_value={'status': 'ok', 'data': {'count': 0}}), \
+             patch.object(self.api, 'get_cleanup_summary', return_value={'status': 'ok', 'data': {}}):
+            res = self.api.get_system_health()
+        self.assertTrue(res['data']['chroot']['enabled'])
+
+

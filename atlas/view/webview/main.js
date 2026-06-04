@@ -472,7 +472,7 @@ window.terminalSetDone = (success) => {
 document.getElementById('terminal-close').addEventListener('click', () => {
     document.getElementById('terminal-panel').classList.add('hidden');
     document.getElementById('terminal-overlay').classList.add('hidden');
-    fetchPackages(); // refresh packages list
+    refreshCurrentView(); // refresh whatever view is active (not just package lists)
 });
 
 // --- Root password modal ---------------------------------------------------
@@ -2142,7 +2142,7 @@ async function runOrphanCleanup() {
 }
 
 cleanupOrphansBtn.addEventListener('click', async () => {
-    if (await runOrphanCleanup()) fetchPackages();
+    if (await runOrphanCleanup()) refreshCurrentView();
 });
 
 function formatBytes(bytes, decimals = 2) {
@@ -2329,13 +2329,14 @@ function maintenanceRow(action, title, desc, btnLabel, disabled = false) {
         </div>`;
 }
 
-async function handleMaintenanceAction(action) {
+async function handleMaintenanceAction(action, refresh) {
     if (operationInProgress) { showToast('Busy', 'Another operation is already running', 'warning'); return; }
 
     if (action === 'orphans') {
         const removed = await runOrphanCleanup();
-        // Refresh the whole view if packages changed; otherwise just refresh the panel.
-        if (removed) renderDiskView(); else renderMaintenancePanel();
+        // Refresh the caller's view; default (Disk) keeps its lighter panel-only path when nothing changed.
+        if (refresh) refresh();
+        else if (removed) renderDiskView(); else renderMaintenancePanel();
         return;
     }
 
@@ -2349,7 +2350,7 @@ async function handleMaintenanceAction(action) {
         const result = await pyApiCall('clean_pacman_cache');  // null on error (already toasted)
         if (result && result.status === 'ok') {
             showToast('Cache cleaned', `Freed ${result.freed_human || '0 B'} from the package cache`, 'success');
-            renderDiskView();
+            (refresh || renderDiskView)();
         }
         return;
     }
@@ -2364,10 +2365,132 @@ async function handleMaintenanceAction(action) {
         const result = await pyApiCall('clean_flatpak_unused');
         if (result && result.status === 'ok') {
             showToast('Done', 'Unused Flatpak runtimes removed', 'success');
-            renderDiskView();
+            (refresh || renderDiskView)();
         }
         return;
     }
+}
+
+// ===================== System Health (the "Arch cockpit") =====================
+// Pure mapping of the get_system_health payload → ordered cards. Status/tone logic lives here so
+// it's unit-tested in the Node VM harness. See docs/plans/2026-06-04-system-health.md.
+function systemHealthChecks(data) {
+    const d = data || {};
+    const checks = [];
+
+    const ageH = d.db_sync ? d.db_sync.age_hours : null;
+    if (ageH == null) {
+        checks.push({ id: 'db', icon: '🔄', title: 'Database sync', tone: 'info',
+            detail: 'Couldn’t determine when the package databases were last synced.',
+            actionLabel: 'Open Updates', actionId: 'updates' });
+    } else {
+        const tone = ageH > 168 ? 'danger' : (ageH > 24 ? 'warn' : 'ok');
+        checks.push({ id: 'db', icon: '🔄', title: 'Database sync', tone,
+            detail: `Package databases last synced ${attnAge(ageH)} ago. Update from the Updates page (a full upgrade — never a bare sync).`,
+            actionLabel: 'Open Updates', actionId: 'updates' });
+    }
+
+    const tool = d.mirrors ? d.mirrors.tool : null;
+    checks.push(tool
+        ? { id: 'mirrors', icon: '📡', title: 'Mirror list', tone: 'ok',
+            detail: `Can be refreshed with ${tool} to use the fastest mirrors.`,
+            actionLabel: 'Regenerate', actionId: 'mirrors' }
+        : { id: 'mirrors', icon: '📡', title: 'Mirror list', tone: 'info',
+            detail: 'Install reflector to regenerate the mirror list from Atlas.' });
+
+    const locked = d.lock ? d.lock.locked : null;
+    checks.push(locked
+        ? { id: 'lock', icon: '🔒', title: 'Pacman lock', tone: 'danger',
+            detail: 'A database lock (/var/lib/pacman/db.lck) is present — a package operation may be running, or a previous one was interrupted. If nothing is running, remove the lock file manually.' }
+        : { id: 'lock', icon: '🔒', title: 'Pacman lock', tone: 'ok',
+            detail: 'No stale database lock.' });
+
+    const pn = d.pacnew ? d.pacnew.count : null;
+    if (pn == null) checks.push({ id: 'pacnew', icon: '📝', title: 'Config files (.pacnew)', tone: 'info',
+        detail: 'Couldn’t check for .pacnew/.pacsave files.' });
+    else if (pn > 0) checks.push({ id: 'pacnew', icon: '📝', title: 'Config files (.pacnew)', tone: 'warn',
+        detail: `${pn} config file${pn === 1 ? '' : 's'} left by updates need review and merging.`,
+        actionLabel: 'Open pacdiff', actionId: 'pacdiff' });
+    else checks.push({ id: 'pacnew', icon: '📝', title: 'Config files (.pacnew)', tone: 'ok',
+        detail: 'No .pacnew/.pacsave files to review.' });
+
+    const orph = d.orphans ? d.orphans.count : null;
+    if (orph == null) checks.push({ id: 'orphans', icon: '🧩', title: 'Orphan packages', tone: 'info',
+        detail: 'Couldn’t determine orphan packages.' });
+    else if (orph > 0) checks.push({ id: 'orphans', icon: '🧩', title: 'Orphan packages', tone: 'warn',
+        detail: `${orph} package${orph === 1 ? '' : 's'} installed as dependencies but no longer required by anything.`,
+        actionLabel: 'Review & remove', actionId: 'orphans' });
+    else checks.push({ id: 'orphans', icon: '🧩', title: 'Orphan packages', tone: 'ok',
+        detail: 'No orphan packages.' });
+
+    const cache = d.cache ? d.cache.human : null;
+    checks.push(cache
+        ? { id: 'cache', icon: '💾', title: 'Package cache', tone: 'info',
+            detail: `${cache} in the pacman cache. Cleaning keeps the cache for installed packages, so downgrades still work.`,
+            actionLabel: 'Clean cache', actionId: 'cache' }
+        : { id: 'cache', icon: '💾', title: 'Package cache', tone: 'info',
+            detail: 'Package cache size is unavailable.' });
+
+    if (d.flatpak && d.flatpak.unused_available) checks.push({ id: 'flatpak', icon: '📦',
+        title: 'Flatpak runtimes', tone: 'info',
+        detail: 'Remove Flatpak runtimes and extensions that no installed app uses.',
+        actionLabel: 'Remove unused', actionId: 'flatpak' });
+
+    const cr = d.chroot || {};
+    if (!cr.available) checks.push({ id: 'chroot', icon: '🔧', title: 'AUR clean-chroot builds', tone: 'info',
+        detail: 'Install devtools to build AUR packages in an isolated clean chroot.',
+        actionLabel: 'Settings', actionId: 'settings' });
+    else checks.push({ id: 'chroot', icon: '🔧', title: 'AUR clean-chroot builds', tone: cr.enabled ? 'ok' : 'info',
+        detail: cr.enabled ? 'AUR packages build in an isolated clean chroot.'
+                           : 'Available but off — enable it in Settings for safer AUR builds.',
+        actionLabel: 'Settings', actionId: 'settings' });
+
+    return checks;
+}
+
+function healthStatusLabel(tone) {
+    return tone === 'ok' ? 'OK' : tone === 'warn' ? 'Attention'
+        : tone === 'danger' ? 'Action needed' : 'Info';
+}
+
+function runHealthAction(actionId, btn) {
+    switch (actionId) {
+        case 'updates': activateView('updates'); break;
+        case 'settings': activateView('settings'); break;
+        case 'mirrors': regenerateMirrors(btn); break;
+        case 'pacdiff': pyApiCall('launch_pacdiff'); break;
+        case 'cache':
+        case 'flatpak':
+        case 'orphans': handleMaintenanceAction(actionId, renderSystemHealth); break;
+    }
+}
+
+async function renderSystemHealth() {
+    packagesGrid.style.display = 'block';
+    packagesGrid.innerHTML = `<div class="state-container"><div class="spinner"></div><p>Checking system health…</p></div>`;
+    const data = await pyApiCall('get_system_health');  // unwrapped data, or null on error
+    if (currentView !== 'health') return;  // user navigated away while it loaded
+    if (!data) {
+        packagesGrid.innerHTML = emptyStateHTML({ icon: '📡', title: 'Couldn’t check system health',
+            hint: 'Something went wrong gathering the checks. Try again.' });
+        return;
+    }
+    const cards = systemHealthChecks(data).map(c => `
+        <div class="health-card tone-${c.tone}">
+            <div class="health-head">
+                <span class="health-icon">${c.icon}</span>
+                <span class="health-title">${escapeHtml(c.title)}</span>
+                <span class="health-status">${escapeHtml(healthStatusLabel(c.tone))}</span>
+            </div>
+            <div class="health-detail">${escapeHtml(c.detail)}</div>
+            ${c.actionLabel && c.actionId
+                ? `<button class="health-action" data-health-action="${escapeHtml(c.actionId)}">${escapeHtml(c.actionLabel)}</button>`
+                : ''}
+        </div>`).join('');
+    packagesGrid.innerHTML = `<div class="health-page"><div class="browse-header">System health</div><div class="health-grid">${cards}</div></div>`;
+    packagesGrid.querySelectorAll('.health-action').forEach(btn => {
+        btn.addEventListener('click', () => runHealthAction(btn.dataset.healthAction, btn));
+    });
 }
 
 // Render Chronological Activity Log
@@ -2883,7 +3006,7 @@ async function importPackages() {
         const skipped = result.skipped || 0;
         const failed = result.failed || [];
         showToast('Import Complete', "Installed: " + installed + " | Skipped (already present): " + skipped + " | Failed: " + failed.length, failed.length > 0 ? 'error' : 'success');
-        fetchPackages();
+        refreshCurrentView();
     }
 }
 
@@ -2896,7 +3019,7 @@ if (refreshBtn) {
         }
         packageCache = {}; // Wipe cache completely for a hard reload
         searchInput.value = ''; // Reset query
-        fetchPackages();
+        refreshCurrentView();  // refresh the active view (utility pages included), not just lists
     });
 }
 
@@ -3137,11 +3260,33 @@ function activateView(viewName) {
         loadingState.classList.add('hidden');
         packagesGrid.style.display = 'block';
         renderPermissionsPage();
+    } else if (viewName === 'health') {
+        emptyState.classList.add('hidden');
+        loadingState.classList.add('hidden');
+        packagesGrid.style.display = 'block';
+        renderSystemHealth();
     } else {
         fetchPackages();  // calls applyTopbarContext() itself
         return;
     }
     applyTopbarContext();  // utility/landing views: hide the package-list controls
+}
+
+// Re-render the active view after an operation finishes (e.g. the terminal panel closes), without
+// clearing the search box. Utility views (health/news/permissions/settings/browse) need their own
+// renderer — falling back to fetchPackages() on them would wrongly show app suggestions.
+function refreshCurrentView() {
+    switch (currentView) {
+        case 'settings': renderSettings(); break;
+        case 'news': renderNews(); break;
+        case 'permissions': renderPermissionsPage(); break;
+        case 'health': renderSystemHealth(); break;
+        case 'browse':
+            if (activeBrowseCategory) renderCategoryPackages(activeBrowseCategory.key, activeBrowseCategory.label);
+            else renderBrowse();
+            break;
+        default: fetchPackages();
+    }
 }
 
 navItems.forEach(item => {
@@ -3423,7 +3568,7 @@ document.addEventListener('keydown', (e) => {
             if (terminalOverlay) {
                 terminalOverlay.classList.add('hidden');
             }
-            fetchPackages();
+            refreshCurrentView();
             return;
         }
 
@@ -3722,6 +3867,7 @@ function commandRegistry() {
         nav('Updates', 'updates', 'upgrade outdated', ['Ctrl', 'U']),
         nav('News', 'news', 'arch announcements'),
         nav('Disk', 'disk', 'space usage reclaim', ['Ctrl', 'D']),
+        nav('System health', 'health', 'cockpit maintenance status checks pacman'),
         nav('Activity', 'activity', 'history log', ['Ctrl', 'A']),
         nav('Permissions', 'permissions', 'flatpak flatseal sandbox'),
         nav('Settings', 'settings', 'preferences config options'),
@@ -3883,6 +4029,8 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         densityClass,
         shouldShowPackageControls,
         emptyStateHTML,
+        systemHealthChecks,
+        refreshCurrentView,
         activateView,
         fetchPackages,
         openDetailModal,

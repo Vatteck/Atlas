@@ -632,6 +632,59 @@ async function testEmptyStateHTML() {
   assert.ok(!noAction.includes('empty-state-action'));
 }
 
+async function testSystemHealthChecks() {
+  const { hooks } = loadMainJs({});
+  const byId = (checks) => Object.fromEntries(checks.map(c => [c.id, c]));
+
+  // healthy-ish system
+  let c = byId(hooks.systemHealthChecks({
+    db_sync: { age_hours: 3 }, mirrors: { tool: 'reflector' }, lock: { locked: false },
+    pacnew: { count: 0 }, orphans: { count: 0 }, cache: { human: '1 GB' },
+    flatpak: { unused_available: false }, chroot: { available: true, enabled: true },
+  }));
+  assert.strictEqual(c.db.tone, 'ok');                 // <24h
+  assert.strictEqual(c.mirrors.actionId, 'mirrors');
+  assert.strictEqual(c.lock.tone, 'ok');
+  assert.strictEqual(c.orphans.tone, 'ok');
+  assert.ok(!c.flatpak, 'no flatpak card when nothing unused');
+
+  // problems present
+  c = byId(hooks.systemHealthChecks({
+    db_sync: { age_hours: 200 }, mirrors: { tool: null }, lock: { locked: true },
+    pacnew: { count: 3 }, orphans: { count: 5 }, cache: { human: '9 GB' },
+    flatpak: { unused_available: true }, chroot: { available: false },
+  }));
+  assert.strictEqual(c.db.tone, 'danger');             // >7d
+  assert.strictEqual(c.lock.tone, 'danger');
+  assert.strictEqual(c.pacnew.tone, 'warn');
+  assert.strictEqual(c.pacnew.actionId, 'pacdiff');
+  assert.strictEqual(c.orphans.tone, 'warn');
+  assert.strictEqual(c.orphans.actionId, 'orphans');
+  assert.strictEqual(c.flatpak.actionId, 'flatpak');
+
+  // fail-open: null fields → info "couldn't check", page still has cards
+  c = byId(hooks.systemHealthChecks({ db_sync: { age_hours: null }, pacnew: { count: null },
+                                      orphans: { count: null } }));
+  assert.strictEqual(c.db.tone, 'info');
+  assert.strictEqual(c.pacnew.tone, 'info');
+  assert.strictEqual(c.orphans.tone, 'info');
+}
+
+async function testRefreshCurrentViewRespectsUtilityViews() {
+  // Regression: after an operation on a utility view (e.g. orphan cleanup on Health), refreshing
+  // must re-render that view, not fall through to app suggestions.
+  let suggestionsCalled = false, healthCalled = false;
+  const { hooks } = loadMainJs({
+    get_system_health: async () => { healthCalled = true; return {}; },
+    get_suggestions: async () => { suggestionsCalled = true; return []; },
+  });
+  hooks.setCurrentView('health');
+  hooks.refreshCurrentView();
+  await flushPromises();
+  assert.ok(healthCalled, 'refresh re-renders System Health');
+  assert.ok(!suggestionsCalled, 'refresh does not show suggestions on the Health view');
+}
+
 async function testAttentionCenterFailsOpenOnNullSummary() {
   const { hooks } = loadMainJs({});
   const html = hooks.buildAttentionCenterHTML(null, 'error');
@@ -657,6 +710,8 @@ async function testAttentionCenterFailsOpenOnNullSummary() {
     testDensityClass,
     testTopbarContextDecision,
     testEmptyStateHTML,
+    testSystemHealthChecks,
+    testRefreshCurrentViewRespectsUtilityViews,
     testAttentionCenterFailsOpenOnNullSummary,
   ];
   for (const test of tests) {

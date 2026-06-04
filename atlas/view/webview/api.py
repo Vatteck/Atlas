@@ -856,6 +856,91 @@ class AtlasApi:
             self.logger.error(f"get_dashboard_summary failed: {e}")
             return {'status': 'error', 'message': str(e)}
 
+    def get_system_health(self) -> dict:
+        """Package-management health checks for the System Health page. Cheap signals run
+        concurrently and fail open per field (a failed probe → None), so the page always renders.
+        Overlaps get_dashboard_summary by design (both read-only/cheap). See
+        docs/plans/2026-06-04-system-health.md."""
+        from datetime import datetime, timezone
+
+        def _db_sync():
+            try:
+                synced = self._last_db_sync_time()
+                if synced is not None:
+                    age = (datetime.now(timezone.utc) - synced).total_seconds()
+                    return {'age_hours': round(age / 3600.0, 1)}
+            except Exception:
+                pass
+            return {'age_hours': None}
+
+        def _mirrors():
+            try:
+                return {'tool': (self._mirror_regen_cmd() or [None])[0]}
+            except Exception:
+                return {'tool': None}
+
+        def _lock():
+            try:
+                return {'locked': os.path.exists('/var/lib/pacman/db.lck')}
+            except Exception:
+                return {'locked': None}
+
+        def _pacnew():
+            try:
+                pn = self.get_pacnew_files()
+                return {'count': pn['data']['count'] if pn.get('status') == 'ok' else None}
+            except Exception:
+                return {'count': None}
+
+        def _reclaim():
+            out = {'orphans': None, 'cache': None, 'flatpak': False}
+            try:
+                cs = self.get_cleanup_summary()
+                if cs.get('status') == 'ok':
+                    d = cs['data']
+                    out['orphans'] = d.get('orphans', {}).get('count')
+                    pc = d.get('pacman_cache', {})
+                    out['cache'] = pc.get('total_human') if pc.get('available') else None
+                    out['flatpak'] = bool(d.get('flatpak', {}).get('available'))
+            except Exception:
+                pass
+            return out
+
+        def _chroot():
+            out = {'enabled': False, 'available': False}
+            arch_man = self._manager_by_gem('arch')
+            if arch_man is not None:
+                try:
+                    out['enabled'] = bool(arch_man.configman.get_config().get('aur_build_chroot', False))
+                except Exception:
+                    pass
+                try:
+                    from atlas.gems.arch import chroot
+                    out['available'] = bool(chroot.available())
+                except Exception:
+                    pass
+            return out
+
+        try:
+            jobs = {'db_sync': _db_sync, 'mirrors': _mirrors, 'lock': _lock,
+                    'pacnew': _pacnew, 'reclaim': _reclaim, 'chroot': _chroot}
+            futures = {k: self._executor.submit(fn) for k, fn in jobs.items()}
+            data = {}
+            for k, fut in futures.items():
+                try:
+                    data[k] = fut.result(timeout=20)
+                except Exception:
+                    self.logger.warning(f"system health: {k} check failed", exc_info=True)
+                    data[k] = {}
+            rec = data.pop('reclaim', {}) or {}
+            data['orphans'] = {'count': rec.get('orphans')}
+            data['cache'] = {'human': rec.get('cache')}
+            data['flatpak'] = {'unused_available': bool(rec.get('flatpak'))}
+            return {'status': 'ok', 'data': data}
+        except Exception as e:
+            self.logger.error(f"get_system_health failed: {e}")
+            return {'status': 'error', 'message': str(e)}
+
     def _dashboard_user(self) -> Optional[str]:
         """A friendly name for the dashboard greeting: the user-set name (Settings) if any, else
         the GECOS full name's first part, else the login name. None if nothing resolves (the

@@ -2568,3 +2568,50 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
     transition: background .15s ease;
 }
 .empty-state-action:hover { background: var(--accent-hover); }
+
+/* ===================== System Health page ===================== */
+.health-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+}
+.health-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.health-head { display: flex; align-items: center; gap: 10px; }
+.health-icon { font-size: 20px; line-height: 1; }
+.health-title { font-size: 14px; font-weight: 600; flex: 1; }
+.health-status {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 3px 8px;
+    border-radius: 999px;
+    flex-shrink: 0;
+}
+.health-card.tone-ok     .health-status { color: var(--status-success); background: rgba(16, 185, 129, 0.15); }
+.health-card.tone-warn   .health-status { color: var(--status-warning); background: rgba(245, 158, 11, 0.15); }
+.health-card.tone-danger .health-status { color: var(--status-danger);  background: rgba(239, 68, 68, 0.15); }
+.health-card.tone-info   .health-status { color: var(--text-secondary); background: var(--bg-surface-hover); }
+.health-detail { font-size: 13px; color: var(--text-secondary); line-height: 1.5; flex: 1; }
+.health-action {
+    align-self: flex-start;
+    margin-top: 2px;
+    padding: 7px 14px;
+    border-radius: var(--radius-md);
+    background: var(--accent-color);
+    color: #fff;
+    border: none;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s ease;
+}
+.health-action:hover { background: var(--accent-hover); }
