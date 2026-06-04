@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §8). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-03 (Layer 3 — clean-chroot AUR builds, increments 1+2)
+**Last updated:** 2026-06-03 (baton reconciled — planned roadmap cleared; QoL tail)
 **Version:** 0.10.7
 **Working branch:** `master` (use short-lived branches for larger features; run `git branch` to see what's active)
 
@@ -16,45 +16,36 @@
 
 ## Current focus
 
-**Arch safety-net features (2026-06-02).** The big transitions are done; Atlas is an Arch-focused,
-**pure-Python** pywebview app on the AUR with green CI. Now building out the feature backlog.
-Recently shipped the **non-Qt system tray** (icon + update badge + Settings), **Browse by
-category**, **grid/list toggle**, **sort dropdown**, the **window-icon fix**, the **new app icon**,
-and **AUR publish automation**. **Just built:** an **Update-All news gate** (warns about
-archlinux.org news since the last sync before a full upgrade) — see Done. Next likely the
-`.pacnew` merge-assist follow-up.
+**Polish / QoL tail (2026-06-03).** The big transitions and every planned theme are shipped; Atlas
+is an Arch-focused, **pure-Python** pywebview app on the AUR with green CI (432 tests). Completed
+themes: the **AUR-safety theme** (heuristic PKGBUILD scanner → advisory pre-build gate →
+diff-since-last-build → rich rendered review modal → **maintainer-changed-hands advisory** →
+opt-in **clean-chroot builds** with `-I` dep injection, GUI-verified); the **Flatpak transparency &
+control theme** (Open-Source/Proprietary + Verified + downloads badges → permissions list + advisory
+safety tier → in-modal override editing → full **Flatseal-grade Permissions page**: Share/Socket/
+Device/Features/Filesystem/Bus/Environment, tabbed); plus maintenance hub, downgrade/rollback,
+News + `.pacnew`, Update-All news gate, Browse, sort, non-Qt tray, icons, keyboard shortcuts,
+screenshot lightbox. **No big-ticket item is open** — remaining work is small follow-ups (see Next)
+and a GUI verification pass.
 
 ## Next
 
-Pulling from **[BACKLOG.md](BACKLOG.md)**. Near-term candidates:
+Pulling from **[BACKLOG.md](BACKLOG.md)**. The planned themes are all shipped; what's left is small
+follow-ups:
 
-- **AUR safety theme — layers 1 + 2 DONE & shipped.** The heuristic scanner
-  (`pkgbuild_audit.scan`), the **advisory build gate** (`controller._audit_pkgbuild`, runs before
-  every AUR build, never auto-blocks), the **diff-since-last-build** (fetches the old PKGBUILD from
-  AUR cgit by commit, diffs in Python), and the `check_pkgbuild` **Settings toggle** all landed
-  (commits `3b4c43b`, `30fa297`, `0090959`). Two remaining threads:
-    - **UI polish (open):** the diff + flagged lines are currently jammed into a plain-text
-      `request_confirmation` body (rendered via `.textContent` — no color/monospace). A proper
-      rendered review (red/green diff, monospace, severity-highlighted flagged lines) is the win,
-      since this is the moment a user decides to trust an AUR update.
-    - **Layer 3 (later, big):** **sandboxed chroot builds** —
-      [plans/2026-06-02-sandboxed-aur-builds.md](plans/2026-06-02-sandboxed-aur-builds.md).
-  Honest framing throughout: these are *helpers*, not malware detection (don't auto-block / show "safe").
-  **Update (2026-06-03):** the **UI polish thread is done** — the review now renders richly in the
-  confirm modal (colored +/- diff, monospace, severity-flagged lines, advisory banner) via a
-  structured `review` payload threaded through `request_confirmation`→`prompt_confirmation`→
-  `showConfirmModal` (the blocking decision flow is untouched). **Layer 3 (clean-chroot builds) is
-  also DONE and GUI-verified** (2026-06-03 — see Done). **The whole AUR-safety theme is complete.**
-- ✅ **Arch safety net (system-level) is done** — Update-All news gate + `.pacnew` merge-assist button.
-- Note: **keyboard shortcuts** and the **selection toolbar** backlog items already look largely
-  shipped (shortcuts help button + batch install/uninstall bar) — confirm before re-picking.
-
-> GUI-verified 2026-06-02: rich detail modal (screenshots + history), News page, Disk
-> maintenance panel all look good. Still worth a live run: an actual **downgrade**
-> (privileged + may prompt for a version), the new **screenshot lightbox**, and the new
-> **Browse** page (category grid → package grid; can't be driven headless).
-- Exploratory: container sandboxing ("Vault").
-- Lower-value: route the controller's ad-hoc `Thread(...)` spawns through a shared pool
+- **Flatpak metadata follow-ups:** an **OARS age-rating** badge (`content_rating` is already in the
+  AppStream payload we pull — just map + show it; easy) and an optional "desktop only / form factor"
+  hint. The license/verified/downloads badges + permissions + safety tier + the Permissions page are
+  all done.
+- **Browse follow-ups:** sort-within-category, and extend Browse beyond Arch-repo to **AUR/Flatpak
+  categories** (needs each gem's own category source).
+- **Installed-app icons follow-up:** broaden resolution beyond hicolor/pixmaps to active-theme dirs
+  / `Gtk.IconTheme` so theme-specific icons (e.g. `konsole`/breeze) resolve instead of a letter
+  avatar. (Watch WebKitGTK thread-safety.)
+- **GUI verification pass (worth doing before more features):** live-run this session's
+  **Flatpak Permissions page** (tabs, filesystem/bus/env editing) and the **clean-chroot toggle**,
+  plus older items flagged for a live run — **downgrade**, the **screenshot lightbox**, **Browse**.
+- **Lower-value:** route the controller's ad-hoc `Thread(...)` spawns through a shared pool
   (marginal; only with a measured reason).
 
 Done this session: ✅ CI (GitHub Actions, pytest 3.10–3.13), ✅ dropped Rust, ✅ deleted the

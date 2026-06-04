@@ -5,7 +5,7 @@
 > pull from. Move an item to a `docs/plans/` doc when it gets picked up, and note the
 > outcome in STATUS.md when it ships.
 
-**Last updated:** 2026-06-03
+**Last updated:** 2026-06-03 (reconciled — Flatpak permissions page, chroot builds, shortcuts, selection toolbar all shipped)
 
 ---
 
@@ -49,28 +49,16 @@
 
 ## Flatpak transparency & control (a "Flatseal + Flathub-info" theme)
 
-Flatpak is a first-class source; these enrich its detail view + add control. Two linked ideas —
-the **safety tier bridges them** (it's *derived* from permissions, not a field). Reality-checked
-2026-06-03; all data is reachable (Flathub v2 API — already integrated in `flathub.py` — plus
-`flatpak info`/`override` CLI). Flatpak-only; metadata completeness varies (graceful fallback).
+**Mostly ✅ shipped 2026-06-03.** Detail-modal badges: **Open Source / Proprietary** (`is_free_license`),
+**Verified / Unverified** (Flathub verification metadata), **downloads/month** (`/api/v2/stats`) — all
+clickable to explainer popups. **Permissions list + advisory safety tier** (Safe / Moderate /
+Potentially unsafe, derived from the permission set + license — *advisory, not a verdict*). **Override
+editing**: in-modal quick toggles **and** the full Flatseal-grade **Permissions page** (see the
+shipped item above). Backend in `flathub.py`/`permissions.py`/`flatpak.py`.
 
-- **Rich Flatpak metadata in the detail view** (like Flathub/GNOME Software):
-  - **License → Open Source vs Proprietary:** already fetched (`flathub.py` maps `project_license`);
-    just classify the SPDX id (FOSS vs proprietary) + show a badge. *Easy.*
-  - **Verified developer badge:** Flathub exposes a verification flag (API) — add a fetch. *Easy.*
-  - **Age rating (OARS, e.g. "3+"):** `content_rating` is in the AppStream payload we already pull —
-    map it. *Easy.*
-  - **Downloads/month:** Flathub stats API (`/api/v2/stats/<id>`) — add a fetch. *Easy.*
-  - **"Desktop only" / form factor:** from AppStream metadata — fuzzier, optional.
-- **Permission management (Flatseal-style):** read perms via `flatpak info --show-permissions <id>`
-  (+ static manifest), read/write **user overrides** via `flatpak override --user …` (stored in
-  `~/.local/share/flatpak/overrides/`). Backend is easy CLI-wrapping; the work is the UI (a toggle
-  grid: filesystem, sockets X11/wayland/network, devices, dbus, env). Value vs Flatseal = integrated,
-  no separate app. We read **no** permissions today (`flatpak.py` only runs `flatpak info`).
-- **Derived safety tier ("Safe / Probably safe / Potentially unsafe"):** the bridge — GNOME Software
-  computes this from the permission set (broad filesystem/device/socket access, no sandbox) +
-  proprietary license. Implement as a heuristic over the permissions read above. **Advisory, not a
-  verdict** — same framing as the PKGBUILD scanner (never "this is safe/unsafe", just a signal).
+- **Still open (small):** **OARS age rating** badge — `content_rating` is already in the AppStream
+  payload we pull; just map it (e.g. "3+"). *Easy.* And an optional **"desktop only" / form-factor**
+  hint from AppStream metadata (fuzzier, optional).
 
 ## Icons
 
@@ -87,31 +75,34 @@ the **safety tier bridges them** (it's *derived* from permissions, not a field).
 
 ## Flatpak (follow-ups to the transparency & control theme)
 
-- **Dedicated Flatseal-grade Permissions page (sidebar).** Full design:
+- ~~**Dedicated Flatseal-grade Permissions page (sidebar)**~~ ✅ **Shipped 2026-06-03** — see
   [plans/2026-06-03-flatpak-permissions-page.md](plans/2026-06-03-flatpak-permissions-page.md).
-  A sidebar page: pick an installed Flatpak → edit its whole sandbox, grouped (Share / Socket /
-  Device / Features / Filesystem / Bus / Environment), each row = label + `flag=value` + switch
-  (Flatseal layout). Reuses the override backend. Increments: (1) page + static toggles, (2)
-  filesystem add/remove + ro/rw, (3) bus/env/persist dynamic lists. Effectively porting Flatseal.
+  Sidebar **Permissions** page, master/detail (installed-Flatpak list → grouped sandbox), iOS-style
+  switches, `flag=value` sub-labels, per-app Reset. All increments done: (1) static toggles
+  Share/Socket/Device/Features, (2) Filesystem (preset dir toggles + ro/rw/create modes +
+  custom-path add/remove), (3) Bus (session/system talk/own) + Environment add/remove. Categories
+  are **tabbed**. All via `flatpak override --user` (no root). *Persist deferred:* `flatpak override`
+  has no negative flag for `--persist`, so clean removal would need override-keyfile editing.
 
 ## Lighter QoL
 
-- **Keyboard shortcuts** — `/` focuses search, `Esc` closes modals, etc.
+- ~~**Keyboard shortcuts**~~ ✅ **Shipped** — `/` focuses search, `Esc` closes modals/popups, plus a
+  shortcuts-help button (`#shortcuts-help-btn`). Global `keydown` handler in `main.js`.
 - ~~**Sort dropdown**~~ ✅ **Shipped 2026-06-02** — see
   [plans/2026-06-02-sort-dropdown.md](plans/2026-06-02-sort-dropdown.md). Topbar `#sort-filter`:
   Relevance (default) / Votes / Popularity / Recently updated / Name. Client-side, persisted to
   `localStorage`; `last_modified` newly serialized for the "recently updated" mode.
-- **Selection toolbar** — now that bulk checkboxes exist, act on N selected packages at
-  once (install/remove/update the selection).
+- ~~**Selection toolbar**~~ ✅ **Shipped** — bulk checkboxes + a batch action bar
+  (`AtlasApi.batch_install`/`batch_uninstall`) act on N selected packages at once.
 
 ## Bigger / exploratory
 
-- **System-tray indicator (non-Qt)** — the legacy Qt tray was removed; a GTK/AppIndicator
-  one could return (also on the STATUS.md roadmap).
-- **Sandboxed AUR builds ("Vault")** — build AUR packages in a clean chroot
-  (`devtools`/`makechrootpkg`, like paru/aurutils) instead of on the host. Design note written:
-  [plans/2026-06-02-sandboxed-aur-builds.md](plans/2026-06-02-sandboxed-aur-builds.md) (not yet
-  implemented; needs sign-off). Honest scope: isolates the *build* + enforces dep correctness —
-  does **not** stop installing a malicious package (install scripts run as root). Pair with
-  PKGBUILD review. Atlas builds AUR itself via `makepkg`, so this swaps the build step behind a
-  config toggle (strangler-fig). Open question: worth the upkeep vs. lower-effort PKGBUILD-diff review?
+- ~~**System-tray indicator (non-Qt)**~~ ✅ **Shipped** — AppIndicator/SNI tray (icon, show/hide,
+  quit, update-count badge) + a Settings toggle.
+- ~~**Sandboxed AUR builds ("Vault")**~~ ✅ **Shipped & GUI-verified 2026-06-03** — see
+  [plans/2026-06-02-sandboxed-aur-builds.md](plans/2026-06-02-sandboxed-aur-builds.md). Opt-in
+  (`aur_build_chroot`, off by default; Settings toggle) clean-chroot building via `devtools`
+  (`makechrootpkg`/`mkarchroot`/`arch-nspawn`), with **`-I` injection** of already-built AUR deps and
+  a **host-build fallback** when devtools is absent/setup fails. Honest scope kept: isolates the
+  *build*, not a malicious package. Verified end-to-end installing `protonup-qt` (its AUR deps
+  injected into the chroot copy).
