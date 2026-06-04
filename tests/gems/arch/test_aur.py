@@ -1,9 +1,31 @@
+import gzip
 import os
+from types import SimpleNamespace
 from unittest import TestCase
 
 from atlas.gems.arch import aur
 
 FILE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+class DecodeIndexResponseTest(TestCase):
+    """The AUR index (packages.gz) is gzip with no Content-Encoding, so it must be gunzipped
+    explicitly — requests leaves res.text as binary garbage otherwise."""
+
+    def test_gunzips_gzip_body(self):
+        raw = "package-one\npackage-two\n# comment\npython-inputs\n"
+        res = SimpleNamespace(content=gzip.compress(raw.encode()), text='GARBAGE-BINARY')
+        out = aur.decode_index_response(res)
+        names = {n for n in out.split('\n') if n and not n.startswith('#')}
+        self.assertEqual({'package-one', 'package-two', 'python-inputs'}, names)
+
+    def test_falls_back_to_plain_text_when_not_gzipped(self):
+        # a non-gzip body: res.text is the decoded content, used as the fallback
+        res = SimpleNamespace(content=b'plain\nnot\ngzip', text='plain\nnot\ngzip')
+        self.assertEqual('plain\nnot\ngzip', aur.decode_index_response(res))
+
+    def test_empty_content_uses_text(self):
+        self.assertEqual('hello', aur.decode_index_response(SimpleNamespace(content=b'', text='hello')))
 
 
 class AURModuleTest(TestCase):

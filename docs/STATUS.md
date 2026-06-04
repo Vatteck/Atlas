@@ -70,6 +70,15 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Fix: AUR index was gzip garbage → AUR-dep resolution broken (2026-06-03).** `packages.gz` is
+  served as `application/gzip` with **no** `Content-Encoding`, so `requests` never decompressed it;
+  `download_names`/`worker.update_index` split the raw gzip bytes (`res.text`) on `\n`, producing a
+  ~5.9k-line *binary* index instead of the ~113.5k real names. Any AUR package whose deps weren't in
+  repos failed dep resolution ("not found on the repositories nor AUR") — simple repo-dep AUR pkgs
+  still worked, which hid it. New `aur.decode_index_response()` gunzips the body (falls back to plain
+  text); used by both call sites. Tests: +3. Found while GUI-testing chroot builds with `protonup-qt`
+  (deps `python-inputs`/`python-steam`). The on-disk index was also regenerated so installs work now.
+
 - **AUR safety Layer 3 — clean-chroot builds, increments 1+2 (2026-06-03):** opt-in building of AUR
   packages in a devtools clean chroot (`makechrootpkg`), like paru/aurutils. **Engine** (`chroot.py`):
   `available()`/`missing_tools()` + argv builders (`create_root_cmd`/`update_root_cmd`/`build_cmd`,

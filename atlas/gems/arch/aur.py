@@ -1,3 +1,4 @@
+import gzip
 import logging
 import os
 import re
@@ -17,6 +18,19 @@ URL_SEARCH = 'https://aur.archlinux.org/rpc/?v=5&type=search&arg='
 URL_INDEX = 'https://aur.archlinux.org/packages.gz'
 
 RE_SPLIT_DEP = re.compile(r'[<>]?=')
+
+
+def decode_index_response(res) -> str:
+    """Text of the AUR package-name index. `packages.gz` is served as `application/gzip` with no
+    `Content-Encoding`, so requests does NOT decompress it (`res.text` would be gzip garbage) — we
+    gunzip the body ourselves, falling back to plain text if it somehow isn't gzipped."""
+    content = getattr(res, 'content', None)
+    if content:
+        try:
+            return gzip.decompress(content).decode('utf-8', 'replace')
+        except OSError:  # not gzip-compressed (gzip.BadGzipFile is an OSError subclass)
+            pass
+    return getattr(res, 'text', '') or ''
 
 
 class AURClient:
@@ -175,8 +189,9 @@ class AURClient:
         try:
             res = self.http_client.get(URL_INDEX)
 
-            if res and res.text:
-                return {n.strip() for n in res.text.split('\n') if n and not n.startswith('#')}
+            if res and (getattr(res, 'content', None) or res.text):
+                text = decode_index_response(res)
+                return {n.strip() for n in text.split('\n') if n and not n.startswith('#')}
             else:
                 self.logger.warning('No data returned from: {}'.format(URL_INDEX))
         except requests.exceptions.ConnectionError:

@@ -20,7 +20,7 @@ from atlas.commons.html import bold
 from atlas.commons.system import new_root_subprocess, ProcessHandler
 from atlas.gems.arch import pacman, disk, CUSTOM_MAKEPKG_FILE, ARCH_CONFIG_DIR, AUR_INDEX_FILE, get_icon_path, database, \
     mirrors, ARCH_CACHE_DIR, AUR_INDEX_TS_FILE, aur
-from atlas.gems.arch.aur import URL_INDEX
+from atlas.gems.arch.aur import URL_INDEX, decode_index_response
 from atlas.view.util.translation import I18n
 
 from typing import TYPE_CHECKING
@@ -84,7 +84,7 @@ class AURIndexUpdater(Thread):
             index_ts = datetime.utcnow().timestamp()
             res = self.http_client.get(URL_INDEX)
 
-            if res and res.text:
+            if res and (getattr(res, 'content', None) or res.text):
                 index_progress = 50
                 self.taskman.update_progress(self.task_id, index_progress,
                                              self.i18n['arch.task.aur.index.substatus.gen_index'])
@@ -93,7 +93,7 @@ class AURIndexUpdater(Thread):
                 Path(os.path.dirname(AUR_INDEX_FILE)).mkdir(parents=True, exist_ok=True)
 
                 with open(AUR_INDEX_FILE, 'w+') as f:
-                    lines = res.text.split('\n')
+                    lines = decode_index_response(res).split('\n')
                     progress_inc = round(len(lines) / 50)  # 1%
 
                     perc_count = 0
