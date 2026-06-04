@@ -819,7 +819,7 @@ function cardInnerHTML(group, activeIdx) {
                 <img src="${(iconUrl && iconUrl.startsWith('data:')) ? iconUrl : letterAvatar(pkg)}" data-src="${escapeHtml(getIconDataSrc(iconUrl))}"${pkgIconAttr} class="package-icon" alt="${escapeHtml(pkg.name)} icon" loading="lazy" decoding="async">
                 <div class="package-info">
                     <h3 class="package-title" title="${escapeHtml(pkg.name)}">${escapeHtml(pkg.name)}</h3>
-                    <div class="package-publisher">
+                    <div class="package-publisher" data-meta-id="${escapeHtml(pkg.id)}" data-meta-type="${escapeHtml(normalizeType(pkg.type))}" data-meta-version="${escapeHtml(pkg.version || 'Unknown')}" data-meta-publisher="${escapeHtml(pkg.publisher || 'Unknown Publisher')}">
                         ${escapeHtml(pkg.publisher || 'Unknown Publisher')} • v${escapeHtml(pkg.version || 'Unknown')}
                     </div>
                 </div>
@@ -911,6 +911,7 @@ function renderPackages(packages) {
 
     packagesGrid.appendChild(fragment);
     deferredIconLoad();
+    deferredMetaLoad();
 }
 
 // Silently probe remote icon URLs and upgrade from placeholder on success.
@@ -949,6 +950,56 @@ function deferredIconLoad() {
     const imgs = packagesGrid.querySelectorAll('img.package-icon[data-src], img.package-icon[data-pkgicon]');
     imgs.forEach(img => {
         window.iconObserver.observe(img);
+    });
+}
+
+// Silently fetch developer and verification metadata for visible cards.
+function deferredMetaLoad() {
+    if (!window.metaObserver) {
+        window.metaObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const el = entry.target;
+                    const id = el.getAttribute('data-meta-id');
+                    const type = el.getAttribute('data-meta-type');
+                    const version = el.getAttribute('data-meta-version');
+                    const basePublisher = el.getAttribute('data-meta-publisher');
+                    
+                    if (type === 'flatpak') {
+                        pyApiCall('get_flatpak_meta', id).then(meta => {
+                            if (!meta) return;
+                            const devName = escapeHtml(meta.developer_name || basePublisher || 'Unknown Developer');
+                            const verifiedHtml = meta.verified 
+                                ? `<span class="material-symbols-outlined verified-icon" style="font-size: 14px; margin-left: 2px;" title="Verified by Flathub">verified</span>` 
+                                : ``;
+                            el.innerHTML = `<span style="display:inline-flex;align-items:center;">${devName}${verifiedHtml}</span> <span style="opacity: 0.5;">•</span> v${version}`;
+                        });
+                    } else if (type === 'aur') {
+                        pyApiCall('get_aur_meta', id).then(info => {
+                            if (!info) return;
+                            let devName = escapeHtml(info.maintainer || basePublisher || 'Unknown');
+                            let warnHtml = '';
+                            if (!info.maintainer && 'maintainer' in info) {
+                                devName = '<span class="text-danger">Orphaned</span>';
+                                warnHtml = `<span class="material-symbols-outlined text-danger" style="font-size: 14px; margin-left: 2px;" title="No maintainer">error</span>`;
+                            } else {
+                                warnHtml = `<span class="material-symbols-outlined unverified-icon" style="font-size: 14px; margin-left: 2px;" title="AUR community package">info</span>`;
+                            }
+                            el.innerHTML = `<span style="display:inline-flex;align-items:center;">${devName}${warnHtml}</span> <span style="opacity: 0.5;">•</span> v${version}`;
+                        });
+                    }
+                    
+                    // Stop observing once handled
+                    el.removeAttribute('data-meta-id');
+                    observer.unobserve(el);
+                }
+            });
+        }, { rootMargin: '100px' });
+    }
+
+    const metas = packagesGrid.querySelectorAll('.package-publisher[data-meta-id]');
+    metas.forEach(el => {
+        window.metaObserver.observe(el);
     });
 }
 
