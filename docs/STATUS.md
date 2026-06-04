@@ -73,6 +73,17 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **System Health page — the "Arch cockpit" (2026-06-04).** New **Health** sidebar page:
+  package-management health checks, each card = status pill + explanation + one safe action.
+  Checks: database sync age, mirror list, pacman lock, `.pacnew` files, orphan packages, package
+  cache, unused Flatpak runtimes, AUR clean-chroot — actions reuse existing handlers (Open Updates /
+  regenerate mirrors / pacdiff / orphan checklist / clean cache / remove unused / Settings).
+  Backend `AtlasApi.get_system_health()` runs the cheap signals concurrently + fails open per field;
+  pure `systemHealthChecks(data)` maps to toned cards (Node-VM-tested). **GUI-verified.** Also fixed a
+  latent bug it surfaced: post-operation paths (terminal-close, refresh button, import) called
+  `fetchPackages()`, which on a utility view fell through to app suggestions — new
+  `refreshCurrentView()` re-renders the active view instead (regression-tested). Suite 459 + JS
+  harness 17. Plan: [plans/2026-06-04-system-health.md](plans/2026-06-04-system-health.md).
 - **GUI polish trio — density / contextual topbar / unified empty states (2026-06-04).** Three
   frontend-only items, **GUI-verified**: (1) **Display density** (Comfortable/Compact/Dense) — a
   `localStorage` pref applied app-wide via a `body.density-*` class; Settings → General select applies

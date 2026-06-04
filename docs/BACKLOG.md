@@ -77,10 +77,11 @@ first:
   "downgrade available" / "reinstall previous version" affordances, pacman-log links.
 
 ### Arch utility cockpit (package-maintenance health only — *not* a YaST)
-- **System Health page.** Package-management health checks, each card = status + short explanation
-  + one safe action + details disclosure: DB-sync age, mirrorlist status/regenerate, pacman lock,
-  keyring freshness, `.pacnew`/`.pacsave`, orphans, cache size, unused runtimes, Flatpak override
-  count, AUR index freshness, chroot availability.
+- ~~**System Health page.**~~ ✅ **shipped 2026-06-04** — Health page with 8 checks (DB-sync age,
+  mirrorlist, pacman lock, `.pacnew`, orphans, cache, unused runtimes, AUR chroot), each status +
+  one safe action. See [plans/2026-06-04-system-health.md](plans/2026-06-04-system-health.md).
+  *Possible follow-ups:* keyring freshness, AUR-index age, a gated "remove stale lock" action, and a
+  per-check details disclosure.
 - **`.pacnew` center.** Promote the notice to a real section: list with **risk labels**
   (`mirrorlist` = dangerous to overwrite, `pacman.conf` = review, service configs = medium),
   buttons for open-pacdiff / copy-path / read-only diff / regenerate-mirrorlist. **No auto-merge.**
