@@ -83,8 +83,11 @@ class AURIndexUpdater(Thread):
         try:
             index_ts = datetime.utcnow().timestamp()
             res = self.http_client.get(URL_INDEX)
+            text = decode_index_response(res) if res else ''
 
-            if res and (getattr(res, 'content', None) or res.text):
+            # Only rewrite the index when we actually decoded names — a corrupt/truncated download
+            # decodes to '' and must NOT truncate a previously-good index file.
+            if text.strip():
                 index_progress = 50
                 self.taskman.update_progress(self.task_id, index_progress,
                                              self.i18n['arch.task.aur.index.substatus.gen_index'])
@@ -93,7 +96,7 @@ class AURIndexUpdater(Thread):
                 Path(os.path.dirname(AUR_INDEX_FILE)).mkdir(parents=True, exist_ok=True)
 
                 with open(AUR_INDEX_FILE, 'w+') as f:
-                    lines = decode_index_response(res).split('\n')
+                    lines = text.split('\n')
                     progress_inc = round(len(lines) / 50)  # 1%
 
                     perc_count = 0

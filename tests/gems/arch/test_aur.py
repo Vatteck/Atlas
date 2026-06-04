@@ -20,12 +20,24 @@ class DecodeIndexResponseTest(TestCase):
         self.assertEqual({'package-one', 'package-two', 'python-inputs'}, names)
 
     def test_falls_back_to_plain_text_when_not_gzipped(self):
-        # a non-gzip body: res.text is the decoded content, used as the fallback
+        # a non-gzip body (no gzip magic): res.text is the decoded content, used as-is
         res = SimpleNamespace(content=b'plain\nnot\ngzip', text='plain\nnot\ngzip')
         self.assertEqual('plain\nnot\ngzip', aur.decode_index_response(res))
 
     def test_empty_content_uses_text(self):
         self.assertEqual('hello', aur.decode_index_response(SimpleNamespace(content=b'', text='hello')))
+
+    def test_truncated_gzip_returns_empty_not_garbage(self):
+        # a real gzip body cut off mid-stream raises EOFError; must yield '' (no data),
+        # never the compressed bytes via res.text — otherwise the index gets re-corrupted.
+        full = gzip.compress(b"name-one\nname-two\n")
+        res = SimpleNamespace(content=full[:len(full) // 2], text='COMPRESSED-GARBAGE')
+        self.assertEqual('', aur.decode_index_response(res))
+
+    def test_corrupt_gzip_body_returns_empty(self):
+        # gzip magic but garbage payload -> decompression fails -> '' (not res.text)
+        res = SimpleNamespace(content=b'\x1f\x8b' + b'\x00' * 20, text='COMPRESSED-GARBAGE')
+        self.assertEqual('', aur.decode_index_response(res))
 
 
 class AURModuleTest(TestCase):

@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import urllib.parse
+import zlib
 from typing import Set, List, Iterable, Dict, Optional, Generator, Tuple
 
 import requests
@@ -20,16 +21,23 @@ URL_INDEX = 'https://aur.archlinux.org/packages.gz'
 RE_SPLIT_DEP = re.compile(r'[<>]?=')
 
 
+GZIP_MAGIC = b'\x1f\x8b'
+
+
 def decode_index_response(res) -> str:
     """Text of the AUR package-name index. `packages.gz` is served as `application/gzip` with no
     `Content-Encoding`, so requests does NOT decompress it (`res.text` would be gzip garbage) — we
-    gunzip the body ourselves, falling back to plain text if it somehow isn't gzipped."""
+    gunzip the body ourselves.
+
+    A body that *starts with* the gzip magic is treated as gzip: if decompression fails (truncated
+    or corrupt download), return '' (no data) rather than the compressed bytes, so callers don't
+    parse garbage as package names. A body without the magic is taken as plain text (`res.text`)."""
     content = getattr(res, 'content', None)
-    if content:
+    if content and content[:2] == GZIP_MAGIC:
         try:
             return gzip.decompress(content).decode('utf-8', 'replace')
-        except OSError:  # not gzip-compressed (gzip.BadGzipFile is an OSError subclass)
-            pass
+        except (OSError, EOFError, zlib.error):  # truncated/corrupt gzip — treat as no data
+            return ''
     return getattr(res, 'text', '') or ''
 
 
@@ -188,9 +196,9 @@ class AURClient:
         self.logger.info('Downloading AUR index')
         try:
             res = self.http_client.get(URL_INDEX)
+            text = decode_index_response(res) if res else ''
 
-            if res and (getattr(res, 'content', None) or res.text):
-                text = decode_index_response(res)
+            if text.strip():
                 return {n.strip() for n in text.split('\n') if n and not n.startswith('#')}
             else:
                 self.logger.warning('No data returned from: {}'.format(URL_INDEX))
