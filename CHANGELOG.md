@@ -4,6 +4,65 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+> Atlas is an Arch-focused, pure-Python fork of [bauh](https://github.com/vinifmor/bauh).
+> Entries from `0.11.0` on are Atlas; `0.10.7` and earlier are inherited bauh history (the
+> fork point — `__version__` was never bumped between then and the first Atlas release).
+
+## [0.11.0] 2026-06-04
+The first cohesive Atlas release. Everything here diverged from the bauh fork point
+(`0.10.7`): the rebrand, the UI port, the move to pure Python, the Arch focus, and the
+AUR-safety / Flatpak-transparency themes.
+
+### Identity & architecture
+- Rebranded **bauh → Atlas** — namespaces, config paths (`~/.config/atlaspm`), UI strings.
+- UI ported **Qt5 → [pywebview](https://pywebview.flowrocket.com/)** (WebKitGTK); all dialogs
+  are HTML modals (WebKitGTK has no native `window.prompt/confirm/alert`).
+- **Removed the Rust extension — Atlas is pure Python.** A package manager is I/O-bound, so
+  the native hot-paths didn't earn their keep. Builds with a plain `pip install -e .`.
+- **Arch-focused by default** — Arch repo, AUR, Flatpak, AppImage are first-class; Snap/Debian/
+  Web gems are off by default (re-enable in Settings).
+- **CI** (GitHub Actions, pytest, Python 3.10–3.13) and an Arch `PKGBUILD` building a
+  pure-Python `py3-none-any` wheel.
+
+### AUR safety
+- Heuristic, AI-free **PKGBUILD scanner** (pipe-to-shell, base64 blobs, eval, network-in-build,
+  sensitive-path writes, setuid, …) — advisory only, never auto-blocks.
+- **Pre-build advisory gate** + **diff-since-last-build** on updates, in a rendered, colored
+  **review modal**.
+- **"Maintainer changed hands" advisory** when an AUR package's maintainer differs from the one
+  cached at install (incl. now-orphaned).
+- Opt-in **clean-chroot builds** via `devtools` (`makechrootpkg`), with `-I` dep injection and a
+  host-build fallback.
+
+### Flatpak transparency & control
+- Detail-modal **badges** — Open Source/Proprietary, Verified/Unverified, downloads/month, OARS
+  age rating, form factor — each clickable to an explainer.
+- **Permissions list + advisory safety tier** (Safe / Moderate / Potentially unsafe).
+- **Override editing** — in-modal quick toggles plus a full **Flatseal-grade Permissions page**
+  (Share/Socket/Device/Features/Filesystem/Bus/Environment, tabbed), via `flatpak override
+  --user` (no root).
+
+### Arch features
+- **News page** (archlinux.org feed) and **`.pacnew`/`.pacsave` detection** (`pacdiff` launch,
+  mirrorlist-overwrite caution, reflector mirrorlist regenerate).
+- **"Update All" news gate** — warns about news since the last DB sync (fail-open).
+- **Browse by category** — curated buckets listing Arch repo **and Flathub** apps (AUR has no
+  category source, so it's excluded).
+- **Maintenance / cleanup hub** (orphans, pacman cache, unused Flatpak runtimes) and **downgrade
+  / rollback** from the detail view.
+
+### UI & discovery
+- Modern pywebview front-end: **grid/list toggle**, **sort dropdown**, name-match search
+  ranking, **multi-source app cards**, keyboard shortcuts, bulk-selection toolbar, and a **rich
+  detail view** (screenshot strip + lightbox, version history).
+- **Better icons** — Flatpak CDN icons in search, multi-source best-icon, and installed-app
+  icons resolved from `.desktop`/hicolor **and the active icon theme + its inherits chain**
+  (thread-safe, no `Gtk.IconTheme`).
+
+### System tray
+- **Non-Qt AppIndicator/SNI tray** — show/hide, check-for-updates, quit, a pending-update count
+  badge (drawn onto the icon for KDE), and a Settings section.
+
 ## [0.10.7] 2024-01-10
 ### Fixes
 - AppImage

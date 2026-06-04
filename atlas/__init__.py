@@ -1,4 +1,4 @@
-__version__ = '0.10.7'
+__version__ = '0.11.0'
 __app_name__ = 'atlas'
 
 import os

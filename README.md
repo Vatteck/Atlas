@@ -9,7 +9,7 @@ Flatpak, and AppImage** — all from one modern interface.
 Atlas is a community fork of [bauh](https://github.com/vinifmor/bauh), rebuilt around a
 **[pywebview](https://pywebview.flowrocket.com/) web UI** and a lazy-loaded engine.
 
-> Status: actively developed (v0.10.7). Built and tested on Arch / CachyOS.
+> Status: actively developed (v0.11.0). Built and tested on Arch / CachyOS.
 
 ![Atlas dashboard](docs/screenshots/dashboard.png)
 

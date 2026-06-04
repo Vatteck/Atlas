@@ -5,9 +5,9 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-04 (Sprint 2: Flatpak Browse categories + theme-aware icons; 451 tests green)
-**Version:** 0.10.7
-**Working branch:** `feat/webview-polish-sprint-2` (short-lived polish branch; run `git branch` before acting)
+**Last updated:** 2026-06-04 (Release prep: bumped to 0.11.0 + CHANGELOG; 451 tests green)
+**Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
+**Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)** — the longer-horizon menu we pull
 > from. This file stays the live baton (in-progress / just-shipped).
@@ -78,6 +78,17 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Release 0.11.0 — prep (2026-06-04).** `__version__` had read `0.10.7` since the initial commit
+  (the bauh fork point, never bumped); everything Atlas accumulated on top of it. Bumped
+  `atlas/__init__.py` → **0.11.0** (flows to the About dialog, `--version`, `pyproject`/`setup`,
+  and the PKGBUILD `pkgver()`), updated the README status line + the PKGBUILD/.SRCINFO `pkgver`
+  placeholders, and added a curated **`CHANGELOG.md`** `0.11.0` section (prepended above the
+  inherited bauh history; theme-grouped, not a commit dump). Verified: wheel builds
+  `atlas-0.11.0-py3-none-any.whl` (`python -m build --wheel --no-isolation`); suite 451 green.
+  Tagged `v0.11.0` locally. **AUR publish NOT done** — it's outward-facing; run
+  `linux_dist/arch/publish-aur.sh` (or `--dry-run`) to push `atlas-pm-git` when ready (for a
+  `-git` pkg it only matters when PKGBUILD/.SRCINFO content changes). Plan:
+  [plans/2026-06-04-release-0.11.0.md](plans/2026-06-04-release-0.11.0.md).
 - **Browse — Flatpak categories (sprint 2, 2026-06-04).** Browse-by-category was Arch-repo-only;
   it now also lists **Flathub** apps per bucket. New pure mappers in
   `atlas/gems/flatpak/flathub.py`: `map_collection_hit` (flattens one
