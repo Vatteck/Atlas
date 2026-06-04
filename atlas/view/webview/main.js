@@ -97,6 +97,8 @@ let currentPackages = [];
 let currentGroups = [];   // packages collapsed by app name; each card renders one group
 let diskPackages = [];
 let currentView = 'dashboard'; // 'dashboard', 'installed', 'updates', 'activity'
+let activeBrowseCategory = null;
+let packageFetchEpoch = 0;
 
 // Grid vs list layout for the package views (persisted). Pure CSS — toggling the class on
 // packagesGrid is enough, no re-render needed. Defaults to grid.
@@ -296,6 +298,18 @@ function renderFiltered() {
     const filtered = filterByType(currentPackages, typeFilter.value);
     const query = searchInput.value.trim();
     renderPackages(sortPackages(filtered, query));
+    if (currentView === 'browse' && activeBrowseCategory && currentGroups.length > 0) {
+        packagesGrid.insertBefore(browseCategoryHeader(activeBrowseCategory), packagesGrid.firstChild);
+    }
+}
+
+function nextPackageFetchEpoch() {
+    packageFetchEpoch += 1;
+    return packageFetchEpoch;
+}
+
+function isCurrentPackageFetch(epoch, viewName) {
+    return epoch === packageFetchEpoch && viewName === currentView;
 }
 
 // Reflect the current grid/list choice on the package grid + the toggle buttons. Layout is
@@ -1018,7 +1032,7 @@ function prettifyInfoKey(key) {
 }
 
 // Screenshot strip in the detail modal (Flatpak/AppImage carry screenshots; Arch doesn't).
-async function renderDetailScreenshots(pkg) {
+async function renderDetailScreenshots(pkg, stillCurrent = () => true) {
     const el = document.getElementById('detail-screenshots');
     if (!el) return;
     el.innerHTML = '';
@@ -1026,6 +1040,7 @@ async function renderDetailScreenshots(pkg) {
     if (!pkg.has_screenshots) return;
 
     const urls = await pyApiCall('get_screenshots', pkg.id);  // unwrapped list, or null
+    if (!stillCurrent()) return;
     if (!urls || urls.length === 0) return;
 
     el.innerHTML = urls.map((u, i) =>
@@ -1087,7 +1102,7 @@ function lightboxStep(delta) {
 })();
 
 // Version-history table in the detail modal; the installed version's row is highlighted.
-async function renderDetailHistory(pkg) {
+async function renderDetailHistory(pkg, stillCurrent = () => true) {
     const section = document.getElementById('detail-history-section');
     const body = document.getElementById('detail-history');
     if (!section || !body) return;
@@ -1096,6 +1111,7 @@ async function renderDetailHistory(pkg) {
     if (!pkg.has_history) return;
 
     const data = await pyApiCall('get_history', pkg.id);  // unwrapped {history, current_index}
+    if (!stillCurrent()) return;
     const history = data && data.history;
     if (!history || history.length === 0) return;
     const current = (data && typeof data.current_index === 'number') ? data.current_index : -1;
@@ -1506,20 +1522,25 @@ function maintainerChangePopupHtml(changed) {
 }
 
 function openDetailModal(pkg) {
+    const detailPkgId = String(pkg.id || '');
+    detailModal.dataset.pkgId = detailPkgId;
+    const stillCurrentDetail = () => detailModal.dataset.pkgId === detailPkgId;
+
     const detailIcon = document.getElementById('detail-icon');
     detailIcon.src = getIconSrc(pkg.icon_url);
     const remoteUrl = getIconDataSrc(pkg.icon_url);
     if (remoteUrl) {
         const probe = new Image();
-        probe.onload = () => { detailIcon.src = remoteUrl; };
+        probe.onload = () => { if (stillCurrentDetail()) detailIcon.src = remoteUrl; };
         probe.src = remoteUrl;
     } else if (pkg.installed && !(pkg.icon_url && pkg.icon_url.startsWith('data:'))) {
         // Installed app with no usable icon: resolve from the system (.desktop / icon theme), the
         // same lazy path the cards use — otherwise the modal shows a blank placeholder.
         pyApiCall('get_pkg_icon', pkg.id).then(uri => {
+            if (!stillCurrentDetail()) return;
             if (!uri) return;
             const probe = new Image();
-            probe.onload = () => { detailIcon.src = uri; };
+            probe.onload = () => { if (stillCurrentDetail()) detailIcon.src = uri; };
             probe.src = uri;
         });
     }
@@ -1580,6 +1601,7 @@ function openDetailModal(pkg) {
 
     if (normalizeType(pkg.type) === 'flatpak') {
         pyApiCall('get_flatpak_meta', pkg.id).then(meta => {
+            if (!stillCurrentDetail()) return;
             if (!meta || !Object.keys(meta).length) return;
             const parts = [];
             const hasPerms = (meta.permissions || []).length > 0;
@@ -1669,6 +1691,7 @@ function openDetailModal(pkg) {
         });
     } else if (normalizeType(pkg.type) === 'aur') {
         pyApiCall('get_aur_meta', pkg.id).then(info => {
+            if (!stillCurrentDetail()) return;
             if (!info) return;
             const parts = [];
             if (info.update_available) {
@@ -1737,11 +1760,12 @@ function openDetailModal(pkg) {
     }
 
     // Rich detail extras (read-only): screenshots for Flatpak/AppImage and version history.
-    renderDetailScreenshots(pkg);
-    renderDetailHistory(pkg);
+    renderDetailScreenshots(pkg, stillCurrentDetail);
+    renderDetailHistory(pkg, stillCurrentDetail);
 
     // Fetch key-value info from python
     pyApiCall('get_info', pkg.id).then(info => {
+        if (!stillCurrentDetail()) return;
         table.innerHTML = '';
         if (info && Object.keys(info).length > 0) {
             
@@ -2338,6 +2362,8 @@ async function renderActivityFeed() {
 
 // Data Fetching
 async function fetchPackages() {
+    const fetchEpoch = nextPackageFetchEpoch();
+    const fetchView = currentView;
     packagesGrid.style.display = 'grid';
     packagesGrid.innerHTML = getSkeletonGridHTML();
     emptyState.classList.add('hidden');
@@ -2352,6 +2378,18 @@ async function fetchPackages() {
     }
 
     const query = searchInput.value.trim();
+
+    if (currentView === 'browse' && !query) {
+        if (activeBrowseCategory) {
+            await renderCategoryPackages(activeBrowseCategory.key, activeBrowseCategory.label);
+        } else {
+            await renderBrowse();
+        }
+        return;
+    }
+    if (currentView === 'browse' && query) {
+        activeBrowseCategory = null;
+    }
 
     // The Updates view shows a notice when pacman left .pacnew/.pacsave files to review.
     if (currentView === 'updates') renderUpdatesNotice();
@@ -2383,9 +2421,6 @@ async function fetchPackages() {
             results = await pyApiCall('get_installed', 'all');
         } else if (currentView === 'updates') {
             results = await pyApiCall('get_updates', 'all');
-            if (results && results.length > 0) {
-                updateAllBtn.classList.remove('hidden');
-            }
         } else if (currentView === 'activity') {
             loadingState.classList.add('hidden');
             renderActivityFeed();
@@ -2396,6 +2431,12 @@ async function fetchPackages() {
         } else {
             results = await pyApiCall('get_suggestions', 'all');
         }
+    }
+
+    if (!isCurrentPackageFetch(fetchEpoch, fetchView)) return;
+
+    if (currentView === 'updates' && results && results.length > 0) {
+        updateAllBtn.classList.remove('hidden');
     }
 
     if (currentView !== 'activity' && currentView !== 'disk') {
@@ -2466,6 +2507,9 @@ async function renderNews() {
 // Browse-by-category: a store-like discovery view. Top level shows category cards; clicking
 // one lists that category's repo packages (reusing the normal package grid).
 async function renderBrowse() {
+    activeBrowseCategory = null;
+    currentPackages = [];
+    currentGroups = [];
     packagesGrid.style.display = 'block';
     packagesGrid.innerHTML = `<div class="state-container"><div class="spinner"></div><p>Loading categories…</p></div>`;
 
@@ -2492,16 +2536,26 @@ async function renderBrowse() {
     });
 }
 
+function browseCategoryHeader(category) {
+    const header = document.createElement('div');
+    header.className = 'browse-subheader';
+    header.innerHTML = `<button class="browse-back" type="button">← Categories</button><span class="browse-cat-title">${escapeHtml(category.label)}</span>`;
+    header.querySelector('.browse-back').addEventListener('click', renderBrowse);
+    return header;
+}
+
 async function renderCategoryPackages(key, label) {
+    activeBrowseCategory = { key, label };
     packagesGrid.style.display = 'block';
     packagesGrid.innerHTML = `<div class="state-container"><div class="spinner"></div><p>Loading ${escapeHtml(label)}…</p></div>`;
 
     const data = await pyApiCall('get_category_packages', key);  // unwrapped list, or null on error
-    const header = document.createElement('div');
-    header.className = 'browse-subheader';
-    header.innerHTML = `<button class="browse-back" type="button">← Categories</button><span class="browse-cat-title">${escapeHtml(label)}</span>`;
+    if (!activeBrowseCategory || activeBrowseCategory.key !== key) return;
+    const header = browseCategoryHeader(activeBrowseCategory);
+    currentPackages = data || [];
 
     if (!data || data.length === 0) {
+        currentGroups = [];
         packagesGrid.style.display = 'block';
         packagesGrid.innerHTML = '';
         packagesGrid.appendChild(header);
@@ -2510,11 +2564,8 @@ async function renderCategoryPackages(key, label) {
         empty.textContent = data ? 'No packages found in this category.' : 'Could not load packages for this category.';
         packagesGrid.appendChild(empty);
     } else {
-        renderPackages(sortPackages(data, ''));  // sets packagesGrid to the grid layout + cards
-        packagesGrid.insertBefore(header, packagesGrid.firstChild);
+        renderFiltered();  // sets packagesGrid to the grid/list layout + cards, preserving the header
     }
-
-    header.querySelector('.browse-back').addEventListener('click', renderBrowse);
 }
 
 // Regenerate /etc/pacman.d/mirrorlist (reflector/rate-mirrors via the root broker). Shared by the
@@ -2671,19 +2722,25 @@ searchInput.addEventListener('input', () => {
 });
 
 typeFilter.addEventListener('change', () => {
-    fetchPackages();
+    if (currentView === 'browse' && activeBrowseCategory) {
+        renderFiltered();
+    } else {
+        fetchPackages();
+    }
 });
 
 // Sort dropdown. Sorting is client-side, so just re-render the current package list (no
-// refetch). Live re-sort covers dashboard/installed/updates/search; Browse picks up the new
-// order when a category is (re)opened.
+// refetch). Live re-sort covers dashboard/installed/updates/search and an open Browse
+// category; the top-level Browse category grid is not a package list and is left alone.
 const SORTABLE_VIEWS = new Set(['dashboard', 'installed', 'updates']);
 if (sortFilter) {
     sortFilter.value = sortMode;  // reflect the persisted choice
     sortFilter.addEventListener('change', () => {
         sortMode = SORT_MODES.includes(sortFilter.value) ? sortFilter.value : 'relevance';
         localStorage.setItem('atlas_sort_mode', sortMode);
-        if (SORTABLE_VIEWS.has(currentView)) renderFiltered();
+        if (SORTABLE_VIEWS.has(currentView) || (currentView === 'browse' && activeBrowseCategory)) {
+            renderFiltered();
+        }
     });
 }
 
@@ -3263,3 +3320,24 @@ document.addEventListener('keydown', (e) => {
         return;
     }
 });
+
+if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
+    window.__atlasTestHooks = {
+        activateView,
+        fetchPackages,
+        openDetailModal,
+        renderBrowse,
+        renderCategoryPackages,
+        renderFiltered,
+        renderPackages,
+        getState: () => ({
+            activeBrowseCategory,
+            currentPackages: currentPackages.slice(),
+            currentView,
+            packageFetchEpoch,
+            sortMode,
+        }),
+        setCurrentView: (viewName) => { currentView = viewName; },
+        setSearchQuery: (query) => { searchInput.value = query; },
+    };
+}

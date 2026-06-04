@@ -5,9 +5,9 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-03 (Doc maintenance: architecture/README/agent shims/benchmark notes reconciled with pure-Python Atlas; 441 tests green)
+**Last updated:** 2026-06-03 (Webview polish sprint 1: Browse category correctness + stale async guards; 442 tests green)
 **Version:** 0.10.7
-**Working branch:** `master` (use short-lived branches for larger features; run `git branch` to see what's active)
+**Working branch:** `feat/webview-polish-sprint-1` (short-lived polish branch; run `git branch` before acting)
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)** — the longer-horizon menu we pull
 > from. This file stays the live baton (in-progress / just-shipped).
@@ -26,28 +26,29 @@ safety tier → in-modal override editing → full **Flatseal-grade Permissions 
 Device/Features/Filesystem/Bus/Environment, tabbed); plus maintenance hub, downgrade/rollback,
 News + `.pacnew`, Update-All news gate, Browse, sort, non-Qt tray, icons, keyboard shortcuts,
 screenshot lightbox. **No big-ticket item is open** — remaining work is small follow-ups (see Next)
-and a GUI verification pass.
+and a GUI verification pass. Sprint 1 fixed Browse category state/sort/filter correctness and stale async guards;
+see [plans/2026-06-03-webview-polish-sprint-1.md](plans/2026-06-03-webview-polish-sprint-1.md).
 
 ## Next
 
 Pulling from **[BACKLOG.md](BACKLOG.md)**. The planned themes are all shipped; what's left is small
 follow-ups:
 
-- **Browse follow-ups:** sort-within-category, and extend Browse beyond Arch-repo to **AUR/Flatpak
-  categories** (needs each gem's own category source).
+- **Browse follow-up:** extend Browse beyond Arch-repo to **AUR/Flatpak categories** (needs each
+  gem's own category source). Sort/filter inside an open category is done in sprint 1.
 - **Installed-app icons follow-up:** broaden resolution beyond hicolor/pixmaps to active-theme dirs
   / `Gtk.IconTheme` so theme-specific icons (e.g. `konsole`/breeze) resolve instead of a letter
   avatar. (Watch WebKitGTK thread-safety.)
 - **GUI verification status (2026-06-03):** user GUI-verified this session's Flatpak Permissions
   page, clean-chroot toggle (built `protonup-qt` end-to-end), AUR maintainer/update badges in the
   detail view, and the empty-state. **Still worth a live run:** **downgrade**, the **screenshot
-  lightbox**, and **Browse**. Skeleton loaders are wired/correct — they only show on *uncached*
+  lightbox**, and **Browse sprint-1 smoke checklist**. Skeleton loaders are wired/correct — they only show on *uncached*
   loads (the session `packageCache` makes repeats instant), which is expected.
 - **Lower-value:** route the controller's ad-hoc `Thread(...)` spawns through a shared pool
   (marginal; only with a measured reason).
 
-> **Handoff note (next agent):** on `master`; after the doc-maintenance commit this branch is expected
-> to be ahead of origin until pushed. 441 tests pass. Last functional commits before docs:
+> **Handoff note (next agent):** on `feat/webview-polish-sprint-1`; branch contains webview Browse
+> polish + JS contract harness. 442 tests pass locally. Last functional commits before this branch:
 > `1218edc` (Merge PR #3), `9ea20e1` (screenshot strip/lightbox styling), `7feaa31` (fix AUR maintainer change warning for uninstalled), `ab13e93` (mock run_cmd in AurMetaTest).
 > Known external (not Atlas): the AUR `antigravity` 2.0.11 update fails to build — upstream source
 > URL 404s (Google pulled the tarball). The maintainer-change advisory can't flag `antigravity`
@@ -65,6 +66,16 @@ re-add a native extension without a measured win. Details in the historical
 ---
 
 ## Done
+
+- **Webview polish sprint 1 (2026-06-03).** Added a pytest-driven Node VM contract harness for
+  `atlas/view/webview/main.js` and fixed the first polish batch: Browse category results now populate
+  `currentPackages` so cards/details/select logic work; sort/type filter re-render an open Browse
+  category in-place while the top-level Browse grid stays categories; top-level Browse refresh/clear
+  search routes back to categories instead of dashboard suggestions; detail-modal async icon/meta/info/
+  screenshot/history callbacks ignore stale package IDs; package-list fetches use an epoch guard so
+  older search/view responses cannot repaint newer results. Plan + manual smoke checklist:
+  [plans/2026-06-03-webview-polish-sprint-1.md](plans/2026-06-03-webview-polish-sprint-1.md).
+  Verification: `python -m pytest tests/view/webview -q` → 117 passed; `python -m pytest` → 442 passed.
 
 - **Documentation truth pass (2026-06-03).** Reconciled the docs with the current pure-Python,
   pywebview Atlas state: rewrote `docs/ARCHITECTURE.md` to remove live Rust/PyO3/native-extension
