@@ -2449,3 +2449,80 @@ body {
     color: var(--accent-color);
     margin-top: 8px;
 }
+
+/* ===================== Command palette (Ctrl+K) ===================== */
+.command-palette {
+    position: fixed;
+    inset: 0;
+    z-index: 500;             /* above the page; blocking watcher dialogs sit higher still */
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 12vh;
+}
+.command-palette.hidden { display: none; }
+.command-palette-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+}
+.command-palette-box {
+    position: relative;
+    width: min(560px, 92vw);
+    max-height: 60vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+    animation: lightboxScaleUp .12s ease;
+}
+.command-palette-input {
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 15px;
+    padding: 16px 18px;
+    outline: none;
+}
+.command-results {
+    overflow-y: auto;
+    padding: 6px;
+}
+.command-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+}
+.command-item:hover { background: var(--bg-surface-hover); }
+.command-item.cmd-selected { background: var(--accent-glass); }
+.command-label { font-size: 14px; color: var(--text-primary); }
+.command-keys {
+    display: inline-flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+.command-keys kbd {
+    font-family: inherit;
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 1;
+    padding: 3px 6px;
+    color: var(--text-secondary);
+    background: var(--bg-surface-hover);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+}
+.command-empty {
+    padding: 20px;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 13px;
+}

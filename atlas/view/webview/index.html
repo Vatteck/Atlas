@@ -291,6 +291,16 @@
     </div>
 
     <!-- Arch news gate (shown before Update All when there's unread news) -->
+    <!-- Command palette (Ctrl+K / Ctrl+P): keyboard-first launcher -->
+    <div id="command-palette" class="command-palette hidden" role="dialog" aria-modal="true" aria-label="Command palette">
+        <div class="command-palette-backdrop"></div>
+        <div class="command-palette-box">
+            <input type="text" id="command-palette-input" class="command-palette-input"
+                   placeholder="Type a command or page…" autocomplete="off" spellcheck="false">
+            <div id="command-results" class="command-results"></div>
+        </div>
+    </div>
+
     <div id="news-gate-modal" class="modal hidden" role="dialog" aria-modal="true">
         <div class="modal-backdrop"></div>
         <div class="modal-content">

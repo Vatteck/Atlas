@@ -3089,7 +3089,7 @@ if (shortcutsHelpBtn) {
     shortcutsHelpBtn.addEventListener('click', () => {
         showToast(
             'Keyboard Shortcuts',
-            '/ Search  •  Esc Clear/Close  •  Ctrl+H Home  •  Ctrl+I Installed  •  Ctrl+U Updates  •  Ctrl+A Activity  •  Ctrl+D Disk  •  Ctrl+Shift+U Update All  •  Ctrl+E Export',
+            'Ctrl+K Command palette  •  / Search  •  Esc Clear/Close  •  Ctrl+H Home  •  Ctrl+I Installed  •  Ctrl+U Updates  •  Ctrl+A Activity  •  Ctrl+D Disk  •  Ctrl+Shift+U Update All  •  Ctrl+E Export',
             'info'
         );
     });
@@ -3300,6 +3300,18 @@ document.addEventListener('keydown', (e) => {
     const key = e.key;
     const ctrlKey = e.ctrlKey || e.metaKey; // Treat CMD key on macOS like Ctrl
     const shiftKey = e.shiftKey;
+
+    // Ctrl+K / Ctrl+P: toggle the command palette (works even while focused in an input).
+    if (ctrlKey && !shiftKey && (key.toLowerCase() === 'k' || key.toLowerCase() === 'p')) {
+        e.preventDefault();
+        if (commandPaletteOpen()) closeCommandPalette(); else openCommandPalette();
+        return;
+    }
+    // Esc closes the palette first (its input has its own Enter/arrow handling).
+    if (key === 'Escape' && commandPaletteOpen()) {
+        closeCommandPalette();
+        return;
+    }
 
     // / pressed and not in input: focus search
     if (key === '/' && !isInput) {
@@ -3606,6 +3618,173 @@ async function renderAttentionCenter() {
     paint(summary, u, dashboardMessage(count), count > 0 ? 'warn' : 'ok');
 }
 
+// ===================== Command palette (Ctrl+K / Ctrl+P) =====================
+// A keyboard-first launcher. The registry + filtering are pure (unit-tested in the Node VM
+// harness); open/close/render/keyboard-nav are DOM-bound. See
+// docs/plans/2026-06-04-command-palette.md.
+
+let cmdSelected = 0;       // index into the currently-filtered list
+let cmdFiltered = [];      // the filtered commands currently shown
+
+function commandRegistry() {
+    const nav = (label, view, keywords, shortcut) => ({
+        id: 'nav:' + view, label, keywords, shortcut,
+        run: () => activateView(view),
+    });
+    return [
+        nav('Dashboard', 'dashboard', 'home overview attention', ['Ctrl', 'H']),
+        nav('Browse', 'browse', 'categories discover store suggested'),
+        nav('Installed', 'installed', 'apps packages', ['Ctrl', 'I']),
+        nav('Updates', 'updates', 'upgrade outdated', ['Ctrl', 'U']),
+        nav('News', 'news', 'arch announcements'),
+        nav('Disk', 'disk', 'space usage reclaim', ['Ctrl', 'D']),
+        nav('Activity', 'activity', 'history log', ['Ctrl', 'A']),
+        nav('Permissions', 'permissions', 'flatpak flatseal sandbox'),
+        nav('Settings', 'settings', 'preferences config options'),
+        { id: 'act:search', label: 'Search packages…', keywords: 'find', shortcut: ['/'],
+          run: () => { if (searchInput) { searchInput.focus(); searchInput.select(); } } },
+        { id: 'act:update-all', label: 'Update all', keywords: 'upgrade', shortcut: ['Ctrl', 'Shift', 'U'],
+          available: () => updateAllBtn && !updateAllBtn.classList.contains('hidden'),
+          run: () => updateAllBtn.click() },
+        { id: 'act:cleanup-orphans', label: 'Clean up orphan packages', keywords: 'remove unused reclaim',
+          available: () => cleanupOrphansBtn && !cleanupOrphansBtn.classList.contains('hidden'),
+          run: () => cleanupOrphansBtn.click() },
+        { id: 'act:refresh', label: 'Refresh', keywords: 'reload',
+          run: () => { const b = document.getElementById('refresh-btn'); if (b) b.click(); else fetchPackages(); } },
+        { id: 'act:view-grid', label: 'Grid view', keywords: 'layout cards',
+          run: () => setViewMode('grid') },
+        { id: 'act:view-list', label: 'List view', keywords: 'layout rows',
+          run: () => setViewMode('list') },
+        { id: 'act:select', label: 'Select multiple packages', keywords: 'batch checkbox multi',
+          run: () => toggleSelectMode(true) },
+        { id: 'act:mirrors', label: 'Regenerate mirror list', keywords: 'reflector pacman speed',
+          run: () => regenerateMirrors() },
+        { id: 'act:pacdiff', label: 'Open pacdiff', keywords: 'pacnew pacsave config merge',
+          run: () => pyApiCall('launch_pacdiff') },
+        { id: 'act:export', label: 'Export package manifest', keywords: 'backup save list',
+          shortcut: ['Ctrl', 'E'], run: () => exportPackages() },
+    ];
+}
+
+// Commands available right now (drops e.g. Update-all when there's nothing to update).
+function buildCommandList() {
+    return commandRegistry().filter(c => !c.available || c.available());
+}
+
+// Fuzzy subsequence score: >=0 if every char of `query` appears in order in `text`, else -1.
+// Rewards consecutive matches and matches at word starts so the best target floats to the top.
+function fuzzyScore(query, text) {
+    const q = (query || '').toLowerCase();
+    const t = (text || '').toLowerCase();
+    if (!q) return 0;
+    if (!t) return -1;
+    let ti = 0, score = 0, streak = 0;
+    for (let qi = 0; qi < q.length; qi++) {
+        let found = -1;
+        for (let i = ti; i < t.length; i++) { if (t[i] === q[qi]) { found = i; break; } }
+        if (found === -1) return -1;
+        if (found === ti && qi > 0) { streak += 1; score += 4 + streak; }  // contiguous run
+        else { streak = 0; score += 1; }
+        if (found === 0 || t[found - 1] === ' ' || t[found - 1] === '-') score += 6;  // word start
+        ti = found + 1;
+    }
+    return score;
+}
+
+// Fuzzy filter over label + keywords, best matches first. Empty query → all (registry order).
+function filterCommands(commands, query) {
+    const q = (query || '').trim();
+    if (!q) return commands.slice();
+    const scored = [];
+    commands.forEach((c, idx) => {
+        const ls = fuzzyScore(q, c.label);
+        const ks = c.keywords ? fuzzyScore(q, c.keywords) : -1;
+        let best = ls;
+        if (ks >= 0) best = Math.max(best, ks - 3);  // keyword hits rank just below label hits
+        if (best >= 0) scored.push({ c, score: best, idx });
+    });
+    scored.sort((a, b) => (b.score - a.score) || (a.idx - b.idx));  // stable on ties
+    return scored.map(s => s.c);
+}
+
+function renderCommandResults(query) {
+    const list = document.getElementById('command-results');
+    if (!list) return;
+    cmdFiltered = filterCommands(buildCommandList(), query);
+    if (cmdSelected >= cmdFiltered.length) cmdSelected = Math.max(0, cmdFiltered.length - 1);
+    if (cmdFiltered.length === 0) {
+        list.innerHTML = '<div class="command-empty">No matching commands</div>';
+        return;
+    }
+    list.innerHTML = cmdFiltered.map((c, i) => {
+        const keys = (c.shortcut || []).map(k => `<kbd>${escapeHtml(k)}</kbd>`).join('');
+        return `
+        <div class="command-item ${i === cmdSelected ? 'cmd-selected' : ''}" data-cmd-index="${i}">
+            <span class="command-label">${escapeHtml(c.label)}</span>
+            ${keys ? `<span class="command-keys">${keys}</span>` : ''}
+        </div>`;
+    }).join('');
+}
+
+function runCommandAt(index) {
+    const cmd = cmdFiltered[index];
+    closeCommandPalette();
+    if (cmd && typeof cmd.run === 'function') {
+        try { cmd.run(); } catch (e) { console.error('command failed:', cmd.id, e); }
+    }
+}
+
+function openCommandPalette() {
+    const palette = document.getElementById('command-palette');
+    const input = document.getElementById('command-palette-input');
+    if (!palette || !input) return;
+    cmdSelected = 0;
+    input.value = '';
+    renderCommandResults('');
+    palette.classList.remove('hidden');
+    input.focus();
+}
+
+function closeCommandPalette() {
+    const palette = document.getElementById('command-palette');
+    if (palette) palette.classList.add('hidden');
+}
+
+function commandPaletteOpen() {
+    const palette = document.getElementById('command-palette');
+    return palette && !palette.classList.contains('hidden');
+}
+
+(function wireCommandPalette() {
+    const palette = document.getElementById('command-palette');
+    const input = document.getElementById('command-palette-input');
+    if (!palette || !input) return;
+
+    input.addEventListener('input', () => { cmdSelected = 0; renderCommandResults(input.value); });
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            cmdSelected = Math.min(cmdSelected + 1, cmdFiltered.length - 1);
+            renderCommandResults(input.value);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            cmdSelected = Math.max(cmdSelected - 1, 0);
+            renderCommandResults(input.value);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (cmdFiltered.length) runCommandAt(cmdSelected);
+        }
+    });
+    const results = document.getElementById('command-results');
+    if (results) {
+        results.addEventListener('click', (e) => {
+            const item = e.target.closest('.command-item');
+            if (item) runCommandAt(parseInt(item.dataset.cmdIndex, 10));
+        });
+    }
+    palette.querySelector('.command-palette-backdrop').addEventListener('click', closeCommandPalette);
+})();
+
 if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
     window.__atlasTestHooks = {
         buildAttentionCenterHTML,
@@ -3615,6 +3794,8 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         countActionable,
         dashboardMessage,
         renderAttentionCenter,
+        buildCommandList,
+        filterCommands,
         activateView,
         fetchPackages,
         openDetailModal,

@@ -570,6 +570,29 @@ async function testDashboardHeaderGreetingAndMessage() {
   assert.ok(!okHtml.includes(', '), 'no trailing comma when name is empty');
 }
 
+async function testCommandPaletteFilterAndAvailability() {
+  const { document, hooks } = loadMainJs({});
+  const all = hooks.buildCommandList();
+  assert.ok(all.length >= 9, 'has navigation + actions');
+
+  // filter by label
+  assert.ok(hooks.filterCommands(all, 'settings').some(c => c.id === 'nav:settings'));
+  // filter by keyword (the mirrors command carries the "reflector" keyword)
+  assert.ok(hooks.filterCommands(all, 'reflector').some(c => c.id === 'act:mirrors'));
+  // fuzzy (non-contiguous subsequence): "instl" → Installed
+  assert.ok(hooks.filterCommands(all, 'instl').some(c => c.id === 'nav:installed'));
+  // best match ranks first: "dash" should put Dashboard at the top
+  assert.strictEqual(hooks.filterCommands(all, 'dash')[0].id, 'nav:dashboard');
+  // empty query returns all (registry order); no match returns none
+  assert.strictEqual(hooks.filterCommands(all, '').length, all.length);
+  assert.strictEqual(hooks.filterCommands(all, 'zzznomatch').length, 0);
+
+  // availability gating: hide the Update-all button → the command drops out
+  assert.ok(all.some(c => c.id === 'act:update-all'), 'present when button visible');
+  document.getElementById('update-all-btn').classList.add('hidden');
+  assert.ok(!hooks.buildCommandList().some(c => c.id === 'act:update-all'), 'dropped when button hidden');
+}
+
 async function testAttentionCenterFailsOpenOnNullSummary() {
   const { hooks } = loadMainJs({});
   const html = hooks.buildAttentionCenterHTML(null, 'error');
@@ -591,6 +614,7 @@ async function testAttentionCenterFailsOpenOnNullSummary() {
     testAttentionCenterBuildsCardsAndTones,
     testAttentionUpdatesCardStates,
     testDashboardHeaderGreetingAndMessage,
+    testCommandPaletteFilterAndAvailability,
     testAttentionCenterFailsOpenOnNullSummary,
   ];
   for (const test of tests) {
