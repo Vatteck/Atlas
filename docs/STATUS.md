@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §8). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-03 (baton reconciled — planned roadmap cleared; QoL tail)
+**Last updated:** 2026-06-03 (QoL polish: AUR maintainer/update in detail view, empty-state, index gunzip fix; 440 tests green, tree clean & pushed)
 **Version:** 0.10.7
 **Working branch:** `master` (use short-lived branches for larger features; run `git branch` to see what's active)
 
@@ -42,11 +42,22 @@ follow-ups:
 - **Installed-app icons follow-up:** broaden resolution beyond hicolor/pixmaps to active-theme dirs
   / `Gtk.IconTheme` so theme-specific icons (e.g. `konsole`/breeze) resolve instead of a letter
   avatar. (Watch WebKitGTK thread-safety.)
-- **GUI verification pass (worth doing before more features):** live-run this session's
-  **Flatpak Permissions page** (tabs, filesystem/bus/env editing) and the **clean-chroot toggle**,
-  plus older items flagged for a live run — **downgrade**, the **screenshot lightbox**, **Browse**.
+- **GUI verification status (2026-06-03):** user GUI-verified this session's Flatpak Permissions
+  page, clean-chroot toggle (built `protonup-qt` end-to-end), AUR maintainer/update badges in the
+  detail view, and the empty-state. **Still worth a live run:** **downgrade**, the **screenshot
+  lightbox**, and **Browse**. Skeleton loaders are wired/correct — they only show on *uncached*
+  loads (the session `packageCache` makes repeats instant), which is expected.
 - **Lower-value:** route the controller's ad-hoc `Thread(...)` spawns through a shared pool
   (marginal; only with a measured reason).
+
+> **Handoff note (next agent):** working tree clean, on `master`, pushed to origin; 440 tests pass.
+> Last commits: `2c72383` empty-state, `3905545` AUR update-in-detail + icon, `e9a530e` maintainer
+> in detail, `9a624be` maintainer-change advisory, `26827bd`+`ec1c616` **AUR index gunzip fix**
+> (the index was gzip garbage — broke AUR-dep resolution; the on-disk index was regenerated this
+> session), Layer-3 chroot builds `1a2282d`/`67758bc`/`ec11e1a`/`e9de3c7`/`83b4904`.
+> Known external (not Atlas): the AUR `antigravity` 2.0.11 update fails to build — upstream source
+> URL 404s (Google pulled the tarball). The maintainer-change advisory can't flag `antigravity`
+> (installed before maintainer-caching → no baseline); it works for packages installed since.
 
 Done this session: ✅ CI (GitHub Actions, pytest 3.10–3.13), ✅ dropped Rust, ✅ deleted the
 dead Qt-era settings tree, ✅ refreshed stale metadata, ✅ Arch PKGBUILD
