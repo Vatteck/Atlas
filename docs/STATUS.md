@@ -73,6 +73,18 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **GUI polish trio — density / contextual topbar / unified empty states (2026-06-04).** Three
+  frontend-only items, **GUI-verified**: (1) **Display density** (Comfortable/Compact/Dense) — a
+  `localStorage` pref applied app-wide via a `body.density-*` class; Settings → General select applies
+  it instantly (no Save). (2) **Contextual topbar** — the package-list controls (type filter / sort /
+  view-toggle / Select) show only on Installed/Updates, an open Browse category, or any view with an
+  active search; hidden on the dashboard, Browse landing, and utility pages
+  (`shouldShowPackageControls` + `applyTopbarContext`). (3) **Unified empty/error states** — a shared
+  `emptyStateHTML({icon,title,hint,action})` replacing the inconsistent plain-text empties on News,
+  Browse categories, category packages, Permissions (action → Browse), and Activity; offline vs
+  genuinely-empty wording. Pure helpers (`densityClass`/`shouldShowPackageControls`/`emptyStateHTML`)
+  Node-VM-tested. Suite 456 + JS harness 15. Plan:
+  [plans/2026-06-04-gui-polish-small.md](plans/2026-06-04-gui-polish-small.md).
 - **Command palette (Ctrl+K) (2026-06-04).** A keyboard-first launcher: **Ctrl+K**/**Ctrl+P** opens a
   filterable overlay (`#command-palette`); **fuzzy** subsequence match on label + keywords (`fuzzyScore`,
   best-first), ↑/↓ to move, Enter/click to run, Esc to close. Commands = navigation to every page +

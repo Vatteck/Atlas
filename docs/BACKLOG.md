@@ -93,14 +93,14 @@ first:
   launcher: navigate to any page + run actions (update all, clean orphans, refresh, grid/list, select,
   regenerate mirrors, pacdiff, export, focus search); shortcut `<kbd>` badges. See
   [plans/2026-06-04-command-palette.md](plans/2026-06-04-command-palette.md).
-- **Density / layout modes** — Comfortable / Compact / Dense, applied to cards, list rows, detail
-  modal, permissions page, activity logs. `localStorage` first.
-- **Contextual topbar** — show only controls meaningful to the current page (search/filter/sort/
-  grid/select on list views; page-specific actions + breadcrumbs on utility/Browse pages).
-- **Finish empty/error/loading states everywhere** — tailored states (icon + one sentence + one
-  action) for: no Flatpaks, no permissions, no news, no history, no screenshots, no category
-  packages, offline/AUR-unavailable, Flathub rate-limited. *(Context-aware empty state started; finish
-  the rest.)*
+- ~~**Density / layout modes**~~ ✅ **shipped 2026-06-04** — Comfortable/Compact/Dense via a
+  `body.density-*` class, Settings → General (instant, localStorage). See
+  [plans/2026-06-04-gui-polish-small.md](plans/2026-06-04-gui-polish-small.md).
+- ~~**Contextual topbar**~~ ✅ **shipped 2026-06-04** — package-list controls show only where they
+  apply (same plan). Breadcrumbs are still a possible follow-up.
+- ~~**Finish empty/error/loading states**~~ ✅ **shipped 2026-06-04** — unified `emptyStateHTML`
+  across News / categories / category-packages / Permissions / Activity (same plan). *(In-modal
+  screenshots/history intentionally just hide; a couple of deeper states could still be tailored.)*
 - **Extend stale-render guards** (sprint 1 covered package lists + the detail modal) to the News,
   Permissions, and Disk pages.
 
