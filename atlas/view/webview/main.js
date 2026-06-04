@@ -868,6 +868,24 @@ function renderPackages(packages) {
     currentGroups = collapseByName(packages);
 
     if (currentGroups.length === 0) {
+        // Context-aware empty state so "no results" is unmistakable (and distinct from loading,
+        // which shows skeleton cards). Uses textContent, so the query needs no escaping.
+        const q = (searchInput.value || '').trim();
+        const h2 = emptyState.querySelector('h2');
+        const p = emptyState.querySelector('p');
+        if (q) {
+            h2.textContent = `No results for “${q}”`;
+            p.textContent = 'Nothing matched your search. Check the spelling, try a different term, or widen the type filter.';
+        } else if (currentView === 'updates') {
+            h2.textContent = 'Everything is up to date';
+            p.textContent = 'No updates are available right now.';
+        } else if (currentView === 'installed') {
+            h2.textContent = 'No installed packages match';
+            p.textContent = 'Try clearing the type filter.';
+        } else {
+            h2.textContent = 'No applications found';
+            p.textContent = 'Try adjusting your search or filters.';
+        }
         emptyState.classList.remove('hidden');
         packagesGrid.style.display = 'none';
         return;

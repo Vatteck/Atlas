@@ -61,6 +61,12 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Context-aware empty/no-results state (2026-06-03).** Searching with no hits was hard to tell
+  from loading. `renderPackages` now sets the `#empty-state` message by context: a search → "No
+  results for “<query>”" + guidance; empty Updates → "Everything is up to date"; empty Installed →
+  filter hint; else the generic message. (Loading is the skeleton grid via `getSkeletonGridHTML` in
+  `fetchPackages` — verified still wired + styled, incl. `@keyframes shimmer`; skeletons show on
+  uncached loads/searches, while the session `packageCache` makes repeat loads instant by design.)
 - **AUR detail view: update-available + icon fix (2026-06-03).** Two issues a GUI check surfaced on
   an installed-but-behind AUR package (antigravity 2.0.6 vs 2.0.11): (1) **no update shown** —
   search results don't run the update check, so the card/modal showed "Uninstall" not "Update";
