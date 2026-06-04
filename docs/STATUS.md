@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §8). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-03 (Fix: uninstalled AUR packages showed "Changed Maintainer" badge; 441 tests green, tree clean)
+**Last updated:** 2026-06-03 (Fix: uninstalled AUR packages showed "Changed Maintainer" badge; polished detail screenshots and lightbox; 441 tests green, tree clean)
 **Version:** 0.10.7
 **Working branch:** `master` (use short-lived branches for larger features; run `git branch` to see what's active)
 
@@ -67,6 +67,8 @@ re-add a native extension without a measured win. Details in the historical
 ---
 
 ## Done
+
+- **Detail screenshots & lightbox polish (2026-06-03).** Polished the screenshots gallery and fullscreen lightbox viewer: (1) **Centering**: centered thumbnails inside the flex container using `justify-content: safe center` to support scrolling on overflow. (2) **Scrollbars**: added custom WebKit scrollbar styling. (3) **Aesthetics**: increased border radius (`var(--radius-md)`), added shadow depth, and designed an active hover state (slight scale up, border color transition, and glow). (4) **Lightbox**: added a smooth scale-up entry animation (`lightboxScaleUp`), increased shadow, added a glassmorphic background/border to navigation/close controls, and improved active hover transforms.
 
 - **Fix: uninstalled AUR packages showing "Changed Maintainer" (2026-06-03).** Uninstalled packages showed a maintainer change warning (e.g. "Changed Maintainer: aur -> dcelasun") when viewed in details. Fix: restrict `changed` maintainer advisory check in `get_aur_meta` to installed packages only. Tests: added `test_uninstalled_never_flags_maintainer_change` to `test_api.py`. Suite 441 tests green.
 

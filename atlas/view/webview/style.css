@@ -2144,31 +2144,50 @@ body {
 /* Detail modal: screenshot strip (Flatpak/AppImage) */
 .detail-screenshots {
     display: flex;
-    gap: 10px;
+    justify-content: safe center;
+    gap: 16px;
     overflow-x: auto;
-    padding-bottom: 8px;
-    margin-bottom: 16px;
+    padding: 8px 4px 12px;
+    margin-bottom: 20px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+}
+
+.detail-screenshots::-webkit-scrollbar {
+    height: 6px;
+}
+.detail-screenshots::-webkit-scrollbar-track {
+    background: transparent;
+}
+.detail-screenshots::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 99px;
+}
+.detail-screenshots::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
 }
 
 .screenshot-thumb {
     flex: 0 0 auto;
     display: block;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     overflow: hidden;
     border: 1px solid var(--border-color);
-    transition: transform 0.12s ease, border-color 0.12s ease;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .screenshot-thumb:hover {
-    transform: translateY(-2px);
-    border-color: var(--accent-border-hover);
+    transform: translateY(-4px) scale(1.02);
+    border-color: var(--accent-color);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--accent-color);
 }
 
 .screenshot-thumb img {
     display: block;
-    height: 150px;
+    height: 160px;
     width: auto;
-    max-width: 320px;
+    max-width: 280px;
     object-fit: cover;
 }
 
@@ -2202,6 +2221,11 @@ body {
     to { opacity: 1; }
 }
 
+@keyframes lightboxScaleUp {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
 .lightbox {
     position: fixed;
     inset: 0;
@@ -2210,7 +2234,7 @@ body {
     align-items: center;
     justify-content: center;
     background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(6px);
+    backdrop-filter: blur(8px);
     animation: lightboxFadeIn 0.15s ease;
 }
 
@@ -2221,22 +2245,35 @@ body {
 .lightbox img {
     max-width: 90vw;
     max-height: 88vh;
-    border-radius: var(--radius-md);
-    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    animation: lightboxScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .lightbox-close {
     position: absolute;
-    top: 20px;
+    top: 24px;
     right: 24px;
-    width: 40px;
-    height: 40px;
-    border: none;
+    width: 44px;
+    height: 44px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.12);
-    color: #fff;
-    font-size: 18px;
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(8px);
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.lightbox-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    transform: scale(1.05);
 }
 
 .lightbox-nav {
@@ -2244,19 +2281,32 @@ body {
     top: 50%;
     transform: translateY(-50%);
     width: 48px;
-    height: 64px;
-    border: none;
-    border-radius: var(--radius-sm);
-    background: rgba(255, 255, 255, 0.1);
-    color: #fff;
-    font-size: 32px;
+    height: 72px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(8px);
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 28px;
     line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.lightbox-nav:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+}
+
+.lightbox-nav:active {
+    transform: translateY(-50%) scale(0.95);
 }
 
 .lightbox-prev { left: 24px; }
 .lightbox-next { right: 24px; }
-.lightbox-close:hover, .lightbox-nav:hover { background: rgba(255, 255, 255, 0.22); }
 
 /* Global utility for hiding elements */
 .hidden {
