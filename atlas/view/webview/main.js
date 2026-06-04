@@ -328,6 +328,52 @@ function setViewMode(mode) {
     applyViewMode();
 }
 
+// --- Display density (localStorage pref applied app-wide via a body class) ---
+const DENSITY_MODES = ['comfortable', 'compact', 'dense'];
+function densityClass(mode) {
+    return 'density-' + (DENSITY_MODES.includes(mode) ? mode : 'comfortable');
+}
+function applyDensity() {
+    if (!document.body) return;
+    const cls = densityClass(localStorage.getItem('atlas_density') || 'comfortable');
+    DENSITY_MODES.forEach(m => document.body.classList.remove('density-' + m));
+    document.body.classList.add(cls);
+}
+function setDensity(mode) {
+    localStorage.setItem('atlas_density', DENSITY_MODES.includes(mode) ? mode : 'comfortable');
+    applyDensity();
+}
+
+// --- Contextual topbar: the package-list controls (type filter / sort / view-toggle / select)
+// only make sense when the main grid is showing a package list. ---
+const PACKAGE_LIST_VIEWS = new Set(['installed', 'updates']);
+function shouldShowPackageControls(view, hasQuery, inBrowseCategory) {
+    if (hasQuery) return true;                       // search results are a package list anywhere
+    if (view === 'browse') return !!inBrowseCategory; // landing = categories; open category = packages
+    return PACKAGE_LIST_VIEWS.has(view);
+}
+function applyTopbarContext() {
+    const hasQuery = !!(searchInput && searchInput.value.trim());
+    const show = shouldShowPackageControls(currentView, hasQuery, !!activeBrowseCategory);
+    [typeFilter, sortFilter, document.getElementById('view-toggle'),
+     document.getElementById('select-mode-btn')].forEach(el => {
+        if (el) el.classList.toggle('hidden', !show);
+    });
+}
+
+// --- Shared empty / error state (icon + sentence + optional action), used across views ---
+function emptyStateHTML({ icon, title, hint, actionLabel, actionView }) {
+    const action = (actionLabel && actionView)
+        ? `<button class="empty-state-action" data-empty-view="${escapeHtml(actionView)}">${escapeHtml(actionLabel)}</button>`
+        : '';
+    return `<div class="empty-state-box">
+        <div class="empty-state-icon">${icon || '📭'}</div>
+        <div class="empty-state-title">${escapeHtml(title || '')}</div>
+        ${hint ? `<div class="empty-state-hint">${escapeHtml(hint)}</div>` : ''}
+        ${action}
+    </div>`;
+}
+
 const MAX_CACHE_ENTRIES = 30;
 function writeToCache(key, data) {
     const keys = Object.keys(packageCache);
@@ -1162,7 +1208,10 @@ async function renderPermissionsPage() {
     permsPageApps = (installed || []).filter(p => normalizeType(p.type) === 'flatpak')
         .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     if (!permsPageApps.length) {
-        packagesGrid.innerHTML = `<div class="news-empty">No installed Flatpaks. Install a Flatpak app to manage its permissions here.</div>`;
+        packagesGrid.innerHTML = emptyStateHTML({
+            icon: '🔒', title: 'No installed Flatpaks',
+            hint: 'Install a Flatpak app and you can manage its sandbox permissions here.',
+            actionLabel: 'Browse apps', actionView: 'browse' });
         return;
     }
     if (!permsPageApps.some(a => a.id === permsPageSelected)) permsPageSelected = permsPageApps[0].id;
@@ -2328,7 +2377,9 @@ async function renderActivityFeed() {
     
     const activities = await pyApiCall('get_activity') || [];
     if (activities.length === 0) {
-        packagesGrid.innerHTML = '<div style="padding: 32px; color: var(--text-secondary); text-align: center;">No activity recorded yet.</div>';
+        packagesGrid.innerHTML = emptyStateHTML({
+            icon: '🕘', title: 'No activity yet',
+            hint: 'Installs, updates, and removals you make in Atlas will show up here.' });
         return;
     }
     
@@ -2382,6 +2433,7 @@ async function fetchPackages() {
     }
 
     const query = searchInput.value.trim();
+    applyTopbarContext();  // show/hide package-list controls for the current context
 
     // The dashboard is the "Attention Center" only — no package/suggestions grid (app discovery
     // lives in Browse + Installed). With no active search we render the cards and stop; a search
@@ -2503,11 +2555,13 @@ async function renderNews() {
 
     const data = await pyApiCall('get_arch_news');  // unwrapped list, or null on error
     if (!data) {
-        packagesGrid.innerHTML = `<div class="news-empty">Could not load Arch news — check your connection and try again.</div>`;
+        packagesGrid.innerHTML = emptyStateHTML({
+            icon: '📡', title: 'Couldn’t load Arch news',
+            hint: 'The archlinux.org feed couldn’t be reached. Check your connection and try again.' });
         return;
     }
     if (data.length === 0) {
-        packagesGrid.innerHTML = `<div class="news-empty">No recent Arch news.</div>`;
+        packagesGrid.innerHTML = emptyStateHTML({ icon: '📰', title: 'No recent Arch news' });
         return;
     }
 
@@ -2531,6 +2585,7 @@ async function renderNews() {
 // one lists that category's repo packages (reusing the normal package grid).
 async function renderBrowse() {
     activeBrowseCategory = null;
+    applyTopbarContext();  // landing = category grid → hide package-list controls
     currentPackages = [];
     currentGroups = [];
     packagesGrid.style.display = 'block';
@@ -2543,11 +2598,13 @@ async function renderBrowse() {
         pyApiCall('get_suggestions', 'all'),
     ]);
     if (!data) {
-        packagesGrid.innerHTML = `<div class="news-empty">Could not load categories. Category data is fetched from atlas-files — check your connection and try again.</div>`;
+        packagesGrid.innerHTML = emptyStateHTML({
+            icon: '📡', title: 'Couldn’t load categories',
+            hint: 'Category data is fetched from atlas-files — check your connection and try again.' });
         return;
     }
     if (data.length === 0) {
-        packagesGrid.innerHTML = `<div class="news-empty">No category data available yet.</div>`;
+        packagesGrid.innerHTML = emptyStateHTML({ icon: '🗂️', title: 'No category data available yet' });
         return;
     }
 
@@ -2597,6 +2654,7 @@ function browseCategoryHeader(category) {
 
 async function renderCategoryPackages(key, label) {
     activeBrowseCategory = { key, label };
+    applyTopbarContext();  // open category = package list → show the controls
     packagesGrid.style.display = 'block';
     packagesGrid.innerHTML = `<div class="state-container"><div class="spinner"></div><p>Loading ${escapeHtml(label)}…</p></div>`;
 
@@ -2611,8 +2669,11 @@ async function renderCategoryPackages(key, label) {
         packagesGrid.innerHTML = '';
         packagesGrid.appendChild(header);
         const empty = document.createElement('div');
-        empty.className = 'news-empty';
-        empty.textContent = data ? 'No packages found in this category.' : 'Could not load packages for this category.';
+        empty.innerHTML = data
+            ? emptyStateHTML({ icon: '🗂️', title: 'Nothing in this category',
+                               hint: 'No packages here for the current type filter — try “All Types”.' })
+            : emptyStateHTML({ icon: '📡', title: 'Couldn’t load this category',
+                               hint: 'Check your connection and try again.' });
         packagesGrid.appendChild(empty);
     } else {
         renderFiltered();  // sets packagesGrid to the grid/list layout + cards, preserving the header
@@ -2800,6 +2861,7 @@ document.querySelectorAll('.view-toggle-btn').forEach(btn => {
     btn.addEventListener('click', () => setViewMode(btn.dataset.viewMode));
 });
 applyViewMode();  // reflect the persisted choice on first paint
+applyDensity();   // reflect the persisted display density on first paint
 
 // Export / Import Manifest listeners
 // Backup: export installed apps to a manifest / reinstall from one. Lives in Settings now
@@ -2888,7 +2950,17 @@ async function renderSettings() {
             <input type="text" id="settings-greeting-name" class="styled-input" maxlength="40"
                    placeholder="Your system name" value="${escapeHtml(g.greeting_name || '')}">
         </label>`;
-    const generalRows = greetingRow + generalToggleRows;
+    const density = localStorage.getItem('atlas_density') || 'comfortable';
+    const densityRow = `
+        <label class="settings-row" title="How compact cards and lists are — applies immediately">
+            <span class="settings-row-label">Display density</span>
+            <select id="settings-density" class="styled-select">
+                <option value="comfortable" ${density === 'comfortable' ? 'selected' : ''}>Comfortable</option>
+                <option value="compact" ${density === 'compact' ? 'selected' : ''}>Compact</option>
+                <option value="dense" ${density === 'dense' ? 'selected' : ''}>Dense</option>
+            </select>
+        </label>`;
+    const generalRows = greetingRow + densityRow + generalToggleRows;
 
     const tray = data.tray || {};
     const trayDisabledAttr = tray.available ? '' : 'disabled';
@@ -2973,6 +3045,9 @@ async function renderSettings() {
     document.getElementById('settings-import-btn').addEventListener('click', importPackages);
     const regenMirrorsBtn = document.getElementById('settings-regen-mirrors-btn');
     if (regenMirrorsBtn) regenMirrorsBtn.addEventListener('click', () => regenerateMirrors(regenMirrorsBtn));
+    // Density is a localStorage display pref — apply it instantly (no Save needed).
+    const densitySel = document.getElementById('settings-density');
+    if (densitySel) densitySel.addEventListener('change', () => setDensity(densitySel.value));
 }
 
 async function saveSettings() {
@@ -3063,8 +3138,10 @@ function activateView(viewName) {
         packagesGrid.style.display = 'block';
         renderPermissionsPage();
     } else {
-        fetchPackages();
+        fetchPackages();  // calls applyTopbarContext() itself
+        return;
     }
+    applyTopbarContext();  // utility/landing views: hide the package-list controls
 }
 
 navItems.forEach(item => {
@@ -3097,6 +3174,13 @@ if (shortcutsHelpBtn) {
 
 // Event delegation for packagesGrid (disk rows, package cards, and action buttons)
 packagesGrid.addEventListener('click', async (e) => {
+    // 0. Empty-state action button → navigate to the suggested view
+    const emptyAction = e.target.closest('.empty-state-action');
+    if (emptyAction && emptyAction.dataset.emptyView) {
+        activateView(emptyAction.dataset.emptyView);
+        return;
+    }
+
     // 1. Check disk package row click
     const row = e.target.closest('.disk-package-row');
     if (row) {
@@ -3796,6 +3880,9 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         renderAttentionCenter,
         buildCommandList,
         filterCommands,
+        densityClass,
+        shouldShowPackageControls,
+        emptyStateHTML,
         activateView,
         fetchPackages,
         openDetailModal,

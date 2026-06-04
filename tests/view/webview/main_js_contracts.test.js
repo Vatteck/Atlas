@@ -593,6 +593,45 @@ async function testCommandPaletteFilterAndAvailability() {
   assert.ok(!hooks.buildCommandList().some(c => c.id === 'act:update-all'), 'dropped when button hidden');
 }
 
+async function testDensityClass() {
+  const { hooks } = loadMainJs({});
+  assert.strictEqual(hooks.densityClass('compact'), 'density-compact');
+  assert.strictEqual(hooks.densityClass('dense'), 'density-dense');
+  assert.strictEqual(hooks.densityClass('comfortable'), 'density-comfortable');
+  assert.strictEqual(hooks.densityClass('bogus'), 'density-comfortable');  // junk → default
+  assert.strictEqual(hooks.densityClass(null), 'density-comfortable');
+}
+
+async function testTopbarContextDecision() {
+  const { hooks } = loadMainJs({});
+  const f = hooks.shouldShowPackageControls;
+  // package-list views → show
+  assert.ok(f('installed', false, false));
+  assert.ok(f('updates', false, false));
+  // any view with an active search → show
+  assert.ok(f('dashboard', true, false));
+  assert.ok(f('news', true, false));
+  // browse: landing → hide, open category → show
+  assert.ok(!f('browse', false, false));
+  assert.ok(f('browse', false, true));
+  // utility / dashboard with no search → hide
+  assert.ok(!f('dashboard', false, false));
+  assert.ok(!f('settings', false, false));
+  assert.ok(!f('disk', false, false));
+}
+
+async function testEmptyStateHTML() {
+  const { hooks } = loadMainJs({});
+  const withAction = hooks.emptyStateHTML({
+    icon: '🔒', title: 'No installed Flatpaks', hint: 'Install one first.',
+    actionLabel: 'Browse apps', actionView: 'browse' });
+  assert.ok(withAction.includes('No installed Flatpaks') && withAction.includes('Install one first.'));
+  assert.ok(withAction.includes('data-empty-view="browse"') && withAction.includes('Browse apps'));
+  // no action button unless both label + view are given
+  const noAction = hooks.emptyStateHTML({ title: 'No recent Arch news' });
+  assert.ok(!noAction.includes('empty-state-action'));
+}
+
 async function testAttentionCenterFailsOpenOnNullSummary() {
   const { hooks } = loadMainJs({});
   const html = hooks.buildAttentionCenterHTML(null, 'error');
@@ -615,6 +654,9 @@ async function testAttentionCenterFailsOpenOnNullSummary() {
     testAttentionUpdatesCardStates,
     testDashboardHeaderGreetingAndMessage,
     testCommandPaletteFilterAndAvailability,
+    testDensityClass,
+    testTopbarContextDecision,
+    testEmptyStateHTML,
     testAttentionCenterFailsOpenOnNullSummary,
   ];
   for (const test of tests) {

@@ -2526,3 +2526,45 @@ body {
     color: var(--text-secondary);
     font-size: 13px;
 }
+
+/* ===================== Display density (Settings → General) ===================== */
+/* Comfortable = the default look (no overrides). Compact/Dense tighten spacing app-wide. */
+body.density-compact .packages-grid { gap: 12px; padding: 18px; }
+body.density-compact .package-card { padding: 12px; gap: 9px; }
+body.density-compact .attention-grid,
+body.density-compact .browse-suggested { gap: 12px; }
+
+body.density-dense .packages-grid { gap: 8px; padding: 14px; }
+body.density-dense .package-card { padding: 9px; gap: 7px; }
+body.density-dense .view-list .package-card { padding: 7px 10px; }
+body.density-dense .attention-grid,
+body.density-dense .browse-suggested { gap: 8px; }
+body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
+
+/* ===================== Shared empty / error state ===================== */
+.empty-state-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 8px;
+    padding: 64px 24px;
+    color: var(--text-secondary);
+}
+.empty-state-icon { font-size: 40px; line-height: 1; }
+.empty-state-title { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+.empty-state-hint { font-size: 13px; max-width: 440px; line-height: 1.5; }
+.empty-state-action {
+    margin-top: 10px;
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    background: var(--accent-color);
+    color: #fff;
+    border: none;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s ease;
+}
+.empty-state-action:hover { background: var(--accent-hover); }
