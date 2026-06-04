@@ -1383,12 +1383,35 @@ async function openPermissionsEditor(pkg) {
     });
 }
 
+function getPermissionIcon(title) {
+    const t = (title || '').toLowerCase();
+    if (t.includes('network')) return 'wifi';
+    if (t.includes('windowing') || t.includes('x11') || t.includes('wayland')) return 'desktop_windows';
+    if (t.includes('audio') || t.includes('microphone')) return 'mic';
+    if (t.includes('folder') || t.includes('filesystem') || t.includes('files')) return 'folder';
+    if (t.includes('device') || t.includes('gpu')) return 'memory';
+    if (t.includes('bus') || t.includes('portal') || t.includes('agent') || t.includes('ipc')) return 'settings';
+    if (t.includes('proprietary')) return 'warning';
+    if (t.includes('home')) return 'home';
+    return 'security';
+}
+
 function permissionsPopupHtml(meta) {
-    const rows = (meta.permissions || []).map(p => `
-        <li class="perm-item perm-${escapeHtml(p.level)}">
-            <span class="perm-title">${escapeHtml(p.title)}</span>
-            <span class="perm-detail">${escapeHtml(p.detail)}</span>
-        </li>`).join('');
+    const rows = (meta.permissions || []).map(p => {
+        const icon = getPermissionIcon(p.title);
+        let colorClass = 'perm-icon-safe';
+        if (p.level === 'danger') colorClass = 'perm-icon-danger';
+        else if (p.level === 'warn') colorClass = 'perm-icon-warn';
+        
+        return `
+        <li class="perm-item">
+            <div class="rich-badge-icon ${colorClass}"><span class="material-symbols-outlined">${icon}</span></div>
+            <div class="perm-text-group">
+                <span class="perm-title">${escapeHtml(p.title)}</span>
+                <span class="perm-detail">${escapeHtml(p.detail)}</span>
+            </div>
+        </li>`;
+    }).join('');
     return `<p class="popup-note">These are the sandbox permissions this app <strong>declares</strong> — what it <em>can</em> access, not what it necessarily does. This is an advisory summary, not a safety guarantee.</p>
             <ul class="perm-list">${rows}</ul>`;
 }
@@ -1466,29 +1489,95 @@ function openDetailModal(pkg) {
 
     detailModal.classList.remove('hidden');
 
-    // Flathub metadata badges (Flatpak only). The safety + license badges are clickable → popup.
-    const badgesEl = document.getElementById('detail-badges');
+    // Rich details grid (Sizes + Flathub/AUR metadata)
+    const badgesEl = document.getElementById('rich-badges-grid');
     badgesEl.innerHTML = '';
+    
+    // Add Size Badges Synchronously
+    let baseParts = [];
+    if (pkg.size) {
+        baseParts.push(`<div class="rich-badge-tile no-icon">
+            <span class="rich-badge-icon"></span>
+            <span class="rich-badge-value">${formatBytes(pkg.size)}</span>
+            <span class="rich-badge-title">Installed Size</span>
+        </div>`);
+    }
+    if (pkg.download_size) {
+        baseParts.push(`<div class="rich-badge-tile no-icon">
+            <span class="rich-badge-icon"></span>
+            <span class="rich-badge-value">${formatBytes(pkg.download_size)}</span>
+            <span class="rich-badge-title">Download</span>
+        </div>`);
+    }
+    badgesEl.innerHTML = baseParts.join('');
+
     if (normalizeType(pkg.type) === 'flatpak') {
         pyApiCall('get_flatpak_meta', pkg.id).then(meta => {
             if (!meta || !Object.keys(meta).length) return;
             const parts = [];
             const hasPerms = (meta.permissions || []).length > 0;
             if (meta.safety && meta.safety.level) {
-                parts.push(`<span class="meta-badge safety-${escapeHtml(meta.safety.level)}${hasPerms ? ' clickable' : ''}" data-popup="safety" title="${hasPerms ? 'Click for the permission details — ' : ''}advisory, based on declared permissions (not a guarantee)">${escapeHtml(meta.safety.label || '')}${hasPerms ? ' ⓘ' : ''}</span>`);
+                let iconsHtml = '';
+                if (hasPerms) {
+                    const topPerms = meta.permissions.slice(0, 3);
+                    iconsHtml = topPerms.map(p => {
+                        let i = getPermissionIcon(p.title);
+                        let colorClass = 'perm-icon-safe';
+                        if (p.level === 'danger') colorClass = 'perm-icon-danger';
+                        else if (p.level === 'warn') colorClass = 'perm-icon-warn';
+                        
+                        return `<div class="rich-badge-icon ${colorClass}"><span class="material-symbols-outlined">${i}</span></div>`;
+                    }).join('');
+                    
+                    iconsHtml = `<div class="rich-badge-icon-container">${iconsHtml}</div>`;
+                } else {
+                    let icon = 'security';
+                    if (meta.safety.level === 'safe') icon = 'verified_user';
+                    else if (meta.safety.level === 'probably-safe') icon = 'gpp_maybe';
+                    else icon = 'gpp_bad';
+                    iconsHtml = `<div class="rich-badge-icon-container"><div class="rich-badge-icon"><span class="material-symbols-outlined">${icon}</span></div></div>`;
+                }
+
+                parts.push(`<div class="rich-badge-tile safety-${escapeHtml(meta.safety.level)}${hasPerms ? ' clickable' : ''}" data-popup="safety" title="${hasPerms ? 'Click for the permission details' : ''}">
+                    ${iconsHtml}
+                    <span class="rich-badge-value">${escapeHtml(meta.safety.label || 'Unknown')}</span>
+                    <span class="rich-badge-title">Safety${hasPerms ? ' ⓘ' : ''}</span>
+                </div>`);
             }
             if (typeof meta.is_free === 'boolean') {
-                parts.push(meta.is_free
-                    ? `<span class="meta-badge foss clickable" data-popup="license" title="Click for license details">Open Source ⓘ</span>`
-                    : `<span class="meta-badge proprietary clickable" data-popup="license" title="Click for license details">Proprietary ⓘ</span>`);
+                parts.push(`<div class="rich-badge-tile license-${meta.is_free ? 'foss' : 'proprietary'} clickable" data-popup="license" title="Click for license details">
+                    <div class="rich-badge-icon-container"><div class="rich-badge-icon"><span class="material-symbols-outlined">${meta.is_free ? 'code' : 'lock'}</span></div></div>
+                    <span class="rich-badge-value">${meta.is_free ? 'Open Source' : 'Proprietary'}</span>
+                    <span class="rich-badge-title">License ⓘ</span>
+                </div>`);
             }
-            parts.push(meta.verified
-                ? `<span class="meta-badge verified clickable" data-popup="verified" title="Click for details">✓ Verified ⓘ</span>`
-                : `<span class="meta-badge unverified clickable" data-popup="verified" title="Click for details">⚠ Unverified ⓘ</span>`);
+            parts.push(`<div class="rich-badge-tile verified-${meta.verified} clickable" data-popup="verified" title="Click for details">
+                <div class="rich-badge-icon-container"><div class="rich-badge-icon"><span class="material-symbols-outlined">${meta.verified ? 'verified' : 'error'}</span></div></div>
+                <span class="rich-badge-value">${meta.verified ? 'Verified' : 'Unverified'}</span>
+                <span class="rich-badge-title">Publisher ⓘ</span>
+            </div>`);
+            if (meta.content_rating) {
+                parts.push(`<div class="rich-badge-tile no-icon">
+                    <span class="rich-badge-icon"></span>
+                    <span class="rich-badge-value">${escapeHtml(meta.content_rating)}</span>
+                    <span class="rich-badge-title">Age Rating</span>
+                </div>`);
+            }
+            if (meta.desktop_only) {
+                parts.push(`<div class="rich-badge-tile no-icon">
+                    <span class="rich-badge-icon"></span>
+                    <span class="rich-badge-value">Desktop</span>
+                    <span class="rich-badge-title">Form Factor</span>
+                </div>`);
+            }
             if (typeof meta.installs_last_month === 'number') {
-                parts.push(`<span class="meta-badge downloads" title="Installs in the last month (Flathub)">↓ ${meta.installs_last_month.toLocaleString()}/mo</span>`);
+                parts.push(`<div class="rich-badge-tile no-icon" title="Installs in the last month (Flathub)">
+                    <span class="rich-badge-icon"></span>
+                    <span class="rich-badge-value">${meta.installs_last_month.toLocaleString()}</span>
+                    <span class="rich-badge-title">Downloads/Month</span>
+                </div>`);
             }
-            badgesEl.innerHTML = parts.join('');
+            badgesEl.insertAdjacentHTML('beforeend', parts.join(''));
 
             const safetyBadge = badgesEl.querySelector('[data-popup="safety"]');
             if (safetyBadge && hasPerms) {
@@ -1504,29 +1593,40 @@ function openDetailModal(pkg) {
             }
         });
     } else if (normalizeType(pkg.type) === 'aur') {
-        // AUR detail metadata (one best-effort RPC): maintainer badge, a clickable "changed hands"
-        // advisory, and an "update available" badge — search results don't run the update check, so
-        // this is where an installed-but-behind AUR package surfaces its update.
         pyApiCall('get_aur_meta', pkg.id).then(info => {
             if (!info) return;
             const parts = [];
             if (info.update_available) {
-                parts.push(`<span class="meta-badge update-avail" title="A newer version is available on the AUR">↑ Update available${info.latest_version ? ` (v${escapeHtml(info.latest_version)})` : ''}</span>`);
+                parts.push(`<div class="rich-badge-tile" title="A newer version is available on the AUR">
+                    <div class="rich-badge-icon-container"><div class="rich-badge-icon"><span class="material-symbols-outlined">upgrade</span></div></div>
+                    <span class="rich-badge-value">v${escapeHtml(info.latest_version || 'Update')}</span>
+                    <span class="rich-badge-title">Update Available</span>
+                </div>`);
             }
             if (info.maintainer) {
-                parts.push(`<span class="meta-badge" title="Current AUR maintainer">👤 ${escapeHtml(info.maintainer)}</span>`);
+                parts.push(`<div class="rich-badge-tile" title="Current AUR maintainer">
+                    <div class="rich-badge-icon-container"><div class="rich-badge-icon"><span class="material-symbols-outlined">person</span></div></div>
+                    <span class="rich-badge-value">${escapeHtml(info.maintainer)}</span>
+                    <span class="rich-badge-title">Maintainer</span>
+                </div>`);
             } else if ('maintainer' in info) {
-                parts.push(`<span class="meta-badge proprietary" title="This package currently has no maintainer on the AUR">⚠ Orphaned (no maintainer)</span>`);
+                parts.push(`<div class="rich-badge-tile" title="This package currently has no maintainer on the AUR">
+                    <div class="rich-badge-icon-container"><div class="rich-badge-icon"><span class="material-symbols-outlined">person_off</span></div></div>
+                    <span class="rich-badge-value">Orphaned</span>
+                    <span class="rich-badge-title">Maintainer</span>
+                </div>`);
             }
             if (info.changed) {
-                parts.push(`<span class="meta-badge unverified clickable" data-popup="maint" title="Click for details">⚠ Maintainer changed ⓘ</span>`);
+                parts.push(`<div class="rich-badge-tile clickable" data-popup="maint" title="Click for details">
+                    <div class="rich-badge-icon-container"><div class="rich-badge-icon"><span class="material-symbols-outlined">manage_accounts</span></div></div>
+                    <span class="rich-badge-value">Changed</span>
+                    <span class="rich-badge-title">Maintainer ⓘ</span>
+                </div>`);
             }
-            if (parts.length) badgesEl.innerHTML = parts.join('');
+            badgesEl.insertAdjacentHTML('beforeend', parts.join(''));
             const mb = badgesEl.querySelector('[data-popup="maint"]');
             if (mb) mb.addEventListener('click', () => showInfoPopup('Maintainer changed', maintainerChangePopupHtml(info.changed)));
 
-            // Search didn't know about the update, so the footer built an "Uninstall" button — swap
-            // it for "Update" when the on-demand check finds a newer version.
             if (info.update_available && pkg.installed && !pkg.update_available) {
                 const old = document.getElementById('detail-action-btn');
                 if (old) {
@@ -1558,6 +1658,23 @@ function openDetailModal(pkg) {
     pyApiCall('get_info', pkg.id).then(info => {
         table.innerHTML = '';
         if (info && Object.keys(info).length > 0) {
+            
+            // If download or installed sizes are returned from the deeper info check and we didn't have them
+            if (!pkg.size && info.installed) {
+                badgesEl.insertAdjacentHTML('afterbegin', `<div class="rich-badge-tile no-icon">
+                    <span class="rich-badge-icon"></span>
+                    <span class="rich-badge-value">${escapeHtml(info.installed)}</span>
+                    <span class="rich-badge-title">Installed Size</span>
+                </div>`);
+            }
+            if (!pkg.download_size && info.download) {
+                badgesEl.insertAdjacentHTML('afterbegin', `<div class="rich-badge-tile no-icon">
+                    <span class="rich-badge-icon"></span>
+                    <span class="rich-badge-value">${escapeHtml(info.download)}</span>
+                    <span class="rich-badge-title">Download Size</span>
+                </div>`);
+            }
+
             const seenLabels = new Set();
             Object.entries(info).forEach(([key, val]) => {
                 // Skip empty, null, undefined, or 'None' values to keep the table clean

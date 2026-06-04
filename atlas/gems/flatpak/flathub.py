@@ -108,12 +108,24 @@ def metadata_badges(data: Optional[dict]) -> dict:
     if not data:
         return {}
     meta = data.get('metadata') or {}
+    
+    # Parse age rating from AppStream v2 content_rating_details
+    age_rating = None
+    crd = data.get('content_rating_details')
+    if crd and isinstance(crd, dict):
+        en_us = crd.get('en_US', {})
+        if 'minimumAge' in en_us:
+            age = en_us['minimumAge']
+            age_rating = f"{age}+" if age > 0 else "All Ages"
+
     return {
         'license': data.get('project_license'),
         'is_free': bool(data.get('is_free_license')),
         'verified': bool(meta.get('flathub::verification::verified')),
         'verified_via': meta.get('flathub::verification::website')
                         or meta.get('flathub::verification::login_provider') or None,
+        'content_rating': age_rating,
+        'desktop_only': data.get('type') == 'desktop-application'
     }
 
 

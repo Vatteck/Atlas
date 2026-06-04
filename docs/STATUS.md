@@ -33,10 +33,6 @@ and a GUI verification pass.
 Pulling from **[BACKLOG.md](BACKLOG.md)**. The planned themes are all shipped; what's left is small
 follow-ups:
 
-- **Flatpak metadata follow-ups:** an **OARS age-rating** badge (`content_rating` is already in the
-  AppStream payload we pull — just map + show it; easy) and an optional "desktop only / form factor"
-  hint. The license/verified/downloads badges + permissions + safety tier + the Permissions page are
-  all done.
 - **Browse follow-ups:** sort-within-category, and extend Browse beyond Arch-repo to **AUR/Flatpak
   categories** (needs each gem's own category source).
 - **Installed-app icons follow-up:** broaden resolution beyond hicolor/pixmaps to active-theme dirs
@@ -72,6 +68,7 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Flathub aesthetic polish (2026-06-03).** The detail modal's badges and the permissions popup now closely match the official Flathub aesthetic. (1) **OARS age-rating & Form Factor**: `flathub.py` extracts `content_rating_details` and `type` from the v2 AppStream payload; these surface as simple pill badges ("15+ Age Rating", "Desktop Form Factor"). (2) **Dynamic sizes**: Download and installed sizes are dynamically extracted from the `get_info` RPC callback and prepended to the badges grid. (3) **Circular colored icons**: The Safety, License, and Publisher tiles use Flathub's signature colored circular backgrounds for their Material icons. (4) **Rich permission popup**: The permissions popup extracts up to 3 high-severity permissions into colored circles on the Safety badge itself, and the full popup list now includes a color-graded icon for every permission row. Tests passed: 440.
 - **Context-aware empty/no-results state (2026-06-03).** Searching with no hits was hard to tell
   from loading. `renderPackages` now sets the `#empty-state` message by context: a search → "No
   results for “<query>”" + guidance; empty Updates → "Everything is up to date"; empty Installed →

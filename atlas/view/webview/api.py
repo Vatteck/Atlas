@@ -393,6 +393,7 @@ class AtlasApi:
             'icon_url': icon_url,
             'publisher': publisher,
             'size': pkg.size,
+            'download_size': getattr(pkg, 'download_size', None),
             'categories': list(pkg.categories) if pkg.categories else [],
             'can_be_run': pkg.can_be_run() if hasattr(pkg, 'can_be_run') else False,
             'can_be_downgraded': pkg.can_be_downgraded() if hasattr(pkg, 'can_be_downgraded') else False,
