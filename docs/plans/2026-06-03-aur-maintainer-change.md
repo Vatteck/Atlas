@@ -37,6 +37,14 @@ In `_audit_pkgbuild`, for an **AUR update** (`repository == 'aur'`, `not context
 - Gate on the existing `aur_check_pkgbuild` toggle (it's part of the same advisory review).
 - No auto-block, no "safe" badge — just the banner, consistent with the rest of the theme.
 
+## Update (2026-06-03): also surfaced in the detail modal (discoverability)
+The build-time banner only appears mid-update (when you click Update → the PKGBUILD review modal),
+which is hard to stumble on. Added `AtlasApi.get_aur_maintainer(pkg_id)` → `{maintainer, changed}`
+(one best-effort RPC), and `openDetailModal` now shows, for AUR packages, a **👤 maintainer badge**
+in the badge row (fixes the "Unknown Publisher" gap — e.g. antigravity now shows AlphaLynx) plus a
+clickable **⚠ Maintainer changed** badge → explainer popup when a baseline exists and differs (and
+an "⚠ Orphaned" badge when the package lost its maintainer). Same advisory framing.
+
 ## Tests
 - `_audit_pkgbuild`: maintainer differs → `review['maintainer_change']` set + modal shown (even with
   a clean PKGBUILD and no diff); same maintainer → not set; new install (`new_pkg`) → never checked;

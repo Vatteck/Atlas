@@ -61,6 +61,13 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **AUR maintainer info in the detail view (2026-06-03).** Follow-up to the maintainer advisory: it
+  was build-time-only (banner in the update review modal) and thus undiscoverable. `openDetailModal`
+  now shows, for AUR packages, a **👤 current-maintainer badge** (via new `AtlasApi.get_aur_maintainer`,
+  one best-effort RPC) — fixing the "Unknown Publisher" gap (e.g. antigravity → AlphaLynx) — plus a
+  clickable **⚠ Maintainer changed** badge (→ explainer popup) when a cached baseline differs, and an
+  **⚠ Orphaned** badge when the package lost its maintainer. Tests: +5. Note: antigravity still won't
+  show "changed" (no baseline cached at its install) — only the current maintainer.
 - **AUR "maintainer changed hands" advisory (2026-06-03).** On an AUR *update*, `_audit_pkgbuild`
   compares the maintainer cached at install time (`context.maintainer`, baseline) against the current
   AUR maintainer (one best-effort `aur_client.get_info` RPC); if they differ (incl. now-orphaned →

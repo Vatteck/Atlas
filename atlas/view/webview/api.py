@@ -1074,6 +1074,28 @@ class AtlasApi:
             self.logger.error(f"get_flatpak_meta failed: {e}")
             return {'status': 'ok', 'data': {}}
 
+    def get_aur_maintainer(self, pkg_id: str) -> dict:
+        """For an AUR package, the current AUR maintainer plus whether it changed since install
+        (advisory supply-chain signal). data: {maintainer, changed:{old,new}|None}. Empty for
+        non-AUR. One best-effort RPC; never raises into the UI."""
+        try:
+            pkg = self._get_pkg(pkg_id)
+            if pkg is None or getattr(pkg, 'repository', None) != 'aur':
+                return {'status': 'ok', 'data': {}}
+            arch_man = self._manager_by_gem('arch')
+            aur_client = getattr(arch_man, 'aur_client', None)
+            if aur_client is None:
+                return {'status': 'ok', 'data': {}}
+            baseline = getattr(pkg, 'maintainer', None)  # maintainer cached at install (the baseline)
+            infos = aur_client.get_info((pkg.name,))
+            current = infos[0].get('Maintainer') if infos else None
+            # Only a real change when we have a baseline to compare against (older installs lack one).
+            changed = {'old': baseline, 'new': current} if (baseline and current != baseline) else None
+            return {'status': 'ok', 'data': {'maintainer': current, 'changed': changed}}
+        except Exception as e:
+            self.logger.error(f"get_aur_maintainer failed: {e}")
+            return {'status': 'ok', 'data': {}}
+
     def _flatpak_pkg_and_manager(self, pkg_id: str):
         """(pkg, flatpak_manager) for an installed Flatpak, else (None, None)."""
         pkg = self._get_pkg(pkg_id)

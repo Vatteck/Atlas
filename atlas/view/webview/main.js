@@ -1392,6 +1392,15 @@ function licensePopupHtml(meta) {
     return body + lic;
 }
 
+function maintainerChangePopupHtml(changed) {
+    changed = changed || {};
+    const oldM = escapeHtml(changed.old || 'unknown');
+    const newM = changed.new ? escapeHtml(changed.new) : '<em>orphaned (no current maintainer)</em>';
+    return `<p>This AUR package's maintainer has <strong>changed since you installed it</strong>:</p>`
+        + `<p class="popup-note"><strong>${oldM} → ${newM}</strong></p>`
+        + `<p>A package changing hands is common and usually fine, but it's worth a glance before you update — the new maintainer controls what gets built and run. <strong>Advisory, not a verdict.</strong></p>`;
+}
+
 function openDetailModal(pkg) {
     const detailIcon = document.getElementById('detail-icon');
     detailIcon.src = getIconSrc(pkg.icon_url);
@@ -1466,6 +1475,24 @@ function openDetailModal(pkg) {
             if (verifiedBadge) {
                 verifiedBadge.addEventListener('click', () => showInfoPopup(meta.verified ? 'Verified developer' : 'Unverified', verificationPopupHtml(meta)));
             }
+        });
+    } else if (normalizeType(pkg.type) === 'aur') {
+        // AUR maintainer badge + a clickable "changed hands since install" advisory (supply-chain
+        // signal). One best-effort RPC; appends to the badge row.
+        pyApiCall('get_aur_maintainer', pkg.id).then(info => {
+            if (!info) return;
+            const parts = [];
+            if (info.maintainer) {
+                parts.push(`<span class="meta-badge" title="Current AUR maintainer">👤 ${escapeHtml(info.maintainer)}</span>`);
+            } else if (info.changed || 'maintainer' in info) {
+                parts.push(`<span class="meta-badge proprietary" title="This package currently has no maintainer on the AUR">⚠ Orphaned (no maintainer)</span>`);
+            }
+            if (info.changed) {
+                parts.push(`<span class="meta-badge unverified clickable" data-popup="maint" title="Click for details">⚠ Maintainer changed ⓘ</span>`);
+            }
+            if (parts.length) badgesEl.innerHTML = parts.join('');
+            const mb = badgesEl.querySelector('[data-popup="maint"]');
+            if (mb) mb.addEventListener('click', () => showInfoPopup('Maintainer changed', maintainerChangePopupHtml(info.changed)));
         });
     }
 
