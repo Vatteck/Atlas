@@ -125,7 +125,8 @@ def metadata_badges(data: Optional[dict]) -> dict:
         'verified_via': meta.get('flathub::verification::website')
                         or meta.get('flathub::verification::login_provider') or None,
         'content_rating': age_rating,
-        'desktop_only': data.get('type') == 'desktop-application'
+        'desktop_only': data.get('type') == 'desktop-application',
+        'developer_name': data.get('developer_name')
     }
 
 

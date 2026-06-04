@@ -1416,7 +1416,11 @@ function permissionsPopupHtml(meta) {
             <ul class="perm-list">${rows}</ul>`;
 }
 
-function verificationPopupHtml(meta) {
+function verificationPopupHtml(meta, type) {
+    if (type && normalizeType(type) === 'aur') {
+        return `<p>This package is sourced from the <strong>Arch User Repository (AUR)</strong>. All AUR packages are community-maintained and are not officially verified by Arch Linux or the original developers.</p>
+                <p class="popup-note">Always review the PKGBUILD before installing. You are trusting the package maintainer, not the original vendor.</p>`;
+    }
     if (meta.verified) {
         const via = meta.verified_via ? ` (via <code>${escapeHtml(meta.verified_via)}</code>)` : '';
         return `<p>The developer has <strong>verified</strong> ownership of this app on Flathub${via}, so you're getting it from the official source.</p>`;
@@ -1465,7 +1469,11 @@ function openDetailModal(pkg) {
         this.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgZmlsbD0iIzY0NzQ4YiIgdmlld0JveD0iMCAwIDI0IDI0Ij48cmVjdCB4PSIzIiB5PSIzIiB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHJ4PSIyIiByeT0iMiI+PC9yZWN0Pjwvc3ZnPg==';
     };
     document.getElementById('detail-name').textContent = pkg.name;
-    document.getElementById('detail-meta').textContent = `${sourceLabel(pkg.type)} • v${pkg.version || 'Unknown'}`;
+    const typeLabel = sourceLabel(pkg.type);
+    const typeBadge = document.getElementById('detail-type-badge');
+    typeBadge.textContent = typeLabel;
+    typeBadge.className = `meta-badge type-${normalizeType(pkg.type)}`;
+    document.getElementById('detail-meta').innerHTML = `<span>v${escapeHtml(pkg.version || 'Unknown')}</span>`;
     document.getElementById('detail-description').textContent = pkg.description || 'No description available for this package.';
 
     // Link to the package's web page (AUR / official Arch). Routed through open_url so it
@@ -1551,11 +1559,19 @@ function openDetailModal(pkg) {
                     <span class="rich-badge-title">License ⓘ</span>
                 </div>`);
             }
-            parts.push(`<div class="rich-badge-tile verified-${meta.verified} clickable" data-popup="verified" title="Click for details">
-                <div class="rich-badge-icon-container"><div class="rich-badge-icon"><span class="material-symbols-outlined">${meta.verified ? 'verified' : 'error'}</span></div></div>
-                <span class="rich-badge-value">${meta.verified ? 'Verified' : 'Unverified'}</span>
-                <span class="rich-badge-title">Publisher ⓘ</span>
-            </div>`);
+            
+            // Build the developer + verified UI in the header
+            const devName = escapeHtml(meta.developer_name || pkg.developer || 'Unknown Developer');
+            const verifiedHtml = meta.verified 
+                ? `<span class="material-symbols-outlined verified-icon" data-popup="verified" title="Verified by Flathub">verified</span>` 
+                : `<span class="material-symbols-outlined unverified-icon" data-popup="verified" title="Unverified community package">info</span>`;
+            
+            document.getElementById('detail-meta').innerHTML = `
+                <span class="developer-name">${devName}</span>
+                ${verifiedHtml}
+                <span class="meta-separator">•</span>
+                <span>v${escapeHtml(pkg.version || 'Unknown')}</span>
+            `;
             if (meta.content_rating) {
                 parts.push(`<div class="rich-badge-tile no-icon">
                     <span class="rich-badge-icon"></span>
@@ -1587,9 +1603,9 @@ function openDetailModal(pkg) {
             if (licenseBadge) {
                 licenseBadge.addEventListener('click', () => showInfoPopup(meta.is_free ? 'Open source' : 'Proprietary', licensePopupHtml(meta)));
             }
-            const verifiedBadge = badgesEl.querySelector('[data-popup="verified"]');
-            if (verifiedBadge) {
-                verifiedBadge.addEventListener('click', () => showInfoPopup(meta.verified ? 'Verified developer' : 'Unverified', verificationPopupHtml(meta)));
+            const inlineVerifiedIcon = document.getElementById('detail-meta').querySelector('[data-popup="verified"]');
+            if (inlineVerifiedIcon) {
+                inlineVerifiedIcon.addEventListener('click', () => showInfoPopup(meta.verified ? 'Verified developer' : 'Unverified', verificationPopupHtml(meta, pkg.type)));
             }
         });
     } else if (normalizeType(pkg.type) === 'aur') {
@@ -1603,18 +1619,29 @@ function openDetailModal(pkg) {
                     <span class="rich-badge-title">Update Available</span>
                 </div>`);
             }
-            if (info.maintainer) {
-                parts.push(`<div class="rich-badge-tile" title="Current AUR maintainer">
-                    <div class="rich-badge-icon-container"><div class="rich-badge-icon"><span class="material-symbols-outlined">person</span></div></div>
-                    <span class="rich-badge-value">${escapeHtml(info.maintainer)}</span>
-                    <span class="rich-badge-title">Maintainer</span>
-                </div>`);
+            
+            // Build the developer + verified UI in the header
+            const maint = info.maintainer;
+            if (maint) {
+                document.getElementById('detail-meta').innerHTML = `
+                    <span class="developer-name">${escapeHtml(maint)}</span>
+                    <span class="material-symbols-outlined unverified-icon" data-popup="verified" title="AUR packages are community-maintained">info</span>
+                    <span class="meta-separator">•</span>
+                    <span>v${escapeHtml(pkg.version || 'Unknown')}</span>
+                `;
             } else if ('maintainer' in info) {
-                parts.push(`<div class="rich-badge-tile" title="This package currently has no maintainer on the AUR">
-                    <div class="rich-badge-icon-container"><div class="rich-badge-icon"><span class="material-symbols-outlined">person_off</span></div></div>
-                    <span class="rich-badge-value">Orphaned</span>
-                    <span class="rich-badge-title">Maintainer</span>
-                </div>`);
+                 document.getElementById('detail-meta').innerHTML = `
+                    <span class="developer-name text-danger">Orphaned</span>
+                    <span class="material-symbols-outlined unverified-icon text-danger" data-popup="verified" title="No maintainer">error</span>
+                    <span class="meta-separator">•</span>
+                    <span>v${escapeHtml(pkg.version || 'Unknown')}</span>
+                `;
+            }
+            
+            const inlineVerifiedIcon = document.getElementById('detail-meta').querySelector('[data-popup="verified"]');
+            if (inlineVerifiedIcon) {
+                const aurMeta = { verified: false, verified_via: null };
+                inlineVerifiedIcon.addEventListener('click', () => showInfoPopup('AUR Community Package', verificationPopupHtml(aurMeta, pkg.type)));
             }
             if (info.changed) {
                 parts.push(`<div class="rich-badge-tile clickable" data-popup="maint" title="Click for details">
