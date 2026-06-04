@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-03 (Webview polish sprint 1 GUI-eyeballed; 442 tests green)
+**Last updated:** 2026-06-03 (Webview polish sprint 1 full GUI smoke checked; 442 tests green)
 **Version:** 0.10.7
 **Working branch:** `feat/webview-polish-sprint-1` (short-lived polish branch; run `git branch` before acting)
 
@@ -25,8 +25,8 @@ control theme** (Open-Source/Proprietary + Verified + downloads badges → permi
 safety tier → in-modal override editing → full **Flatseal-grade Permissions page**: Share/Socket/
 Device/Features/Filesystem/Bus/Environment, tabbed); plus maintenance hub, downgrade/rollback,
 News + `.pacnew`, Update-All news gate, Browse, sort, non-Qt tray, icons, keyboard shortcuts,
-screenshot lightbox. **No big-ticket item is open** — remaining work is small follow-ups (see Next)
-and a GUI verification pass. Sprint 1 fixed Browse category state/sort/filter correctness and stale async guards;
+screenshot lightbox. **No big-ticket item is open** — remaining work is small follow-ups (see Next).
+Current GUI smoke checklist is complete. Sprint 1 fixed Browse category state/sort/filter correctness and stale async guards;
 see [plans/2026-06-03-webview-polish-sprint-1.md](plans/2026-06-03-webview-polish-sprint-1.md).
 
 ## Next
@@ -41,8 +41,8 @@ follow-ups:
   avatar. (Watch WebKitGTK thread-safety.)
 - **GUI verification status (2026-06-03):** user GUI-verified this session's Flatpak Permissions
   page, clean-chroot toggle (built `protonup-qt` end-to-end), AUR maintainer/update badges in the
-  detail view, the empty-state, and **Browse sprint-1 smoke checklist**. **Still worth a live run:**
-  **downgrade** and the **screenshot lightbox**. Skeleton loaders are wired/correct — they only show on *uncached*
+  detail view, the empty-state, **Browse sprint-1 smoke checklist**, **downgrade**, and the
+  **screenshot lightbox**. No current manual smoke item is open. Skeleton loaders are wired/correct — they only show on *uncached*
   loads (the session `packageCache` makes repeats instant), which is expected.
 - **Lower-value:** route the controller's ad-hoc `Thread(...)` spawns through a shared pool
   (marginal; only with a measured reason).
@@ -76,7 +76,7 @@ re-add a native extension without a measured win. Details in the historical
   older search/view responses cannot repaint newer results. Plan + manual smoke checklist:
   [plans/2026-06-03-webview-polish-sprint-1.md](plans/2026-06-03-webview-polish-sprint-1.md).
   Verification: `python -m pytest tests/view/webview -q` → 117 passed; `python -m pytest` → 442 passed;
-  user GUI-eyeballed Browse sprint-1 flow and reported it looks good.
+  user GUI-eyeballed Browse sprint-1 flow, downgrade, and screenshot lightbox and reported they look good.
 
 - **Documentation truth pass (2026-06-03).** Reconciled the docs with the current pure-Python,
   pywebview Atlas state: rewrote `docs/ARCHITECTURE.md` to remove live Rust/PyO3/native-extension
