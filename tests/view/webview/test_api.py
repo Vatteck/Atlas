@@ -427,6 +427,23 @@ class AppSettingsTest(unittest.TestCase):
         saved = self.flatpak.configman.save_config.call_args[0][0]
         self.assertIsNone(saved['installation_level'])
 
+    def test_greeting_name_round_trip(self):
+        # default: no custom name set
+        self.assertEqual('', self.api.get_app_settings()['data']['general']['greeting_name'])
+        # save a custom name → persisted (trimmed) under ui.greeting_name and echoed back
+        self.api.save_app_settings({'general': {'greeting_name': '  Ada  '}})
+        self.assertEqual('Ada', self.core['ui']['greeting_name'])
+        self.assertEqual('Ada', self.api.get_app_settings()['data']['general']['greeting_name'])
+        # the dashboard greeting prefers the custom name
+        self.assertEqual('Ada', self.api._dashboard_user())
+
+    def test_greeting_name_blank_clears_to_os_name(self):
+        self.core.setdefault('ui', {})['greeting_name'] = 'Ada'
+        self.api.save_app_settings({'general': {'greeting_name': '   '}})
+        self.assertEqual('', self.core['ui']['greeting_name'])
+        # cleared → _dashboard_user falls back to the OS-derived name, not the old custom one
+        self.assertNotEqual('Ada', self.api._dashboard_user())
+
     def test_get_app_settings_includes_tray_block(self):
         data = self.api.get_app_settings()['data']
         self.assertIn('tray', data)
@@ -1379,5 +1396,71 @@ class BrowseCategoryTest(unittest.TestCase):
         res = self.api.get_category_packages('games')
         self.assertEqual('ok', res['status'])
         flatpak.list_category_packages.assert_not_called()
+
+
+class DashboardSummaryTest(unittest.TestCase):
+    """get_dashboard_summary: cheap, concurrent, fail-open 'attention center' signals."""
+
+    def setUp(self):
+        self.manager = Mock()
+        self.manager.managers = []
+        self.api = AtlasApi(self.manager, Mock())
+
+    def test_aggregates_all_sections(self):
+        from datetime import datetime, timezone, timedelta
+        synced = datetime.now(timezone.utc) - timedelta(hours=5)
+        with patch.object(self.api, 'get_pacnew_files', return_value={'status': 'ok', 'data': {'count': 3}}), \
+             patch.object(self.api, '_last_db_sync_time', return_value=synced), \
+             patch.object(self.api, 'check_upgrade_news', return_value={'status': 'ok', 'data': {'new_count': 2}}), \
+             patch.object(self.api, 'get_cleanup_summary', return_value={'status': 'ok', 'data': {
+                 'orphans': {'count': 4},
+                 'pacman_cache': {'available': True, 'total_human': '1.2 GB'},
+                 'flatpak': {'available': True}}}), \
+             patch.object(self.api, 'get_activity', return_value={'status': 'ok', 'data': [
+                 {'action': 'install', 'pkg_name': 'a'}, {'action': 'update', 'pkg_name': 'b'},
+                 {'action': 'uninstall', 'pkg_name': 'c'}, {'action': 'install', 'pkg_name': 'd'}]}), \
+             patch('os.path.exists', return_value=False):
+            res = self.api.get_dashboard_summary()
+
+        self.assertEqual('ok', res['status'])
+        d = res['data']
+        self.assertEqual(3, d['safety']['pacnew_count'])
+        self.assertEqual(2, d['safety']['news_count'])
+        self.assertFalse(d['safety']['pacman_locked'])
+        self.assertAlmostEqual(5.0, d['safety']['db_sync_age_hours'], delta=0.2)
+        self.assertEqual(4, d['reclaim']['orphans'])
+        self.assertEqual('1.2 GB', d['reclaim']['cache_human'])
+        self.assertTrue(d['reclaim']['flatpak_available'])
+        self.assertEqual(3, len(d['activity']))  # capped at 3, newest-first preserved
+        self.assertIn('user', d)  # name for the greeting (string or None)
+
+    def test_fails_open_per_section(self):
+        # a sub-check raising must not break the summary — that field degrades to None/default
+        with patch.object(self.api, 'get_pacnew_files', side_effect=RuntimeError('boom')), \
+             patch.object(self.api, '_last_db_sync_time', return_value=None), \
+             patch.object(self.api, 'check_upgrade_news', side_effect=RuntimeError('boom')), \
+             patch.object(self.api, 'get_cleanup_summary', side_effect=RuntimeError('boom')), \
+             patch.object(self.api, 'get_activity', side_effect=RuntimeError('boom')):
+            res = self.api.get_dashboard_summary()
+
+        self.assertEqual('ok', res['status'])
+        d = res['data']
+        self.assertIsNone(d['safety']['pacnew_count'])
+        self.assertIsNone(d['safety']['db_sync_age_hours'])
+        self.assertIsNone(d['reclaim']['orphans'])
+        self.assertEqual([], d['activity'])
+
+    def test_reads_aur_chroot_state(self):
+        arch = Mock()
+        arch.__module__ = 'atlas.gems.arch.controller'
+        arch.configman.get_config.return_value = {'aur_build_chroot': True}
+        self.manager.managers = [arch]
+        with patch.object(self.api, 'get_pacnew_files', return_value={'status': 'ok', 'data': {'count': 0}}), \
+             patch.object(self.api, '_last_db_sync_time', return_value=None), \
+             patch.object(self.api, 'check_upgrade_news', return_value={'status': 'ok', 'data': {'new_count': 0}}), \
+             patch.object(self.api, 'get_cleanup_summary', return_value={'status': 'ok', 'data': {}}), \
+             patch.object(self.api, 'get_activity', return_value={'status': 'ok', 'data': []}):
+            res = self.api.get_dashboard_summary()
+        self.assertTrue(res['data']['aur']['chroot_enabled'])
 
 

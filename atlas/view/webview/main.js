@@ -909,23 +909,27 @@ function renderPackages(packages) {
     packagesGrid.style.display = 'grid';
     applyViewMode();  // keep the grid/list class in sync on every (re)render
 
-    // Optimize: Use DocumentFragment to batch DOM insertions in a single reflow pass
-    const fragment = document.createDocumentFragment();
+    appendPackageCards(packagesGrid, currentGroups);
+    deferredIconLoad();
+    deferredMetaLoad();
+}
 
-    currentGroups.forEach((group, gi) => {
+// Build package-card elements for `groups` into `container`. The card's data-gi indexes into
+// the module-level currentGroups (the click delegation on #packages-grid resolves it), so the
+// caller must have set currentGroups = these groups. Reused by renderPackages and the Browse
+// landing's "Suggested" row.
+function appendPackageCards(container, groups) {
+    const fragment = document.createDocumentFragment();
+    groups.forEach((group, gi) => {
         const pkg = group.sources[0];
         const card = document.createElement('div');
         card.className = `package-card ${selectMode ? 'select-mode' : ''} ${selectedPackages.has(pkg.id) ? 'selected' : ''}`;
         card.dataset.id = pkg.id;
         card.dataset.gi = gi;
         card.innerHTML = cardInnerHTML(group, 0);
-        // Optimize: Clicks are now handled by single event delegation on packagesGrid
-        fragment.appendChild(card);
+        fragment.appendChild(card);  // clicks handled by event delegation on #packages-grid
     });
-
-    packagesGrid.appendChild(fragment);
-    deferredIconLoad();
-    deferredMetaLoad();
+    container.appendChild(fragment);
 }
 
 // Silently probe remote icon URLs and upgrade from placeholder on success.
@@ -2379,6 +2383,25 @@ async function fetchPackages() {
 
     const query = searchInput.value.trim();
 
+    // The dashboard is the "Attention Center" only — no package/suggestions grid (app discovery
+    // lives in Browse + Installed). With no active search we render the cards and stop; a search
+    // from the dashboard falls through to the normal results grid below.
+    const attnHost = document.getElementById('attention-center');
+    if (currentView === 'dashboard' && !query) {
+        if (attnHost) renderAttentionCenter();  // fire-and-forget; fills its cards asynchronously
+        packagesGrid.style.display = 'none';
+        packagesGrid.innerHTML = '';
+        emptyState.classList.add('hidden');
+        loadingState.classList.add('hidden');
+        currentPackages = [];
+        currentGroups = [];
+        return;
+    }
+    if (attnHost) {
+        attentionEpoch++;  // leaving the dashboard cards → invalidate any in-flight render
+        attnHost.innerHTML = '';
+    }
+
     if (currentView === 'browse' && !query) {
         if (activeBrowseCategory) {
             await renderCategoryPackages(activeBrowseCategory.key, activeBrowseCategory.label);
@@ -2513,7 +2536,12 @@ async function renderBrowse() {
     packagesGrid.style.display = 'block';
     packagesGrid.innerHTML = `<div class="state-container"><div class="spinner"></div><p>Loading categories…</p></div>`;
 
-    const data = await pyApiCall('get_categories');  // unwrapped list, or null on error
+    // Fetch categories + the curated suggestions together (suggestions used to live on the
+    // dashboard; they now seed Browse). Suggestions are best-effort — Browse still works without.
+    const [data, suggestions] = await Promise.all([
+        pyApiCall('get_categories'),       // unwrapped list, or null on error
+        pyApiCall('get_suggestions', 'all'),
+    ]);
     if (!data) {
         packagesGrid.innerHTML = `<div class="news-empty">Could not load categories. Category data is fetched from atlas-files — check your connection and try again.</div>`;
         return;
@@ -2530,7 +2558,30 @@ async function renderBrowse() {
             <span class="category-count">${escapeHtml(c.count)} package${c.count === 1 ? '' : 's'}</span>
         </button>`).join('');
 
-    packagesGrid.innerHTML = `<div class="browse-view"><div class="browse-header">Browse by category</div><div class="category-grid">${cards}</div></div>`;
+    const hasSuggestions = Array.isArray(suggestions) && suggestions.length > 0;
+    const suggestedSection = hasSuggestions
+        ? `<div class="browse-header browse-header-spaced">Suggested for you</div><div class="browse-suggested" id="browse-suggested"></div>`
+        : '';
+
+    // Categories first (the primary purpose of Browse), then the suggested apps row.
+    packagesGrid.innerHTML =
+        `<div class="browse-view">` +
+        `<div class="browse-header">Browse by category</div><div class="category-grid">${cards}</div>` +
+        `${suggestedSection}</div>`;
+
+    // Render the suggestions as real package cards (install/detail/source-switch all work via the
+    // existing #packages-grid delegation, which resolves data-gi against currentGroups).
+    if (hasSuggestions) {
+        currentPackages = suggestions;
+        currentGroups = collapseByName(suggestions);
+        const host = packagesGrid.querySelector('#browse-suggested');
+        if (host) {
+            appendPackageCards(host, currentGroups);
+            deferredIconLoad();
+            deferredMetaLoad();
+        }
+    }
+
     packagesGrid.querySelectorAll('.category-card').forEach(btn => {
         btn.addEventListener('click', () => renderCategoryPackages(btn.dataset.catKey, btn.dataset.catLabel));
     });
@@ -2826,11 +2877,18 @@ async function renderSettings() {
         </section>` : '';
 
     const g = data.general || {};
-    const generalRows = GENERAL_TOGGLES.map(([key, label, tip]) => `
+    const generalToggleRows = GENERAL_TOGGLES.map(([key, label, tip]) => `
         <label class="settings-row" title="${escapeHtml(tip)}">
             <input type="checkbox" data-gen-key="${escapeHtml(key)}" ${g[key] ? 'checked' : ''}>
             <span class="settings-row-label">${escapeHtml(label)}</span>
         </label>`).join('');
+    const greetingRow = `
+        <label class="settings-row" title="Name shown in the dashboard greeting (leave blank to use your system name)">
+            <span class="settings-row-label">Display name</span>
+            <input type="text" id="settings-greeting-name" class="styled-input" maxlength="40"
+                   placeholder="Your system name" value="${escapeHtml(g.greeting_name || '')}">
+        </label>`;
+    const generalRows = greetingRow + generalToggleRows;
 
     const tray = data.tray || {};
     const trayDisabledAttr = tray.available ? '' : 'disabled';
@@ -2929,6 +2987,8 @@ async function saveSettings() {
     packagesGrid.querySelectorAll('input[data-gen-key]').forEach(el => {
         general[el.getAttribute('data-gen-key')] = el.checked;
     });
+    const greetingEl = document.getElementById('settings-greeting-name');
+    if (greetingEl) general.greeting_name = greetingEl.value.trim();
     const payload = { types, general };
     const levelEl = document.getElementById('settings-flatpak-level');
     if (levelEl) payload.flatpak_installation_level = levelEl.value;
@@ -2974,6 +3034,14 @@ function activateView(viewName) {
     const notice = document.getElementById('updates-notice');
     if (notice) notice.innerHTML = '';  // only the Updates view shows the .pacnew notice
 
+    // The Attention Center belongs to the dashboard; clear it for non-package views (the
+    // dashboard repopulates it via fetchPackages). Invalidate any in-flight render first.
+    if (viewName !== 'dashboard') {
+        attentionEpoch++;
+        const ac = document.getElementById('attention-center');
+        if (ac) ac.innerHTML = '';
+    }
+
     if (viewName === 'settings') {
         emptyState.classList.add('hidden');
         loadingState.classList.add('hidden');
@@ -3006,6 +3074,15 @@ navItems.forEach(item => {
         activateView(viewName);
     });
 });
+
+// Attention Center cards click through to the page that acts on them.
+const attentionHost = document.getElementById('attention-center');
+if (attentionHost) {
+    attentionHost.addEventListener('click', (e) => {
+        const card = e.target.closest('.attention-card');
+        if (card && card.dataset.view) activateView(card.dataset.view);
+    });
+}
 
 const shortcutsHelpBtn = document.getElementById('shortcuts-help-btn');
 if (shortcutsHelpBtn) {
@@ -3321,8 +3398,223 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// ===================== Dashboard "Attention Center" =====================
+// A row of lazy, best-effort cards above the suggestions grid answering "what needs my
+// attention today?". The HTML builders below are pure (data → markup, no DOM) so they're
+// unit-tested in the Node VM contract harness. See
+// docs/plans/2026-06-04-dashboard-attention-center.md.
+
+let attentionEpoch = 0;  // stale-render guard: a later render invalidates an in-flight one
+
+function attnLine(html, cls) {
+    return `<div class="attention-line${cls ? ' ' + cls : ''}">${html}</div>`;
+}
+function attnUnknown() {
+    return attnLine('Couldn’t check', 'muted');
+}
+function attnAge(hours) {
+    if (hours == null) return '';
+    if (hours < 1) return '<1h';
+    if (hours < 48) return `${Math.round(hours)}h`;
+    return `${Math.round(hours / 24)}d`;
+}
+// Richer card: a big hero metric + subtitle + detail lines + a footer action. All fields
+// optional. `hero` is rendered verbatim (callers pass safe glyphs/numbers); text fields are escaped.
+function attentionCard({ view, icon, title, tone, hero, subtitle, linesHTML, actionText }) {
+    const t = tone ? ` tone-${tone}` : '';
+    const heroHTML = (hero !== undefined && hero !== null && hero !== '')
+        ? `<div class="attention-hero">${hero}</div>` : '';
+    const subHTML = subtitle ? `<div class="attention-subtitle">${escapeHtml(subtitle)}</div>` : '';
+    return `<button class="attention-card${t}" data-view="${escapeHtml(view || '')}">
+        <div class="attention-head"><span class="attention-icon">${icon || ''}</span>
+            <span class="attention-title">${escapeHtml(title || '')}</span></div>
+        ${heroHTML}${subHTML}
+        <div class="attention-lines">${linesHTML || ''}</div>
+        ${actionText ? `<div class="attention-action">${escapeHtml(actionText)} →</div>` : ''}
+    </button>`;
+}
+function attnChip(text) { return `<span class="attn-chip">${escapeHtml(text)}</span>`; }
+
+// `updates`: undefined = still loading, null/'error' = couldn't check, [] = up to date, [...] = list
+function buildUpdatesCardHTML(updates) {
+    if (updates === undefined) {
+        return attentionCard({ view: 'updates', icon: '⟳', title: 'Updates', subtitle: 'Checking…' });
+    }
+    if (updates === null || updates === 'error') {
+        return attentionCard({ view: 'updates', icon: '⟳', title: 'Updates', tone: 'warn',
+            hero: '—', subtitle: 'Couldn’t check', actionText: 'Open Updates' });
+    }
+    const n = updates.length;
+    if (n === 0) {
+        return attentionCard({ view: 'updates', icon: '✓', title: 'Updates', tone: 'ok',
+            hero: '✓', subtitle: 'Everything is up to date' });
+    }
+    const counts = {};
+    updates.forEach(p => { const k = sourceLabel(p.type); counts[k] = (counts[k] || 0) + 1; });
+    const chips = Object.entries(counts).map(([k, v]) => attnChip(`${v} ${k}`)).join('');
+    return attentionCard({ view: 'updates', icon: '⬆', title: 'Updates', tone: 'warn',
+        hero: n, subtitle: `update${n === 1 ? '' : 's'} available`,
+        linesHTML: `<div class="attn-chips">${chips}</div>`, actionText: 'Open Updates' });
+}
+
+function buildSafetyCardHTML(safety) {
+    if (!safety) return attentionCard({ view: 'updates', icon: '🛡', title: 'System safety',
+        tone: 'warn', hero: '—', subtitle: 'Couldn’t check' });
+    const lines = [];
+    let issues = 0;
+    if (safety.pacman_locked) { lines.push(attnLine('pacman database is locked', 'danger')); issues++; }
+    if (typeof safety.news_count === 'number' && safety.news_count > 0) {
+        lines.push(attnLine(`${safety.news_count} unread news since last sync`)); issues++;
+    }
+    if (typeof safety.pacnew_count === 'number' && safety.pacnew_count > 0) {
+        lines.push(attnLine(`${safety.pacnew_count} .pacnew file${safety.pacnew_count === 1 ? '' : 's'} to review`)); issues++;
+    }
+    if (safety.db_sync_age_hours != null) lines.push(attnLine(`Databases synced ${attnAge(safety.db_sync_age_hours)} ago`, 'muted'));
+    const tone = issues > 0 ? 'warn' : 'ok';
+    const view = (typeof safety.news_count === 'number' && safety.news_count > 0) ? 'news' : 'updates';
+    return attentionCard({ view, icon: '🛡', title: 'System safety', tone,
+        hero: issues > 0 ? issues : '✓',
+        subtitle: issues > 0 ? `item${issues === 1 ? '' : 's'} to review` : 'All clear',
+        linesHTML: lines.join(''), actionText: 'Review' });
+}
+
+function buildReclaimCardHTML(reclaim) {
+    if (!reclaim) return attentionCard({ view: 'disk', icon: '🧹', title: 'Reclaim space',
+        tone: 'info', hero: '—', subtitle: 'Couldn’t check' });
+    const lines = [];
+    let tone = 'info';
+    if (typeof reclaim.orphans === 'number') {
+        if (reclaim.orphans > 0) { lines.push(attnLine(`${reclaim.orphans} orphan package${reclaim.orphans === 1 ? '' : 's'}`)); tone = 'warn'; }
+        else lines.push(attnLine('No orphan packages', 'muted'));
+    }
+    if (reclaim.flatpak_available) lines.push(attnLine('Unused Flatpak runtimes can be cleaned', 'muted'));
+    if (lines.length === 0) lines.push(attnUnknown());
+    // Hero = pacman cache size (the headline reclaimable figure) when known.
+    const hero = reclaim.cache_human ? escapeHtml(reclaim.cache_human) : null;
+    return attentionCard({ view: 'disk', icon: '🧹', title: 'Reclaim space', tone,
+        hero, subtitle: hero ? 'in pacman cache' : null,
+        linesHTML: lines.join(''), actionText: 'Open Disk' });
+}
+
+function buildActivityCardHTML(activity) {
+    const list = Array.isArray(activity) ? activity : [];
+    if (list.length === 0) return attentionCard({ view: 'activity', icon: '🕘', title: 'Recent activity',
+        tone: 'info', subtitle: 'No recent activity yet' });
+    const ACTION = { install: 'Installed', update: 'Updated', uninstall: 'Removed', downgrade: 'Downgraded' };
+    const lines = list.slice(0, 3).map(e => {
+        const verb = ACTION[e.action] || e.action || '';
+        const mark = e.success === false ? ' <span class="attn-fail">failed</span>' : '';
+        return attnLine(`${escapeHtml(verb)} <strong>${escapeHtml(e.pkg_name || '')}</strong>${mark}`);
+    });
+    return attentionCard({ view: 'activity', icon: '🕘', title: 'Recent activity', tone: 'info',
+        linesHTML: lines.join(''), actionText: 'Open Activity' });
+}
+
+function buildAurCardHTML(aur) {
+    if (!aur) return attentionCard({ view: 'settings', icon: '📦', title: 'AUR safety',
+        tone: 'info', hero: '—', subtitle: 'Couldn’t check' });
+    const enabled = !!aur.chroot_enabled;
+    const lines = [];
+    if (!aur.chroot_available) lines.push(attnLine('Install devtools to enable', 'muted'));
+    else lines.push(attnLine(enabled ? 'Builds run in an isolated chroot' : 'Builds run on the host', 'muted'));
+    return attentionCard({ view: 'settings', icon: '📦', title: 'AUR safety', tone: enabled ? 'ok' : 'info',
+        hero: enabled ? 'On' : 'Off', subtitle: 'clean-chroot builds',
+        linesHTML: lines.join(''), actionText: 'Settings' });
+}
+
+function buildAttentionCenterHTML(summary, updates) {
+    const s = summary || {};
+    const cards = [
+        buildUpdatesCardHTML(updates),
+        buildSafetyCardHTML(s.safety || null),
+        buildReclaimCardHTML(s.reclaim || null),
+        buildActivityCardHTML(s.activity || []),
+        buildAurCardHTML(s.aur || null),
+    ];
+    return `<div class="attention-grid">${cards.join('')}</div>`;
+}
+
+// --- Dashboard header: a time-of-day greeting + a status line summarizing actionable items ---
+function dashboardGreeting(hour) {
+    if (hour >= 5 && hour < 12) return 'Good morning';
+    if (hour >= 12 && hour < 18) return 'Good afternoon';
+    return 'Good evening';
+}
+
+// Count the "areas" that need action — mirrors the warn-tone cards (Updates / System safety /
+// Reclaim orphans), so the header number matches what's highlighted below.
+function countActionable(summary, updates) {
+    let n = 0;
+    if (Array.isArray(updates) && updates.length > 0) n += 1;
+    const s = (summary && summary.safety) || null;
+    if (s) {
+        const issues = (s.pacman_locked ? 1 : 0)
+            + ((typeof s.news_count === 'number' && s.news_count > 0) ? 1 : 0)
+            + ((typeof s.pacnew_count === 'number' && s.pacnew_count > 0) ? 1 : 0);
+        if (issues > 0) n += 1;
+    }
+    const r = (summary && summary.reclaim) || null;
+    if (r && typeof r.orphans === 'number' && r.orphans > 0) n += 1;
+    return n;
+}
+
+function dashboardMessage(count) {
+    if (count <= 0) return 'You’re all caught up — nothing needs your attention.';
+    if (count === 1) return '1 thing needs your attention.';
+    return `${count} things need your attention.`;
+}
+
+// tone: 'ok' (all caught up → green ✓), 'warn' (items pending → amber), or null (loading → muted)
+function buildDashboardHeaderHTML(greeting, name, message, tone) {
+    const who = name ? `${escapeHtml(greeting)}, ${escapeHtml(name)}` : escapeHtml(greeting);
+    const t = tone ? ` tone-${tone}` : '';
+    const check = tone === 'ok' ? '<span class="dash-check">✓</span> ' : '';
+    return `<div class="dashboard-header">
+        <h1 class="dash-greeting">${who}</h1>
+        <p class="dash-subtitle${t}">${check}${escapeHtml(message)}</p>
+    </div>`;
+}
+
+async function renderAttentionCenter() {
+    const host = document.getElementById('attention-center');
+    if (!host) return;
+    const token = ++attentionEpoch;
+    const greeting = dashboardGreeting(new Date().getHours());
+    const paint = (summary, updates, message, tone) => {
+        const name = (summary && summary.user) || '';
+        host.innerHTML = buildDashboardHeaderHTML(greeting, name, message, tone)
+            + buildAttentionCenterHTML(summary, updates);
+    };
+    paint(null, undefined, 'Checking your system…', null);  // skeleton/loading
+
+    const summaryP = pyApiCall('get_dashboard_summary');
+    // Updates is the one expensive signal (read_installed). Reuse the Updates view's warm cache
+    // when present, and warm it here otherwise, so the dashboard and Updates view share one fetch.
+    const updatesKey = getCacheKey('updates', 'all', '');
+    const updatesP = (packageCache[updatesKey] !== undefined)
+        ? Promise.resolve(packageCache[updatesKey])
+        : pyApiCall('get_updates', 'all').then(u => { if (Array.isArray(u)) writeToCache(updatesKey, u); return u; });
+
+    const summary = await summaryP;
+    if (token !== attentionEpoch || currentView !== 'dashboard') return;  // user moved on
+    paint(summary, undefined, 'Checking your system…', null);  // cheap cards in, updates loading
+
+    const updates = await updatesP;
+    if (token !== attentionEpoch || currentView !== 'dashboard') return;
+    const u = updates === null ? 'error' : updates;
+    const count = countActionable(summary, u);
+    paint(summary, u, dashboardMessage(count), count > 0 ? 'warn' : 'ok');
+}
+
 if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
     window.__atlasTestHooks = {
+        buildAttentionCenterHTML,
+        buildUpdatesCardHTML,
+        buildDashboardHeaderHTML,
+        dashboardGreeting,
+        countActionable,
+        dashboardMessage,
+        renderAttentionCenter,
         activateView,
         fetchPackages,
         openDetailModal,

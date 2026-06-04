@@ -424,7 +424,9 @@ async function testStaleDetailMetaDoesNotOverwriteNewModal() {
   assert.ok(document.getElementById('detail-meta').innerHTML.includes('2.0'));
 }
 
-async function testTopLevelBrowseFetchRendersCategoriesNotSuggestions() {
+async function testTopLevelBrowseFetchRendersCategories() {
+  // Browse must render the category landing (not fall through to the dashboard). It now also
+  // seeds a "Suggested for you" row, so get_suggestions IS expected to be called here.
   let categoryCalls = 0;
   let suggestionCalls = 0;
   const { document, hooks } = loadMainJs({
@@ -441,20 +443,23 @@ async function testTopLevelBrowseFetchRendersCategoriesNotSuggestions() {
   hooks.setCurrentView('browse');
   hooks.setSearchQuery('');
   await hooks.fetchPackages();
+  await flushPromises();
 
   assert.strictEqual(categoryCalls, 1);
-  assert.strictEqual(suggestionCalls, 0);
+  assert.strictEqual(suggestionCalls, 1);  // suggestions now seed the Browse landing
   assert.ok(document.getElementById('packages-grid').innerHTML.includes('Browse by category'));
 }
 
 async function testStaleFetchDoesNotOverwriteNewerResults() {
   const slowSearch = controlledPromise();
-  const homePkg = makePkg('home', 'Home');
+  const installedPkg = makePkg('home', 'Home');
   const stalePkg = makePkg('stale', 'Stale');
+  // Tested on the Installed view (the dashboard no longer renders a package grid).
   const { document, hooks } = loadMainJs({
     search: () => slowSearch.promise,
-    get_suggestions: async () => [homePkg],
+    get_installed: async () => [installedPkg],
   });
+  hooks.setCurrentView('installed');
 
   hooks.setSearchQuery('stale');
   const staleFetch = hooks.fetchPackages();
@@ -470,13 +475,123 @@ async function testStaleFetchDoesNotOverwriteNewerResults() {
   assert.deepStrictEqual(renderedCardIds(document), ['home']);
 }
 
+async function testDashboardShowsAttentionCenterNotPackages() {
+  const suggestion = makePkg('sugg', 'Suggested');
+  const { document, hooks } = loadMainJs({
+    get_dashboard_summary: async () => ({}),
+    get_updates: async () => [],
+    get_suggestions: async () => [suggestion],  // must NOT appear on the dashboard
+  });
+  hooks.setCurrentView('dashboard');
+  hooks.setSearchQuery('');
+  await hooks.fetchPackages();
+  await flushPromises();
+
+  // no package cards on the dashboard; the attention center is populated instead
+  assert.deepStrictEqual(renderedCardIds(document), []);
+  assert.ok(document.getElementById('attention-center').innerHTML.includes('attention-grid'));
+}
+
+async function testBrowseRendersSuggestedRowAboveCategories() {
+  const suggestion = makePkg('sugg', 'Suggested');
+  const { document, hooks } = loadMainJs({
+    get_categories: async () => [{ key: 'games', label: 'Games', icon: '🎮', count: 3 }],
+    get_suggestions: async () => [suggestion],
+  });
+
+  await hooks.renderBrowse();
+  await flushPromises();
+
+  const grid = document.getElementById('packages-grid');
+  assert.ok(grid.innerHTML.includes('Suggested for you'), 'suggested header present');
+  assert.ok(grid.innerHTML.includes('browse-suggested'), 'suggested row present');
+  assert.ok(grid.innerHTML.includes('category-grid'), 'categories still present');
+  // the suggestion is rendered as a real package card backed by currentGroups
+  assert.strictEqual(hooks.getState().currentPackages.map(p => p.id).join(','), 'sugg');
+}
+
+async function testAttentionCenterBuildsCardsAndTones() {
+  const { hooks } = loadMainJs({});
+  const summary = {
+    safety: { pacnew_count: 2, db_sync_age_hours: 5, pacman_locked: false, news_count: 1 },
+    reclaim: { orphans: 3, cache_human: '1.2 GB', flatpak_available: true },
+    aur: { chroot_enabled: true, chroot_available: true },
+    activity: [{ action: 'install', pkg_name: 'gimp', success: true }],
+  };
+  const updates = [{ type: 'arch_repo' }, { type: 'aur' }, { type: 'arch_repo' }];
+  const html = hooks.buildAttentionCenterHTML(summary, updates);
+
+  // five cards, updates first, with the right hero/chips/lines and tones
+  assert.ok(html.includes('attention-grid'));
+  assert.ok(html.includes('attention-hero">3</div>'), 'updates hero count');
+  assert.ok(html.includes('updates available'), 'updates subtitle');
+  assert.ok(html.includes('2 Arch') && html.includes('1 AUR'), 'type split chips');
+  assert.ok(html.includes('2 .pacnew files to review'), 'pacnew line');
+  assert.ok(html.includes('1.2 GB'), 'cache size hero');
+  assert.ok(html.includes('Installed <strong>gimp</strong>'), 'activity');
+  assert.ok(html.includes('tone-warn'), 'a warn-tone card exists');
+}
+
+async function testAttentionUpdatesCardStates() {
+  const { hooks } = loadMainJs({});
+  assert.ok(hooks.buildUpdatesCardHTML(undefined).includes('Checking'), 'loading');
+  assert.ok(hooks.buildUpdatesCardHTML('error').includes('Couldn'), 'error → couldn’t check');
+  assert.ok(hooks.buildUpdatesCardHTML([]).includes('up to date'), 'empty → up to date');
+}
+
+async function testDashboardHeaderGreetingAndMessage() {
+  const { hooks } = loadMainJs({});
+  // greeting tracks the hour
+  assert.strictEqual(hooks.dashboardGreeting(8), 'Good morning');
+  assert.strictEqual(hooks.dashboardGreeting(14), 'Good afternoon');
+  assert.strictEqual(hooks.dashboardGreeting(22), 'Good evening');
+  assert.strictEqual(hooks.dashboardGreeting(3), 'Good evening');
+
+  // actionable count mirrors the warn cards (updates / safety issues / orphans)
+  const summary = {
+    safety: { pacnew_count: 1, news_count: 2, pacman_locked: false },  // 1 area
+    reclaim: { orphans: 3 },                                            // 1 area
+  };
+  assert.strictEqual(hooks.countActionable(summary, [{ type: 'arch_repo' }]), 3);  // + updates
+  assert.strictEqual(hooks.countActionable({ safety: {}, reclaim: { orphans: 0 } }, []), 0);
+
+  assert.ok(hooks.dashboardMessage(0).includes('caught up'));
+  assert.strictEqual(hooks.dashboardMessage(1), '1 thing needs your attention.');
+  assert.strictEqual(hooks.dashboardMessage(3), '3 things need your attention.');
+
+  // header: personal greeting + tone-colored status line
+  const warnHtml = hooks.buildDashboardHeaderHTML('Good evening', 'Vatteck', '3 things need your attention.', 'warn');
+  assert.ok(warnHtml.includes('Good evening, Vatteck'), 'personal greeting');
+  assert.ok(warnHtml.includes('3 things need your attention.'));
+  assert.ok(warnHtml.includes('tone-warn'), 'warn tone');
+
+  const okHtml = hooks.buildDashboardHeaderHTML('Good morning', '', 'All caught up.', 'ok');
+  assert.ok(okHtml.includes('tone-ok') && okHtml.includes('dash-check'), 'ok tone + check');
+  assert.ok(!okHtml.includes(', '), 'no trailing comma when name is empty');
+}
+
+async function testAttentionCenterFailsOpenOnNullSummary() {
+  const { hooks } = loadMainJs({});
+  const html = hooks.buildAttentionCenterHTML(null, 'error');
+  // null summary still renders all five cards, degraded to "couldn’t check"
+  const cardCount = (html.match(/attention-card/g) || []).length;
+  assert.strictEqual(cardCount, 5);
+  assert.ok(html.includes('Couldn'), 'degrades to couldn’t check');
+}
+
 (async () => {
   const tests = [
     testRenderCategoryPackagesStoresCurrentPackages,
     testSortDropdownRerendersOpenBrowseCategory,
     testStaleDetailMetaDoesNotOverwriteNewModal,
-    testTopLevelBrowseFetchRendersCategoriesNotSuggestions,
+    testTopLevelBrowseFetchRendersCategories,
     testStaleFetchDoesNotOverwriteNewerResults,
+    testDashboardShowsAttentionCenterNotPackages,
+    testBrowseRendersSuggestedRowAboveCategories,
+    testAttentionCenterBuildsCardsAndTones,
+    testAttentionUpdatesCardStates,
+    testDashboardHeaderGreetingAndMessage,
+    testAttentionCenterFailsOpenOnNullSummary,
   ];
   for (const test of tests) {
     await test();

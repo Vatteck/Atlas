@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-04 (Release prep: bumped to 0.11.0 + CHANGELOG; 451 tests green)
+**Last updated:** 2026-06-04 (Dashboard "Attention Center" shipped; 454 tests green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -40,9 +40,7 @@ eyeballed 2026-06-04; thread-pool deferred with no measured reason). The forward
 **[BACKLOG.md](BACKLOG.md)**, which absorbed the polish/QoL roadmap (vision + open work + non-goals;
 the old `hroadmap.md` was folded in and deleted). Highest-value open items there, roughly in order:
 
-- **Dashboard "Attention Center"** — make the dashboard answer "what needs my attention today?"
-  (lazy cards: updates split, system safety, reclaim space, recent activity, AUR/Flatpak safety).
-  Most backends already exist; mostly a `get_dashboard_summary` + UI.
+- ~~**Dashboard "Attention Center"**~~ ✅ **shipped + GUI-verified 2026-06-04** (see Done).
 - **AUR discovery buckets** (Popular / Recently-updated / VCS / binary) — the *feasible* form of AUR
   Browse (categories are infeasible). Needs the heavier `packages-meta-ext-v1.json.gz` dump, not just
   the names index — a real data-source decision.
@@ -75,6 +73,29 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Dashboard "Attention Center" (2026-06-04).** The dashboard now shows a row of lazy, best-effort
+  cards above the suggestions grid answering "what needs my attention today?": **Updates** (count +
+  Arch/AUR/Flatpak split, "up to date" at 0), **System safety** (`.pacnew` count, DB-sync age, pacman
+  lock, unread news since sync), **Reclaim space** (orphans, pacman cache size, unused Flatpak
+  runtimes), **Recent activity** (last 3), **AUR safety** (chroot enabled/available). Each card
+  click-throughs to the page that acts on it. **The dashboard is the Attention Center only** — the
+  app-suggestions grid was removed from it and **moved to Browse** as a "Suggested for you" row above
+  the categories (discovery now lives in Browse + Installed + search). Card tone is a tinted circular
+  icon chip (not a side stripe), and the grid shares `.packages-grid`'s 24px inset. Backend:
+  `AtlasApi.get_dashboard_summary()` runs the
+  cheap signals concurrently on the shared executor and **fails open per field** (a failed check →
+  None / "couldn't check"), reusing `get_pacnew_files`/`check_upgrade_news`/`get_cleanup_summary`/
+  `get_activity` + `_last_db_sync_time` + the arch chroot config. **Updates are excluded from that
+  payload** (they need `read_installed`); the frontend fetches `get_updates` separately and **shares
+  the Updates view's `packageCache`** (warm-reuse both ways → one read_installed). Frontend: pure HTML
+  builders (`buildAttentionCenterHTML`/`buildUpdatesCardHTML`, unit-tested in the Node VM harness) +
+  `renderAttentionCenter` with a stale-render epoch guard; `#attention-center` cleared on non-dashboard
+  views. Tests: `test_api.py::DashboardSummaryTest` (3, incl. fail-open) + `main_js_contracts.test.js`
+  suite 456 + JS harness 11. **GUI-verified 2026-06-04**: greeting + tone-colored status line, hero
+  cards, click-through, the **Display-name** setting (Settings → General → custom greeting name), and on
+  Browse the categories-on-top + Flatpak "Suggested" row + color category icons (💻/⚙️).
+  Deferred: a Flatpak-permissions "risky apps" card (needs expensive per-app reads). Plan:
+  [plans/2026-06-04-dashboard-attention-center.md](plans/2026-06-04-dashboard-attention-center.md).
 - **Release 0.11.0 — prep (2026-06-04).** `__version__` had read `0.10.7` since the initial commit
   (the bauh fork point, never bumped); everything Atlas accumulated on top of it. Bumped
   `atlas/__init__.py` → **0.11.0** (flows to the About dialog, `--version`, `pyproject`/`setup`,

@@ -51,10 +51,13 @@ class AtlasApi:
         ('internet',    'Internet',      '🌐', ('Network', 'Browser', 'browser', 'Torrent', 'P2P', 'IRC'), 'Network'),
         ('multimedia',  'Audio & Video', '🎵', ('Audio', 'Video', 'AudioVideo'), 'AudioVideo'),
         ('graphics',    'Graphics',      '🎨', ('Graphics', 'GTK'), 'Graphics'),
-        ('development', 'Development',    '⌨',  ('Development', 'Python', 'Javascript'), 'Development'),
+        # 💻 (color-default) replaces ⌨, and the gear carries an explicit emoji variation selector
+        # (⚙️ = U+2699 U+FE0F) — without it ⌨/⚙ are text-presentation glyphs that render as faint
+        # monochrome outlines on the dark theme (the other six icons are color-emoji by default).
+        ('development', 'Development',   '💻', ('Development', 'Python', 'Javascript'), 'Development'),
         ('office',      'Office',         '📄', ('Office',), 'Office'),
         ('utilities',   'Utilities',     '🧰', ('Utility',), 'Utility'),
-        ('system',      'System',        '⚙',  ('System', 'Settings', 'Security', 'Kernel',
+        ('system',      'System',        '⚙️',  ('System', 'Settings', 'Security', 'Kernel',
                                                 'Printing', 'Bluetooth', 'Qt', 'KDE', 'Gnome',
                                                 'Xfce', 'XFCE', 'Manjaro'), 'System'),
     )
@@ -761,6 +764,120 @@ class AtlasApi:
             self.logger.warning("cleanup summary: flatpak availability check failed", exc_info=True)
 
         return {'status': 'ok', 'data': data}
+
+    def get_dashboard_summary(self) -> dict:
+        """Aggregated, best-effort "what needs my attention" signals for the dashboard Attention
+        Center. Runs the cheap checks concurrently on the shared executor and fails open per
+        field (a failed check → None / default), so the dashboard always renders. Updates are
+        intentionally excluded — they need read_installed() (expensive); the frontend fetches
+        those separately. See docs/plans/2026-06-04-dashboard-attention-center.md."""
+        from datetime import datetime, timezone
+
+        def _safety():
+            out = {'pacnew_count': None, 'db_sync_age_hours': None,
+                   'pacman_locked': None, 'news_count': None}
+            try:
+                pn = self.get_pacnew_files()
+                if pn.get('status') == 'ok':
+                    out['pacnew_count'] = pn['data']['count']
+            except Exception:
+                pass
+            try:
+                synced = self._last_db_sync_time()
+                if synced is not None:
+                    age = (datetime.now(timezone.utc) - synced).total_seconds()
+                    out['db_sync_age_hours'] = round(age / 3600.0, 1)
+            except Exception:
+                pass
+            try:
+                out['pacman_locked'] = os.path.exists('/var/lib/pacman/db.lck')
+            except Exception:
+                pass
+            try:
+                nw = self.check_upgrade_news()
+                if nw.get('status') == 'ok':
+                    out['news_count'] = nw['data'].get('new_count')
+            except Exception:
+                pass
+            return out
+
+        def _reclaim():
+            out = {'orphans': None, 'cache_human': None, 'flatpak_available': False}
+            try:
+                cs = self.get_cleanup_summary()
+                if cs.get('status') == 'ok':
+                    d = cs['data']
+                    out['orphans'] = d.get('orphans', {}).get('count')
+                    pc = d.get('pacman_cache', {})
+                    out['cache_human'] = pc.get('total_human') if pc.get('available') else None
+                    out['flatpak_available'] = bool(d.get('flatpak', {}).get('available'))
+            except Exception:
+                pass
+            return out
+
+        def _aur():
+            out = {'chroot_enabled': False, 'chroot_available': False}
+            arch_man = self._manager_by_gem('arch')
+            if arch_man is not None:
+                try:
+                    aconf = arch_man.configman.get_config()
+                    out['chroot_enabled'] = bool(aconf.get('aur_build_chroot', False))
+                except Exception:
+                    pass
+                try:
+                    from atlas.gems.arch import chroot
+                    out['chroot_available'] = bool(chroot.available())
+                except Exception:
+                    pass
+            return out
+
+        def _activity():
+            try:
+                act = self.get_activity()
+                if act.get('status') == 'ok':
+                    return (act.get('data') or [])[:3]
+            except Exception:
+                pass
+            return []
+
+        try:
+            jobs = {'safety': _safety, 'reclaim': _reclaim, 'aur': _aur, 'activity': _activity}
+            futures = {key: self._executor.submit(fn) for key, fn in jobs.items()}
+            data = {}
+            for key, fut in futures.items():
+                try:
+                    data[key] = fut.result(timeout=20)
+                except Exception:
+                    self.logger.warning(f"dashboard summary: {key} check failed", exc_info=True)
+                    data[key] = {} if key != 'activity' else []
+            data['user'] = self._dashboard_user()  # cheap; for the greeting ("Good morning, X")
+            return {'status': 'ok', 'data': data}
+        except Exception as e:
+            self.logger.error(f"get_dashboard_summary failed: {e}")
+            return {'status': 'error', 'message': str(e)}
+
+    def _dashboard_user(self) -> Optional[str]:
+        """A friendly name for the dashboard greeting: the user-set name (Settings) if any, else
+        the GECOS full name's first part, else the login name. None if nothing resolves (the
+        greeting then omits the name)."""
+        try:
+            custom = (self.manager.configman.get_config().get('ui') or {}).get('greeting_name')
+            if custom and custom.strip():
+                return custom.strip()
+        except Exception:
+            pass
+        try:
+            import pwd
+            gecos = (pwd.getpwuid(os.getuid()).pw_gecos or '').split(',')[0].strip()
+            if gecos:
+                return gecos
+        except Exception:
+            pass
+        try:
+            import getpass
+            return getpass.getuser() or None
+        except Exception:
+            return None
 
     def clean_pacman_cache(self) -> dict:
         """Remove cached tarballs of packages that are no longer installed (`pacman -Sc`).
@@ -1480,6 +1597,7 @@ class AtlasApi:
                     'ask_for_reboot': bool(core['updates']['ask_for_reboot']),
                     'download_icons': bool(core['download']['icons']),
                     'store_root_password': bool(core['store_root_password']),
+                    'greeting_name': (core.get('ui') or {}).get('greeting_name') or '',
                 },
                 'tray': {
                     'available': bool(TRAY_AVAILABLE),
@@ -1529,6 +1647,10 @@ class AtlasApi:
                 core['download']['icons'] = bool(general['download_icons'])
             if 'store_root_password' in general:
                 core['store_root_password'] = bool(general['store_root_password'])
+            if 'greeting_name' in general:
+                # Custom name for the dashboard greeting; '' clears it (falls back to the OS name).
+                name = (general.get('greeting_name') or '').strip()[:40]
+                core.setdefault('ui', {})['greeting_name'] = name
 
             # System tray (takes effect on next launch — the indicator is built at startup).
             tray = settings.get('tray')
