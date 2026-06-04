@@ -42,17 +42,21 @@ class AtlasApi:
     # inconsistent raw labels (Browser/browser, Xfce/XFCE, Python, Emulator, Manjaro, …); we
     # merge the synonyms into a small curated, ordered set of top-level buckets. Each raw label
     # maps into at most the buckets that list it. See docs/plans/2026-06-02-browse-by-category.md.
+    # Each bucket: (key, label, icon, arch_raw_labels, flathub_category). The 4th element is the
+    # set of raw categories.txt labels that fall in the bucket (Arch repo index); the 5th is the
+    # matching Flathub top-level category (None if the bucket has no Flatpak equivalent). AUR has
+    # no category source — the RPC carries no categories — so Browse stays Arch-repo + Flatpak.
     CATEGORY_BUCKETS = (
-        ('games',       'Games',         '🎮', ('Game', 'Emulator')),
-        ('internet',    'Internet',      '🌐', ('Network', 'Browser', 'browser', 'Torrent', 'P2P', 'IRC')),
-        ('multimedia',  'Audio & Video', '🎵', ('Audio', 'Video', 'AudioVideo')),
-        ('graphics',    'Graphics',      '🎨', ('Graphics', 'GTK')),
-        ('development', 'Development',    '⌨',  ('Development', 'Python', 'Javascript')),
-        ('office',      'Office',         '📄', ('Office',)),
-        ('utilities',   'Utilities',     '🧰', ('Utility',)),
+        ('games',       'Games',         '🎮', ('Game', 'Emulator'), 'Game'),
+        ('internet',    'Internet',      '🌐', ('Network', 'Browser', 'browser', 'Torrent', 'P2P', 'IRC'), 'Network'),
+        ('multimedia',  'Audio & Video', '🎵', ('Audio', 'Video', 'AudioVideo'), 'AudioVideo'),
+        ('graphics',    'Graphics',      '🎨', ('Graphics', 'GTK'), 'Graphics'),
+        ('development', 'Development',    '⌨',  ('Development', 'Python', 'Javascript'), 'Development'),
+        ('office',      'Office',         '📄', ('Office',), 'Office'),
+        ('utilities',   'Utilities',     '🧰', ('Utility',), 'Utility'),
         ('system',      'System',        '⚙',  ('System', 'Settings', 'Security', 'Kernel',
                                                 'Printing', 'Bluetooth', 'Qt', 'KDE', 'Gnome',
-                                                'Xfce', 'XFCE', 'Manjaro')),
+                                                'Xfce', 'XFCE', 'Manjaro'), 'System'),
     )
 
     def __init__(self, manager: GenericSoftwareManager, logger: logging.Logger):
@@ -280,6 +284,13 @@ class AtlasApi:
     )
     _ICON_EXTS = ('.svg', '.png')  # web-renderable only — WebKitGTK can't display .xpm in <img>
 
+    # Base directories an icon theme can live under, in XDG lookup order (user dirs win).
+    _ICON_BASE_DIRS = (
+        os.path.expanduser('~/.local/share/icons'),
+        os.path.expanduser('~/.icons'),
+        '/usr/share/icons',
+    )
+
     @staticmethod
     def _desktop_icon_name(desktop_text: str) -> Optional[str]:
         """The `Icon=` value from a .desktop file's first occurrence, or None."""
@@ -289,14 +300,115 @@ class AtlasApi:
                 return line[5:].strip() or None
         return None
 
+    @staticmethod
+    def _read_keyfile_sections(path: str) -> dict:
+        """Minimal `[Section] key=value` parser for index.theme (we avoid configparser — some
+        index.theme files trip it up, and GKeyFile isn't thread-safe off the GTK loop)."""
+        sections, cur = {}, None
+        try:
+            with open(path, encoding='utf-8', errors='ignore') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    if line.startswith('[') and line.endswith(']'):
+                        cur = line[1:-1]
+                        sections[cur] = {}
+                    elif cur is not None and '=' in line:
+                        k, _, v = line.partition('=')
+                        sections[cur][k.strip()] = v.strip()
+        except Exception:
+            return {}
+        return sections
+
+    def _active_icon_theme(self) -> str:
+        """The user's active icon theme name (gsettings → gtk-3.0 settings.ini → 'hicolor').
+        Cached for the session. Pure subprocess/file reads — safe off the GTK main thread."""
+        if hasattr(self, '_icon_theme_name'):
+            return self._icon_theme_name
+        theme = None
+        try:
+            out = run_cmd('gsettings get org.gnome.desktop.interface icon-theme',
+                          ignore_return_code=True, print_error=False)
+            if out:
+                theme = out.strip().strip("'\"") or None
+        except Exception:
+            pass
+        if not theme:
+            ini = os.path.expanduser('~/.config/gtk-3.0/settings.ini')
+            try:
+                if os.path.isfile(ini):
+                    with open(ini, encoding='utf-8', errors='ignore') as f:
+                        for line in f:
+                            if line.strip().lower().startswith('gtk-icon-theme-name'):
+                                theme = line.partition('=')[2].strip().strip('"\'') or None
+                                break
+            except Exception:
+                pass
+        self._icon_theme_name = theme or 'hicolor'
+        return self._icon_theme_name
+
+    def _theme_app_dirs(self, theme: str, seen: set) -> list:
+        """Absolute Applications-context icon directories for `theme` and the themes it
+        Inherits, ordered best-first (scalable, then largest size). Filesystem-only — parses
+        each index.theme's Directories list rather than walking the (huge) theme trees."""
+        if not theme or theme in seen:
+            return []
+        seen.add(theme)
+        result, inherits = [], []
+        for base in self._ICON_BASE_DIRS:
+            theme_root = os.path.join(base, theme)
+            index = os.path.join(theme_root, 'index.theme')
+            if not os.path.isfile(index):
+                continue
+            sections = self._read_keyfile_sections(index)
+            header = sections.get('Icon Theme', {})
+            scored = []
+            for d in (x.strip() for x in header.get('Directories', '').split(',') if x.strip()):
+                sec = sections.get(d, {})
+                ctx = sec.get('Context', '')
+                if (ctx and ctx.lower() != 'applications') or (not ctx and 'apps' not in d.lower()):
+                    continue
+                try:
+                    size = int(sec.get('Size', '0'))
+                except ValueError:
+                    size = 0
+                is_scalable = sec.get('Type', '').lower() == 'scalable' or 'scalable' in d.lower()
+                full = os.path.join(theme_root, d)
+                if os.path.isdir(full):
+                    scored.append((is_scalable, size, full))
+            scored.sort(key=lambda t: (t[0], t[1]), reverse=True)
+            result.extend(full for _, _, full in scored)
+            inherits.extend(p.strip() for p in header.get('Inherits', '').split(',') if p.strip())
+        for parent in inherits:
+            result.extend(self._theme_app_dirs(parent, seen))
+        return result
+
+    def _theme_icon_dirs(self) -> list:
+        """The active icon theme's app dirs (+ inherited), resolved once and cached. Empty for
+        the bare 'hicolor' theme (already covered by the hardcoded _ICON_DIRS)."""
+        if hasattr(self, '_theme_icon_dirs_cache'):
+            return self._theme_icon_dirs_cache
+        dirs = []
+        try:
+            theme = self._active_icon_theme()
+            if theme and theme != 'hicolor':
+                dirs = self._theme_app_dirs(theme, set())
+        except Exception as e:
+            self.logger.debug(f"theme icon dir resolution failed: {e}")
+        self._theme_icon_dirs_cache = dirs
+        return dirs
+
     def _find_icon_file(self, name: str) -> Optional[str]:
-        """Resolve an icon name (or absolute path) to a file under the standard icon dirs."""
+        """Resolve an icon name (or absolute path) to a file. Searches the active icon theme's
+        dirs first (so theme-specific icons like Papirus/breeze konsole resolve), then falls
+        back to the hardcoded hicolor/pixmaps list."""
         if not name:
             return None
         if name.startswith('/'):
             return name if os.path.isfile(name) else None
         candidates = list(dict.fromkeys([name, os.path.splitext(name)[0]]))  # name + stem, deduped
-        for d in self._ICON_DIRS:
+        for d in (*self._theme_icon_dirs(), *self._ICON_DIRS):
             for cand in candidates:
                 for ext in self._ICON_EXTS:
                     path = os.path.join(d, cand + ext)
@@ -497,7 +609,7 @@ class AtlasApi:
         try:
             self.logger.info("get_categories called")
             buckets = []
-            for key, label, icon, raw in self.CATEGORY_BUCKETS:
+            for key, label, icon, raw, _flathub_cat in self.CATEGORY_BUCKETS:
                 count = len(self._category_names(raw))
                 if count:
                     buckets.append({'key': key, 'label': label, 'icon': icon, 'count': count})
@@ -518,10 +630,22 @@ class AtlasApi:
 
             names = self._category_names(bucket[3])
             arch_man = self._manager_by_gem('arch')
-            if arch_man is None or not names:
-                return {'status': 'ok', 'data': []}
+            pkgs = []
+            if arch_man is not None and names:
+                pkgs.extend(arch_man.list_category_packages(names))
 
-            pkgs = arch_man.list_category_packages(names)
+            # Also list Flathub apps in the matching top-level category (one best-effort HTTP
+            # call). The frontend's collapseByName() merges any same-named Arch+Flatpak pair into
+            # one multi-source card. Skipped when the gem is disabled/can't work or has no category.
+            flathub_cat = bucket[4]
+            flatpak_man = self._manager_by_gem('flatpak')
+            if flathub_cat and flatpak_man is not None and hasattr(flatpak_man, 'list_category_packages'):
+                try:
+                    if flatpak_man.is_enabled() and flatpak_man.can_work()[0]:
+                        pkgs.extend(flatpak_man.list_category_packages(flathub_cat))
+                except Exception:
+                    self.logger.warning("Could not list Flatpak category packages", exc_info=True)
+
             return {'status': 'ok', 'data': [self._serialize_pkg(p) for p in pkgs]}
         except Exception as e:
             self.logger.error(f"Error fetching category packages: {e}")

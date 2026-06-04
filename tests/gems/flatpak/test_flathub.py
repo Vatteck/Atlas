@@ -149,3 +149,45 @@ class FlathubV2Test(TestCase):
         client = Mock()
         client.get.return_value = None
         self.assertIsNone(flathub.installs_last_month(client, 'x'))
+
+    # --- collection_apps (Browse-by-category) -----------------------------
+    def test_map_collection_hit_uses_dotted_app_id_not_doc_id(self):
+        # the `id` field is the underscore-joined search doc id; `app_id` is the real dotted id
+        m = flathub.map_collection_hit({
+            'id': 'com_usebottles_bottles', 'app_id': 'com.usebottles.bottles',
+            'name': 'Bottles', 'summary': 'Run <b>Windows</b> software',
+            'icon': 'https://dl.flathub.org/.../bottles.png',
+            'developer_name': 'Bottles', 'is_free_license': True,
+            'verification_verified': True,
+        })
+        self.assertEqual('com.usebottles.bottles', m['id'])
+        self.assertEqual('Bottles', m['name'])
+        self.assertEqual('Run Windows software', m['description'])  # html stripped
+        self.assertEqual('https://dl.flathub.org/.../bottles.png', m['icon_url'])
+        self.assertTrue(m['is_free'])
+        self.assertTrue(m['verified'])
+
+    def test_map_collection_hit_without_app_id_is_none(self):
+        self.assertIsNone(flathub.map_collection_hit({'id': 'x_y', 'name': 'X'}))
+        self.assertIsNone(flathub.map_collection_hit(None))
+
+    def test_collection_apps_maps_hits_and_respects_limit(self):
+        client = Mock()
+        client.get.return_value = Mock(status_code=200, json=lambda: {'hits': [
+            {'app_id': 'a.b.C', 'name': 'C'},
+            {'app_id': 'd.e.F', 'name': 'F'},
+            {'name': 'no-id'},  # dropped
+        ]})
+        apps = flathub.collection_apps(client, 'Utility', limit=1)
+        self.assertEqual(['a.b.C'], [a['id'] for a in apps])  # limited to 1, id-less dropped
+        called = client.get.call_args[0][0]
+        self.assertIn('/collection/category/Utility', called)
+        self.assertIn('per_page=1', called)
+
+    def test_collection_apps_failure_is_empty(self):
+        client = Mock()
+        client.get.return_value = None
+        self.assertEqual([], flathub.collection_apps(client, 'Game'))
+        client.get.return_value = Mock(status_code=404, json=lambda: {})
+        self.assertEqual([], flathub.collection_apps(client, 'Game'))
+        self.assertEqual([], flathub.collection_apps(client, ''))

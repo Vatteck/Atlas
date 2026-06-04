@@ -217,6 +217,68 @@ class InstalledIconResolveTest(unittest.TestCase):
         self.assertEqual(p, self.api._find_icon_file(p))
         self.assertIsNone(self.api._find_icon_file('/no/such/icon.png'))
 
+    def _make_theme(self, base, name, directories, inherits=None, files=None):
+        """Write a minimal icon theme (index.theme + the named app dirs/files) under `base`."""
+        import os
+        root = os.path.join(base, name)
+        os.makedirs(root, exist_ok=True)
+        lines = ['[Icon Theme]', f'Name={name}',
+                 'Directories=' + ','.join(d['dir'] for d in directories)]
+        if inherits:
+            lines.append('Inherits=' + ','.join(inherits))
+        for d in directories:
+            lines += ['', f"[{d['dir']}]", f"Context={d.get('context', 'Applications')}",
+                      f"Size={d.get('size', 48)}", f"Type={d.get('type', 'Threshold')}"]
+        with open(os.path.join(root, 'index.theme'), 'w') as f:
+            f.write('\n'.join(lines) + '\n')
+        for rel in (files or []):
+            full = os.path.join(root, rel)
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            open(full, 'w').close()
+
+    def test_find_icon_file_searches_active_theme(self):
+        import tempfile, os
+        base = tempfile.mkdtemp()
+        # a theme-only icon (konsole) that hicolor/pixmaps wouldn't have
+        self._make_theme(base, 'Papirusish',
+                         [{'dir': '48x48/apps'}, {'dir': 'scalable/apps', 'type': 'Scalable'}],
+                         files=['scalable/apps/konsole.svg', '48x48/apps/konsole.png'])
+        with patch.object(AtlasApi, '_ICON_BASE_DIRS', (base,)), \
+             patch.object(AtlasApi, '_ICON_DIRS', ()), \
+             patch.object(self.api, '_active_icon_theme', return_value='Papirusish'):
+            found = self.api._find_icon_file('konsole')
+        # scalable (svg) is preferred over the raster size dir
+        self.assertTrue(found.endswith('scalable/apps/konsole.svg'), found)
+
+    def test_theme_app_dirs_follows_inherits_and_skips_non_app_context(self):
+        import tempfile, os
+        base = tempfile.mkdtemp()
+        self._make_theme(base, 'Child', [{'dir': 'apps'}], inherits=['Parent'],
+                         files=['apps/foo.svg'])
+        self._make_theme(base, 'Parent',
+                         [{'dir': '32x32/apps'}, {'dir': '32x32/mimetypes', 'context': 'MimeTypes'}],
+                         files=['32x32/apps/bar.svg', '32x32/mimetypes/text.svg'])
+        with patch.object(AtlasApi, '_ICON_BASE_DIRS', (base,)), \
+             patch.object(self.api, '_active_icon_theme', return_value='Child'):
+            self.api.__dict__.pop('_theme_icon_dirs_cache', None)
+            dirs = self.api._theme_icon_dirs()
+        # child app dir comes before inherited parent; mimetypes (non-app) excluded
+        self.assertTrue(dirs[0].endswith('Child/apps'))
+        self.assertTrue(any(d.endswith('Parent/32x32/apps') for d in dirs))
+        self.assertFalse(any('mimetypes' in d for d in dirs))
+
+    def test_active_icon_theme_reads_gtk_settings_when_no_gsettings(self):
+        import tempfile, os
+        # no gsettings → falls back to gtk-3.0 settings.ini
+        cfg = tempfile.mkdtemp()
+        ini = os.path.join(cfg, 'settings.ini')
+        with open(ini, 'w') as f:
+            f.write('[Settings]\ngtk-icon-theme-name=Breezish\n')
+        with patch('atlas.view.webview.api.run_cmd', return_value=''), \
+             patch('os.path.expanduser', return_value=ini):
+            self.api.__dict__.pop('_icon_theme_name', None)
+            self.assertEqual('Breezish', self.api._active_icon_theme())
+
     def test_get_pkg_icon_empty_for_non_installed(self):
         pkg = Mock(); pkg.installed = False; pkg.name = 'x'
         with patch.object(self.api, '_get_pkg', return_value=pkg):
@@ -1278,5 +1340,44 @@ class BrowseCategoryTest(unittest.TestCase):
         res = self.api.get_categories()
         self.assertEqual('ok', res['status'])
         self.assertEqual([], res['data'])
+
+    def _flatpak_pkg(self, name, app_id):
+        p = Mock()
+        p.name = name; p.id = app_id
+        p.description = ''; p.version = ''; p.latest_version = ''; p.installed = False
+        p.update = False; p.icon_url = None; p.size = None; p.categories = []
+        p.get_publisher.return_value = ''
+        p.get_type.return_value = 'flatpak'
+        for a in ('can_be_run', 'can_be_downgraded', 'has_info', 'has_history',
+                  'is_update_ignored', 'supports_ignored_updates'):
+            getattr(p, a).return_value = False
+        return p
+
+    def test_get_category_packages_appends_flatpak_when_enabled(self):
+        flatpak = Mock()
+        flatpak.__module__ = 'atlas.gems.flatpak.controller'
+        flatpak.is_enabled.return_value = True
+        flatpak.can_work.return_value = (True, None)
+        flatpak.list_category_packages.return_value = [
+            self._flatpak_pkg('Steam', 'com.valvesoftware.Steam')]
+        self.manager.managers = [self.arch, flatpak]
+
+        res = self.api.get_category_packages('games')
+        self.assertEqual('ok', res['status'])
+        names = sorted(p['name'] for p in res['data'])
+        self.assertEqual(['0ad', 'Steam', 'dolphin-emu'], sorted(names))
+        # the gem was asked for the bucket's Flathub category, not the raw arch labels
+        self.assertEqual('Game', flatpak.list_category_packages.call_args[0][0])
+
+    def test_get_category_packages_skips_disabled_flatpak(self):
+        flatpak = Mock()
+        flatpak.__module__ = 'atlas.gems.flatpak.controller'
+        flatpak.is_enabled.return_value = False
+        flatpak.can_work.return_value = (True, None)
+        self.manager.managers = [self.arch, flatpak]
+
+        res = self.api.get_category_packages('games')
+        self.assertEqual('ok', res['status'])
+        flatpak.list_category_packages.assert_not_called()
 
 

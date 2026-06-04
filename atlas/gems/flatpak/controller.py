@@ -406,6 +406,24 @@ class FlatpakManager(SoftwareManager, SettingsController):
             badges['safety'] = permissions.safety(perms, is_free=is_free)
         return badges
 
+    def list_category_packages(self, category: str, limit: int = 60) -> List[FlatpakApplication]:
+        """Flathub apps in a top-level category, for the webview Browse view. One best-effort
+        HTTP call (see flathub.collection_apps); returns [] on any miss so Browse never blocks.
+        Apps are non-installed cards — id/name/description/icon set; the webview's lazy meta
+        loader fills the rest on demand."""
+        if not category:
+            return []
+        apps = []
+        for m in flathub.collection_apps(self.http_client, category, limit=limit,
+                                         logger=self.context.logger):
+            app = FlatpakApplication(id=m['id'], name=m['name'], description=m.get('description'),
+                                     branch='stable', origin='flathub', installed=False,
+                                     i18n=self.i18n)
+            if m.get('icon_url'):
+                app.icon_url = m['icon_url']
+            apps.append(app)
+        return apps
+
     def get_flathub_card_metadata(self, app_id: str) -> dict:
         """Lightweight Flathub metadata for grid cards. Only fetches appstream metadata."""
         if not app_id:

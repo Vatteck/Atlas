@@ -159,6 +159,48 @@ def permissions(http_client, app_id: str, logger=None) -> Optional[dict]:
     return None
 
 
+def map_collection_hit(hit: Optional[dict]) -> Optional[dict]:
+    """Flatten one hit from the `/collection/category/<cat>` payload into the fields the
+    Browse view needs, or None if it has no usable app id. The collection hit carries a
+    dotted `app_id` (the `id` field is the underscore-joined search doc id — don't use it)."""
+    if not hit:
+        return None
+    app_id = hit.get('app_id')
+    if not app_id:
+        return None
+    return {
+        'id': app_id,
+        'name': hit.get('name') or app_id,
+        'description': strip_html(hit.get('summary') or '') or None,
+        'icon_url': hit.get('icon') or None,
+        'developer_name': hit.get('developer_name') or None,
+        'is_free': bool(hit.get('is_free_license')),
+        'verified': bool(hit.get('verification_verified')),
+    }
+
+
+def collection_apps(http_client, category: str, limit: int = 60, logger=None) -> List[dict]:
+    """Apps in a Flathub top-level category, newest-list order, as flat dicts (see
+    `map_collection_hit`). One best-effort request; returns [] on any miss/error so the
+    Browse view is never blocked by Flathub being slow or down."""
+    if not category:
+        return []
+    try:
+        per_page = limit if limit and limit > 0 else 60
+        res = http_client.get('{}/collection/category/{}?page=1&per_page={}'.format(
+            FLATHUB_API_URL, category, per_page), single_call=True)
+        if res is None or not (200 <= res.status_code < 300):
+            return []
+        hits = (res.json() or {}).get('hits') or []
+    except Exception as e:
+        if logger is not None:
+            logger.debug("flathub collection fetch failed for '%s': %s", category, e)
+        return []
+
+    apps = [m for m in (map_collection_hit(h) for h in hits) if m]
+    return apps[:limit] if limit and limit > 0 else apps
+
+
 def _release_date(release: dict) -> Optional[datetime]:
     """v2 releases carry a unix `timestamp` (string) and sometimes an ISO `date`."""
     ts = release.get('timestamp')

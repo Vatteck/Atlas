@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-03 (Sprint 1 merged locally; Sprint 2 branch cut; 442 tests green)
+**Last updated:** 2026-06-04 (Sprint 2: Flatpak Browse categories + theme-aware icons; 451 tests green)
 **Version:** 0.10.7
 **Working branch:** `feat/webview-polish-sprint-2` (short-lived polish branch; run `git branch` before acting)
 
@@ -26,26 +26,36 @@ safety tier → in-modal override editing → full **Flatseal-grade Permissions 
 Device/Features/Filesystem/Bus/Environment, tabbed); plus maintenance hub, downgrade/rollback,
 News + `.pacnew`, Update-All news gate, Browse, sort, non-Qt tray, icons, keyboard shortcuts,
 screenshot lightbox. **No big-ticket item is open** — remaining work is small follow-ups (see Next).
-Current GUI smoke checklist is complete. Sprint 1 fixed Browse category state/sort/filter correctness and stale async guards;
-see [plans/2026-06-03-webview-polish-sprint-1.md](plans/2026-06-03-webview-polish-sprint-1.md).
+Sprint 1 fixed Browse category state/sort/filter correctness and stale async guards
+(see [plans/2026-06-03-webview-polish-sprint-1.md](plans/2026-06-03-webview-polish-sprint-1.md)).
+**Sprint 2 (2026-06-04)** worked the polish tail: Browse now lists Flatpak (Flathub) apps per category
+(AUR has no category source — excluded), and installed-app icon resolution now searches the active icon
+theme + its inherits chain (thread-safe, no `Gtk.IconTheme`). 451 tests green; both new features need a
+GUI eyeball. Plan: [plans/2026-06-04-polish-tail.md](plans/2026-06-04-polish-tail.md).
 
 ## Next
 
 Pulling from **[BACKLOG.md](BACKLOG.md)**. The planned themes are all shipped; what's left is small
-follow-ups:
+follow-ups. The 2026-06-03 Browse/icon follow-ups shipped this session (see Done):
 
-- **Browse follow-up:** extend Browse beyond Arch-repo to **AUR/Flatpak categories** (needs each
-  gem's own category source). Sort/filter inside an open category is done in sprint 1.
-- **Installed-app icons follow-up:** broaden resolution beyond hicolor/pixmaps to active-theme dirs
-  / `Gtk.IconTheme` so theme-specific icons (e.g. `konsole`/breeze) resolve instead of a letter
-  avatar. (Watch WebKitGTK thread-safety.)
-- **GUI verification status (2026-06-03):** user GUI-verified this session's Flatpak Permissions
-  page, clean-chroot toggle (built `protonup-qt` end-to-end), AUR maintainer/update badges in the
-  detail view, the empty-state, **Browse sprint-1 smoke checklist**, **downgrade**, and the
-  **screenshot lightbox**. No current manual smoke item is open. Skeleton loaders are wired/correct — they only show on *uncached*
-  loads (the session `packageCache` makes repeats instant), which is expected.
-- **Lower-value:** route the controller's ad-hoc `Thread(...)` spawns through a shared pool
-  (marginal; only with a measured reason).
+- **Browse follow-up — done for Flatpak; AUR is infeasible.** Browse now lists Arch repo + Flatpak
+  (Flathub) per category. **AUR has no category source** — the RPC v5 carries no categories (only
+  freeform per-package Keywords; the pre-4.0 AUR categories were dropped), so AUR Browse-by-category
+  can't be done without scraping/heuristics. Not pursuing it. **Needs a GUI eyeball** (open a bucket →
+  Arch + Flatpak cards; network-dependent).
+- **Installed-app icons follow-up — done.** Resolution now searches the active icon theme + its
+  Inherits chain (filesystem-only, no `Gtk.IconTheme`) before hicolor/pixmaps, so theme-specific
+  icons (e.g. `konsole` in Papirus/breeze) resolve. **Needs a GUI eyeball** (themed installed app
+  that previously showed a letter avatar).
+- **Thread-pool follow-up — deferred (decision recorded).** Routing the controller's ad-hoc
+  `Thread(...)` spawns through a shared pool is marginal and has **no measured reason** (golden rule
+  #6). They're short-lived per-action fan-outs, not a hot loop; no measured contention. Left as-is on
+  purpose — see the plan doc.
+- **GUI verification status (2026-06-03):** user GUI-verified the Flatpak Permissions page,
+  clean-chroot toggle (built `protonup-qt` end-to-end), AUR maintainer/update badges, the empty-state,
+  the Browse sprint-1 smoke checklist, downgrade, and the screenshot lightbox. **Open this session:**
+  Flatpak in Browse categories + theme-aware installed icons (both need a GUI eyeball — network/theme
+  dependent, can't be driven headless).
 
 > **Handoff note (next agent):** `feat/webview-polish-sprint-1` was fast-forward merged into local
 > `master`, then `feat/webview-polish-sprint-2` was cut for the next pass. No sprint-2 functional
@@ -68,6 +78,31 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Browse — Flatpak categories (sprint 2, 2026-06-04).** Browse-by-category was Arch-repo-only;
+  it now also lists **Flathub** apps per bucket. New pure mappers in
+  `atlas/gems/flatpak/flathub.py`: `map_collection_hit` (flattens one
+  `/api/v2/collection/category/<Cat>` hit — uses the **dotted `app_id`**, not the underscore-joined
+  `id`) + `collection_apps` (one best-effort HTTP call, `[]` on any miss → never blocks Browse).
+  `FlatpakManager.list_category_packages(category)` builds non-installed `FlatpakApplication` cards
+  from it (icon/name/summary set; webview lazy-loader fills the rest). `CATEGORY_BUCKETS` gained a
+  5th element = the matching Flathub category; `AtlasApi.get_category_packages` now concatenates Arch
+  + Flatpak results (gated on the gem being enabled + `can_work`), and the frontend's existing
+  `collapseByName()` merges same-named Arch+Flatpak pairs into one multi-source card — **no frontend
+  change needed**. `get_categories` counts stay Arch-only/cheap (no per-bucket network on Browse
+  open). **AUR deliberately excluded** — the RPC has no category source (see Next). Tests:
+  `test_flathub.py` (+4), `test_api.py::BrowseCategoryTest` (+2). **Needs a GUI eyeball.** Plan:
+  [plans/2026-06-04-polish-tail.md](plans/2026-06-04-polish-tail.md).
+- **Installed-app icons — search the active icon theme (sprint 2, 2026-06-04).** `_resolve_installed_icon`
+  only searched `hicolor/*` + `pixmaps`, so theme-only icons fell back to a letter avatar. Now
+  `_find_icon_file` searches the **active icon theme** + its `Inherits` chain first. All
+  filesystem/subprocess, **thread-safe (no `Gtk.IconTheme`)**: `_active_icon_theme` reads the theme
+  name (`gsettings` → `~/.config/gtk-3.0/settings.ini` → `hicolor`); `_theme_app_dirs` parses each
+  theme's `index.theme` `Directories=`, keeps Applications-context dirs ordered scalable-first then
+  largest size, recurses `Inherits=` across `~/.local/share/icons` / `~/.icons` / `/usr/share/icons`
+  (parse, not a full FS walk); results cached for the session. Falls back to the old hicolor/pixmaps
+  list. Tests: `test_api.py::InstalledIconResolveTest` (+3, incl. inherits chain + scalable ordering +
+  settings.ini fallback). **Needs a GUI eyeball.** Plan:
+  [plans/2026-06-04-polish-tail.md](plans/2026-06-04-polish-tail.md).
 - **Webview polish sprint 1 (2026-06-03).** Added a pytest-driven Node VM contract harness for
   `atlas/view/webview/main.js` and fixed the first polish batch: Browse category results now populate
   `currentPackages` so cards/details/select logic work; sort/type filter re-render an open Browse
