@@ -89,9 +89,10 @@ first:
   mirrors. Don't grow into a full reflector GUI unless it earns it.
 
 ### GUI polish (low backend, high perceived quality)
-- **Command palette** (`Ctrl+K`/`Ctrl+P`) — search packages, jump to pages, run actions (regenerate
-  mirrors, pacdiff, refresh, toggle grid/list, clear selection, install-selected / update-all).
-  Frontend-only.
+- ~~**Command palette** (`Ctrl+K`/`Ctrl+P`)~~ ✅ **shipped + GUI-verified 2026-06-04** — fuzzy-filtered
+  launcher: navigate to any page + run actions (update all, clean orphans, refresh, grid/list, select,
+  regenerate mirrors, pacdiff, export, focus search); shortcut `<kbd>` badges. See
+  [plans/2026-06-04-command-palette.md](plans/2026-06-04-command-palette.md).
 - **Density / layout modes** — Comfortable / Compact / Dense, applied to cards, list rows, detail
   modal, permissions page, activity logs. `localStorage` first.
 - **Contextual topbar** — show only controls meaningful to the current page (search/filter/sort/

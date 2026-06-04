@@ -73,6 +73,15 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Command palette (Ctrl+K) (2026-06-04).** A keyboard-first launcher: **Ctrl+K**/**Ctrl+P** opens a
+  filterable overlay (`#command-palette`); **fuzzy** subsequence match on label + keywords (`fuzzyScore`,
+  best-first), ↑/↓ to move, Enter/click to run, Esc to close. Commands = navigation to every page +
+  actions reusing existing handlers (update all, clean orphans, refresh, grid/list, select mode,
+  regenerate mirrors, open pacdiff, export manifest, focus search). Update-all / clean-orphans are
+  gated on their topbar buttons being visible (`available()`); commands with a global shortcut show it
+  as `<kbd>` badges. Registry/scorer/filter are pure (`buildCommandList`/`fuzzyScore`/`filterCommands`,
+  Node-VM-tested); open/render/keyboard-nav are DOM-bound. **GUI-verified 2026-06-04.** Frontend-only.
+  Plan: [plans/2026-06-04-command-palette.md](plans/2026-06-04-command-palette.md).
 - **Dashboard "Attention Center" (2026-06-04).** The dashboard now shows a row of lazy, best-effort
   cards above the suggestions grid answering "what needs my attention today?": **Updates** (count +
   Arch/AUR/Flatpak split, "up to date" at 0), **System safety** (`.pacnew` count, DB-sync age, pacman
