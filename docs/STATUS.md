@@ -47,10 +47,7 @@ follow-ups:
   (marginal; only with a measured reason).
 
 > **Handoff note (next agent):** working tree clean, on `master`, pushed to origin; 441 tests pass.
-> Last commits: `2c72383` empty-state, `3905545` AUR update-in-detail + icon, `e9a530e` maintainer
-> in detail, `9a624be` maintainer-change advisory, `26827bd`+`ec1c616` **AUR index gunzip fix**
-> (the index was gzip garbage — broke AUR-dep resolution; the on-disk index was regenerated this
-> session), Layer-3 chroot builds `1a2282d`/`67758bc`/`ec11e1a`/`e9de3c7`/`83b4904`.
+> Last commits: `1218edc` (Merge PR #3), `9ea20e1` (screenshot strip/lightbox styling), `7feaa31` (fix AUR maintainer change warning for uninstalled), `ab13e93` (mock run_cmd in AurMetaTest).
 > Known external (not Atlas): the AUR `antigravity` 2.0.11 update fails to build — upstream source
 > URL 404s (Google pulled the tarball). The maintainer-change advisory can't flag `antigravity`
 > (installed before maintainer-caching → no baseline); it works for packages installed since.
