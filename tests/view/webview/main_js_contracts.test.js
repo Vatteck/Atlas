@@ -657,7 +657,7 @@ async function testSystemHealthChecks() {
   assert.strictEqual(c.db.tone, 'danger');             // >7d
   assert.strictEqual(c.lock.tone, 'danger');
   assert.strictEqual(c.pacnew.tone, 'warn');
-  assert.strictEqual(c.pacnew.actionId, 'pacdiff');
+  assert.strictEqual(c.pacnew.actionId, 'pacnew-center');
   assert.strictEqual(c.orphans.tone, 'warn');
   assert.strictEqual(c.orphans.actionId, 'orphans');
   assert.strictEqual(c.flatpak.actionId, 'flatpak');
@@ -668,6 +668,17 @@ async function testSystemHealthChecks() {
   assert.strictEqual(c.db.tone, 'info');
   assert.strictEqual(c.pacnew.tone, 'info');
   assert.strictEqual(c.orphans.tone, 'info');
+}
+
+async function testPacnewRisk() {
+  const { hooks } = loadMainJs({});
+  assert.strictEqual(hooks.pacnewRisk('/etc/pacman.d/mirrorlist.pacnew').level, 'danger');
+  assert.strictEqual(hooks.pacnewRisk('/etc/pacman.conf.pacnew').level, 'warn');
+  assert.strictEqual(hooks.pacnewRisk('/etc/sudoers.d/wheel.pacnew').level, 'warn');
+  assert.strictEqual(hooks.pacnewRisk('/etc/foobar.conf.pacnew').level, 'info');
+  assert.strictEqual(hooks.pacnewRisk('/etc/default/grub.pacsave').level, 'info');
+  // mirrorlist note steers away from overwriting
+  assert.ok(/regenerate/i.test(hooks.pacnewRisk('/etc/pacman.d/mirrorlist.pacnew').note));
 }
 
 async function testRefreshCurrentViewRespectsUtilityViews() {
@@ -711,6 +722,7 @@ async function testAttentionCenterFailsOpenOnNullSummary() {
     testTopbarContextDecision,
     testEmptyStateHTML,
     testSystemHealthChecks,
+    testPacnewRisk,
     testRefreshCurrentViewRespectsUtilityViews,
     testAttentionCenterFailsOpenOnNullSummary,
   ];

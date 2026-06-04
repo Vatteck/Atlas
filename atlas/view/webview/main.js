@@ -2410,7 +2410,7 @@ function systemHealthChecks(data) {
         detail: 'Couldn’t check for .pacnew/.pacsave files.' });
     else if (pn > 0) checks.push({ id: 'pacnew', icon: '📝', title: 'Config files (.pacnew)', tone: 'warn',
         detail: `${pn} config file${pn === 1 ? '' : 's'} left by updates need review and merging.`,
-        actionLabel: 'Open pacdiff', actionId: 'pacdiff' });
+        actionLabel: 'Review files', actionId: 'pacnew-center' });
     else checks.push({ id: 'pacnew', icon: '📝', title: 'Config files (.pacnew)', tone: 'ok',
         detail: 'No .pacnew/.pacsave files to review.' });
 
@@ -2459,6 +2459,7 @@ function runHealthAction(actionId, btn) {
         case 'settings': activateView('settings'); break;
         case 'mirrors': regenerateMirrors(btn); break;
         case 'pacdiff': pyApiCall('launch_pacdiff'); break;
+        case 'pacnew-center': openPacnewCenter(); break;
         case 'cache':
         case 'flatpak':
         case 'orphans': handleMaintenanceAction(actionId, renderSystemHealth); break;
@@ -2491,6 +2492,125 @@ async function renderSystemHealth() {
     packagesGrid.querySelectorAll('.health-action').forEach(btn => {
         btn.addEventListener('click', () => runHealthAction(btn.dataset.healthAction, btn));
     });
+}
+
+// ===================== .pacnew center =====================
+// Reachable from System Health + the Updates notice (no permanent nav item — usually empty).
+// Risk classification is pure (unit-tested).
+function pacnewRisk(path) {
+    const base = (path || '').replace(/\.pac(new|save)$/, '');
+    const name = base.split('/').pop();
+    if (name === 'mirrorlist') return { level: 'danger', label: 'Do not overwrite',
+        note: 'Overwriting this with the .pacnew wipes your mirror servers — regenerate it instead.' };
+    const critical = new Set(['pacman.conf', 'sudoers', 'fstab', 'crypttab', 'mkinitcpio.conf',
+        'passwd', 'shadow', 'group', 'gshadow', 'hosts', 'resolv.conf', 'locale.gen', 'nsswitch.conf']);
+    if (critical.has(name) || base.includes('/sudoers.d/')) return { level: 'warn',
+        label: 'Review carefully', note: 'System-critical config — read the diff before merging.' };
+    return { level: 'info', label: 'Review', note: 'Review and merge when convenient.' };
+}
+
+function fallbackCopy(text) {
+    try {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast(ok ? 'Copied' : 'Copy this', text, ok ? 'success' : 'info');
+    } catch (e) { showToast('Copy this', text, 'info'); }
+}
+function copyText(text) {
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => showToast('Copied', text, 'success'),
+                                                     () => fallbackCopy(text));
+            return;
+        }
+    } catch (e) { /* fall through */ }
+    fallbackCopy(text);
+}
+
+async function openPacnewCenter() {
+    currentView = 'pacnew';
+    navItems.forEach(n => n.classList.remove('active'));  // not a nav item
+    searchInput.value = '';
+    applyTopbarContext();
+    const ac = document.getElementById('attention-center'); if (ac) ac.innerHTML = '';
+    const notice = document.getElementById('updates-notice'); if (notice) notice.innerHTML = '';
+    emptyState.classList.add('hidden');
+    loadingState.classList.add('hidden');
+    await renderPacnewCenter();
+}
+
+async function renderPacnewCenter() {
+    packagesGrid.style.display = 'block';
+    packagesGrid.innerHTML = `<div class="state-container"><div class="spinner"></div><p>Finding config files…</p></div>`;
+    const res = await pyApiCall('get_pacnew_files');  // {files, count} or null
+    if (currentView !== 'pacnew') return;
+    const files = (res && res.files) || [];
+    const back = `<button class="browse-back" id="pacnew-back" type="button">← Back</button>`;
+
+    if (files.length === 0) {
+        packagesGrid.innerHTML = `<div class="pacnew-page"><div class="browse-subheader">${back}<span class="browse-cat-title">Config files</span></div>`
+            + emptyStateHTML({ icon: '📝', title: 'No .pacnew/.pacsave files',
+                hint: 'Nothing to review. These appear after an update ships a new version of a config you’ve edited.' })
+            + `</div>`;
+        document.getElementById('pacnew-back').addEventListener('click', () => activateView('health'));
+        return;
+    }
+
+    const hasMirrorlist = files.some(f => f.replace(/\.pac(new|save)$/, '').split('/').pop() === 'mirrorlist');
+    const rows = files.map((f) => {
+        const r = pacnewRisk(f);
+        return `<div class="pacnew-item tone-${r.level}">
+            <div class="pacnew-row">
+                <code class="pacnew-path">${escapeHtml(f)}</code>
+                <span class="pacnew-risk">${escapeHtml(r.label)}</span>
+            </div>
+            <div class="pacnew-note">${escapeHtml(r.note)}</div>
+            <div class="pacnew-actions">
+                <button class="btn btn-outline btn-small pacnew-diff-btn" data-path="${escapeHtml(f)}">Show diff</button>
+                <button class="btn btn-outline btn-small pacnew-copy-btn" data-path="${escapeHtml(f)}">Copy path</button>
+            </div>
+            <pre class="pacnew-diff hidden" data-diff-for="${escapeHtml(f)}"></pre>
+        </div>`;
+    }).join('');
+
+    packagesGrid.innerHTML = `<div class="pacnew-page">
+        <div class="browse-subheader">${back}<span class="browse-cat-title">Config files (.pacnew)</span></div>
+        <p class="settings-help">Review each file and merge with <code>pacdiff</code>, then remove the <code>.pacnew</code>. Atlas never auto-merges.</p>
+        <div class="pacnew-global">
+            <button class="btn btn-outline" id="pacnew-pacdiff">Open pacdiff in a terminal</button>
+            ${hasMirrorlist ? '<button class="btn btn-outline" id="pacnew-regen">Regenerate mirror list</button>' : ''}
+        </div>
+        <div class="pacnew-list">${rows}</div>
+    </div>`;
+
+    document.getElementById('pacnew-back').addEventListener('click', () => activateView('health'));
+    const pd = document.getElementById('pacnew-pacdiff');
+    if (pd) pd.addEventListener('click', async () => {
+        const r = await pyApiCall('launch_pacdiff');
+        if (r) showToast('pacdiff', 'Opened pacdiff in a terminal — merge the files there', 'info');
+    });
+    const rg = document.getElementById('pacnew-regen');
+    if (rg) rg.addEventListener('click', () => regenerateMirrors(rg));
+    packagesGrid.querySelectorAll('.pacnew-copy-btn').forEach(b => b.addEventListener('click', () => copyText(b.dataset.path)));
+    packagesGrid.querySelectorAll('.pacnew-diff-btn').forEach(b => b.addEventListener('click', () => togglePacnewDiff(b)));
+}
+
+async function togglePacnewDiff(btn) {
+    const path = btn.dataset.path;
+    const pre = packagesGrid.querySelector(`.pacnew-diff[data-diff-for="${CSS.escape(path)}"]`);
+    if (!pre) return;
+    if (!pre.classList.contains('hidden')) { pre.classList.add('hidden'); btn.textContent = 'Show diff'; return; }
+    pre.textContent = 'Loading diff…';
+    pre.classList.remove('hidden');
+    btn.textContent = 'Hide diff';
+    const res = await pyApiCall('get_pacnew_diff', path);
+    if (!res) { pre.textContent = 'Could not read the diff.'; return; }
+    if (!res.readable) { pre.textContent = 'This file needs root to read — use “Open pacdiff” to review it.'; return; }
+    if (!res.diff) { pre.textContent = 'No differences — the .pacnew matches your current file (safe to remove).'; return; }
+    pre.textContent = res.diff + (res.truncated ? '\n… (diff truncated)' : '');
 }
 
 // Render Chronological Activity Log
@@ -2836,10 +2956,13 @@ async function renderUpdatesNotice() {
             ${mirrorlistCaution}
             <ul class="config-notice-list">${list}</ul>
             <div class="config-notice-actions">
+                <button class="btn btn-outline" id="pacnew-review-btn">Review config files</button>
                 <button class="btn btn-outline" id="pacdiff-btn">Open pacdiff in a terminal</button>
                 ${hasMirrorlist ? '<button class="btn btn-outline" id="regen-mirrors-btn">Regenerate mirror list</button>' : ''}
             </div>
         </div>`;
+    const reviewBtn = document.getElementById('pacnew-review-btn');
+    if (reviewBtn) reviewBtn.addEventListener('click', () => openPacnewCenter());
     const pacdiffBtn = document.getElementById('pacdiff-btn');
     if (pacdiffBtn) pacdiffBtn.addEventListener('click', async () => {
         const r = await pyApiCall('launch_pacdiff');  // null on error (toast already shown)
@@ -3126,10 +3249,21 @@ async function renderSettings() {
                 : 'Install the <code>devtools</code> package to enable this (provides <code>makechrootpkg</code>).'}</p>
         </section>` : '';
 
+    const mirror = arch.available ? (await pyApiCall('get_mirror_status') || {}) : {};
+    const mirrorWhen = mirror.last_modified_iso ? new Date(mirror.last_modified_iso).toLocaleString() : null;
+    const mirrorSummary = (mirror.count)
+        ? `<div class="mirror-summary">
+               <div class="mirror-stat"><strong>${escapeHtml(mirror.count)}</strong> active mirror${mirror.count === 1 ? '' : 's'}${mirrorWhen ? ` · updated ${escapeHtml(mirrorWhen)}` : ''}</div>
+               ${(mirror.servers && mirror.servers.length) ? `<div class="mirror-hosts">${mirror.servers.map(h => `<span class="attn-chip">${escapeHtml(h)}</span>`).join('')}</div>` : ''}
+           </div>`
+        : '';
+    const mirrorCmd = mirror.command ? `<p class="settings-help">Runs: <code>${escapeHtml(mirror.command)}</code></p>` : '';
     const mirrorsSection = arch.available ? `
         <section class="settings-section">
             <h3>Mirrors</h3>
+            ${mirrorSummary}
             <p class="settings-help">Rebuild <code>/etc/pacman.d/mirrorlist</code> with the fastest mirrors${arch.mirror_tool ? ` (via <code>${escapeHtml(arch.mirror_tool)}</code>)` : ''}. Takes up to a minute. ${arch.mirror_tool ? '' : '<strong>Install <code>reflector</code> to enable this.</strong>'}</p>
+            ${mirrorCmd}
             <div class="settings-actions">
                 <button id="settings-regen-mirrors-btn" class="btn btn-outline" ${arch.mirror_tool ? '' : 'disabled'}>Regenerate mirror list</button>
             </div>
@@ -3167,7 +3301,10 @@ async function renderSettings() {
     document.getElementById('settings-export-btn').addEventListener('click', exportPackages);
     document.getElementById('settings-import-btn').addEventListener('click', importPackages);
     const regenMirrorsBtn = document.getElementById('settings-regen-mirrors-btn');
-    if (regenMirrorsBtn) regenMirrorsBtn.addEventListener('click', () => regenerateMirrors(regenMirrorsBtn));
+    if (regenMirrorsBtn) regenMirrorsBtn.addEventListener('click', async () => {
+        await regenerateMirrors(regenMirrorsBtn);
+        if (currentView === 'settings') renderSettings();  // refresh the mirror summary
+    });
     // Density is a localStorage display pref — apply it instantly (no Save needed).
     const densitySel = document.getElementById('settings-density');
     if (densitySel) densitySel.addEventListener('change', () => setDensity(densitySel.value));
@@ -3281,6 +3418,7 @@ function refreshCurrentView() {
         case 'news': renderNews(); break;
         case 'permissions': renderPermissionsPage(); break;
         case 'health': renderSystemHealth(); break;
+        case 'pacnew': renderPacnewCenter(); break;
         case 'browse':
             if (activeBrowseCategory) renderCategoryPackages(activeBrowseCategory.key, activeBrowseCategory.label);
             else renderBrowse();
@@ -4030,6 +4168,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         shouldShowPackageControls,
         emptyStateHTML,
         systemHealthChecks,
+        pacnewRisk,
         refreshCurrentView,
         activateView,
         fetchPackages,

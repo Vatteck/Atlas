@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import shlex
 import shutil
 import threading
@@ -36,6 +37,7 @@ from atlas.view.webview.export import write_manifest, read_manifest
 class AtlasApi:
 
     PACMAN_CACHE_DIR = '/var/cache/pacman/pkg'
+    MIRRORLIST_PATH = '/etc/pacman.d/mirrorlist'
     ARCH_NEWS_URL = 'https://archlinux.org/feeds/news/'
 
     # Browse-by-category buckets for the Discovery view. The shipped categories.txt uses many
@@ -1140,6 +1142,62 @@ class AtlasApi:
         except Exception as e:
             self.logger.error(f"get_pacnew_files failed: {e}")
             return {'status': 'error', 'message': str(e), 'data': {'files': [], 'count': 0}}
+
+    def get_pacnew_diff(self, path: str) -> dict:
+        """Read-only unified diff between an installed config and its pending .pacnew/.pacsave,
+        for the .pacnew center. Whitelisted to paths actually reported by get_pacnew_files() (no
+        arbitrary file read), no root. Returns {status, data:{diff, truncated, readable}}."""
+        try:
+            listed = set((self.get_pacnew_files().get('data') or {}).get('files') or ())
+            if path not in listed:
+                return {'status': 'error', 'message': 'Unknown .pacnew file'}
+            base = path.rsplit('.pac', 1)[0]  # strip .pacnew / .pacsave
+            if not os.path.isfile(base):
+                return {'status': 'ok', 'data': {'diff': '', 'truncated': False, 'readable': False}}
+            if not os.access(base, os.R_OK) or not os.access(path, os.R_OK):
+                return {'status': 'ok', 'data': {'diff': '', 'truncated': False, 'readable': False}}
+            import shlex
+            out = run_cmd(f'diff -u {shlex.quote(base)} {shlex.quote(path)}',
+                          ignore_return_code=True, print_error=False) or ''
+            lines = out.splitlines()
+            truncated = len(lines) > 400
+            diff = '\n'.join(lines[:400])
+            return {'status': 'ok', 'data': {'diff': diff, 'truncated': truncated, 'readable': True}}
+        except Exception as e:
+            self.logger.error(f"get_pacnew_diff failed: {e}")
+            return {'status': 'error', 'message': str(e)}
+
+    def get_mirror_status(self) -> dict:
+        """Summary of the active pacman mirror list for Settings → Mirrors: number of enabled
+        servers, the top few hosts, when the file was last written, the available regen tool, and
+        the exact command that would run. Read-only, best-effort."""
+        path = self.MIRRORLIST_PATH
+        data = {'count': 0, 'servers': [], 'last_modified_iso': None, 'tool': None, 'command': None}
+        try:
+            cmd = self._mirror_regen_cmd()
+            data['tool'] = cmd[0] if cmd else None
+            data['command'] = ' '.join(cmd) if cmd else None
+        except Exception:
+            pass
+        try:
+            if os.path.isfile(path):
+                from datetime import datetime, timezone
+                data['last_modified_iso'] = datetime.fromtimestamp(
+                    os.path.getmtime(path), tz=timezone.utc).isoformat()
+                hosts = []
+                with open(path, encoding='utf-8', errors='ignore') as f:
+                    for line in f:
+                        s = line.strip()
+                        if s.startswith('Server') and '=' in s:
+                            url = s.split('=', 1)[1].strip()
+                            data['count'] += 1
+                            if len(hosts) < 5:
+                                m = re.match(r'https?://([^/]+)', url)
+                                hosts.append(m.group(1) if m else url)
+                data['servers'] = hosts
+        except Exception as e:
+            self.logger.debug(f"get_mirror_status read failed: {e}")
+        return {'status': 'ok', 'data': data}
 
     # Terminal emulators whose exec flag takes the command as SEPARATE args (no shell-quoting).
     # Order = preference. `$TERMINAL` is honored first (see _find_terminal).

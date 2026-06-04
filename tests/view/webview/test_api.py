@@ -1521,3 +1521,55 @@ class SystemHealthTest(unittest.TestCase):
         self.assertTrue(res['data']['chroot']['enabled'])
 
 
+
+
+class PacnewMirrorTest(unittest.TestCase):
+    """get_pacnew_diff (whitelisted, read-only) + get_mirror_status (parsing)."""
+
+    def setUp(self):
+        self.api = AtlasApi(Mock(), Mock())
+
+    def test_pacnew_diff_rejects_unlisted_path(self):
+        with patch.object(self.api, 'get_pacnew_files', return_value={'status': 'ok', 'data': {'files': []}}):
+            res = self.api.get_pacnew_diff('/etc/passwd')  # not a .pacnew, not listed
+        self.assertEqual('error', res['status'])
+
+    def test_pacnew_diff_real(self):
+        import tempfile, os
+        d = tempfile.mkdtemp()
+        base = os.path.join(d, 'foo.conf')
+        new = base + '.pacnew'
+        with open(base, 'w') as f: f.write('a=1\nb=2\n')
+        with open(new, 'w') as f: f.write('a=1\nb=3\n')
+        with patch.object(self.api, 'get_pacnew_files', return_value={'status': 'ok', 'data': {'files': [new]}}):
+            res = self.api.get_pacnew_diff(new)
+        self.assertEqual('ok', res['status'])
+        self.assertTrue(res['data']['readable'])
+        self.assertIn('-b=2', res['data']['diff'])
+        self.assertIn('+b=3', res['data']['diff'])
+
+    def test_pacnew_diff_missing_base_not_readable(self):
+        import tempfile, os
+        d = tempfile.mkdtemp()
+        new = os.path.join(d, 'gone.conf.pacnew')
+        with open(new, 'w') as f: f.write('x\n')   # base 'gone.conf' does not exist
+        with patch.object(self.api, 'get_pacnew_files', return_value={'status': 'ok', 'data': {'files': [new]}}):
+            res = self.api.get_pacnew_diff(new)
+        self.assertEqual('ok', res['status'])
+        self.assertFalse(res['data']['readable'])
+
+    def test_mirror_status_parses_active_servers(self):
+        import tempfile, os
+        fd, p = tempfile.mkstemp(); os.close(fd)
+        with open(p, 'w') as f:
+            f.write('# Commented\n#Server = https://commented.example/$repo\n'
+                    'Server = https://a.example.org/archlinux/$repo/os/$arch\n'
+                    'Server = https://b.example.net/$repo\n')
+        with patch.object(AtlasApi, 'MIRRORLIST_PATH', p), \
+             patch.object(self.api, '_mirror_regen_cmd', return_value=['reflector', '--save', '/x']):
+            d = self.api.get_mirror_status()['data']
+        self.assertEqual(2, d['count'])  # only the two uncommented Server lines
+        self.assertEqual(['a.example.org', 'b.example.net'], d['servers'])
+        self.assertEqual('reflector', d['tool'])
+        self.assertIn('reflector', d['command'])
+        self.assertIsNotNone(d['last_modified_iso'])
