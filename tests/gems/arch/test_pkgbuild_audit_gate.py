@@ -105,8 +105,59 @@ class AuditGateTest(unittest.TestCase):
         self._write_pkgbuild(CLEAN)  # clean + diff unavailable => no prompt
         ctx = self._ctx(new_pkg=False, commit='deadbeef')
         self.mgr._fetch_pkgbuild_at_commit = Mock(return_value=None)
+        self.mgr.aur_client = Mock()
+        self.mgr.aur_client.get_info.return_value = [{'Maintainer': 'same'}]
+        ctx.repository = 'aur'
+        ctx.maintainer = 'same'
         self.assertTrue(self.mgr._audit_pkgbuild(ctx))
         ctx.watcher.request_confirmation.assert_not_called()
+
+    # --- maintainer-change advisory (AUR updates) -------------------------- #
+    def _aur_update_ctx(self, old_maint, new_maint):
+        ctx = self._ctx(new_pkg=False)          # update, clean PKGBUILD, no diff (pkg=None)
+        ctx.repository = 'aur'
+        ctx.maintainer = old_maint
+        self.mgr.aur_client = Mock()
+        self.mgr.aur_client.get_info.return_value = [{'Maintainer': new_maint}] if new_maint is not None else [{}]
+        return ctx
+
+    def test_maintainer_change_prompts_even_with_clean_pkgbuild(self):
+        self._write_pkgbuild(CLEAN)
+        ctx = self._aur_update_ctx('HurricanePootis', 'AlphaLynx')
+        self.assertTrue(self.mgr._audit_pkgbuild(ctx))
+        ctx.watcher.request_confirmation.assert_called_once()
+        review = ctx.watcher.request_confirmation.call_args.kwargs['review']
+        self.assertEqual({'old': 'HurricanePootis', 'new': 'AlphaLynx'}, review['maintainer_change'])
+
+    def test_same_maintainer_does_not_prompt(self):
+        self._write_pkgbuild(CLEAN)
+        ctx = self._aur_update_ctx('AlphaLynx', 'AlphaLynx')
+        self.assertTrue(self.mgr._audit_pkgbuild(ctx))
+        ctx.watcher.request_confirmation.assert_not_called()
+
+    def test_orphaned_now_no_maintainer_is_flagged(self):
+        self._write_pkgbuild(CLEAN)
+        ctx = self._aur_update_ctx('AlphaLynx', None)   # package lost its maintainer
+        self.assertTrue(self.mgr._audit_pkgbuild(ctx))
+        review = ctx.watcher.request_confirmation.call_args.kwargs['review']
+        self.assertEqual({'old': 'AlphaLynx', 'new': None}, review['maintainer_change'])
+
+    def test_no_baseline_maintainer_is_not_compared(self):
+        self._write_pkgbuild(CLEAN)
+        ctx = self._aur_update_ctx(None, 'AlphaLynx')   # nothing cached at install -> can't compare
+        self.assertTrue(self.mgr._audit_pkgbuild(ctx))
+        ctx.watcher.request_confirmation.assert_not_called()
+        self.mgr.aur_client.get_info.assert_not_called()   # short-circuits before the RPC
+
+    def test_new_install_never_checks_maintainer(self):
+        self._write_pkgbuild(CLEAN)
+        ctx = self._ctx(new_pkg=True)
+        ctx.repository = 'aur'
+        ctx.maintainer = 'AlphaLynx'
+        self.mgr.aur_client = Mock()
+        self.assertTrue(self.mgr._audit_pkgbuild(ctx))
+        ctx.watcher.request_confirmation.assert_not_called()
+        self.mgr.aur_client.get_info.assert_not_called()
 
 
 if __name__ == '__main__':

@@ -582,6 +582,14 @@ function renderPkgbuildReview(review) {
         ? `<div class="review-banner ${s.warn ? 'warn' : 'info'}">⚠ ${s.warn || 0} line${s.warn === 1 ? '' : 's'} worth a look${s.info ? ` · ${s.info} minor` : ''} — a hint, not a safety check</div>`
         : '';
 
+    let maintHtml = '';
+    const mc = review.maintainer_change;
+    if (mc) {
+        const oldM = escapeHtml(mc.old || 'unknown');
+        const newM = mc.new ? escapeHtml(mc.new) : '<em>orphaned (no maintainer)</em>';
+        maintHtml = `<div class="review-banner warn">⚠ Maintainer changed since you installed: <strong>${oldM} → ${newM}</strong>. The package changed hands — worth a look before updating.</div>`;
+    }
+
     let diffHtml = '';
     if ((review.diff || []).length) {
         const rows = review.diff.map(d =>
@@ -599,7 +607,7 @@ function renderPkgbuildReview(review) {
         findHtml = `<h4 class="review-h">Lines worth a look</h4><ul class="review-findings">${items}</ul>`;
     }
 
-    host.innerHTML = banner + diffHtml + findHtml;
+    host.innerHTML = maintHtml + banner + diffHtml + findHtml;
     host.style.display = 'block';
     if (content) content.classList.add('has-review');
 }

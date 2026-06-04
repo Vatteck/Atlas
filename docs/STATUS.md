@@ -70,6 +70,16 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **AUR "maintainer changed hands" advisory (2026-06-03).** On an AUR *update*, `_audit_pkgbuild`
+  compares the maintainer cached at install time (`context.maintainer`, baseline) against the current
+  AUR maintainer (one best-effort `aur_client.get_info` RPC); if they differ (incl. now-orphaned →
+  `new=None`) it adds `review['maintainer_change'] = {old, new}` and the review modal shows a warn
+  banner ("Maintainer changed since you installed: X → Y") even when the PKGBUILD is clean and
+  unchanged. Advisory only, gated on `aur_check_pkgbuild`. **Limitation:** packages installed before
+  maintainer-caching have no baseline (e.g. an old `antigravity` showing "Unknown Publisher") so the
+  first update can't compare — it re-caches and catches a *subsequent* change. Surfaces the
+  supply-chain signal bauh only exposes accidentally (its duplicate-row display). Tests: +5. Plan:
+  [plans/2026-06-03-aur-maintainer-change.md](plans/2026-06-03-aur-maintainer-change.md).
 - **Fix: AUR index was gzip garbage → AUR-dep resolution broken (2026-06-03).** `packages.gz` is
   served as `application/gzip` with **no** `Content-Encoding`, so `requests` never decompressed it;
   `download_names`/`worker.update_index` split the raw gzip bytes (`res.text`) on `\n`, producing a

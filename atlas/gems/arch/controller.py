@@ -2138,13 +2138,19 @@ class ArchManager(SoftwareManager, SettingsController):
             if old_text:
                 diff_data = pkgbuild_audit.diff_lines(old_text, new_text)
 
-        if not warns and not diff_data:
+        # On an update, flag if the AUR package changed maintainers since you installed it (a
+        # supply-chain signal — an orphaned package adopted by someone new). Advisory only.
+        maintainer_change = self._aur_maintainer_change(context)
+
+        if not warns and not diff_data and not maintainer_change:
             return True
 
         if diff_data:
             self.logger.info(f"PKGBUILD changed since last build for '{context.name}'")
         if warns:
             self.logger.info(f"PKGBUILD audit for '{context.name}' flagged {len(warns)} line(s)")
+        if maintainer_change:
+            self.logger.info(f"'{context.name}' maintainer changed: {maintainer_change['old']} -> {maintainer_change['new']}")
 
         # Structured payload for the rich review modal (colored diff + severity-flagged lines).
         # The plain body is the fallback if the modal can't render the review block.
@@ -2153,6 +2159,7 @@ class ArchManager(SoftwareManager, SettingsController):
             'summary': pkgbuild_audit.summarize(findings),
             'diff': diff_data,
             'findings': findings,
+            'maintainer_change': maintainer_change,
         }
         body = (f"Review what {context.name} will run before building. {pkgbuild_audit.DISCLAIMER}")
 
@@ -2173,6 +2180,23 @@ class ArchManager(SoftwareManager, SettingsController):
         except Exception as e:
             self.logger.debug(f"could not fetch old PKGBUILD ({base}@{commit}) for diff: {e}")
         return None
+
+    def _aur_maintainer_change(self, context: TransactionContext) -> Optional[dict]:
+        """For an AUR update, return ``{'old', 'new'}`` if the maintainer changed since install, else
+        None. The baseline ('old') is the maintainer cached at install time; 'new' is the current AUR
+        maintainer. Best-effort and advisory: no baseline (older installs) → no comparison."""
+        if context.repository != 'aur' or getattr(context, 'new_pkg', False):
+            return None
+        old = context.maintainer or getattr(getattr(context, 'pkg', None), 'maintainer', None)
+        if not old:  # never cached a baseline (e.g. installed before maintainer-caching) — can't compare
+            return None
+        try:
+            infos = self.aur_client.get_info((context.name,))
+            new = infos[0].get('Maintainer') if infos else None
+        except Exception as e:
+            self.logger.debug(f"could not fetch current maintainer for '{context.name}': {e}")
+            return None
+        return {'old': old, 'new': new} if new != old else None
 
     def _read_srcinfo(self, context: TransactionContext) -> str:
         src_path = f'{context.project_dir}/.SRCINFO'
