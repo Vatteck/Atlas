@@ -22,3 +22,8 @@ linux_dist/appimage/atlas-*
 *.so
 *.dylib
 *.dll
+
+# Node artifacts — the main.js test harness runs `node <file>` with built-in modules
+# only (no npm deps / package.json), so a stray empty lockfile is not ours.
+node_modules/
+package-lock.json
