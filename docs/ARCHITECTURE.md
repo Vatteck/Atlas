@@ -1,232 +1,235 @@
 # Atlas Architecture
 
-> **Note (2026-06-01): Atlas is pure Python.** The Rust `atlas_rs` extension and the
-> Python↔Rust boundary described later in this doc were **removed** — a package manager is
-> I/O-bound, so the native path wasn't worth its toolchain. Treat any Rust / `atlas_rs` /
-> `SysInterface` references below as historical. The UI is **pywebview**, and Atlas is
-> **Arch-focused** (Arch/AUR/Flatpak/AppImage on by default; Snap/Debian/Web off).
+Atlas is an **Arch-focused graphical package manager** for Linux. It is a fork of
+[bauh](https://github.com/vinifmor/bauh), rebuilt around a **pywebview** front-end and
+kept intentionally **pure Python**.
 
-Atlas (a fork of **bauh**) is an Arch-focused graphical package manager for Linux. It
-manages Arch/AUR, Flatpak, and AppImage (plus optional Snap, Debian, and native Web apps)
-behind a single interface.
+The first-class sources are:
 
-Atlas is mid-transition along two axes at once:
+- **Arch official repositories**
+- **AUR**
+- **Flatpak**
+- **AppImage**
 
-1. **UI:** legacy Qt5 → a modern **pywebview** front-end (HTML/CSS/JS).
-2. **Engine:** pure-Python backends → a hybrid where hot paths are rewritten in
-   **Rust** and exposed to Python through **PyO3** (the `atlas_rs` native module).
+Snap, Debian, and native Web apps still exist as optional gems, but they are disabled by
+default in the Arch-focused build.
 
-This document is the map. It describes the layers, how they talk to each other, and
-the conventions that keep the Python↔Rust boundary sane. For *what to migrate next*
-see [ROADMAP.md](./ROADMAP.md); for *how to build and run* see
-[DEVELOPMENT.md](./DEVELOPMENT.md); for the native module surface see
-[atlas_rs-API.md](./atlas_rs-API.md).
+Two earlier transitions are complete and should be treated as closed:
+
+- **Qt5 was removed.** The active UI is the pywebview/WebKitGTK interface under
+  `atlas/view/webview/`. Do not reintroduce Qt without explicit project sign-off.
+- **The Rust `atlas_rs` experiment was removed.** Atlas is I/O-bound around pacman, AUR,
+  Flatpak, network, and build tools. Native code did not earn the toolchain and dual-
+  implementation cost. Keep the lesson, not the extension: only add native code for a
+  measured CPU-bound hot path with a small result, and only after sign-off.
+
+For current work, read [STATUS.md](./STATUS.md). For the historical Rust verdict, read
+[ROADMAP.md](./ROADMAP.md). For build and test commands, read [DEVELOPMENT.md](./DEVELOPMENT.md).
 
 ---
 
 ## 1. Bird's-eye view
 
-```
+```text
                         ┌──────────────────────────────────────────┐
-                        │              pywebview window              │
-                        │   index.html · main.js · style.css        │  ← Front-end
+                        │            pywebview window              │
+                        │   index.html · main.js · style.css       │  ← Front-end
                         └───────────────────┬──────────────────────┘
-                                            │  JS ↔ Python bridge (pywebview)
+                                            │  JS ↔ Python bridge
                         ┌───────────────────▼──────────────────────┐
                         │        atlas/view/webview/api.py          │
-                        │              (AtlasApi)                    │  ← View / API layer
+                        │              AtlasApi                     │  ← View/API layer
                         └───────────────────┬──────────────────────┘
                                             │  Python calls
                         ┌───────────────────▼──────────────────────┐
                         │   atlas/view/core/controller.py           │
                         │      GenericSoftwareManager               │  ← Orchestration
-                        │  (dispatches to enabled gems, lazily)     │
                         └───────────────────┬──────────────────────┘
             ┌───────────────┬───────────────┼───────────────┬───────────────┐
             ▼               ▼               ▼               ▼               ▼
        ┌─────────┐    ┌─────────┐     ┌─────────┐     ┌─────────┐     ┌─────────┐
-       │  arch   │    │ flatpak │     │  snap   │     │appimage │     │  web /  │  ← Gems
-       │  gem    │    │  gem    │     │  gem    │     │  gem    │     │ debian  │   (backends)
-       └────┬────┘    └─────────┘     └─────────┘     └─────────┘     └─────────┘
-            │  hot paths
-            ▼
-    ┌───────────────────┐
-    │     atlas_rs      │   native Rust extension (PyO3), built into
-    │  (Rust / PyO3)    │   atlas/gems/arch/atlas_rs.*.so
-    └───────────────────┘
+       │  arch   │    │ flatpak │     │appimage │     │  snap   │     │ web /   │
+       │  gem    │    │  gem    │     │  gem    │     │  gem    │     │ debian  │
+       └─────────┘    └─────────┘     └─────────┘     └─────────┘     └─────────┘
 ```
 
-Each gem implements the **`SoftwareManager`** abstract base class
-(`atlas/api/abstract/controller.py:154`). The `GenericSoftwareManager`
-(`atlas/view/core/controller.py`) holds the set of gems and fans operations out to
-the ones that are enabled, ideally **lazily** (only initializing a backend when its
-view is actually requested — see the engine design doc and ROADMAP "lazy init").
+Each gem implements the `SoftwareManager` abstract base class
+(`atlas/api/abstract/controller.py`). `GenericSoftwareManager` owns the enabled managers,
+prepares them lazily, and routes each operation to the backend that owns the package type.
 
 ---
 
-## 2. Layers
+## 2. Main layers
 
 ### 2.1 Front-end — `atlas/view/webview/`
-- `index.html`, `main.js`, `style.css` — the rendered UI.
-- Runs inside a native window via **pywebview** (`webview.create_window` /
-  `webview.start` in `atlas/app.py`).
-- Calls into Python through the pywebview JS↔Python bridge; the bound object is
-  `AtlasApi`.
-- Supporting modules: `activity_log.py`, `watcher.py` (progress/process watching),
-  `export.py`.
 
-> The legacy Qt5 UI (`view/qt/`, QSS styles) has been purged as part of the rebrand.
-> Anything referencing Qt forms/widgets is dead and should not be reintroduced.
+- `index.html`, `main.js`, and `style.css` render the UI inside WebKitGTK via pywebview.
+- The JS side calls Python through the pywebview bridge bound to `AtlasApi`.
+- Dialogs are **HTML modals**, not native browser dialogs. WebKitGTK does not provide
+  reliable `window.prompt`, `window.confirm`, or `window.alert` here.
+- Supporting modules:
+  - `activity_log.py` — transaction/activity history helpers.
+  - `watcher.py` — progress, confirmations, password prompts, and terminal output flow.
+  - `export.py` — export helpers.
 
-### 2.2 View / API layer — `atlas/view/webview/api.py` (`AtlasApi`)
-- The single surface the front-end is allowed to call.
-- Translates UI intents (search, install, upgrade, downgrade, uninstall, launch) into
-  calls on the `GenericSoftwareManager`.
-- Responsible for threading concurrent requests so the UI never blocks (target:
-  a shared `ThreadPoolExecutor` — see ROADMAP).
+### 2.2 View/API bridge — `atlas/view/webview/api.py`
 
-### 2.3 Orchestration — `atlas/view/core/controller.py` (`GenericSoftwareManager`)
-- Owns the list of gem managers and the app config (`~/.config/atlaspm/config.yml`).
-- Routes each operation to the gem(s) that own the relevant package type.
-- Drives `prepare()` on gems. The performance goal is **lazy** preparation: only
-  enabled gems, only when needed, instead of eagerly booting every backend at launch.
+`AtlasApi` is the only surface the front-end should call directly. It translates UI
+intents into manager operations, serializes package objects for JS, exposes app settings,
+and starts long-running work without blocking the UI.
 
-### 2.4 Gems (backends) — `atlas/gems/<type>/`
-Each subdirectory is a self-contained backend implementing `SoftwareManager`. The
-Arch gem is the largest and the current focus of the Rust migration:
+Common responsibilities:
 
-| File | Role | Size¹ |
-|------|------|------|
-| `controller.py` | Arch `SoftwareManager` implementation | ~192 KB |
-| `updates.py` | Update detection / planning | ~42 KB |
-| `pacman.py` | pacman CLI wrapper + output parsing | ~38 KB |
-| `dependencies.py` | Dependency graph resolution (pure Python; I/O+UI-bound) | ~31 KB |
-| `worker.py` | Background index/sync workers | ~25 KB |
-| `aur.py` | AUR RPC client | ~8.5 KB |
-| `sorting.py`, `mapper.py`, `download.py`, ... | Supporting logic | — |
+- Search/read installed/read updates.
+- Install, update, uninstall, downgrade, and launch operations.
+- Settings read/write through the webview-native settings page.
+- Arch safety helpers: news, `.pacnew`, mirror regeneration, PKGBUILD review flow.
+- Flatpak metadata and permission override APIs.
+- Tray/settings integration.
 
-¹ Sizes are a rough indicator of complexity / migration effort, not a contract.
+### 2.3 Orchestration — `atlas/view/core/controller.py`
 
-### 2.5 Native engine — `atlas_rs` (Rust, in `rust/`)
-- Cargo crate `atlas_rs`, `crate-type = ["cdylib"]`, built via **setuptools-rust** as a
-  PyO3 extension module and installed at `atlas.gems.arch.atlas_rs` (see `setup.py`).
-  `setup.py` pins `debug=False` so installs are optimized (release).
-- `lib.rs` is the only module. It exposes a single function: **`map_srcinfo`**
-  (`.SRCINFO`/pacman field parser, ~2× vs Python — a small, CPU-bound result).
-- Deliberately minimal: a native dependency resolver and a native `pacman -Si` parser
-  were prototyped and **removed** after measurement (I/O-bound and marshalling-bound
-  respectively). See [atlas_rs-API.md](./atlas_rs-API.md) and the engine lesson below.
-- Crate deps: just `pyo3` (the `serde`/`ureq`/`regex` deps went with the removed code).
+`GenericSoftwareManager` owns the collection of gem managers and routes operations. It is
+responsible for:
+
+- Keeping enabled package sources separated.
+- Preparing managers lazily instead of booting every backend eagerly at startup.
+- Fan-out/fan-in operations across gems where the UI needs a unified result.
+- Preserving source identity so Arch official packages and AUR packages do not blur
+  together.
+
+### 2.4 Gems — `atlas/gems/<type>/`
+
+Each gem is a backend for one package source. The Arch gem is the heaviest because it has
+to cover pacman, AUR RPC, build flows, dependencies, update planning, and safety checks.
+
+| Area | Main files | Notes |
+|---|---|---|
+| Arch/AUR | `atlas/gems/arch/controller.py`, `pacman.py`, `updates.py`, `dependencies.py`, `aur.py`, `pkgbuild_audit.py`, `chroot.py` | Official repo + AUR management, PKGBUILD review, maintainer advisory, optional clean-chroot builds. |
+| Flatpak | `atlas/gems/flatpak/controller.py`, `flatpak.py`, `flathub.py`, `permissions.py` | Flathub metadata, install/update/remove, safety/permission display, override editing. |
+| AppImage | `atlas/gems/appimage/` | AppImage discovery/integration. |
+| Snap | `atlas/gems/snap/` | Optional, disabled by default. |
+| Debian | `atlas/gems/debian/` | Optional, disabled by default. |
+| Web apps | `atlas/gems/web/` | Optional native-web-app support, disabled by default. |
 
 ---
 
-## 3. The Python ↔ Rust boundary
+## 3. Current product flows
 
-This is the most important contract in the codebase, so it gets its own section.
+### 3.1 Search and multi-source cards
 
-### 3.1 Design principle: coarse-grained calls
-Cross-language calls are not free. Hand Rust an **entire task** and get a finished
-result back; never have Rust call into Python in a tight loop. `map_srcinfo` is the
-template: Python passes one `.SRCINFO` string, Rust parses it in a single pass and
-returns the parsed dict.
+The UI can group multiple package sources into one app card. The source switcher keeps the
+available package types visible while preserving which source is installed and which source
+is safer/preferred. Arch official packages and AUR packages must stay visibly distinct.
 
-### 3.2 The fallback pattern (strangler fig)
-Every native function is reached through `atlas/gems/arch/native.py` and keeps a
-pure-Python fallback. `native.load()` returns the module or `None` (when the build is
-missing or `ATLAS_DISABLE_RS` is set); the caller tries native, then falls back. Example
-from `atlas/gems/arch/srcinfo.py`:
+### 3.2 AUR safety
 
-```python
-def map_srcinfo(string, pkgname=None, fields=None):
-    atlas_rs = native.load(logger)          # None if disabled/unavailable
-    if atlas_rs is not None:
-        try:
-            return atlas_rs.map_srcinfo(string, pkgname, fields)
-        except Exception:
-            native.report_failure(logger, 'map_srcinfo')   # logged under ATLAS_RS_DEBUG
-    return _map_srcinfo_py(string, pkgname, fields)         # pure-Python fallback
-```
+AUR support is deliberately advisory instead of pretending to prove safety. Current layers
+include:
 
-This keeps Atlas working even if the extension failed to build. **Rules:** never delete a
-fallback in the same change that adds the native path; import the module by its qualified
-name (a bare `import atlas_rs` does **not** resolve at runtime); and surface native
-failures with `ATLAS_RS_DEBUG=1` rather than swallowing them silently.
+- Heuristic PKGBUILD and `.install` scanner.
+- Advisory pre-build confirmation gate.
+- Diff-since-last-build on updates.
+- Maintainer-changed-hands advisory for installed AUR packages with a cached baseline.
+- Optional clean-chroot builds through Arch `devtools`, with built AUR dependencies
+  injected using `makechrootpkg -I`.
 
-### 3.3 What belongs in Rust — the hard-won rule
-Only port operations that are **CPU-bound and return a small result.** Two prototypes
-were removed after measurement proved otherwise:
-- a native **dependency resolver** — the work is live pacman/AUR I/O + recursion +
-  watcher-driven (UI) provider choices, not CPU; a faithful port needs Rust→Python
-  callbacks and gains nothing.
-- a native **`pacman -Si` parser** — only ~1.2× because it returns ~100 per-package
-  dicts, so PyO3 result-marshalling dominates the parse win.
+The chroot path isolates the build environment. It does **not** make a malicious package
+safe after installation; do not describe it that way.
 
-`map_srcinfo` survives because its result is one compact dict. Before adding a native
-path, ask: is it CPU-bound, and is the result small? If not, keep it in Python. See
-[ROADMAP.md](./ROADMAP.md) and [STATUS.md](./STATUS.md) for the measurements.
+### 3.3 Flatpak transparency and control
+
+Flatpak support surfaces Flathub/AppStream metadata and lets users inspect and edit
+sandbox overrides:
+
+- Open-source/proprietary badge.
+- Verified/unverified publisher badge.
+- Download/size/form-factor/OARS-style metadata where available.
+- Advisory safety tier based on permissions and license metadata.
+- In-detail permission popups.
+- Dedicated Permissions page with grouped Share, Socket, Device, Features, Filesystem,
+  Bus, and Environment controls.
+
+Overrides are applied with `flatpak override --user` and generally take effect on next app
+launch.
+
+### 3.4 System tray
+
+The tray is integrated into normal `atlas` startup and is optional/additive. It uses
+AyatanaAppIndicator3 or AppIndicator3 to publish a StatusNotifierItem. Missing typelibs or
+`ui.tray.enabled: false` simply skip tray setup.
+
+The tray supports show/hide, quit, update-count polling, and an optional close-to-tray
+behavior. KDE requires a rendered badge icon rather than relying on `set_label`, so tray
+icon updates are handled in `atlas/view/tray.py`.
 
 ---
 
 ## 4. Application entry points
 
-Defined in `pyproject.toml` / `setup.py`:
+Defined in `pyproject.toml` and `setup.py`:
 
 | Command | Target | Purpose |
-|---------|--------|---------|
-| `atlas` | `atlas.app:main` | Launch the GUI (pywebview window) |
-| `atlas-tray` | `atlas.app:tray` | Launch attached to the system tray |
-| `atlas-cli` | `atlas.cli.app:main` | Command-line interface |
+|---|---|---|
+| `atlas` | `atlas.app:main` | Launch the GUI. |
+| `atlas-cli` | `atlas.cli.app:main` | Command-line interface. |
 
-`atlas/app.py:main` builds the gem managers, wraps them in a `GenericSoftwareManager`,
-binds an `AtlasApi`, and opens the pywebview window pointed at
-`view/webview/index.html`.
+`atlas/app.py:main` builds the gem managers, wraps them in `GenericSoftwareManager`, binds
+an `AtlasApi`, optionally starts the tray integration, and opens the pywebview window at
+`atlas/view/webview/index.html`.
 
 ---
 
-## 5. On-disk layout (runtime)
+## 5. Runtime layout
 
 | Path | Contents |
-|------|----------|
-| `~/.config/atlaspm` (`/etc/atlaspm` as root) | Configuration (`config.yml`, gem configs) |
-| `~/.cache/atlaspm` (`/var/cache/atlaspm` as root) | Installed-app data, AUR index, databases |
-| `/tmp/atlaspm@$USER` | Logs and temporary files |
+|---|---|
+| `~/.config/atlaspm` (`/etc/atlaspm` as root) | Configuration (`config.yml`, gem configs). |
+| `~/.cache/atlaspm` (`/var/cache/atlaspm` as root) | Installed-app data, AUR index, databases, activity data. |
+| `/tmp/atlaspm@$USER` | Logs and temporary files. |
+
+Runtime metadata such as suggestions, categories, AppImage data, and web-app environment
+files is fetched from the separate `Vatteck/atlas-files` repository on its `main` branch.
 
 ---
 
 ## 6. Source tree quick reference
 
-```
+```text
 atlas/
-├── app.py                  # entry points (main, tray)
+├── app.py                  # GUI entry point and pywebview startup
 ├── manage.py               # process/management helpers
 ├── api/abstract/           # SoftwareManager ABC + shared model/handler/cache contracts
 ├── view/
-│   ├── core/controller.py  # GenericSoftwareManager (orchestrator)
+│   ├── core/controller.py  # GenericSoftwareManager orchestration
 │   ├── webview/            # pywebview front-end + AtlasApi bridge
-│   └── util/               # i18n, helpers
+│   ├── tray.py             # optional AppIndicator/SNI tray integration
+│   └── util/               # i18n and helper utilities
 ├── gems/<type>/            # one backend per package type
-├── commons/                # shared system utilities (version_util, etc.)
+├── commons/                # shared system/config/version utilities
 └── cli/                    # command-line front-end
 
-rust/
-├── Cargo.toml              # atlas_rs crate
-└── src/                    # lib.rs (map_srcinfo only)
-
 docs/
+├── STATUS.md               # live handoff baton
+├── BACKLOG.md              # longer-horizon feature/QoL menu
 ├── ARCHITECTURE.md         # this file
-├── ROADMAP.md              # Rust migration plan
+├── ROADMAP.md              # historical Rust roadmap/verdict
 ├── DEVELOPMENT.md          # build / run / test
-├── atlas_rs-API.md         # native module reference
-└── plans/                  # per-feature design + implementation docs
+└── plans/                  # feature design / implementation notes
 ```
 
 ---
 
-## 7. Conventions in one paragraph
+## 7. Development conventions
 
-New backend work follows a documented loop: write a **design doc** and an
-**implementation plan** under `docs/plans/` (`YYYY-MM-DD-<feature>-{design,implementation}.md`),
-build the Rust path behind a Python fallback, expose it through PyO3 in `lib.rs`, wire
-it into the owning gem, and verify against both real and mocked system interfaces.
-Python follows PEP 8; Rust follows `cargo fmt`. Keep the boundary coarse, keep the
-fallback until the native path is proven.
+- Python follows PEP 8.
+- Plan non-trivial backend/engine changes in `docs/plans/YYYY-MM-DD-<feature>.md` before
+  implementation.
+- Use strangler-fig changes for risky behavior: add the new path, keep the old fallback,
+  verify, then remove the old path separately.
+- Measure before adding caches, thread pools, native code, or other complexity.
+- Keep Arch official repo packages and AUR packages visibly distinct in UI and data model.
+- Do not reintroduce Qt, Rust, Snap/Debian/Web defaults, or native browser dialogs without
+  explicit sign-off.
+- Update `docs/STATUS.md` before handing off any session that changes code or project
+  direction.

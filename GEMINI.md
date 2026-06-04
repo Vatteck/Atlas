@@ -9,18 +9,22 @@ Gemini/Antigravity) so there is a single source of truth and no drift between to
 ## Before you start, read in this order
 1. [AGENTS.md](AGENTS.md) — guardrails + workflow (canonical)
 2. [docs/STATUS.md](docs/STATUS.md) — the live baton: where the project is right now
-3. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — system map + Python↔Rust boundary
-4. [docs/ROADMAP.md](docs/ROADMAP.md) — what gets built next
+3. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — current system map
+4. [docs/BACKLOG.md](docs/BACKLOG.md) — longer-horizon feature/QoL menu
+5. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — build / run / test commands
+6. [docs/ROADMAP.md](docs/ROADMAP.md) — historical Rust verdict, not the active plan
 
 ## Non-negotiables (full list in AGENTS.md §3)
-- Strangler-fig migrations only — add Rust **behind** the existing Python, never big-bang.
-- Never delete a Python fallback in the same change that introduces its Rust path.
-- Keep the Python↔Rust boundary coarse (one task in, one result out — no callback loops).
-- Hot paths only; do not rewrite non-bottleneck code.
-- No I/O in Rust logic — go through the `SysInterface` trait.
-- Write a design + implementation plan in `docs/plans/` before non-trivial work.
-- Do not reintroduce Qt; the UI is pywebview.
+- Atlas is Arch-focused: Arch repos, AUR, Flatpak, and AppImage are first-class; Snap,
+  Debian, and Web apps stay optional/off by default.
+- Do not reintroduce Rust or Qt without explicit sign-off. Atlas is pure Python and the
+  active UI is pywebview/WebKitGTK.
+- Keep Arch official packages and AUR packages visibly distinct.
+- Use strangler-fig migrations for risky behavior: add the new path, keep the old fallback,
+  prove the new path, then remove the old one separately.
+- Write a design + implementation plan in `docs/plans/` before non-trivial backend/engine work.
+- Verify live behavior instead of trusting stale strings or legacy code comments.
 
 ## When you finish
-Follow the session-end handoff protocol in AGENTS.md §8 — update `docs/STATUS.md` so the
+Follow the session-end handoff protocol in AGENTS.md §7 — update `docs/STATUS.md` so the
 next agent (possibly a different model) picks up cleanly.

@@ -1,57 +1,39 @@
 # Benchmarks
 
-A/B benchmarks for the Rust (`atlas_rs`) migration. The discipline (see
-[`../docs/ROADMAP.md`](../docs/ROADMAP.md)): a native rewrite must be *measurably*
-faster than the Python it replaces, or it isn't worth maintaining two implementations.
+This directory is **historical**. It records measurements from the removed Rust
+`atlas_rs` experiment so future agents do not repeat the same bad bet.
 
-## ⚠️ Always benchmark a RELEASE build
+Atlas is currently **pure Python**. There is no Rust crate, no PyO3 extension, and no
+native module to build. Do not use this directory as an instruction to reintroduce native
+code.
 
-`pip install -e .` and `cargo build` produce **debug** Rust by default, which is ~8×
-slower than release — slow enough that the native code can lose to pure Python. `setup.py`
-now pins `debug=False` so installs are optimized; if you build the extension by hand for
-benchmarking, use `--release`:
+## Why the old benchmark exists
 
-```bash
-CARGO_INCREMENTAL=0 cargo build --release --manifest-path rust/Cargo.toml
-cp rust/target/release/libatlas_rs.so \
-   atlas/gems/arch/atlas_rs.cpython-*-x86_64-linux-gnu.so
-```
+`bench_srcinfo.py` was the deterministic A/B harness for the former `.SRCINFO` parser
+experiment. It compared the original Python parser with a Rust parser and verified both
+produced equivalent output before timing.
 
-## bench_srcinfo.py
-
-Deterministic A/B for `map_srcinfo` (pure `.SRCINFO` parsing — no network/pacman). The
-Python reference is the implementation the Rust port replaced (recovered from git), so
-the comparison is honest. It verifies both produce equivalent output before timing.
-
-```bash
-python benchmarks/bench_srcinfo.py                  # default workloads
-python benchmarks/bench_srcinfo.py --scale 4        # bigger inputs
-python benchmarks/bench_srcinfo.py --iters 50000 --repeats 8
-```
-
-### Result on record (release build, 2026-05-28)
+Result on record from the removed release build (2026-05-28):
 
 | workload | python | rust | speedup |
-|----------|-------:|-----:|--------:|
-| small (5 deps)    | ~11 µs  | ~6 µs  | ~1.9× |
-| medium (40 deps)  | ~39 µs  | ~18 µs | ~2.1× |
-| large (200 deps)  | ~150 µs | ~67 µs | ~2.2× |
-| split (5 subpkgs) | ~46 µs  | ~23 µs | ~2.0× |
+|---|---:|---:|---:|
+| small (5 deps) | ~11 µs | ~6 µs | ~1.9× |
+| medium (40 deps) | ~39 µs | ~18 µs | ~2.1× |
+| large (200 deps) | ~150 µs | ~67 µs | ~2.2× |
+| split (5 subpkgs) | ~46 µs | ~23 µs | ~2.0× |
 
-With a **debug** build the same workloads run ~0.22–0.26× (Rust ~4× *slower*) — the
-reason the release-build rule above exists.
+Even that best-case parser win was too small to justify a Rust toolchain and dual
+implementation in an app whose wall-clock cost is dominated by pacman, AUR RPC, Flatpak,
+network, and build subprocesses.
 
-## Lesson recorded: native pacman info parser (reverted 2026-05-29)
+## Lessons kept
 
-A native `pacman -Si` parser was wired into `map_updates_data` and measured only
-**~1.2×** vs Python (vs `map_srcinfo`'s ~2×). Returning ~100 structured dicts made PyO3
-result-marshalling + the list→set conversion dominate the parse win, so it was reverted
-to cut the maintenance surface. **Takeaway:** parser ports pay off only when the *result*
-is small; large structured payloads lose most of the gain at the boundary. Weigh result
-size before porting any per-package parser.
+- Benchmark before adding complexity.
+- Native code only makes sense for a measured CPU-bound path with a small result.
+- Returning large structured payloads across a Python/native boundary can erase parser
+  wins; the reverted native `pacman -Si` parser only measured about **1.2×**.
+- Debug native builds can be slower than Python, so any future native experiment must be
+  measured in release mode.
 
-## Not yet benchmarked
-
-`map_missing_deps` is dominated by pacman + AUR network I/O, not CPU, and a fair Python
-baseline needs the full `DependenciesAnalyser` object graph. Benchmark it with the
-`ATLAS_DISABLE_RS` switch against a fixed package set if/when that path is optimized.
+For the full verdict, see [`../docs/ROADMAP.md`](../docs/ROADMAP.md). For current work,
+see [`../docs/STATUS.md`](../docs/STATUS.md) and [`../docs/BACKLOG.md`](../docs/BACKLOG.md).

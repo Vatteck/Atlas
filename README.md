@@ -124,13 +124,19 @@ Working on Atlas? Start with **[AGENTS.md](AGENTS.md)** (the operating manual) a
 
 ## Roadmap
 
-The big transitions are done — Qt5 → pywebview UI, and back to a clean **pure-Python**
-engine (a Rust hot-paths experiment was tried and dropped: a package manager is I/O-bound,
-so native code didn't earn its keep). What's left is polish and new features:
+The big transitions are done: Qt5 → pywebview UI, and back to a clean **pure-Python**
+engine after the Rust hot-paths experiment was measured and dropped. The major product
+themes have also shipped: rich details/screenshots, Browse, system tray, AUR safety,
+clean-chroot AUR builds, Flatpak transparency, and Flatseal-grade permission controls.
 
-- Richer app detail panels — in-app screenshots, descriptions, and version history.
-- A system-tray indicator (the legacy Qt tray was removed; a non-Qt one could return).
-- Exploratory: container sandboxing ("Vault").
+Current work is mostly polish and verification. See [`docs/STATUS.md`](docs/STATUS.md)
+for the live handoff baton and [`docs/BACKLOG.md`](docs/BACKLOG.md) for the longer-horizon
+menu. Recent follow-ups include:
+
+- Browse polish: sort-within-category and possible AUR/Flatpak category sources.
+- Installed-app icon resolution beyond hicolor/pixmaps into active theme directories.
+- Live GUI verification passes for flows that cannot be fully tested headless, such as
+  downgrade, screenshot lightbox, and Browse.
 
 ## Credits & license
 

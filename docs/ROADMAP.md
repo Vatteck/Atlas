@@ -15,8 +15,9 @@ This was the forward plan for moving Atlas's engine from pure Python to a Python
 hybrid. The strategy was **hot paths first**: rewrite the slowest CPU/IO-heavy operations
 into `atlas_rs`, keeping the app shippable at every step.
 
-Read [ARCHITECTURE.md](./ARCHITECTURE.md) first — especially §3 (the Python↔Rust
-boundary), which this roadmap assumes.
+This roadmap is preserved as historical context only. The current architecture lives in
+[ARCHITECTURE.md](./ARCHITECTURE.md); the Python↔Rust boundary described below no longer
+exists in the codebase.
 
 ---
 

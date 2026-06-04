@@ -2,10 +2,10 @@
 
 > **This is the single most important file for cross-agent continuity.** It is the live
 > state of the project. Read it at the start of every session; update it at the end of
-> every session that changes code (see AGENTS.md §8). Keep it short and current — when an
+> every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-03 (Fix: uninstalled AUR packages showed "Changed Maintainer" badge; polished detail screenshots and lightbox; 441 tests green, tree clean)
+**Last updated:** 2026-06-03 (Doc maintenance: architecture/README/agent shims/benchmark notes reconciled with pure-Python Atlas; 441 tests green)
 **Version:** 0.10.7
 **Working branch:** `master` (use short-lived branches for larger features; run `git branch` to see what's active)
 
@@ -17,7 +17,7 @@
 ## Current focus
 
 **Polish / QoL tail (2026-06-03).** The big transitions and every planned theme are shipped; Atlas
-is an Arch-focused, **pure-Python** pywebview app on the AUR with green CI (432 tests). Completed
+is an Arch-focused, **pure-Python** pywebview app on the AUR with green CI (441 tests). Completed
 themes: the **AUR-safety theme** (heuristic PKGBUILD scanner → advisory pre-build gate →
 diff-since-last-build → rich rendered review modal → **maintainer-changed-hands advisory** →
 opt-in **clean-chroot builds** with `-I` dep injection, GUI-verified); the **Flatpak transparency &
@@ -46,8 +46,9 @@ follow-ups:
 - **Lower-value:** route the controller's ad-hoc `Thread(...)` spawns through a shared pool
   (marginal; only with a measured reason).
 
-> **Handoff note (next agent):** working tree clean, on `master`, pushed to origin; 441 tests pass.
-> Last commits: `1218edc` (Merge PR #3), `9ea20e1` (screenshot strip/lightbox styling), `7feaa31` (fix AUR maintainer change warning for uninstalled), `ab13e93` (mock run_cmd in AurMetaTest).
+> **Handoff note (next agent):** on `master`; after the doc-maintenance commit this branch is expected
+> to be ahead of origin until pushed. 441 tests pass. Last functional commits before docs:
+> `1218edc` (Merge PR #3), `9ea20e1` (screenshot strip/lightbox styling), `7feaa31` (fix AUR maintainer change warning for uninstalled), `ab13e93` (mock run_cmd in AurMetaTest).
 > Known external (not Atlas): the AUR `antigravity` 2.0.11 update fails to build — upstream source
 > URL 404s (Google pulled the tarball). The maintainer-change advisory can't flag `antigravity`
 > (installed before maintainer-caching → no baseline); it works for packages installed since.
@@ -64,6 +65,15 @@ re-add a native extension without a measured win. Details in the historical
 ---
 
 ## Done
+
+- **Documentation truth pass (2026-06-03).** Reconciled the docs with the current pure-Python,
+  pywebview Atlas state: rewrote `docs/ARCHITECTURE.md` to remove live Rust/PyO3/native-extension
+  instructions and document the actual layers/product flows; refreshed README roadmap to mark rich
+  details, Browse, tray, chroot builds, AUR safety, and Flatpak permissions as shipped; updated
+  `AGENTS.md`/`GEMINI.md` so STATUS/BACKLOG are the active planning docs and ROADMAP is historical;
+  converted `benchmarks/README.md` into a historical benchmark note instead of dead Cargo build
+  instructions; fixed the ROADMAP cross-link that pointed at the removed Python↔Rust architecture
+  section. Verification: local Markdown links OK; suite 441 tests green.
 
 - **Detail screenshots & lightbox polish (2026-06-03).** Polished the screenshots gallery and fullscreen lightbox viewer: (1) **Centering**: centered thumbnails inside the flex container using `justify-content: safe center` to support scrolling on overflow. (2) **Scrollbars**: added custom WebKit scrollbar styling. (3) **Aesthetics**: increased border radius (`var(--radius-md)`), added shadow depth, and designed an active hover state (slight scale up, border color transition, and glow). (4) **Lightbox**: added a smooth scale-up entry animation (`lightboxScaleUp`), increased shadow, added a glassmorphic background/border to navigation/close controls, and improved active hover transforms.
 
@@ -690,8 +700,8 @@ re-add a native extension without a measured win. Details in the historical
   in `srcinfo.py`. **The only surviving native function.**
 - **Native dependency resolver removed** (`resolver.rs`/`aur.rs`/`pacman.rs`/`sys.rs` +
   `map_missing_deps`): I/O+UI-bound, not a useful Rust target (2026-05-29).
-- Documentation set: ARCHITECTURE, ROADMAP, DEVELOPMENT, atlas_rs-API; cross-agent
-  onboarding (AGENTS.md / CLAUDE.md / GEMINI.md) + this baton.
+- Documentation set at the time: ARCHITECTURE, ROADMAP, DEVELOPMENT, native-module API
+  notes; cross-agent onboarding (AGENTS.md / CLAUDE.md / GEMINI.md) + this baton.
 - **Phase 0 complete:** boundary instrumentation (`native.py` switches), `deps_data`
   schema fix, benchmark harness (`benchmarks/bench_srcinfo.py`), and the release-build
   fix (`setup.py debug=False`).

@@ -15,12 +15,14 @@ here. Read it top to bottom before writing code — it keeps you on the project'
 1. **This file** (guardrails + workflow). ← you are here
 2. **[`docs/STATUS.md`](docs/STATUS.md)** — the live baton: what just shipped, what's
    next, known gaps. *Always read this to know where the project actually is right now.*
-3. **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** — the system map.
-4. **[`docs/ROADMAP.md`](docs/ROADMAP.md)** — what gets built next.
+3. **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** — the current system map.
+4. **[`docs/BACKLOG.md`](docs/BACKLOG.md)** — longer-horizon feature/QoL menu.
 5. **[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)** — build / run / test commands.
+6. **[`docs/ROADMAP.md`](docs/ROADMAP.md)** — historical Rust verdict; read when native-code
+   temptation appears, not as the active plan.
 
-Do not start coding until you've read 1–4. If the user's request conflicts with the
-roadmap, say so and ask — don't silently go off-plan.
+Do not start coding until you've read 1–5. If the user's request conflicts with the live
+baton or backlog, say so and ask — don't silently go off-plan.
 
 ---
 
