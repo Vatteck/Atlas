@@ -499,6 +499,7 @@ async function testBrowseRendersSuggestedRowAboveCategories() {
     get_suggestions: async () => [suggestion],
   });
 
+  hooks.setCurrentView('browse');  // renderBrowse now guards on the active view
   await hooks.renderBrowse();
   await flushPromises();
 
@@ -681,6 +682,27 @@ async function testPacnewRisk() {
   assert.ok(/regenerate/i.test(hooks.pacnewRisk('/etc/pacman.d/mirrorlist.pacnew').note));
 }
 
+async function testStaleUtilityRenderDoesNotClobber() {
+  // Regression: open Permissions (slow load), switch to Settings before it resolves — the late
+  // Permissions result must not overwrite the Settings page.
+  const slowInstalled = controlledPromise();
+  const { document, hooks } = loadMainJs({
+    get_installed: () => slowInstalled.promise,
+    get_app_settings: async () => ({ types: [], flatpak_available: false, general: {},
+                                     tray: {}, arch: { available: false } }),
+  });
+
+  hooks.activateView('permissions');   // starts awaiting get_installed
+  hooks.activateView('settings');      // switch before it resolves
+  await flushPromises();
+  slowInstalled.resolve([]);           // Permissions load finishes late
+  await flushPromises();
+
+  const html = document.getElementById('packages-grid').innerHTML;
+  assert.ok(html.includes('settings-page'), 'Settings stays rendered');
+  assert.ok(!html.includes('No installed Flatpaks'), 'stale Permissions render did not clobber');
+}
+
 async function testRefreshCurrentViewRespectsUtilityViews() {
   // Regression: after an operation on a utility view (e.g. orphan cleanup on Health), refreshing
   // must re-render that view, not fall through to app suggestions.
@@ -723,6 +745,7 @@ async function testAttentionCenterFailsOpenOnNullSummary() {
     testEmptyStateHTML,
     testSystemHealthChecks,
     testPacnewRisk,
+    testStaleUtilityRenderDoesNotClobber,
     testRefreshCurrentViewRespectsUtilityViews,
     testAttentionCenterFailsOpenOnNullSummary,
   ];

@@ -361,6 +361,14 @@ function applyTopbarContext() {
     });
 }
 
+// --- View-render epoch: every navigation bumps this; an async utility-view renderer captures it
+// and bails if it's superseded — and only shows a loading spinner if the load is slow *and* still
+// current, so rapid page-switching never flashes intermediate spinners/content. ---
+let navEpoch = 0;
+function pendingSpinner(epoch, html, delay = 160) {
+    return setTimeout(() => { if (epoch === navEpoch) packagesGrid.innerHTML = html; }, delay);
+}
+
 // --- Shared empty / error state (icon + sentence + optional action), used across views ---
 function emptyStateHTML({ icon, title, hint, actionLabel, actionView }) {
     const action = (actionLabel && actionView)
@@ -1203,8 +1211,11 @@ let permsPageSelected = null;
 let permsActiveTab = null;   // which category tab is open in the detail panel (persists across re-renders)
 
 async function renderPermissionsPage() {
-    packagesGrid.innerHTML = `<div class="state-container"><div class="spinner"></div><p>Loading installed Flatpaks…</p></div>`;
+    const epoch = navEpoch;
+    const spin = pendingSpinner(epoch, `<div class="state-container"><div class="spinner"></div><p>Loading installed Flatpaks…</p></div>`);
     const installed = await pyApiCall('get_installed', 'all');
+    clearTimeout(spin);
+    if (epoch !== navEpoch) return;  // a newer navigation superseded this render
     permsPageApps = (installed || []).filter(p => normalizeType(p.type) === 'flatpak')
         .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     if (!permsPageApps.length) {
@@ -2156,11 +2167,14 @@ function formatBytes(bytes, decimals = 2) {
 
 async function renderDiskView() {
     packagesGrid.style.display = 'grid';
-    packagesGrid.innerHTML = getSkeletonGridHTML();
     emptyState.classList.add('hidden');
     loadingState.classList.add('hidden');
+    const epoch = navEpoch;
+    const spin = pendingSpinner(epoch, getSkeletonGridHTML());
 
     const data = await pyApiCall('get_disk_usage');
+    clearTimeout(spin);
+    if (epoch !== navEpoch) return;  // a newer navigation superseded this render
     loadingState.classList.add('hidden');
 
     if (!data) {
@@ -2468,9 +2482,11 @@ function runHealthAction(actionId, btn) {
 
 async function renderSystemHealth() {
     packagesGrid.style.display = 'block';
-    packagesGrid.innerHTML = `<div class="state-container"><div class="spinner"></div><p>Checking system health…</p></div>`;
+    const epoch = navEpoch;
+    const spin = pendingSpinner(epoch, `<div class="state-container"><div class="spinner"></div><p>Checking system health…</p></div>`);
     const data = await pyApiCall('get_system_health');  // unwrapped data, or null on error
-    if (currentView !== 'health') return;  // user navigated away while it loaded
+    clearTimeout(spin);
+    if (epoch !== navEpoch) return;  // a newer navigation superseded this render
     if (!data) {
         packagesGrid.innerHTML = emptyStateHTML({ icon: '📡', title: 'Couldn’t check system health',
             hint: 'Something went wrong gathering the checks. Try again.' });
@@ -2532,6 +2548,7 @@ function copyText(text) {
 
 async function openPacnewCenter() {
     currentView = 'pacnew';
+    navEpoch++;
     navItems.forEach(n => n.classList.remove('active'));  // not a nav item
     searchInput.value = '';
     applyTopbarContext();
@@ -2544,9 +2561,11 @@ async function openPacnewCenter() {
 
 async function renderPacnewCenter() {
     packagesGrid.style.display = 'block';
-    packagesGrid.innerHTML = `<div class="state-container"><div class="spinner"></div><p>Finding config files…</p></div>`;
+    const epoch = navEpoch;
+    const spin = pendingSpinner(epoch, `<div class="state-container"><div class="spinner"></div><p>Finding config files…</p></div>`);
     const res = await pyApiCall('get_pacnew_files');  // {files, count} or null
-    if (currentView !== 'pacnew') return;
+    clearTimeout(spin);
+    if (epoch !== navEpoch) return;
     const files = (res && res.files) || [];
     const back = `<button class="browse-back" id="pacnew-back" type="button">← Back</button>`;
 
@@ -2615,10 +2634,12 @@ async function togglePacnewDiff(btn) {
 
 // Render Chronological Activity Log
 async function renderActivityFeed() {
-    packagesGrid.innerHTML = '';
     packagesGrid.style.display = 'block'; // activity items stack vertically
-    
+    const epoch = navEpoch;
+    const spin = pendingSpinner(epoch, '<div class="state-container"><div class="spinner"></div></div>');
     const activities = await pyApiCall('get_activity') || [];
+    clearTimeout(spin);
+    if (epoch !== navEpoch) return;  // a newer navigation superseded this render
     if (activities.length === 0) {
         packagesGrid.innerHTML = emptyStateHTML({
             icon: '🕘', title: 'No activity yet',
@@ -2654,7 +2675,8 @@ async function renderActivityFeed() {
         `;
         feed.appendChild(item);
     });
-    
+
+    packagesGrid.innerHTML = '';  // replace any prior view / spinner before showing the feed
     packagesGrid.appendChild(feed);
 }
 
@@ -2794,9 +2816,12 @@ async function refreshUpdatesBadge() {
 // Arch Linux News page (read-only feed from archlinux.org).
 async function renderNews() {
     packagesGrid.style.display = 'block';
-    packagesGrid.innerHTML = `<div class="state-container"><div class="spinner"></div><p>Loading Arch news…</p></div>`;
+    const epoch = navEpoch;
+    const spin = pendingSpinner(epoch, `<div class="state-container"><div class="spinner"></div><p>Loading Arch news…</p></div>`);
 
     const data = await pyApiCall('get_arch_news');  // unwrapped list, or null on error
+    clearTimeout(spin);
+    if (epoch !== navEpoch) return;  // a newer navigation superseded this render
     if (!data) {
         packagesGrid.innerHTML = emptyStateHTML({
             icon: '📡', title: 'Couldn’t load Arch news',
@@ -2832,7 +2857,8 @@ async function renderBrowse() {
     currentPackages = [];
     currentGroups = [];
     packagesGrid.style.display = 'block';
-    packagesGrid.innerHTML = `<div class="state-container"><div class="spinner"></div><p>Loading categories…</p></div>`;
+    const epoch = navEpoch;
+    const spin = pendingSpinner(epoch, `<div class="state-container"><div class="spinner"></div><p>Loading categories…</p></div>`);
 
     // Fetch categories + the curated suggestions together (suggestions used to live on the
     // dashboard; they now seed Browse). Suggestions are best-effort — Browse still works without.
@@ -2840,6 +2866,8 @@ async function renderBrowse() {
         pyApiCall('get_categories'),       // unwrapped list, or null on error
         pyApiCall('get_suggestions', 'all'),
     ]);
+    clearTimeout(spin);
+    if (epoch !== navEpoch || activeBrowseCategory) return;  // navigated away / opened a category
     if (!data) {
         packagesGrid.innerHTML = emptyStateHTML({
             icon: '📡', title: 'Couldn’t load categories',
@@ -3156,8 +3184,11 @@ const GENERAL_TOGGLES = [
 ];
 
 async function renderSettings() {
-    packagesGrid.innerHTML = '<div class="settings-loading">Loading settings…</div>';
+    const epoch = navEpoch;
+    const spin = pendingSpinner(epoch, '<div class="settings-loading">Loading settings…</div>');
     const data = await pyApiCall('get_app_settings');
+    clearTimeout(spin);
+    if (epoch !== navEpoch) return;  // a newer navigation superseded this render
     if (!data) {
         packagesGrid.innerHTML = '<div class="settings-loading">Could not load settings.</div>';
         return;
@@ -3250,6 +3281,7 @@ async function renderSettings() {
         </section>` : '';
 
     const mirror = arch.available ? (await pyApiCall('get_mirror_status') || {}) : {};
+    if (epoch !== navEpoch) return;  // user navigated away during the mirror fetch
     const mirrorWhen = mirror.last_modified_iso ? new Date(mirror.last_modified_iso).toLocaleString() : null;
     const mirrorSummary = (mirror.count)
         ? `<div class="mirror-summary">
@@ -3364,6 +3396,7 @@ function activateView(viewName) {
     }
     
     currentView = viewName;
+    navEpoch++;  // supersede any in-flight view render so it can't paint over us
     searchInput.value = ''; // clear search on view change
 
     const notice = document.getElementById('updates-notice');
