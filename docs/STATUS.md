@@ -5,9 +5,9 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-03 (Webview polish sprint 1 full GUI smoke checked; 442 tests green)
+**Last updated:** 2026-06-03 (Sprint 1 merged locally; Sprint 2 branch cut; 442 tests green)
 **Version:** 0.10.7
-**Working branch:** `feat/webview-polish-sprint-1` (short-lived polish branch; run `git branch` before acting)
+**Working branch:** `feat/webview-polish-sprint-2` (short-lived polish branch; run `git branch` before acting)
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)** — the longer-horizon menu we pull
 > from. This file stays the live baton (in-progress / just-shipped).
@@ -47,8 +47,9 @@ follow-ups:
 - **Lower-value:** route the controller's ad-hoc `Thread(...)` spawns through a shared pool
   (marginal; only with a measured reason).
 
-> **Handoff note (next agent):** on `feat/webview-polish-sprint-1`; branch contains webview Browse
-> polish + JS contract harness. 442 tests pass locally. Last functional commits before this branch:
+> **Handoff note (next agent):** `feat/webview-polish-sprint-1` was fast-forward merged into local
+> `master`, then `feat/webview-polish-sprint-2` was cut for the next pass. No sprint-2 functional
+> changes yet. 442 tests pass locally. Last functional commits before sprint 1:
 > `1218edc` (Merge PR #3), `9ea20e1` (screenshot strip/lightbox styling), `7feaa31` (fix AUR maintainer change warning for uninstalled), `ab13e93` (mock run_cmd in AurMetaTest).
 > Known external (not Atlas): the AUR `antigravity` 2.0.11 update fails to build — upstream source
 > URL 404s (Google pulled the tarball). The maintainer-change advisory can't flag `antigravity`
