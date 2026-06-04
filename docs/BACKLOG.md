@@ -5,7 +5,11 @@
 > pull from. Move an item to a `docs/plans/` doc when it gets picked up, and note the
 > outcome in STATUS.md when it ships.
 
-**Last updated:** 2026-06-03 (reconciled — Flatpak permissions page, chroot builds, shortcuts, selection toolbar all shipped)
+**Last updated:** 2026-06-04 (reconciled — Browse Flatpak categories + theme-aware icons + OARS badge confirmed shipped; menu effectively exhausted)
+
+> **State (2026-06-04):** every scheduled item below is shipped. The only remaining sub-item,
+> AUR Browse-by-category, is **infeasible** — the AUR RPC has no category source. New work needs
+> a fresh direction (not yet captured here).
 
 ---
 
@@ -44,8 +48,10 @@
   Graphics / Development / Office / Utilities / System) built from the shipped
   `categories.txt`; click one to list its repo packages. Arch-only, I/O-cheap (one
   `pacman -Sl` + one batched `pacman -Si`, no AUR/network).
-  - *Follow-ups:* sort-within-category (overlaps the Sort dropdown item); AUR/Flatpak
-    categories would need each gem's own category source.
+  - *Follow-ups:* sort-within-category ✅ (sprint 1); **Flatpak categories** ✅ **shipped 2026-06-04**
+    (Flathub `/api/v2/collection/category/<Cat>` → merged into each bucket — see
+    [plans/2026-06-04-polish-tail.md](plans/2026-06-04-polish-tail.md)). **AUR categories: infeasible**
+    — the AUR RPC carries no category taxonomy (only freeform Keywords), so there's no source to browse.
 
 ## Flatpak transparency & control (a "Flatseal + Flathub-info" theme)
 
@@ -56,9 +62,9 @@ Potentially unsafe, derived from the permission set + license — *advisory, not
 editing**: in-modal quick toggles **and** the full Flatseal-grade **Permissions page** (see the
 shipped item above). Backend in `flathub.py`/`permissions.py`/`flatpak.py`.
 
-- **Still open (small):** **OARS age rating** badge — `content_rating` is already in the AppStream
-  payload we pull; just map it (e.g. "3+"). *Easy.* And an optional **"desktop only" / form-factor**
-  hint from AppStream metadata (fuzzier, optional).
+- ~~**OARS age rating + form-factor badges**~~ ✅ **Shipped 2026-06-03** (confirmed 2026-06-04).
+  `flathub.metadata_badges` maps `content_rating_details` → an "N+ / All Ages" badge and `type` →
+  a "Desktop Form Factor" badge; both render in `main.js` (`#detail-badges`).
 
 ## Icons
 
@@ -69,9 +75,11 @@ shipped item above). Backend in `flathub.py`/`permissions.py`/`flatpak.py`.
 - ~~**Installed-app icons from the system**~~ ✅ **Shipped 2026-06-03** — see
   [plans/2026-06-03-installed-app-icons.md](plans/2026-06-03-installed-app-icons.md). `get_pkg_icon`
   resolves an installed package's icon from its `.desktop` `Icon=` (+ name fallback) via a hicolor/
-  pixmaps filesystem search, lazy + cached. *Possible follow-up:* broaden beyond hicolor/pixmaps to
-  cover theme-specific icons (KDE/breeze, e.g. `konsole`) — would likely need `Gtk.IconTheme`
-  (careful re: thread-safety) or scanning the active theme dirs.
+  pixmaps filesystem search, lazy + cached.
+  - ~~*Follow-up: theme-specific icons*~~ ✅ **Shipped 2026-06-04** — resolution now searches the
+    active icon theme + its `Inherits` chain first (filesystem-only `index.theme` parsing, **no
+    `Gtk.IconTheme`** → thread-safe), so e.g. `konsole` in Papirus/breeze resolves. See
+    [plans/2026-06-04-polish-tail.md](plans/2026-06-04-polish-tail.md).
 
 ## Flatpak (follow-ups to the transparency & control theme)
 
