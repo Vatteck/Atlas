@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-03 (Webview polish sprint 1: Browse category correctness + stale async guards; 442 tests green)
+**Last updated:** 2026-06-03 (Webview polish sprint 1 GUI-eyeballed; 442 tests green)
 **Version:** 0.10.7
 **Working branch:** `feat/webview-polish-sprint-1` (short-lived polish branch; run `git branch` before acting)
 
@@ -17,7 +17,7 @@
 ## Current focus
 
 **Polish / QoL tail (2026-06-03).** The big transitions and every planned theme are shipped; Atlas
-is an Arch-focused, **pure-Python** pywebview app on the AUR with green CI (441 tests). Completed
+is an Arch-focused, **pure-Python** pywebview app on the AUR with green CI (442 tests). Completed
 themes: the **AUR-safety theme** (heuristic PKGBUILD scanner → advisory pre-build gate →
 diff-since-last-build → rich rendered review modal → **maintainer-changed-hands advisory** →
 opt-in **clean-chroot builds** with `-I` dep injection, GUI-verified); the **Flatpak transparency &
@@ -41,8 +41,8 @@ follow-ups:
   avatar. (Watch WebKitGTK thread-safety.)
 - **GUI verification status (2026-06-03):** user GUI-verified this session's Flatpak Permissions
   page, clean-chroot toggle (built `protonup-qt` end-to-end), AUR maintainer/update badges in the
-  detail view, and the empty-state. **Still worth a live run:** **downgrade**, the **screenshot
-  lightbox**, and **Browse sprint-1 smoke checklist**. Skeleton loaders are wired/correct — they only show on *uncached*
+  detail view, the empty-state, and **Browse sprint-1 smoke checklist**. **Still worth a live run:**
+  **downgrade** and the **screenshot lightbox**. Skeleton loaders are wired/correct — they only show on *uncached*
   loads (the session `packageCache` makes repeats instant), which is expected.
 - **Lower-value:** route the controller's ad-hoc `Thread(...)` spawns through a shared pool
   (marginal; only with a measured reason).
@@ -75,7 +75,8 @@ re-add a native extension without a measured win. Details in the historical
   screenshot/history callbacks ignore stale package IDs; package-list fetches use an epoch guard so
   older search/view responses cannot repaint newer results. Plan + manual smoke checklist:
   [plans/2026-06-03-webview-polish-sprint-1.md](plans/2026-06-03-webview-polish-sprint-1.md).
-  Verification: `python -m pytest tests/view/webview -q` → 117 passed; `python -m pytest` → 442 passed.
+  Verification: `python -m pytest tests/view/webview -q` → 117 passed; `python -m pytest` → 442 passed;
+  user GUI-eyeballed Browse sprint-1 flow and reported it looks good.
 
 - **Documentation truth pass (2026-06-03).** Reconciled the docs with the current pure-Python,
   pywebview Atlas state: rewrote `docs/ARCHITECTURE.md` to remove live Rust/PyO3/native-extension
