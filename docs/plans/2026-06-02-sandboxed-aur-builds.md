@@ -53,11 +53,16 @@
 >    passed to `mkarchroot -M` on create when `optimize` + a custom conf exist (per-build honoring TBD,
 >    minor).
 >
-> **All four increments are implemented.** v1 is feature-complete. **Trust gate:** the devtools
-> commands + single-package chroot build are verified live (`yay-bin`), and the orchestration is
-> unit-tested, but the full Atlas `_build_in_chroot` path (esp. `-I` dep injection) still needs one
-> real GUI install of an AUR package *with an AUR dependency* — especially given the `root_user`
-> bug above means that path had never actually executed before increment 3.
+> **All four increments are implemented and v1 is VERIFIED LIVE THROUGH THE GUI (2026-06-03).**
+> Installed `protonup-qt` (AUR) with chroot enabled: its two AUR deps `python-inputs` + `python-steam`
+> built in the chroot, were stashed + injected, and the chroot working copy's pacman log
+> (`/var/lib/atlas/aurchroot/vatteck/var/log/pacman.log`) shows both installed into the copy
+> immediately before `protonup-qt`'s build — i.e. `makechrootpkg -I` injection working end-to-end.
+> All three installed on the host. The `vatteck`-named copy confirms the unprivileged `SUDO_USER`
+> path (the one the `root_user` bug would have broken). **Layer 3 done.**
+>
+> (Aside: the GUI test first surfaced an unrelated pre-existing bug — the AUR name index was gzip
+> garbage, breaking AUR-dep resolution; fixed separately, see STATUS.)
 
 ## Goal
 

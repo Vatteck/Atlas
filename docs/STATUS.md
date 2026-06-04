@@ -43,8 +43,8 @@ Pulling from **[BACKLOG.md](BACKLOG.md)**. Near-term candidates:
   **Update (2026-06-03):** the **UI polish thread is done** — the review now renders richly in the
   confirm modal (colored +/- diff, monospace, severity-flagged lines, advisory banner) via a
   structured `review` payload threaded through `request_confirmation`→`prompt_confirmation`→
-  `showConfirmModal` (the blocking decision flow is untouched). **Needs a GUI eyeball.** Only
-  **Layer 3 (chroot)** remains in this theme.
+  `showConfirmModal` (the blocking decision flow is untouched). **Layer 3 (clean-chroot builds) is
+  also DONE and GUI-verified** (2026-06-03 — see Done). **The whole AUR-safety theme is complete.**
 - ✅ **Arch safety net (system-level) is done** — Update-All news gate + `.pacnew` merge-assist button.
 - Note: **keyboard shortcuts** and the **selection toolbar** backlog items already look largely
   shipped (shortcuts help button + batch install/uninstall bar) — confirm before re-picking.
@@ -99,9 +99,10 @@ re-add a native extension without a measured win. Details in the historical
   `makechrootpkg -I`. **Bug fixed in increment 3:** increment 2 used `context.root_user`, which
   `TransactionContext` lacks (only `self.context.root_user` exists) → would `AttributeError` on every
   real chroot build; Mocks + the raw-shell live test had masked it, so the Atlas `_build_in_chroot`
-  path had never actually run. Tests: +3 (suite 422). **v1 feature-complete; trust gate:** still needs
-  one real GUI install of an AUR pkg *with an AUR dep* (single-package build is live-verified; the
-  full `_build_in_chroot` path hasn't run through the app yet). Plan:
+  path had never actually run. Tests: +3 (suite 422). **v1 VERIFIED LIVE through the GUI
+  (2026-06-03):** installed `protonup-qt` with chroot on — its AUR deps `python-inputs`/`python-steam`
+  built in the chroot and the working copy's pacman log shows both injected (`-I`) into the copy
+  right before `protonup-qt` built; all three installed on the host. Layer 3 done. Plan:
   [plans/2026-06-02-sandboxed-aur-builds.md](plans/2026-06-02-sandboxed-aur-builds.md).
 - **AUR PKGBUILD review — rich rendered modal (2026-06-03):** the advisory pre-build review (which
   already scanned + diffed) now *renders* properly instead of dumping a plain-text wall into the
