@@ -78,20 +78,28 @@ class AurMetaTest(unittest.TestCase):
         self._setup(repository='core', baseline='x')
         self.assertEqual({}, self.api.get_aur_meta('bash')['data'])
 
-    def test_update_available_when_installed_is_older(self):
+    @patch('atlas.view.webview.api.run_cmd')
+    def test_update_available_when_installed_is_older(self, mock_run):
+        mock_run.return_value = "-1\n"
         # real vercmp: 2.0.6-1 < 2.0.11-1
         self._setup(installed=True, version='2.0.6-1', latest='2.0.11-1')
         data = self.api.get_aur_meta('antigravity')['data']
         self.assertEqual('2.0.11-1', data['latest_version'])
         self.assertTrue(data['update_available'])
+        mock_run.assert_called_once_with('vercmp 2.0.6-1 2.0.11-1', print_error=False)
 
-    def test_no_update_when_versions_equal(self):
+    @patch('atlas.view.webview.api.run_cmd')
+    def test_no_update_when_versions_equal(self, mock_run):
+        mock_run.return_value = "0\n"
         self._setup(installed=True, version='2.0.11-1', latest='2.0.11-1')
         self.assertFalse(self.api.get_aur_meta('antigravity')['data']['update_available'])
+        mock_run.assert_called_once_with('vercmp 2.0.11-1 2.0.11-1', print_error=False)
 
-    def test_no_update_for_non_installed(self):
+    @patch('atlas.view.webview.api.run_cmd')
+    def test_no_update_for_non_installed(self, mock_run):
         self._setup(installed=False, version='2.0.6-1', latest='2.0.11-1')
         self.assertFalse(self.api.get_aur_meta('antigravity')['data']['update_available'])
+        mock_run.assert_not_called()
 
 
 class SerializeSortFieldsTest(unittest.TestCase):
