@@ -82,12 +82,12 @@ first:
   one safe action. See [plans/2026-06-04-system-health.md](plans/2026-06-04-system-health.md).
   *Possible follow-ups:* keyring freshness, AUR-index age, a gated "remove stale lock" action, and a
   per-check details disclosure.
-- **`.pacnew` center.** Promote the notice to a real section: list with **risk labels**
-  (`mirrorlist` = dangerous to overwrite, `pacman.conf` = review, service configs = medium),
-  buttons for open-pacdiff / copy-path / read-only diff / regenerate-mirrorlist. **No auto-merge.**
-- **Mirror manager polish.** Current-mirror summary (country/protocol/last-modified), regenerate
-  options (fastest HTTPS / country / conservative), preview the command, show before/after top
-  mirrors. Don't grow into a full reflector GUI unless it earns it.
+- ~~**`.pacnew` center.**~~ ✅ **shipped 2026-06-04** — reviewable sub-view with per-file risk badges,
+  read-only diff, copy-path, open-pacdiff, regenerate-mirrorlist. No auto-merge. See
+  [plans/2026-06-04-pacnew-center-mirror-polish.md](plans/2026-06-04-pacnew-center-mirror-polish.md).
+- ~~**Mirror manager polish.**~~ ✅ **shipped 2026-06-04** — Settings → Mirrors shows active-mirror
+  summary (count + top hosts + last-modified) + command preview; refreshes after regen (same plan).
+  *Possible follow-ups:* country/protocol regenerate options.
 
 ### GUI polish (low backend, high perceived quality)
 - ~~**Command palette** (`Ctrl+K`/`Ctrl+P`)~~ ✅ **shipped + GUI-verified 2026-06-04** — fuzzy-filtered
@@ -102,8 +102,9 @@ first:
 - ~~**Finish empty/error/loading states**~~ ✅ **shipped 2026-06-04** — unified `emptyStateHTML`
   across News / categories / category-packages / Permissions / Activity (same plan). *(In-modal
   screenshots/history intentionally just hide; a couple of deeper states could still be tailored.)*
-- **Extend stale-render guards** (sprint 1 covered package lists + the detail modal) to the News,
-  Permissions, and Disk pages.
+- ~~**Extend stale-render guards**~~ ✅ **shipped 2026-06-04** — a `navEpoch` + delayed-spinner
+  pattern now guards every async utility renderer (News/Permissions/Settings/Activity/Disk/Browse/
+  Health/pacnew): last-clicked wins and rapid switching no longer flashes intermediate pages.
 
 ### Power-user sugar (make it beautiful)
 - **"Why is this installed?"** — explicit vs dependency, required-by list, orphan status, reverse

@@ -73,6 +73,21 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **`.pacnew` center + mirror polish + no-flash view renders (2026-06-04).** Finished the Arch
+  cockpit. **`.pacnew` center**: a reviewable sub-view (reached from the System Health "Config files"
+  card + the Updates notice; `currentView='pacnew'`, no nav item) listing each file with a **risk
+  badge** (pure `pacnewRisk`: mirrorlist→danger "regenerate, don't overwrite"; pacman.conf/sudoers/
+  fstab/…→warn; else info), a read-only **Show diff** (backend `get_pacnew_diff`: `diff -u` of the
+  installed file vs its `.pacnew`, whitelisted to the real list, no root, truncated; root-only →
+  "use pacdiff"), and **Copy path**; global **Open pacdiff** + **Regenerate mirror list**. No
+  auto-merge. **Mirror polish**: Settings → Mirrors shows an active-mirror summary (count + top hosts
+  + last-updated) and previews the exact regen command, via `get_mirror_status()`; refreshes after a
+  regen. **No-flash renders**: a `navEpoch` bumped per navigation + a delayed `pendingSpinner` make
+  the async utility renderers (News/Permissions/Settings/Activity/Disk/Browse/Health/pacnew) keep the
+  prior view until the new one is ready and bail if superseded — fixes the stale-render bug (switch
+  away mid-load) **and** the rapid-switch flash. Tests: `test_api.py::PacnewMirrorTest` (4) +
+  `main_js_contracts` (pacnewRisk, stale-render). **GUI-verified.** Suite 463 + JS harness 19. Plans:
+  [plans/2026-06-04-pacnew-center-mirror-polish.md](plans/2026-06-04-pacnew-center-mirror-polish.md).
 - **System Health page — the "Arch cockpit" (2026-06-04).** New **Health** sidebar page:
   package-management health checks, each card = status pill + explanation + one safe action.
   Checks: database sync age, mirror list, pacman lock, `.pacnew` files, orphan packages, package
