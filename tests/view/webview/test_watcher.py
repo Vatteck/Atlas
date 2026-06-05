@@ -140,5 +140,35 @@ class WatcherRequestConfirmationTest(unittest.TestCase):
         self.assertTrue(watcher.request_confirmation(title='t', body='b'))
 
 
+class WatcherStatusCleaningTest(unittest.TestCase):
+    """Gem status/substatus messages use HTML markup (bauh's bold() → <span style=…>); the webview
+    renders them as text, so the watcher strips tags. Raw command output (print) stays verbatim."""
+
+    def _watcher_and_window(self):
+        window = Mock()
+        return WebviewWatcher(Mock(), window=window, api=None), window
+
+    def test_change_status_strips_html(self):
+        watcher, window = self._watcher_and_window()
+        watcher.change_status('Building package <span style="font-weight: bold">vesktop-bin</span>')
+        call = window.evaluate_js.call_args[0][0]
+        self.assertIn('Building package vesktop-bin', call)
+        self.assertNotIn('<span', call)
+
+    def test_change_substatus_strips_html(self):
+        watcher, window = self._watcher_and_window()
+        watcher.change_substatus('Synchronizing <b>chroot</b>')
+        call = window.evaluate_js.call_args[0][0]
+        self.assertIn('Synchronizing chroot', call)
+        self.assertNotIn('<b>', call)
+
+    def test_print_keeps_raw_output_verbatim(self):
+        watcher, window = self._watcher_and_window()
+        # Raw output can legitimately contain angle brackets (template errors, redirects).
+        watcher.print('error: std::vector<int> not found 2>&1')
+        call = window.evaluate_js.call_args[0][0]
+        self.assertIn('std::vector<int>', call)
+
+
 if __name__ == '__main__':
     unittest.main()

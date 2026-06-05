@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-05 (Transaction timeline + friendly failure summary shipped; 490 tests + 31 JS green)
+**Last updated:** 2026-06-05 (Transaction timeline + friendly failure summary + status HTML-strip fix; 493 tests + 31 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -89,9 +89,12 @@ re-add a native extension without a measured win. Details in the historical
   summary** — on failure, a card names the likely cause + next step via a pure, ordered
   `summarizeFailure(log)` (auth → PGP/keyring → download/404 → file conflict → package conflict →
   dependency → build → generic), advisory, log stays below. Pure helpers `summarizeFailure` +
-  `buildStepsHTML` (Node-VM-tested, 2). Suite 490 + JS **31**. **Needs a GUI eyeball** (run an
-  install → stepper advances; force a failure → summary card). Plan:
-  [plans/2026-06-05-transaction-timeline.md](plans/2026-06-05-transaction-timeline.md).
+  `buildStepsHTML` (Node-VM-tested, 2). Suite 490 + JS **31**. **GUI eyeball found + fixed:** the gem's
+  status/substatus carried HTML markup (bauh's `bold()` → `<span style=…>`) that leaked as literal text
+  ("Building package `<span …>`vesktop-bin`</span>`"); `WebviewWatcher.change_status`/`change_substatus`
+  now run the existing `_clean` tag-stripper. **`print` (raw log) stays verbatim** — it can contain
+  legit angle brackets (C++ template errors, redirects). Tests: `test_watcher.py::WatcherStatusCleaningTest`
+  (3). Suite **493**. Plan: [plans/2026-06-05-transaction-timeline.md](plans/2026-06-05-transaction-timeline.md).
 - **Fix: misleading category chip counts (2026-06-05).** Category chips showed a package count
   (e.g. "Office · 1 package") computed from `categories.txt` (the **Arch-repo index only**), but
   opening a category also lists Flathub apps — so the number understated reality (Office → 1 shown,

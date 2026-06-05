@@ -53,17 +53,19 @@ class WebviewWatcher(ProcessWatcher):
     def print(self, msg: str):
         if msg:
             self.logger.debug(f'[watcher] {msg}')
+            # Raw command output stays verbatim (it can contain legit angle brackets, e.g. C++
+            # template errors / redirects) — only the gem's own status messages get HTML stripped.
             escaped = json.dumps(msg)
             self._push(f'terminalAppend({escaped})')
 
     def change_status(self, msg: str):
         if msg:
-            escaped = json.dumps(msg)
+            escaped = json.dumps(self._clean(msg))
             self._push(f'terminalSetStatus({escaped})')
 
     def change_substatus(self, msg: str):
         if msg:
-            escaped = json.dumps(msg)
+            escaped = json.dumps(self._clean(msg))
             self._push(f'terminalSetSubstatus({escaped})')
 
     def change_progress(self, val: int):
