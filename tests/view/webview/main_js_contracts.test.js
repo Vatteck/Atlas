@@ -891,6 +891,24 @@ async function testPickActivityText() {
   assert.strictEqual(hooks.pickActivityText(), 'Working…');
 }
 
+async function testTerminalFlowRunsWithoutError() {
+  // Drives the real terminal handlers end-to-end so runtime errors (e.g. an undeclared variable)
+  // are caught here, not only in the live app. (Regression: terminalOpen referenced a removed
+  // `substatusEl`, which threw a ReferenceError on every install.)
+  const { window, document } = loadMainJs({});
+  assert.doesNotThrow(() => window.terminalOpen('Installing zoom'), 'terminalOpen');
+  assert.doesNotThrow(() => window.terminalSetStatus('Resolving'), 'setStatus');
+  assert.doesNotThrow(() => window.terminalSetSubstatus('(50%) [2/3] Installing pulseaudio'), 'setSubstatus');
+  assert.doesNotThrow(() => window.terminalSetProgress(50), 'setProgress');
+  assert.doesNotThrow(() => window.terminalAppend('some raw output line'), 'append');
+  // activity line reflects the substatus (the highest-priority signal)
+  assert.strictEqual(document.getElementById('terminal-activity-text').textContent, '(50%) [2/3] Installing pulseaudio');
+  // failure path renders the summary card
+  assert.doesNotThrow(() => window.terminalAppend('error: failed retrieving file (404)'), 'append err');
+  assert.doesNotThrow(() => window.terminalSetDone(false), 'setDone(false)');
+  assert.ok(document.getElementById('terminal-failure').innerHTML.includes('Download failed'), 'failure summary shown');
+}
+
 async function testShowTransactionPreviewUsesActionCopy() {
   // Uninstall routes to get_uninstall_preview and sets the Remove title + danger proceed button.
   const { document, hooks } = loadMainJs({
@@ -938,6 +956,7 @@ async function testShowTransactionPreviewUsesActionCopy() {
     testBuildSourceCompareHTML,
     testSummarizeFailureCategories,
     testPickActivityText,
+    testTerminalFlowRunsWithoutError,
     testShowTransactionPreviewUsesActionCopy,
   ];
   for (const test of tests) {

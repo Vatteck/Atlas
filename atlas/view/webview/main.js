@@ -475,7 +475,6 @@ window.terminalOpen = (title) => {
     titleEl.textContent = title;
     statusEl.textContent = 'Working…';
     statusEl.className = 'terminal-status running';
-    if (substatusEl) substatusEl.textContent = '';
     progressFill.style.width = '0%';
     output.innerHTML = '';
     doneMsg.className = 'hidden';
