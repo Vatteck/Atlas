@@ -2710,3 +2710,26 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
 .txp-perm-warn .txp-perm-title { color: var(--status-warning); }
 .txp-notes { display: flex; flex-direction: column; gap: 4px; }
 .txp-note { font-size: 12px; color: var(--text-secondary); }
+
+/* Source-comparison panel (detail page, multi-source apps) */
+#detail-source-compare:empty { display: none; }
+.srccmp { margin: 16px 0; border: 1px solid var(--border-color); border-radius: var(--radius-md);
+    background: var(--bg-surface); overflow: hidden; }
+.srccmp-head { padding: 10px 14px; font-size: 13px; font-weight: 700; color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color); }
+.srccmp-table { display: flex; flex-direction: column; }
+.srccmp-row { display: grid;
+    grid-template-columns: minmax(80px, auto) auto auto 1fr auto;
+    grid-template-areas: "src ver size note action"; align-items: center; gap: 4px 14px;
+    padding: 10px 14px; border-bottom: 1px solid var(--border-color); }
+.srccmp-row:last-child { border-bottom: none; }
+.srccmp-row.is-installed { background: rgba(16, 185, 129, 0.06); }
+.srccmp-src { grid-area: src; }
+.srccmp-src .source-pill { cursor: default; }
+.srccmp-ver { grid-area: ver; font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.srccmp-size { grid-area: size; font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+.srccmp-note { grid-area: note; font-size: 12px; color: var(--text-secondary); }
+.srccmp-action { grid-area: action; justify-self: end; }
+.srccmp-action .btn { padding: 5px 14px; font-size: 13px; }
+.srccmp-installed { font-size: 12px; font-weight: 600; color: var(--status-success, #10b981); white-space: nowrap; }
+.srccmp-hint { margin: 0; padding: 8px 14px 12px; font-size: 12px; color: var(--text-secondary); }

@@ -1052,6 +1052,50 @@ function sourceBadges(group, activeIdx) {
     return `<div class="source-pills">${pills}</div>${extra}`;
 }
 
+// One-line characterisation of a source, for the detail-page comparison panel.
+function sourceCompareNote(type) {
+    switch (normalizeType(type)) {
+        case 'aur': return 'Community-maintained · built from source';
+        case 'flatpak': return 'Sandboxed · cross-distro';
+        case 'arch':
+        case 'arch_repo': return 'Official Arch repository';
+        case 'appimage': return 'Portable single file';
+        case 'snap': return 'Sandboxed · Canonical store';
+        default: return '';
+    }
+}
+
+// Pure builder: when an app is offered by more than one source, a compact "pick where to install
+// from" table on the detail page. Built from the in-memory group (version/size/installed) — no
+// extra backend calls. Each non-installed source gets an Install button that routes through the
+// normal install path (and its full transaction preview). Returns '' for single-source apps.
+// Node-VM contract-tested.
+function buildSourceCompareHTML(group) {
+    const sources = (group && group.sources) || [];
+    if (sources.length < 2) return '';
+    const rows = sources.map(s => {
+        const t = normalizeType(s.type);
+        const ver = s.version ? `v${escapeHtml(s.version)}` : '—';
+        const size = s.size ? formatBytes(s.size) : (s.download_size ? formatBytes(s.download_size) : '—');
+        const note = sourceCompareNote(s.type);
+        const action = s.installed
+            ? `<span class="srccmp-installed">✓ Installed</span>`
+            : `<button class="btn btn-primary srccmp-install" data-id="${escapeHtml(s.id)}">Install</button>`;
+        return `<div class="srccmp-row src-${escapeHtml(t)}${s.installed ? ' is-installed' : ''}">
+            <div class="srccmp-src"><span class="source-pill src-${escapeHtml(t)}">${escapeHtml(sourceLabel(s.type))}</span></div>
+            <div class="srccmp-ver">${ver}</div>
+            <div class="srccmp-size">${size}</div>
+            <div class="srccmp-note">${escapeHtml(note)}</div>
+            <div class="srccmp-action">${action}</div>
+        </div>`;
+    }).join('');
+    return `<div class="srccmp">
+        <div class="srccmp-head">Available from ${sources.length} sources</div>
+        <div class="srccmp-table">${rows}</div>
+        <p class="srccmp-hint">Each source is packaged independently — pick where to install from.</p>
+    </div>`;
+}
+
 // Inner HTML of a card for the given active source — re-rendered on source switch.
 function cardInnerHTML(group, activeIdx) {
     const pkg = group.sources[activeIdx];
@@ -1797,7 +1841,13 @@ function maintainerChangePopupHtml(changed) {
         + `<p>A package changing hands is common and usually fine, but it's worth a glance before you update — the new maintainer controls what gets built and run. <strong>Advisory, not a verdict.</strong></p>`;
 }
 
-function openDetailModal(pkg) {
+// Find the multi-source group (from the current grid) that contains this package id, so the detail
+// page can show the source-comparison panel. Returns null when not part of a known group.
+function findGroupForPkgId(id) {
+    return (currentGroups || []).find(g => (g.sources || []).some(s => s.id === id)) || null;
+}
+
+function openDetailModal(pkg, group) {
     const detailPkgId = String(pkg.id || '');
     detailModal.dataset.pkgId = detailPkgId;
     const stillCurrentDetail = () => detailModal.dataset.pkgId === detailPkgId;
@@ -1831,6 +1881,10 @@ function openDetailModal(pkg) {
     typeBadge.className = `meta-badge type-${normalizeType(pkg.type)}`;
     document.getElementById('detail-meta').innerHTML = `<span>v${escapeHtml(pkg.version || 'Unknown')}</span>`;
     document.getElementById('detail-description').textContent = pkg.description || 'No description available for this package.';
+
+    // Source-comparison panel (only when this app is offered by more than one source).
+    const compareEl = document.getElementById('detail-source-compare');
+    if (compareEl) compareEl.innerHTML = buildSourceCompareHTML(group || findGroupForPkgId(pkg.id));
 
     // Link to the package's web page (AUR / official Arch). Routed through open_url so it
     // opens in the system browser rather than navigating the app window.
@@ -3826,6 +3880,7 @@ packagesGrid.addEventListener('click', async (e) => {
         const pkgId = card.dataset.id;
         const pkg = currentPackages.find(p => p.id === pkgId);
         if (!pkg) return;
+        const cardGroup = card.dataset.gi != null ? currentGroups[parseInt(card.dataset.gi, 10)] : null;
 
         if (selectMode) {
             const chk = card.querySelector('.pkg-checkbox');
@@ -3841,9 +3896,18 @@ packagesGrid.addEventListener('click', async (e) => {
             }
             updateBatchBar();
         } else {
-            openDetailModal(pkg);
+            openDetailModal(pkg, cardGroup);
         }
     }
+});
+
+// Source-comparison panel: install from the chosen source (routes through the full preview).
+document.getElementById('detail-source-compare').addEventListener('click', (e) => {
+    const btn = e.target.closest('.srccmp-install');
+    if (!btn) return;
+    e.stopPropagation();
+    if (operationInProgress) { showToast('Busy', 'Another operation is already running', 'warning'); return; }
+    installApp(btn.dataset.id, btn);
 });
 
 // Initialization hook when pywebview is ready
@@ -4446,6 +4510,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         pacnewRisk,
         buildTransactionPreviewHTML,
         buildUpdateAllPreviewData,
+        buildSourceCompareHTML,
         showInstallPreview,
         showTransactionPreview,
         resolveTxPreview,

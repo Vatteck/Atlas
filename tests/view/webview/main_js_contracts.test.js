@@ -839,6 +839,24 @@ async function testBuildUpdateAllPreviewData() {
   assert.strictEqual(empty.name, '0 packages');
 }
 
+async function testBuildSourceCompareHTML() {
+  const { hooks } = loadMainJs({});
+  // single source → no panel
+  assert.strictEqual(hooks.buildSourceCompareHTML({ sources: [{ id: 'a', type: 'arch_repo', version: '1.0' }] }), '');
+  assert.strictEqual(hooks.buildSourceCompareHTML(null), '');
+  // multi-source → a row per source, install button only for non-installed
+  const group = { name: 'steam', sources: [
+    { id: 'arch_repo:steam', type: 'arch_repo', version: '1.0', size: 1000, installed: true },
+    { id: 'flatpak:com.valvesoftware.Steam', type: 'flatpak', version: '1.1', download_size: 2000, installed: false },
+  ]};
+  const html = hooks.buildSourceCompareHTML(group);
+  assert.ok(html.includes('Available from 2 sources'), 'header');
+  assert.ok(html.includes('✓ Installed'), 'installed source marked');
+  assert.ok(html.includes('class="btn btn-primary srccmp-install" data-id="flatpak:com.valvesoftware.Steam"'), 'install button targets the non-installed source');
+  assert.ok(!html.includes('data-id="arch_repo:steam"'), 'no install button for the installed source');
+  assert.ok(html.includes('Official Arch repository') && html.includes('Sandboxed'), 'per-source notes');
+}
+
 async function testShowTransactionPreviewUsesActionCopy() {
   // Uninstall routes to get_uninstall_preview and sets the Remove title + danger proceed button.
   const { document, hooks } = loadMainJs({
@@ -883,6 +901,7 @@ async function testShowTransactionPreviewUsesActionCopy() {
     testTransactionPreviewActionLabelsSizeRow,
     testTransactionPreviewUpdateShowsVersionDelta,
     testBuildUpdateAllPreviewData,
+    testBuildSourceCompareHTML,
     testShowTransactionPreviewUsesActionCopy,
   ];
   for (const test of tests) {

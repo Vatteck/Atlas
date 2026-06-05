@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-04 (Transaction preview increment 3 — update + Update-All aggregate — shipped; 480 tests + 28 JS green)
+**Last updated:** 2026-06-04 (Transaction preview COMPLETE — source-comparison panel shipped; 480 tests + 29 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -44,10 +44,9 @@ the old `hroadmap.md` was folded in and deleted). Highest-value open items there
 - **AUR discovery buckets** (Popular / Recently-updated / VCS / binary) — the *feasible* form of AUR
   Browse (categories are infeasible). Needs the heavier `packages-meta-ext-v1.json.gz` dump, not just
   the names index — a real data-source decision.
-- **Universal transaction preview** — install, uninstall, downgrade, **update**, and the **Update-All
-  aggregate** all ✅ **shipped 2026-06-04** (need a GUI eyeball; see Done). Only remaining piece: the
-  **source-comparison panel** UI on detail pages (the preview already shapes the per-source data it
-  will reuse).
+- ~~**Universal transaction preview**~~ ✅ **COMPLETE 2026-06-04** — install, uninstall, downgrade,
+  update, Update-All aggregate, **and the source-comparison panel** on detail pages all shipped (each
+  needs a GUI eyeball; see Done).
 - **System Health page / `.pacnew` center / mirror polish** — the "Arch cockpit" (backends largely
   exist from the safety-net + maintenance-hub work).
 - **GUI sugar:** command palette (`Ctrl+K`), density modes, contextual topbar, finish empty/error
@@ -79,6 +78,18 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Transaction preview — increment 4: source-comparison panel (2026-06-04, theme complete).** When an
+  app is offered by **more than one source** (e.g. Steam from the Arch repo + Flathub), its detail page
+  now shows a compact "pick where to install from" table above the description: one row per source with
+  source pill, version, size, a one-line characterisation (`sourceCompareNote`), and an **Install**
+  button per non-installed source ("✓ Installed" on the one you have). Pure `buildSourceCompareHTML(group)`
+  built **entirely from the in-memory group** the grid already collapsed (`collapseByName`) — **no extra
+  backend calls**; each Install routes through the normal `installApp` (and thus the full transaction
+  preview), so the panel is the fast chooser and the preview the deep-dive. `openDetailModal(pkg, group)`
+  gained an optional group (card clicks pass it; else `findGroupForPkgId` looks it up); single-source
+  apps render nothing. Test: `main_js_contracts::testBuildSourceCompareHTML`. Suite 480 + JS **29**.
+  **Needs a GUI eyeball.** This **completes the universal transaction-preview theme.** Plan:
+  [plans/2026-06-04-transaction-preview.md](plans/2026-06-04-transaction-preview.md).
 - **Transaction preview — increment 3: update + Update-All aggregate (2026-06-04).** The pre-flight
   preview now also gates **single-package updates** and the **Update-All** bulk upgrade. *Single
   update* (`get_update_preview`): an update is an acquire of a newer version, so it reuses the install

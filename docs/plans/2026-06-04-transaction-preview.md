@@ -1,8 +1,8 @@
 # Plan — Universal transaction preview (increment 1: Install)
 
 **Date:** 2026-06-04
-**Status:** increments 1–3 SHIPPED — install, uninstall, downgrade, **update**, and the
-**Update-All aggregate**. Only the source-comparison **panel** UI on detail pages remains.
+**Status:** COMPLETE — install, uninstall, downgrade, update, Update-All aggregate, **and the
+source-comparison panel** on detail pages are all shipped (each needs a GUI eyeball).
 **Backlog item:** "Universal transaction preview" + the data half of "source-comparison panel"
 (BACKLOG → Operation confidence / Better app detail pages).
 
@@ -140,6 +140,22 @@ stays generic — only label selection was added.
   (version-delta render, `buildUpdateAllPreviewData` split/sizes/warnings). Suite 480 + JS 28.
 - **Needs a GUI eyeball:** single update → `v→v` + size; Update-All → aggregate modal (counts/split/
   size/news), then the news gate when there's news; cancel at either stage aborts.
+
+## Increment 4 — source-comparison panel (2026-06-04, theme complete)
+
+When an app is offered by **more than one source** (e.g. Steam from the Arch repo + Flathub), the
+detail page now shows a compact "pick where to install from" table above the description. Pure
+`buildSourceCompareHTML(group)` (Node-VM-tested) builds one row per source — source pill, version,
+size, a one-line characterisation (`sourceCompareNote`: AUR = community/built-from-source, Flatpak =
+sandboxed/cross-distro, repo = official, …), and an **Install** button for each non-installed source
+(the installed one shows "✓ Installed"). Built **entirely from the in-memory group** the grid already
+collapsed (`collapseByName`) — **no extra backend calls**; each Install button routes through the
+normal `installApp` (and thus its full transaction preview), so the panel is a fast at-a-glance
+chooser and the preview is the deep-dive. `openDetailModal(pkg, group)` gained an optional `group`
+(card clicks pass it; otherwise `findGroupForPkgId` looks it up); single-source apps render nothing
+(`#detail-source-compare:empty{display:none}`). Test: `main_js_contracts::testBuildSourceCompareHTML`.
+**Needs a GUI eyeball** (open a multi-source app's detail → table renders; Install from the other
+source works).
 
 ## What was actually built (increment 1)
 
