@@ -91,7 +91,9 @@ re-add a native extension without a measured win. Details in the historical
   **Polish (2026-06-05, GUI-eyeball follow-up):** gave every `.detail-section` a 28px top margin (the
   "Details" heading was hugging the dependency note), and suppressed the now-redundant `dependson` /
   `optdepends` / `orphan` rows from the get_info Details table (the Dependencies section renders them
-  better; makedepends/checkdepends are build-only and kept).
+  better; makedepends/checkdepends are build-only and kept). Also dropped the **`maintainer`** Details
+  row: for Arch its value is just the source string (`aur` / a repo name), not a person — it
+  contradicted the header, which shows the real maintainer (e.g. `dcelasun`) + the source badge.
 - **Better app detail pages — "why this source?" + dependency summary (2026-06-05).** Two additions to
   the detail modal serving Atlas's multi-source-honesty angle (the BACKLOG "Better app detail pages"
   item; the source-compare panel + transaction preview already shipped). (1) **"Why this source?" hint**

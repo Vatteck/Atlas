@@ -1696,7 +1696,9 @@ async function renderDetailHistory(pkg, stillCurrent = () => true) {
 // don't repeat them in the DETAILS table.
 // The Dependencies section now renders Requires/Optional and the orphan/install-reason status, so
 // drop the raw get_info rows that duplicate it (makedepends/checkdepends are build-only — kept).
-const SKIP_DETAIL_KEYS = new Set(['id', 'name', 'version', 'description', 'dependson', 'optdepends', 'orphan']);
+// 'maintainer' is also dropped: for Arch its value is just the source string ('aur' / a repo name),
+// not a person — the header already shows the real maintainer/developer + the source badge.
+const SKIP_DETAIL_KEYS = new Set(['id', 'name', 'version', 'description', 'dependson', 'optdepends', 'orphan', 'maintainer']);
 
 // Package Detail Modal View
 // --- Permissions page (Flatseal-style, master/detail) ----------------------
