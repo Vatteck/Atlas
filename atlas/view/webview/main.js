@@ -3142,9 +3142,10 @@ async function renderBrowse() {
 
     // Fetch categories + the curated suggestions together (suggestions used to live on the
     // dashboard; they now seed Browse). Suggestions are best-effort — Browse still works without.
-    const [data, suggestions] = await Promise.all([
+    const [data, suggestions, aurBuckets] = await Promise.all([
         pyApiCall('get_categories'),       // unwrapped list, or null on error
         pyApiCall('get_suggestions', 'all'),
+        pyApiCall('get_aur_discovery'),    // unwrapped list, or null/[]
     ]);
     clearTimeout(spin);
     if (epoch !== navEpoch || activeBrowseCategory) return;  // navigated away / opened a category
@@ -3171,11 +3172,23 @@ async function renderBrowse() {
         ? `<div class="browse-header browse-header-spaced">Suggested for you</div><div class="browse-suggested" id="browse-suggested"></div>`
         : '';
 
-    // Categories first (the primary purpose of Browse), then the suggested apps row.
+    // AUR discovery buckets (community-maintained — kept visually distinct from official categories).
+    const hasAur = Array.isArray(aurBuckets) && aurBuckets.length > 0;
+    const aurCards = hasAur ? aurBuckets.map(b => `
+        <button class="category-card aur-bucket-card" data-aur-key="${escapeHtml(b.key)}" data-aur-label="${escapeHtml(b.label)}">
+            <span class="category-icon">${escapeHtml(b.icon || '📦')}</span>
+            <span class="category-label">${escapeHtml(b.label)}</span>
+            <span class="category-count">${escapeHtml(b.count)} package${b.count === 1 ? '' : 's'}</span>
+        </button>`).join('') : '';
+    const aurSection = hasAur
+        ? `<div class="browse-header browse-header-spaced">Discover on the AUR <span class="browse-header-note">community-maintained</span></div><div class="category-grid">${aurCards}</div>`
+        : '';
+
+    // Categories first (the primary purpose of Browse), then AUR discovery, then the suggested row.
     packagesGrid.innerHTML =
         `<div class="browse-view">` +
         `<div class="browse-header">Browse by category</div><div class="category-grid">${cards}</div>` +
-        `${suggestedSection}</div>`;
+        `${aurSection}${suggestedSection}</div>`;
 
     // Render the suggestions as real package cards (install/detail/source-switch all work via the
     // existing #packages-grid delegation, which resolves data-gi against currentGroups).
@@ -3190,8 +3203,12 @@ async function renderBrowse() {
         }
     }
 
-    packagesGrid.querySelectorAll('.category-card').forEach(btn => {
+    packagesGrid.querySelectorAll('.category-card:not(.aur-bucket-card)').forEach(btn => {
         btn.addEventListener('click', () => renderCategoryPackages(btn.dataset.catKey, btn.dataset.catLabel));
+    });
+    packagesGrid.querySelectorAll('.aur-bucket-card').forEach(btn => {
+        btn.addEventListener('click', () => renderCategoryPackages(btn.dataset.aurKey, btn.dataset.aurLabel,
+                                                                   { api: 'get_aur_bucket_packages' }));
     });
 }
 
@@ -3203,13 +3220,14 @@ function browseCategoryHeader(category) {
     return header;
 }
 
-async function renderCategoryPackages(key, label) {
+async function renderCategoryPackages(key, label, opts) {
+    const api = (opts && opts.api) || 'get_category_packages';
     activeBrowseCategory = { key, label };
     applyTopbarContext();  // open category = package list → show the controls
     packagesGrid.style.display = 'block';
     packagesGrid.innerHTML = `<div class="state-container"><div class="spinner"></div><p>Loading ${escapeHtml(label)}…</p></div>`;
 
-    const data = await pyApiCall('get_category_packages', key);  // unwrapped list, or null on error
+    const data = await pyApiCall(api, key);  // unwrapped list, or null on error
     if (!activeBrowseCategory || activeBrowseCategory.key !== key) return;
     const header = browseCategoryHeader(activeBrowseCategory);
     currentPackages = data || [];

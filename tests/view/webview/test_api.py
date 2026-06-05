@@ -1398,6 +1398,75 @@ class BrowseCategoryTest(unittest.TestCase):
         flatpak.list_category_packages.assert_not_called()
 
 
+class AurDiscoveryTest(unittest.TestCase):
+    """AUR discovery buckets (get_aur_discovery / get_aur_bucket_packages). The bucket data is a
+    precomputed JSON fetched from atlas-files; here it's mocked at the AUR client's http_client."""
+
+    def setUp(self):
+        self.manager = Mock()
+        self.api = AtlasApi(self.manager, Mock())
+        self.arch = Mock()
+        self.arch.__module__ = 'atlas.gems.arch.controller'
+        self.manager.managers = [self.arch]
+        self.arch.aur_client.http_client.get_json.return_value = self._discovery()
+
+    def _discovery(self):
+        return {'buckets': {
+            'popular': [{'Name': 'yay'}, {'Name': 'paru'}],
+            'recently_updated': [{'Name': 'foo-bin'}],
+            'vcs': [],   # empty → omitted from the landing
+            'bin': [],
+        }}
+
+    def _pkg(self, name):
+        p = Mock()
+        p.name = name
+        p.description = ''; p.version = '1'; p.latest_version = '1'; p.installed = False
+        p.update = False; p.icon_url = None; p.size = None; p.categories = []
+        p.get_publisher.return_value = ''
+        p.get_type.return_value = 'aur'
+        for a in ('can_be_run', 'can_be_downgraded', 'has_info', 'has_history',
+                  'is_update_ignored', 'supports_ignored_updates'):
+            getattr(p, a).return_value = False
+        return p
+
+    def test_lists_only_nonempty_buckets(self):
+        res = self.api.get_aur_discovery()
+        self.assertEqual('ok', res['status'])
+        self.assertEqual(['popular', 'recently_updated'], [b['key'] for b in res['data']])
+        self.assertEqual(2, res['data'][0]['count'])
+        self.assertEqual('Popular', res['data'][0]['label'])
+
+    def test_empty_without_aur_client(self):
+        self.arch.aur_client = None
+        self.assertEqual([], self.api.get_aur_discovery()['data'])
+
+    def test_empty_when_no_arch_gem(self):
+        self.manager.managers = []
+        self.assertEqual([], self.api.get_aur_discovery()['data'])
+
+    def test_fetch_is_cached(self):
+        self.api.get_aur_discovery()
+        self.api.get_aur_discovery()
+        self.assertEqual(1, self.arch.aur_client.http_client.get_json.call_count)
+
+    def test_bucket_packages_mapped_via_gem(self):
+        self.arch.list_aur_packages.side_effect = lambda entries: [self._pkg(e['Name']) for e in entries]
+        res = self.api.get_aur_bucket_packages('popular')
+        self.assertEqual('ok', res['status'])
+        self.assertEqual(['yay', 'paru'], [p['name'] for p in res['data']])
+        self.arch.list_aur_packages.assert_called_once()
+
+    def test_bucket_unknown_key_errors(self):
+        self.assertEqual('error', self.api.get_aur_bucket_packages('nope')['status'])
+
+    def test_fails_open_when_fetch_raises(self):
+        self.arch.aur_client.http_client.get_json.side_effect = RuntimeError('offline')
+        res = self.api.get_aur_discovery()
+        self.assertEqual('ok', res['status'])
+        self.assertEqual([], res['data'])
+
+
 class InstallPreviewTest(unittest.TestCase):
     """get_install_preview: per-source pre-flight payload, fail-open per field."""
 

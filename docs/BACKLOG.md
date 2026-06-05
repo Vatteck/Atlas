@@ -51,12 +51,12 @@ first:
   breadcrumbs, persist last-opened category, better category-page skeletons. *(Sort-within-category
   and Flatpak-in-bucket already shipped; Flatpak landed merged into buckets via `collapseByName`,
   not as Arch/Flatpak/All tabs — tabs are still an option if the merge proves confusing.)*
-- **AUR discovery buckets (not categories).** AUR has no category taxonomy, so don't fake one —
-  build discovery buckets instead: **Popular**, **Recently updated**, **VCS** (`-git`/`-svn`),
-  **Binary** (`-bin`), etc. *Caveat (refines the roadmap):* the RPC `search` needs a query seed and
-  Atlas only fetches the **names** index (`packages.gz`); enumerating "Popular AUR" offline needs
-  the heavier `packages-meta-ext-v1.json.gz` dump (votes/popularity/dates for all packages). Real
-  feature, but it's a data-source decision, not free.
+- ~~**AUR discovery buckets (not categories).**~~ ✅ **SHIPPED 2026-06-05** — Popular / Recently
+  updated / VCS (`-git`) / Binary (`-bin`) buckets in Browse. Data-source decision resolved:
+  **precomputed in atlas-files** (a daily GH Action turns `packages-meta-ext-v1.json.gz` into a small
+  `arch/aur_discovery.json`; Atlas fetches it, like suggestions/categories). See
+  [plans/2026-06-05-aur-discovery-buckets.md](plans/2026-06-05-aur-discovery-buckets.md). Easy to add
+  more buckets later (just the generator). *Remaining:* push the atlas-files commit + enable the Action.
 - **Better app detail pages.** A **source-comparison panel** (Arch vs AUR vs Flatpak vs AppImage:
   version, size, maintainer/publisher, trust badges, update availability), **"why this source?"**
   hints (vetted repo / community AUR build / verified vs community Flatpak), a **dependency summary**

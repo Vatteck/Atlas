@@ -4092,6 +4092,24 @@ class ArchManager(SoftwareManager, SettingsController):
                                     maintainer=data['r']))
         return pkgs
 
+    def list_aur_packages(self, entries: Collection[dict]) -> List[ArchPackage]:
+        """Map AUR-RPC-shaped metadata dicts (Name/Version/NumVotes/Popularity/…) to ``ArchPackage``
+        objects for the webview's AUR discovery buckets. Reuses the existing AUR data mapper — these
+        entries are the same shape the AUR ``info`` endpoint returns — so no new parsing path. Pure
+        in-memory mapping, no network (the discovery JSON is fetched by the caller). Installed state
+        is not resolved here (a discovery view shows new packages); the detail/preview path re-checks."""
+        if not entries:
+            return []
+        pkgs = []
+        for entry in entries:
+            if not entry or not entry.get('Name'):
+                continue
+            try:
+                pkgs.append(self.aur_mapper.map_api_data(entry, None, self.categories))
+            except Exception:
+                self.logger.warning(f"Could not map AUR discovery entry {entry.get('Name')!r}", exc_info=True)
+        return pkgs
+
     def list_suggestions(self, limit: int, filter_installed: bool) -> Optional[List[PackageSuggestion]]:
         if limit == 0:
             return

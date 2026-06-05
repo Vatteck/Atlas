@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-04 (Transaction preview COMPLETE — source-comparison panel shipped; 480 tests + 29 JS green)
+**Last updated:** 2026-06-05 (AUR discovery buckets shipped — needs atlas-files push to go live; 487 tests + 29 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -41,9 +41,9 @@ eyeballed 2026-06-04; thread-pool deferred with no measured reason). The forward
 the old `hroadmap.md` was folded in and deleted). Highest-value open items there, roughly in order:
 
 - ~~**Dashboard "Attention Center"**~~ ✅ **shipped + GUI-verified 2026-06-04** (see Done).
-- **AUR discovery buckets** (Popular / Recently-updated / VCS / binary) — the *feasible* form of AUR
-  Browse (categories are infeasible). Needs the heavier `packages-meta-ext-v1.json.gz` dump, not just
-  the names index — a real data-source decision.
+- ~~**AUR discovery buckets**~~ ✅ **shipped 2026-06-05** (Popular / Recently-updated / VCS / Binary).
+  Data-source decision resolved: **precompute in atlas-files** (daily GH Action → small JSON). **Live
+  fetch needs the atlas-files commit pushed** (committed locally, not pushed — see Done + handoff).
 - ~~**Universal transaction preview**~~ ✅ **COMPLETE 2026-06-04** — install, uninstall, downgrade,
   update, Update-All aggregate, **and the source-comparison panel** on detail pages all shipped (each
   needs a GUI eyeball; see Done).
@@ -78,6 +78,25 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **AUR discovery buckets (2026-06-05).** Browse now offers AUR **discovery buckets** — the feasible
+  alternative to (impossible) AUR categories: **Popular**, **Recently updated**, **VCS (-git)**,
+  **Binary (-bin)**, shown as a distinct "Discover on the AUR" row under the official categories.
+  **Data-source decision** (made with the user): the buckets need votes/popularity/dates the names
+  index lacks and the RPC has no browse-all endpoint, so they're **precomputed in the `atlas-files`
+  repo** (same pattern as suggestions/categories): a new `arch/generate_aur_discovery.py` downloads
+  the `packages-meta-ext-v1.json.gz` dump and writes a small `arch/aur_discovery.json` (top 60/bucket,
+  RPC-shaped entries), refreshed daily by `.github/workflows/aur-discovery.yml`. Atlas fetches that
+  JSON (1 h in-memory TTL, fails open) via `AtlasApi.get_aur_discovery()` (landing buckets) +
+  `get_aur_bucket_packages(key)`; the arch gem's new `list_aur_packages(entries)` maps the entries to
+  real `ArchPackage` objects through the **existing `AURDataMapper`** (so install/detail/preview all
+  work). Frontend: `renderBrowse` renders the bucket row; `renderCategoryPackages(key,label,{api})`
+  generalised so a bucket reuses the category list/back/topbar machinery. Tests:
+  `test_api.py::AurDiscoveryTest` (7: nonempty-bucket listing, cache, fail-open, mapping, unknown key).
+  Suite **487** + JS 29. **Two caveats:** (1) **live fetch needs the atlas-files commit pushed** — it's
+  committed in `~/Projects/atlas-files` (`9e0245f`) but **not pushed**, so the raw URL 404s until then
+  (and the GH Action needs enabling). (2) bucket cards show "Install" without resolving installed state
+  (no `read_installed` — kept cheap; detail/preview re-checks). **Needs a GUI eyeball** once live. Plan:
+  [plans/2026-06-05-aur-discovery-buckets.md](plans/2026-06-05-aur-discovery-buckets.md).
 - **Transaction preview — increment 4: source-comparison panel (2026-06-04, theme complete).** When an
   app is offered by **more than one source** (e.g. Steam from the Arch repo + Flathub), its detail page
   now shows a compact "pick where to install from" table above the description: one row per source with

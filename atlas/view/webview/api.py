@@ -5,6 +5,7 @@ import re
 import shlex
 import shutil
 import threading
+import time
 import traceback
 import webbrowser
 from concurrent.futures import ThreadPoolExecutor
@@ -64,12 +65,30 @@ class AtlasApi:
                                                 'Xfce', 'XFCE', 'Manjaro'), 'System'),
     )
 
+    # AUR discovery buckets — the feasible alternative to (impossible) AUR categories. The data is
+    # precomputed in the atlas-files repo (a daily GH Action turns the AUR meta dump into a small
+    # JSON); Atlas just fetches it. Each tuple is (json-key, label, icon). See
+    # docs/plans/2026-06-05-aur-discovery-buckets.md.
+    AUR_DISCOVERY_URL = 'https://raw.githubusercontent.com/Vatteck/atlas-files/main/arch/aur_discovery.json'
+    AUR_BUCKETS = (
+        ('popular',          'Popular',          '🔥'),
+        ('recently_updated', 'Recently updated', '🆕'),
+        ('vcs',              'VCS (-git)',        '🔧'),
+        ('bin',              'Binary (-bin)',     '📦'),
+    )
+    _AUR_DISCOVERY_TTL = 3600  # seconds; the source refreshes daily, so an hour-stale cache is fine
+
     def __init__(self, manager: GenericSoftwareManager, logger: logging.Logger):
         self.manager = manager
         self.logger = logger
         self.pkg_registry = {}  # opaque_id -> SoftwarePackage
         self._registry_lock = threading.Lock()
         self.window = None
+
+        # AUR discovery buckets: cache the fetched JSON so the landing + a bucket open don't double-
+        # fetch (and survive a brief outage). (data, fetched_at) — see _fetch_aur_discovery().
+        self._aur_discovery_cache = None
+        self._aur_discovery_cache_ts = 0.0
 
         # Root-password broker (see docs/plans/2026-05-30-root-password-flow-design.md).
         # A validated password is cached for the session so we don't re-prompt for every
@@ -654,6 +673,71 @@ class AtlasApi:
             return {'status': 'ok', 'data': [self._serialize_pkg(p) for p in pkgs]}
         except Exception as e:
             self.logger.error(f"Error fetching category packages: {e}")
+            traceback.print_exc()
+            return {'status': 'error', 'message': str(e)}
+
+    # ---- AUR discovery buckets -----------------------------------------------------------
+    # AUR has no category taxonomy and the RPC has no "browse all" endpoint, so we precompute
+    # discovery buckets (Popular / Recently updated / VCS / Binary) in the atlas-files repo and
+    # fetch the small result here. See docs/plans/2026-06-05-aur-discovery-buckets.md.
+
+    def _fetch_aur_discovery(self) -> Optional[dict]:
+        """The precomputed AUR discovery JSON, cached in-memory with a 1 h TTL (it refreshes daily
+        server-side). Best-effort via the AUR client's HTTP client; returns the last good cache (or
+        None) on any failure so Browse never breaks."""
+        now = time.time()
+        if self._aur_discovery_cache is not None and (now - self._aur_discovery_cache_ts) < self._AUR_DISCOVERY_TTL:
+            return self._aur_discovery_cache
+        arch_man = self._manager_by_gem('arch')
+        client = getattr(getattr(arch_man, 'aur_client', None), 'http_client', None)
+        if client is None:
+            return self._aur_discovery_cache
+        try:
+            data = client.get_json(self.AUR_DISCOVERY_URL)
+            if isinstance(data, dict) and data.get('buckets'):
+                self._aur_discovery_cache = data
+                self._aur_discovery_cache_ts = now
+        except Exception as e:
+            self.logger.warning(f"Could not fetch AUR discovery data: {e}")
+        return self._aur_discovery_cache
+
+    def get_aur_discovery(self) -> dict:
+        """Top-level AUR discovery buckets with their entry counts, for the Browse view. Empty when
+        the arch/AUR gem is absent or the data can't be fetched (Browse just won't show the row)."""
+        try:
+            arch_man = self._manager_by_gem('arch')
+            if arch_man is None or getattr(arch_man, 'aur_client', None) is None:
+                return {'status': 'ok', 'data': []}
+            data = self._fetch_aur_discovery()
+            buckets = (data or {}).get('buckets') or {}
+            out = []
+            for key, label, icon in self.AUR_BUCKETS:
+                items = buckets.get(key) or []
+                if items:
+                    out.append({'key': key, 'label': label, 'icon': icon, 'count': len(items)})
+            return {'status': 'ok', 'data': out}
+        except Exception as e:
+            self.logger.error(f"Error listing AUR discovery buckets: {e}")
+            return {'status': 'ok', 'data': []}
+
+    def get_aur_bucket_packages(self, key: str) -> dict:
+        """Packages in an AUR discovery bucket as installable cards. The precomputed entries are
+        AUR-RPC-shaped, so the arch gem maps them to real ArchPackage objects (install / detail /
+        preview all work through the normal paths)."""
+        try:
+            self.logger.info(f"get_aur_bucket_packages called: {key}")
+            valid = {k for k, _l, _i in self.AUR_BUCKETS}
+            if key not in valid:
+                return {'status': 'error', 'message': f'Unknown AUR bucket: {key}'}
+            data = self._fetch_aur_discovery()
+            entries = ((data or {}).get('buckets') or {}).get(key) or []
+            arch_man = self._manager_by_gem('arch')
+            pkgs = []
+            if arch_man is not None and hasattr(arch_man, 'list_aur_packages'):
+                pkgs = arch_man.list_aur_packages(entries)
+            return {'status': 'ok', 'data': [self._serialize_pkg(p) for p in pkgs]}
+        except Exception as e:
+            self.logger.error(f"Error fetching AUR bucket packages: {e}")
             traceback.print_exc()
             return {'status': 'error', 'message': str(e)}
 
