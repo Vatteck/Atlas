@@ -1802,12 +1802,6 @@ body {
     margin-bottom: 16px;
 }
 
-.category-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 16px;
-}
-
 /* "Suggested for you" row on the Browse landing — real package cards below the categories. */
 .browse-header-spaced { margin-top: 32px; }
 .browse-suggested {
@@ -1816,58 +1810,15 @@ body {
     gap: 16px;
 }
 
-.category-card {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-    padding: 20px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    cursor: pointer;
-    text-align: left;
-    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-}
-
-.category-card:hover {
-    transform: translateY(-2px);
-    border-color: var(--accent-border-hover);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-}
-
-.category-icon {
-    font-size: 28px;
-    line-height: 1;
-}
-
-.category-label {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.category-count {
-    font-size: 12px;
-    color: var(--text-secondary);
-}
-
-/* AUR discovery buckets — community-maintained, compact chips distinct from the big category tiles. */
-.browse-header-note {
-    margin-left: 8px;
-    font-weight: 600;
-    text-transform: none;
-    letter-spacing: 0;
-    color: #b26a00;
-}
-[data-theme="dark"] .browse-header-note { color: #f0a83c; }
-
-.aur-bucket-row {
+/* Browse chips — shared compact tiles for both the category row and the AUR discovery row
+   (.browse-chip-aur adds the community accent). Left-packed flex so a short row doesn't leave a
+   half-empty grid line. */
+.browse-chip-row {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
 }
-.aur-bucket-card {
+.browse-chip {
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -1875,22 +1826,39 @@ body {
     padding: 12px 18px 12px 14px;
     min-width: 168px;
     background: var(--bg-surface);
-    border: 1px solid rgba(217, 119, 6, 0.30);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     cursor: pointer;
     text-align: left;
     transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
-.aur-bucket-card:hover {
+.browse-chip:hover {
     transform: translateY(-2px);
-    border-color: rgba(217, 119, 6, 0.70);
+    border-color: var(--accent-border-hover);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
-.aur-bucket-icon { font-size: 22px; line-height: 1; }
-.aur-bucket-text { display: flex; flex-direction: column; gap: 2px; }
-.aur-bucket-label { font-size: 14px; font-weight: 600; color: #b26a00; }
-[data-theme="dark"] .aur-bucket-label { color: #f0a83c; }
-.aur-bucket-count { font-size: 12px; color: var(--text-secondary); }
+.browse-chip-icon { font-size: 22px; line-height: 1; }
+.browse-chip-text { display: flex; flex-direction: column; gap: 2px; }
+.browse-chip-label { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.browse-chip-count { font-size: 12px; color: var(--text-secondary); }
+
+/* AUR variant — community-maintained accent. */
+.browse-chip-aur { border-color: rgba(217, 119, 6, 0.30); }
+.browse-chip-aur:hover { border-color: rgba(217, 119, 6, 0.70); }
+.browse-chip-aur .browse-chip-label { color: #b26a00; }
+[data-theme="dark"] .browse-chip-aur .browse-chip-label { color: #f0a83c; }
+
+/* Scope note next to a Browse section header (e.g. "official repos & Flatpak" / "community-maintained").
+   Neutral by default; the AUR variant carries the community accent. */
+.browse-header-note {
+    margin-left: 8px;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text-secondary);
+}
+.browse-header-note-aur { color: #b26a00; }
+[data-theme="dark"] .browse-header-note-aur { color: #f0a83c; }
 
 /* Back header above a category's package grid — spans the whole grid row. */
 .browse-subheader {

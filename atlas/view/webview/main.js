@@ -3161,10 +3161,12 @@ async function renderBrowse() {
     }
 
     const cards = data.map(c => `
-        <button class="category-card" data-cat-key="${escapeHtml(c.key)}" data-cat-label="${escapeHtml(c.label)}">
-            <span class="category-icon">${escapeHtml(c.icon || '📦')}</span>
-            <span class="category-label">${escapeHtml(c.label)}</span>
-            <span class="category-count">${escapeHtml(c.count)} package${c.count === 1 ? '' : 's'}</span>
+        <button class="browse-chip" data-cat-key="${escapeHtml(c.key)}" data-cat-label="${escapeHtml(c.label)}">
+            <span class="browse-chip-icon">${escapeHtml(c.icon || '📦')}</span>
+            <span class="browse-chip-text">
+                <span class="browse-chip-label">${escapeHtml(c.label)}</span>
+                <span class="browse-chip-count">${escapeHtml(c.count)} package${c.count === 1 ? '' : 's'}</span>
+            </span>
         </button>`).join('');
 
     const hasSuggestions = Array.isArray(suggestions) && suggestions.length > 0;
@@ -3176,21 +3178,21 @@ async function renderBrowse() {
     // tiles and left-packed so a short list of buckets doesn't leave a half-empty grid row).
     const hasAur = Array.isArray(aurBuckets) && aurBuckets.length > 0;
     const aurCards = hasAur ? aurBuckets.map(b => `
-        <button class="aur-bucket-card" data-aur-key="${escapeHtml(b.key)}" data-aur-label="${escapeHtml(b.label)}">
-            <span class="aur-bucket-icon">${escapeHtml(b.icon || '📦')}</span>
-            <span class="aur-bucket-text">
-                <span class="aur-bucket-label">${escapeHtml(b.label)}</span>
-                <span class="aur-bucket-count">${escapeHtml(b.count)} package${b.count === 1 ? '' : 's'}</span>
+        <button class="browse-chip browse-chip-aur" data-aur-key="${escapeHtml(b.key)}" data-aur-label="${escapeHtml(b.label)}">
+            <span class="browse-chip-icon">${escapeHtml(b.icon || '📦')}</span>
+            <span class="browse-chip-text">
+                <span class="browse-chip-label">${escapeHtml(b.label)}</span>
+                <span class="browse-chip-count">${escapeHtml(b.count)} package${b.count === 1 ? '' : 's'}</span>
             </span>
         </button>`).join('') : '';
     const aurSection = hasAur
-        ? `<div class="browse-header browse-header-spaced">Discover on the AUR <span class="browse-header-note">community-maintained</span></div><div class="aur-bucket-row">${aurCards}</div>`
+        ? `<div class="browse-header browse-header-spaced">Discover on the AUR <span class="browse-header-note browse-header-note-aur">community-maintained</span></div><div class="browse-chip-row">${aurCards}</div>`
         : '';
 
     // Categories first (the primary purpose of Browse), then AUR discovery, then the suggested row.
     packagesGrid.innerHTML =
         `<div class="browse-view">` +
-        `<div class="browse-header">Browse by category</div><div class="category-grid">${cards}</div>` +
+        `<div class="browse-header">Browse by category <span class="browse-header-note">official repos & Flatpak</span></div><div class="browse-chip-row">${cards}</div>` +
         `${aurSection}${suggestedSection}</div>`;
 
     // Render the suggestions as real package cards (install/detail/source-switch all work via the
@@ -3206,10 +3208,10 @@ async function renderBrowse() {
         }
     }
 
-    packagesGrid.querySelectorAll('.category-card:not(.aur-bucket-card)').forEach(btn => {
+    packagesGrid.querySelectorAll('.browse-chip[data-cat-key]').forEach(btn => {
         btn.addEventListener('click', () => renderCategoryPackages(btn.dataset.catKey, btn.dataset.catLabel));
     });
-    packagesGrid.querySelectorAll('.aur-bucket-card').forEach(btn => {
+    packagesGrid.querySelectorAll('.browse-chip[data-aur-key]').forEach(btn => {
         btn.addEventListener('click', () => renderCategoryPackages(btn.dataset.aurKey, btn.dataset.aurLabel,
                                                                    { api: 'get_aur_bucket_packages' }));
     });

@@ -78,15 +78,17 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
-- **GUI polish — card-action alignment + AUR bucket chips (2026-06-05, GUI eyeball follow-up).** Two
-  fixes after eyeballing the AUR buckets: (1) **Card action buttons** (Pin/Install/Uninstall/Update)
-  jumped between bottom-right and bottom-left across cards — the footer is `space-between` + `flex-wrap`,
-  so a wide vote badge or the longer "Uninstall" label wrapped the action group to a left-aligned second
-  line on some cards. Now `.package-footer > div:last-child { margin-left: auto }` keeps the group
-  **bottom-right consistently**, wrapped or not. (Affects all package cards.) (2) **AUR discovery row**
-  looked clunky as 4 big tiles in a grid sized for 8; reworked into **compact left-packed chips**
-  (`.aur-bucket-row`/`.aur-bucket-card`: icon + label + count, horizontal), visually distinct from the
-  big category tiles. CSS/markup only; suites unchanged (490 + 29).
+- **GUI polish — Browse chips + card-action alignment (2026-06-05, GUI eyeball follow-up).** (1) **Card
+  action buttons** (Pin/Install/Uninstall/Update) jumped between bottom-right and bottom-left across
+  cards — the footer is `space-between` + `flex-wrap`, so a wide vote badge or the longer "Uninstall"
+  label wrapped the action group to a left-aligned second line on some cards. Now
+  `.package-footer > div:last-child { margin-left: auto }` keeps the group **bottom-right consistently**,
+  wrapped or not. (Affects all package cards.) (2) **Browse landing chips:** unified the category row
+  and the AUR discovery row onto one **compact left-packed chip** style (`.browse-chip` + icon/label/
+  count; `.browse-chip-aur` adds the community accent) — the big category tiles are gone, both rows now
+  match and don't leave half-empty grid lines. (3) Both section headers now carry a **scope note**:
+  "Browse by category · *official repos & Flatpak*" and "Discover on the AUR · *community-maintained*".
+  CSS/markup only; suites green (490 + 29, one contract assertion updated to the new markup).
 - **AUR discovery buckets (2026-06-05).** Browse now offers AUR **discovery buckets** — the feasible
   alternative to (impossible) AUR categories: **Popular**, **Recently updated**, **VCS (-git)**,
   **Binary (-bin)**, shown as a distinct "Discover on the AUR" row under the official categories.

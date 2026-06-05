@@ -506,7 +506,7 @@ async function testBrowseRendersSuggestedRowAboveCategories() {
   const grid = document.getElementById('packages-grid');
   assert.ok(grid.innerHTML.includes('Suggested for you'), 'suggested header present');
   assert.ok(grid.innerHTML.includes('browse-suggested'), 'suggested row present');
-  assert.ok(grid.innerHTML.includes('category-grid'), 'categories still present');
+  assert.ok(grid.innerHTML.includes('data-cat-key'), 'categories still present');
   // the suggestion is rendered as a real package card backed by currentGroups
   assert.strictEqual(hooks.getState().currentPackages.map(p => p.id).join(','), 'sugg');
 }
