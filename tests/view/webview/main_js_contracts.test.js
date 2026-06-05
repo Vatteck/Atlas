@@ -891,6 +891,43 @@ async function testPickActivityText() {
   assert.strictEqual(hooks.pickActivityText(), 'Working…');
 }
 
+async function testWhySourceHint() {
+  const { hooks } = loadMainJs({});
+  const { whySourceHint } = hooks;
+  assert.strictEqual(whySourceHint('arch_repo').level, 'safe', 'repo is safe-toned');
+  assert.ok(whySourceHint('arch_repo').text.includes('official Arch'), 'repo text');
+  assert.strictEqual(whySourceHint('aur').level, 'warn', 'AUR is warn-toned');
+  assert.ok(whySourceHint('aur').text.includes('PKGBUILD'), 'AUR mentions PKGBUILD review');
+  // flatpak refines with verified/license
+  assert.strictEqual(whySourceHint('flatpak', { verified: true }).level, 'safe', 'verified flatpak safe');
+  assert.ok(whySourceHint('flatpak', { verified: true }).text.includes('Verified'), 'verified text');
+  assert.ok(whySourceHint('flatpak', { verified: false }).text.includes('Community-packaged'), 'unverified text');
+  assert.ok(whySourceHint('flatpak', { free_license: false }).text.includes('Proprietary'), 'proprietary appended');
+  assert.strictEqual(whySourceHint('mystery').text, '', 'unknown type → no hint');
+}
+
+async function testBuildDependencySummaryHTML() {
+  const { hooks } = loadMainJs({});
+  const { buildDependencySummaryHTML } = hooks;
+  // empty + no note → nothing
+  assert.strictEqual(buildDependencySummaryHTML({ direct: [], optional: [], required_by: [], note: '' }), '', 'empty → no HTML');
+  // a flatpak-style note alone still renders
+  assert.ok(buildDependencySummaryHTML({ note: 'bundled in a runtime' }).includes('bundled in a runtime'), 'note-only renders');
+  const html = buildDependencySummaryHTML({
+    direct: ['glibc', 'gpm'],
+    optional: [{ name: 'python', detail: 'scripting' }],
+    required_by: ['neovim'],
+    note: 'Direct requirements.',
+  });
+  assert.ok(html.includes('>2<') && html.includes('Requires'), 'requires count + label');
+  assert.ok(html.includes('Optional') && html.includes('python'), 'optional chip');
+  assert.ok(html.includes('Required by') && html.includes('neovim'), 'required-by chip');
+  assert.ok(html.includes('title="scripting"'), 'optdep detail in title');
+  // missing groups are omitted (no "Required by" when empty)
+  const partial = buildDependencySummaryHTML({ direct: ['glibc'], optional: [], required_by: [] });
+  assert.ok(partial.includes('Requires') && !partial.includes('Required by'), 'empty groups omitted');
+}
+
 async function testStripProgressBarAndPercent() {
   const { hooks } = loadMainJs({});
   // Flatpak-style textual progress bar (block glyphs) is stripped; the meaningful text stays.
@@ -1055,6 +1092,8 @@ async function testShowTransactionPreviewUsesActionCopy() {
     testTransactionPreviewUpdateShowsVersionDelta,
     testBuildUpdateAllPreviewData,
     testBuildSourceCompareHTML,
+    testWhySourceHint,
+    testBuildDependencySummaryHTML,
     testSummarizeFailureCategories,
     testPickActivityText,
     testStripProgressBarAndPercent,

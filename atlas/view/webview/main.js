@@ -1264,6 +1264,65 @@ function buildSourceCompareHTML(group) {
     </div>`;
 }
 
+// Pure: the single-source "why this source?" trust hint for the detail page — the honest one-liner
+// an Arch user wants before installing. Keyed off the source type + (for Flatpak) verified/license,
+// which the caller refines once Flathub metadata arrives. Returns {text, level}; '' text → hide.
+// Node-VM contract-tested.
+function whySourceHint(type, opts = {}) {
+    const t = normalizeType(type);
+    if (t === 'arch' || t === 'arch_repo') {
+        return { text: 'From the official Arch repositories — built and signed by Arch maintainers.', level: 'safe' };
+    }
+    if (t === 'aur') {
+        return { text: 'From the AUR — community-submitted and not vetted by Arch. Atlas scans the PKGBUILD before building; review it.', level: 'warn' };
+    }
+    if (t === 'flatpak') {
+        const lic = opts.free_license === true ? ' Open-source license.'
+                  : opts.free_license === false ? ' Proprietary license.' : '';
+        if (opts.verified === true) return { text: 'Verified on Flathub — published by the app’s own developer.' + lic, level: 'safe' };
+        if (opts.verified === false) return { text: 'Community-packaged on Flathub — not verified as published by the app’s developer.' + lic, level: 'info' };
+        return { text: 'Distributed via Flathub — sandboxed and cross-distro.' + lic, level: 'info' };
+    }
+    if (t === 'appimage') return { text: 'A self-contained AppImage — portable but not sandboxed; trust the source.', level: 'info' };
+    if (t === 'snap') return { text: 'From the Snap Store (Canonical) — sandboxed.', level: 'info' };
+    return { text: '', level: 'info' };
+}
+
+function renderWhySource(pkg, opts) {
+    const el = document.getElementById('detail-why-source');
+    if (!el) return;
+    const hint = whySourceHint(pkg.type, opts || {});
+    if (!hint.text) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+    const icon = hint.level === 'safe' ? '🛡️' : hint.level === 'warn' ? '⚠️' : 'ℹ️';
+    el.className = `why-source why-source-${hint.level}`;
+    el.innerHTML = `<span class="why-source-icon">${icon}</span><span>${escapeHtml(hint.text)}</span>`;
+}
+
+// Pure: the detail-page Dependencies section — three counts (Requires / Optional / Required by),
+// each an expandable chip list. Built from get_dependency_summary; '' when there's nothing to show
+// (and no note). Node-VM contract-tested.
+function buildDependencySummaryHTML(data) {
+    data = data || {};
+    const direct = data.direct || [];
+    const optional = data.optional || [];
+    const requiredBy = data.required_by || [];
+    if (!direct.length && !optional.length && !requiredBy.length && !data.note) return '';
+
+    const chip = s => `<span class="dep-chip">${escapeHtml(s)}</span>`;
+    const optChip = o => `<span class="dep-chip" title="${escapeHtml(o.detail || '')}">${escapeHtml(o.name)}</span>`;
+    const block = (label, count, chipsHTML) => count === 0 ? '' :
+        `<details class="dep-group"><summary><span class="dep-count">${count}</span> ${escapeHtml(label)}</summary>` +
+        `<div class="dep-chips">${chipsHTML}</div></details>`;
+
+    const groups = [
+        block('Requires', direct.length, direct.map(chip).join('')),
+        block('Optional', optional.length, optional.map(optChip).join('')),
+        block('Required by', requiredBy.length, requiredBy.map(chip).join('')),
+    ].join('');
+    const note = data.note ? `<p class="dep-note">${escapeHtml(data.note)}</p>` : '';
+    return groups + note;
+}
+
 // Inner HTML of a card for the given active source — re-rendered on source switch.
 function cardInnerHTML(group, activeIdx) {
     const pkg = group.sources[activeIdx];
@@ -1565,6 +1624,22 @@ function lightboxStep(delta) {
         else if (e.key === 'ArrowRight') lightboxStep(1);
     });
 })();
+
+// Dependency summary in the detail modal (lazy). Section stays hidden until the cheap backend probe
+// returns something to show; stale-guarded so a slow response can't fill a since-closed/changed modal.
+async function renderDependencySummary(pkg, stillCurrent = () => true) {
+    const section = document.getElementById('detail-deps-section');
+    const body = document.getElementById('detail-deps');
+    if (!section || !body) return;
+    section.classList.add('hidden');
+    body.innerHTML = '';
+    const data = await pyApiCall('get_dependency_summary', pkg.id);
+    if (!stillCurrent()) return;
+    const html = buildDependencySummaryHTML(data);
+    if (!html) return;  // nothing to show (e.g. a Flatpak with no note)
+    body.innerHTML = html;
+    section.classList.remove('hidden');
+}
 
 // Version-history table in the detail modal; the installed version's row is highlighted.
 async function renderDetailHistory(pkg, stillCurrent = () => true) {
@@ -2050,9 +2125,15 @@ function openDetailModal(pkg, group) {
     document.getElementById('detail-meta').innerHTML = `<span>v${escapeHtml(pkg.version || 'Unknown')}</span>`;
     document.getElementById('detail-description').textContent = pkg.description || 'No description available for this package.';
 
+    // "Why this source?" trust hint — base from type now; refined for Flatpak when metadata arrives.
+    renderWhySource(pkg);
+
     // Source-comparison panel (only when this app is offered by more than one source).
     const compareEl = document.getElementById('detail-source-compare');
     if (compareEl) compareEl.innerHTML = buildSourceCompareHTML(group || findGroupForPkgId(pkg.id));
+
+    // Dependency summary (lazy, stale-guarded). Section stays hidden until there's something to show.
+    renderDependencySummary(pkg, stillCurrentDetail);
 
     // Link to the package's web page (AUR / official Arch). Routed through open_url so it
     // opens in the system browser rather than navigating the app window.
@@ -2101,6 +2182,8 @@ function openDetailModal(pkg, group) {
         pyApiCall('get_flatpak_meta', pkg.id).then(meta => {
             if (!stillCurrentDetail()) return;
             if (!meta || !Object.keys(meta).length) return;
+            // Refine the "why this source?" hint now that we know verified/license.
+            renderWhySource(pkg, { verified: meta.verified, free_license: meta.is_free });
             const parts = [];
             const hasPerms = (meta.permissions || []).length > 0;
             if (meta.safety && meta.safety.level) {
@@ -4896,6 +4979,8 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildTransactionPreviewHTML,
         buildUpdateAllPreviewData,
         buildSourceCompareHTML,
+        whySourceHint,
+        buildDependencySummaryHTML,
         summarizeFailure,
         pickActivityText,
         stripProgressBar,

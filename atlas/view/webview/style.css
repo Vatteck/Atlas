@@ -2823,6 +2823,38 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
 
 /* Source-comparison panel (detail page, multi-source apps) */
 #detail-source-compare:empty { display: none; }
+/* "Why this source?" trust hint (single-source detail pages). */
+.why-source {
+    display: flex; align-items: flex-start; gap: 8px; margin: 4px 0 14px;
+    padding: 10px 12px; border-radius: var(--radius-sm); font-size: 13px; line-height: 1.4;
+    background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-secondary);
+}
+.why-source.hidden { display: none; }
+.why-source-icon { flex-shrink: 0; }
+.why-source-safe { background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.25); }
+.why-source-warn { background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.25); }
+.why-source-info { background: rgba(99, 102, 241, 0.07); border-color: rgba(99, 102, 241, 0.22); }
+
+/* Dependency summary: expandable Requires / Optional / Required-by groups with chip lists. */
+.dep-group { border: 1px solid var(--border-color); border-radius: var(--radius-sm); margin-bottom: 8px; }
+.dep-group > summary {
+    cursor: pointer; padding: 8px 12px; font-size: 13px; color: var(--text-primary);
+    display: flex; align-items: center; gap: 8px; list-style: none;
+}
+.dep-group > summary::-webkit-details-marker { display: none; }
+.dep-group > summary::before { content: '▸'; color: var(--text-secondary); transition: transform var(--transition-fast); }
+.dep-group[open] > summary::before { transform: rotate(90deg); }
+.dep-count {
+    background: var(--accent-color); color: #fff; font-size: 11px; font-weight: 700;
+    min-width: 20px; text-align: center; padding: 1px 6px; border-radius: 999px;
+}
+.dep-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 12px 12px; }
+.dep-chip {
+    font-size: 12px; padding: 3px 9px; border-radius: 999px;
+    background: var(--bg-surface-hover); color: var(--text-secondary); border: 1px solid var(--border-color);
+}
+.dep-note { font-size: 12px; color: var(--text-secondary); margin: 4px 2px 0; }
+
 .srccmp { margin: 16px 0; border: 1px solid var(--border-color); border-radius: var(--radius-md);
     background: var(--bg-surface); overflow: hidden; }
 .srccmp-head { padding: 10px 14px; font-size: 13px; font-weight: 700; color: var(--text-primary);

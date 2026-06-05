@@ -1594,6 +1594,72 @@ class InstallPreviewTest(unittest.TestCase):
         res = self.api.get_install_preview('nope:nope')
         self.assertEqual('error', res['status'])
 
+
+class DependencySummaryTest(unittest.TestCase):
+    """get_dependency_summary: direct / optional / required-by, fail-open per field."""
+
+    def setUp(self):
+        self.manager = Mock()
+        self.api = AtlasApi(self.manager, Mock())
+
+    def _pkg(self, name='pkg', ptype='arch_repo', repository=None, installed=False):
+        p = Mock(); p.name = name; p.get_type.return_value = ptype
+        p.gem_name = 'arch'; p.repository = repository; p.installed = installed
+        self.api._get_pkg = Mock(return_value=p)
+        return p
+
+    def test_repo_installed_returns_all_three(self):
+        self._pkg(name='vim', ptype='arch_repo', repository='extra', installed=True)
+        with patch('atlas.gems.arch.pacman.map_updates_data',
+                   return_value={'vim': {'d': {'glibc', 'gpm'}}}), \
+             patch('atlas.gems.arch.pacman.map_optional_deps',
+                   return_value={'vim': {'python': 'scripting'}}), \
+             patch('atlas.gems.arch.pacman.map_required_by',
+                   return_value={'vim': {'neovim-stub'}}):
+            d = self.api.get_dependency_summary('arch_repo:vim')['data']
+        self.assertEqual(['glibc', 'gpm'], d['direct'])
+        self.assertEqual([{'name': 'python', 'detail': 'scripting'}], d['optional'])
+        self.assertEqual(['neovim-stub'], d['required_by'])
+
+    def test_not_installed_skips_required_by(self):
+        self._pkg(name='vim', ptype='arch_repo', repository='extra', installed=False)
+        with patch('atlas.gems.arch.pacman.map_updates_data', return_value={'vim': {'d': {'glibc'}}}), \
+             patch('atlas.gems.arch.pacman.map_optional_deps', return_value={}), \
+             patch('atlas.gems.arch.pacman.map_required_by') as mrb:
+            d = self.api.get_dependency_summary('arch_repo:vim')['data']
+        mrb.assert_not_called()  # reverse deps only queried for installed packages
+        self.assertEqual([], d['required_by'])
+
+    def test_aur_uses_get_info_and_splits_optdepends(self):
+        self._pkg(name='yay', ptype='aur', repository='aur', installed=False)
+        arch_man = Mock()
+        arch_man.aur_client.get_info.return_value = [{
+            'Depends': ['go', 'git'], 'OptDepends': ['sudo: privilege escalation', 'bash']}]
+        self.api._manager_by_gem = Mock(return_value=arch_man)
+        d = self.api.get_dependency_summary('aur:yay')['data']
+        self.assertEqual(['git', 'go'], d['direct'])
+        self.assertEqual([{'name': 'sudo', 'detail': 'privilege escalation'},
+                          {'name': 'bash', 'detail': ''}], d['optional'])
+
+    def test_flatpak_returns_note_no_deps(self):
+        self._pkg(name='Dropbox', ptype='flatpak')
+        d = self.api.get_dependency_summary('flatpak:Dropbox')['data']
+        self.assertEqual([], d['direct'])
+        self.assertTrue('runtime' in d['note'].lower())
+
+    def test_fails_open_when_probe_raises(self):
+        self._pkg(name='vim', ptype='arch_repo', repository='extra', installed=True)
+        with patch('atlas.gems.arch.pacman.map_updates_data', side_effect=RuntimeError('boom')), \
+             patch('atlas.gems.arch.pacman.map_optional_deps', side_effect=RuntimeError('boom')), \
+             patch('atlas.gems.arch.pacman.map_required_by', side_effect=RuntimeError('boom')):
+            res = self.api.get_dependency_summary('arch_repo:vim')
+        self.assertEqual('ok', res['status'])  # never blocks the modal
+        self.assertEqual([], res['data']['direct'])
+
+    def test_unknown_pkg_id_errors(self):
+        self.api._get_pkg = Mock(return_value=None)
+        self.assertEqual('error', self.api.get_dependency_summary('nope:nope')['status'])
+
     def test_install_payload_carries_action(self):
         pkg = self._pkg(name='vim', ptype='arch_repo', repository='extra')
         self.api._get_pkg = Mock(return_value=pkg)

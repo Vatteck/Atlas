@@ -1548,6 +1548,73 @@ class AtlasApi:
             traceback.print_exc()
             return {'status': 'error', 'message': str(e)}
 
+    def get_dependency_summary(self, pkg_id: str) -> dict:
+        """A scannable dependency picture for the detail page: ``{direct, optional, required_by, note}``.
+        Reuses the same cheap pacman/AUR signals as the transaction preview and **fails open per
+        field** (a failed probe → empty list), so it never blocks the modal. Flatpak has no
+        pacman-style deps (runtime-based) → empty + a note; we don't fake it."""
+        pkg = self._get_pkg(pkg_id)
+        if not pkg:
+            return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
+        data = {'direct': [], 'optional': [], 'required_by': [], 'note': ''}
+        try:
+            ptype = self._preview_ptype(pkg)
+            repository = (getattr(pkg, 'repository', None) or '').lower()
+            installed = bool(getattr(pkg, 'installed', False))
+            if ptype == 'flatpak':
+                data['note'] = "Flatpaks bundle their dependencies in a runtime, so there's no per-package dependency list."
+                return {'status': 'ok', 'data': data}
+
+            from atlas.gems.arch import pacman
+            name = pkg.name
+            if repository == 'aur' or ptype == 'aur':
+                arch_man = self._manager_by_gem('arch')
+                aur_client = getattr(arch_man, 'aur_client', None)
+                info = {}
+                if aur_client is not None:
+                    try:
+                        infos = aur_client.get_info((name,))
+                        info = (infos[0] if infos else {}) or {}
+                    except Exception as e:
+                        self.logger.debug(f"dep summary: AUR get_info failed for {name}: {e}")
+                data['direct'] = sorted(set(info.get('Depends') or []))
+                # AUR OptDepends are "dep: description" strings; keep them as {name, detail}.
+                data['optional'] = [self._split_optdep(o) for o in (info.get('OptDepends') or [])]
+                data['note'] = "Direct requirements from the PKGBUILD; pacman/makepkg resolves the full set at build time."
+            else:
+                try:
+                    info = (pacman.map_updates_data([name]) or {}).get(name) or {}
+                    data['direct'] = sorted(info.get('d') or [])
+                except Exception as e:
+                    self.logger.debug(f"dep summary: map_updates_data failed for {name}: {e}")
+                try:
+                    opt = (pacman.map_optional_deps([name], remote=True, not_installed=False) or {}).get(name) or {}
+                    data['optional'] = [{'name': k, 'detail': v or ''} for k, v in sorted(opt.items())]
+                except Exception as e:
+                    self.logger.debug(f"dep summary: optional deps failed for {name}: {e}")
+                data['note'] = "Direct requirements; pacman resolves the full set at install time."
+
+            # Reverse deps only make sense for an installed package (queried from the local db).
+            if installed:
+                try:
+                    req = (pacman.map_required_by([name]) or {}).get(name) or set()
+                    data['required_by'] = sorted(req)
+                except Exception as e:
+                    self.logger.debug(f"dep summary: required_by failed for {name}: {e}")
+            return {'status': 'ok', 'data': data}
+        except Exception as e:
+            self.logger.error(f"get_dependency_summary failed for {pkg_id}: {e}")
+            return {'status': 'ok', 'data': data}  # fail open — never block the modal
+
+    @staticmethod
+    def _split_optdep(token: str) -> dict:
+        """Split an AUR/pacman optdep token 'name: why it's useful' into {name, detail}."""
+        s = str(token or '')
+        if ':' in s:
+            n, d = s.split(':', 1)
+            return {'name': n.strip(), 'detail': d.strip()}
+        return {'name': s.strip(), 'detail': ''}
+
     def get_flatpak_meta(self, pkg_id: str) -> dict:
         """Flathub metadata for the detail-view badges (license FOSS/proprietary, developer
         verification, downloads/month). Returns empty data for non-Flatpak packages. Best-effort —

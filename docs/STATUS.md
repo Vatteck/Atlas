@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-05 (History/rollback center increments 1+2: Activity filters + date groups + per-entry Downgrade/Reinstall + pacman-log disclosure; 496 tests + 35 JS green)
+**Last updated:** 2026-06-05 (Better detail pages: "why this source?" hint + dependency summary; 502 tests + 37 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -78,6 +78,22 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Better app detail pages — "why this source?" + dependency summary (2026-06-05).** Two additions to
+  the detail modal serving Atlas's multi-source-honesty angle (the BACKLOG "Better app detail pages"
+  item; the source-compare panel + transaction preview already shipped). (1) **"Why this source?" hint**
+  — an honest one-line trust note under the header, pure `whySourceHint(type, {verified, free_license})`
+  → `{text, level}`: official-repo (signed by Arch) / AUR (community, review the PKGBUILD) / Flatpak
+  (verified-vs-community + FOSS/proprietary, refined when Flathub metadata arrives) / AppImage
+  (not sandboxed). The single-source counterpart to the compare panel's `sourceCompareNote`. (2)
+  **Dependency summary** — a compact **Dependencies** section: Requires (direct) / Optional /
+  Required-by counts, each an expandable chip list, via one cheap `AtlasApi.get_dependency_summary`
+  reusing the preview's pacman/AUR signals (`map_updates_data` `d` / `map_optional_deps` /
+  `map_required_by`; AUR `get_info` Depends+OptDepends) and **failing open per field**. Reverse deps
+  only queried when installed; Flatpak has no pacman-style deps → empty + a note (we don't fake it).
+  Both lazy + stale-guarded by `stillCurrentDetail()`. Tests: `test_api.py::DependencySummaryTest` (6) +
+  JS `whySourceHint`/`buildDependencySummaryHTML` contracts (2). Suite **502** + JS **37**. **Needs a
+  GUI eyeball** (hint per source; dep counts + expand on a repo pkg / AUR pkg / Flatpak). Plan:
+  [plans/2026-06-05-better-detail-pages.md](plans/2026-06-05-better-detail-pages.md).
 - **Fix: test polluting the real activity log (2026-06-05).** `test_import_packages_install_success`
   exercised the real `import_packages` → `record_activity` without patching it, so every test run
   appended a bogus `missing-pkg (Flatpak)` install row to the user's
