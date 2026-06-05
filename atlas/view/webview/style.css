@@ -1040,8 +1040,9 @@ body {
 .modal-description { color: var(--text-secondary); font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
 /* Preserve newlines in confirmation/message bodies (e.g. the multi-line PKGBUILD-audit advisory). */
 #confirm-message, #message-body { white-space: pre-wrap; }
+.detail-section { margin-top: 28px; }
 .detail-section h3 { font-size: 12px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.08em; color: var(--text-secondary); margin-bottom: 12px; }
+    letter-spacing: 0.08em; color: var(--text-secondary); margin: 0 0 12px; }
 .detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .detail-table tr { border-bottom: 1px solid var(--border-color); }
 .detail-table tr:last-child { border-bottom: none; }

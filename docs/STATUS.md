@@ -86,8 +86,12 @@ re-add a native extension without a measured win. Details in the historical
   leads with a one-line banner: "You installed this explicitly." / "Installed as a dependency of other
   packages." / (amber) "…an orphan you can likely remove." Answers the BACKLOG "Why is this installed?"
   item. Tests: `test_pacman_info.py::GetInstallReasonTest` (3) + `DependencySummaryTest` orphan/explicit
-  + JS assertions. Suite **506** + JS 37. **Needs a GUI eyeball.** Plan:
+  + JS assertions. Suite **506** + JS 37. Plan:
   [plans/2026-06-05-better-detail-pages.md](plans/2026-06-05-better-detail-pages.md).
+  **Polish (2026-06-05, GUI-eyeball follow-up):** gave every `.detail-section` a 28px top margin (the
+  "Details" heading was hugging the dependency note), and suppressed the now-redundant `dependson` /
+  `optdepends` / `orphan` rows from the get_info Details table (the Dependencies section renders them
+  better; makedepends/checkdepends are build-only and kept).
 - **Better app detail pages — "why this source?" + dependency summary (2026-06-05).** Two additions to
   the detail modal serving Atlas's multi-source-honesty angle (the BACKLOG "Better app detail pages"
   item; the source-compare panel + transaction preview already shipped). (1) **"Why this source?" hint**
