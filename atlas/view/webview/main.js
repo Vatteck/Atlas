@@ -100,6 +100,12 @@ let currentView = 'dashboard'; // 'dashboard', 'installed', 'updates', 'activity
 let activeBrowseCategory = null;
 let packageFetchEpoch = 0;
 
+// History / rollback center (Activity page): the last-fetched entries + the active filter, so
+// filter/search changes re-render client-side without refetching. See
+// docs/plans/2026-06-05-history-rollback-center.md.
+let activityEntries = [];
+let activityFilter = { action: 'all', type: 'all', query: '' };
+
 // Grid vs list layout for the package views (persisted). Pure CSS — toggling the class on
 // packagesGrid is enough, no re-render needed. Defaults to grid.
 let viewMode = (localStorage.getItem('atlas_view_mode') === 'list') ? 'list' : 'grid';
@@ -3075,51 +3081,189 @@ async function togglePacnewDiff(btn) {
 }
 
 // Render Chronological Activity Log
+// --- History / rollback center (Activity page) -------------------------------------------------
+// Pure helpers (Node-VM-tested); DOM wiring below. See plan 2026-06-05-history-rollback-center.md.
+
+// Filter entries by action, source type, and a package-name query. Composes; case-insensitive.
+function filterActivity(entries, filter = {}) {
+    const action = filter.action || 'all';
+    const type = (filter.type || 'all').toLowerCase();
+    const query = (filter.query || '').trim().toLowerCase();
+    return (entries || []).filter(e => {
+        if (action !== 'all' && e.action !== action) return false;
+        if (type !== 'all' && (e.pkg_type || '').toLowerCase() !== type) return false;
+        if (query && !(e.pkg_name || '').toLowerCase().includes(query)) return false;
+        return true;
+    });
+}
+
+// Bucket entries (already newest-first) into Today / Yesterday / Earlier this week / Older.
+function groupActivityByDate(entries, now = new Date()) {
+    const startOfDay = new Date(now); startOfDay.setHours(0, 0, 0, 0);
+    const today = startOfDay.getTime();
+    const dayMs = 86400000;
+    const buckets = [
+        { key: 'today', label: 'Today', items: [] },
+        { key: 'yesterday', label: 'Yesterday', items: [] },
+        { key: 'week', label: 'Earlier this week', items: [] },
+        { key: 'older', label: 'Older', items: [] },
+    ];
+    const at = k => buckets.find(b => b.key === k).items;
+    (entries || []).forEach(e => {
+        const t = new Date(e.timestamp).getTime();
+        if (isNaN(t)) at('older').push(e);
+        else if (t >= today) at('today').push(e);
+        else if (t >= today - dayMs) at('yesterday').push(e);
+        else if (t >= today - 6 * dayMs) at('week').push(e);
+        else at('older').push(e);
+    });
+    return buckets.filter(b => b.items.length > 0);
+}
+
+// Which rollback affordances an entry offers. Only successful entries get them; they route through
+// the normal preview/terminal flow (which re-resolves the package), so they're entry points, not
+// guarantees. Downgrade is an Arch/AUR/Flatpak concept; reinstall applies to a prior uninstall.
+function activityEntryActions(entry) {
+    if (!entry || !entry.success) return [];
+    const type = (entry.pkg_type || '').toLowerCase();
+    const id = `${entry.pkg_type}:${entry.pkg_name}`;
+    const supportsDowngrade = type === 'arch_repo' || type === 'arch' || type === 'aur' || type === 'flatpak';
+    if (entry.action === 'uninstall') return [{ label: 'Reinstall', handler: 'installApp', id }];
+    if (['install', 'update', 'downgrade'].includes(entry.action) && supportsDowngrade) {
+        return [{ label: 'Downgrade', handler: 'downgradeApp', id }];
+    }
+    return [];
+}
+
+// Distinct actions present in the log, for the action filter chips (always leads with All).
+function activityActionsPresent(entries) {
+    const order = ['install', 'update', 'uninstall', 'downgrade'];
+    const present = new Set((entries || []).map(e => e.action));
+    return ['all', ...order.filter(a => present.has(a)), ...[...present].filter(a => !order.includes(a)).sort()];
+}
+
+// Distinct source types present, for the type filter.
+function activityTypesPresent(entries) {
+    const present = [...new Set((entries || []).map(e => (e.pkg_type || '').trim()).filter(Boolean))].sort();
+    return ['all', ...present];
+}
+
 async function renderActivityFeed() {
     packagesGrid.style.display = 'block'; // activity items stack vertically
     const epoch = navEpoch;
     const spin = pendingSpinner(epoch, '<div class="state-container"><div class="spinner"></div></div>');
-    const activities = await pyApiCall('get_activity') || [];
+    activityEntries = await pyApiCall('get_activity') || [];
     clearTimeout(spin);
     if (epoch !== navEpoch) return;  // a newer navigation superseded this render
-    if (activities.length === 0) {
+    if (activityEntries.length === 0) {
         packagesGrid.innerHTML = emptyStateHTML({
             icon: '🕘', title: 'No activity yet',
             hint: 'Installs, updates, and removals you make in Atlas will show up here.' });
         return;
     }
-    
-    const feed = document.createElement('div');
-    feed.className = 'activity-feed';
-    
-    activities.forEach(act => {
-        const item = document.createElement('div');
-        item.className = 'activity-item';
-        
-        const isSuccess = act.success;
-        const iconClass = isSuccess ? 'success' : 'error';
-        const iconChar = isSuccess ? '✓' : '✗';
-        
-        const date = new Date(act.timestamp);
-        const timeStr = date.toLocaleString();
-        
-        const actionLabel = act.action.toUpperCase();
-        
-        item.innerHTML = `
-            <div class="activity-icon ${escapeHtml(iconClass)}">${escapeHtml(iconChar)}</div>
-            <div class="activity-body">
-                <span class="activity-action ${escapeHtml(act.action)}">${escapeHtml(actionLabel)}</span>
-                <span class="activity-pkg">${escapeHtml(act.pkg_name)}</span>
-                <span style="color: var(--text-secondary);">(${escapeHtml(act.pkg_type)})</span>
-                ${!isSuccess && act.error ? `<span style="color: var(--status-danger); margin-left: 8px;">— ${escapeHtml(act.error)}</span>` : ''}
-            </div>
-            <div class="activity-time">${escapeHtml(timeStr)}</div>
-        `;
-        feed.appendChild(item);
-    });
+    renderActivityView();
+}
 
-    packagesGrid.innerHTML = '';  // replace any prior view / spinner before showing the feed
-    packagesGrid.appendChild(feed);
+// Re-render the Activity page from the cached entries + active filter (no refetch). Called by
+// renderActivityFeed after fetch and by the filter controls.
+function renderActivityView() {
+    const ACTION_LABELS = { all: 'All', install: 'Installs', update: 'Updates', uninstall: 'Removals', downgrade: 'Downgrades' };
+    const filtered = filterActivity(activityEntries, activityFilter);
+    const groups = groupActivityByDate(filtered);
+
+    const container = document.createElement('div');
+    container.className = 'activity-page';
+
+    // --- Filter bar: action chips + type select + name search ---
+    const bar = document.createElement('div');
+    bar.className = 'activity-filters';
+    const actionChips = activityActionsPresent(activityEntries).map(a => {
+        const active = activityFilter.action === a ? ' active' : '';
+        return `<button class="activity-chip${active}" data-action="${escapeHtml(a)}">${escapeHtml(ACTION_LABELS[a] || a)}</button>`;
+    }).join('');
+    const typeOpts = activityTypesPresent(activityEntries).map(t =>
+        `<option value="${escapeHtml(t)}"${activityFilter.type === t ? ' selected' : ''}>${t === 'all' ? 'All sources' : escapeHtml(t)}</option>`).join('');
+    bar.innerHTML = `
+        <div class="activity-chips">${actionChips}</div>
+        <div class="activity-filter-right">
+            <select class="activity-type-select" aria-label="Filter by source">${typeOpts}</select>
+            <input class="activity-search" type="search" placeholder="Filter by name…" value="${escapeHtml(activityFilter.query)}" aria-label="Filter activity by package name">
+        </div>`;
+    container.appendChild(bar);
+
+    // --- Grouped feed (or an empty state when filters exclude everything) ---
+    if (filtered.length === 0) {
+        const empty = document.createElement('div');
+        empty.innerHTML = emptyStateHTML({ icon: '🔍', title: 'No matching activity', hint: 'Try a different filter or clear the search.' });
+        container.appendChild(empty);
+    } else {
+        groups.forEach(group => {
+            const section = document.createElement('div');
+            section.className = 'activity-group';
+            section.innerHTML = `<h3 class="activity-group-title">${escapeHtml(group.label)}</h3>`;
+            const feed = document.createElement('div');
+            feed.className = 'activity-feed';
+            group.items.forEach(act => feed.appendChild(buildActivityItem(act)));
+            section.appendChild(feed);
+            container.appendChild(section);
+        });
+    }
+
+    packagesGrid.innerHTML = '';
+    packagesGrid.appendChild(container);
+
+    // --- Wire the filter controls (re-render from cache, no refetch) ---
+    bar.querySelectorAll('.activity-chip').forEach(chip => chip.addEventListener('click', () => {
+        activityFilter.action = chip.dataset.action;
+        renderActivityView();
+    }));
+    bar.querySelector('.activity-type-select').addEventListener('change', e => {
+        activityFilter.type = e.target.value;
+        renderActivityView();
+    });
+    const search = bar.querySelector('.activity-search');
+    search.addEventListener('input', e => {
+        activityFilter.query = e.target.value;
+        renderActivityView();
+        // restore focus + caret after the re-render replaces the input
+        const s = packagesGrid.querySelector('.activity-search');
+        if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
+    });
+}
+
+function buildActivityItem(act) {
+    const item = document.createElement('div');
+    item.className = 'activity-item';
+    const isSuccess = act.success;
+    const timeStr = new Date(act.timestamp).toLocaleString();
+    const actions = activityEntryActions(act);
+    const actionsHTML = actions.map(a =>
+        `<button class="btn btn-outline btn-sm activity-rollback" data-handler="${escapeHtml(a.handler)}" data-id="${escapeHtml(a.id)}">${escapeHtml(a.label)}</button>`).join('');
+
+    item.innerHTML = `
+        <div class="activity-icon ${isSuccess ? 'success' : 'error'}">${isSuccess ? '✓' : '✗'}</div>
+        <div class="activity-body">
+            <span class="activity-action ${escapeHtml(act.action)}">${escapeHtml(act.action.toUpperCase())}</span>
+            <span class="activity-pkg activity-pkg-link" title="Search for this package">${escapeHtml(act.pkg_name)}</span>
+            <span style="color: var(--text-secondary);">(${escapeHtml(act.pkg_type)})</span>
+            ${!isSuccess && act.error ? `<span style="color: var(--status-danger); margin-left: 8px;">— ${escapeHtml(act.error)}</span>` : ''}
+        </div>
+        <div class="activity-actions">${actionsHTML}</div>
+        <div class="activity-time">${escapeHtml(timeStr)}</div>
+    `;
+
+    // Clicking the package name searches for it (the "view" path — the live card shows accurate state).
+    item.querySelector('.activity-pkg-link').addEventListener('click', () => {
+        searchInput.value = act.pkg_name;
+        activateView('installed');
+        fetchPackages();
+    });
+    // Rollback affordances route through the existing handlers (preview → root → terminal).
+    item.querySelectorAll('.activity-rollback').forEach(btn => btn.addEventListener('click', () => {
+        const fn = window[btn.dataset.handler];
+        if (typeof fn === 'function') fn(btn.dataset.id);
+    }));
+    return item;
 }
 
 // Data Fetching
@@ -4703,6 +4847,11 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         pickActivityText,
         stripProgressBar,
         extractPercent,
+        filterActivity,
+        groupActivityByDate,
+        activityEntryActions,
+        activityActionsPresent,
+        activityTypesPresent,
         showInstallPreview,
         showTransactionPreview,
         resolveTxPreview,

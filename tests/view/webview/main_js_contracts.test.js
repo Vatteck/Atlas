@@ -949,6 +949,51 @@ async function testTerminalDoneWarnedState() {
   assert.ok(document.getElementById('terminal-progress-fill').style.background.includes('--status-success'), 'bar green');
 }
 
+async function testActivityFilterGroupAndActions() {
+  const { hooks } = loadMainJs({});
+  const { filterActivity, groupActivityByDate, activityEntryActions, activityActionsPresent, activityTypesPresent } = hooks;
+
+  const now = new Date('2026-06-05T12:00:00');
+  const entries = [
+    { timestamp: '2026-06-05T09:00:00', action: 'install', pkg_name: 'firefox', pkg_type: 'arch_repo', success: true },
+    { timestamp: '2026-06-04T20:00:00', action: 'uninstall', pkg_name: 'vlc', pkg_type: 'flatpak', success: true },
+    { timestamp: '2026-06-02T08:00:00', action: 'update', pkg_name: 'yay', pkg_type: 'aur', success: true },
+    { timestamp: '2026-05-01T08:00:00', action: 'install', pkg_name: 'gimp', pkg_type: 'flatpak', success: false },
+  ];
+
+  // Compare as strings: the helpers build arrays in the VM realm, so deepStrictEqual would trip on
+  // the cross-realm Array prototype mismatch even with equal contents.
+  const names = arr => arr.map(e => e.pkg_name).join(',');
+
+  // filter: action
+  assert.strictEqual(names(filterActivity(entries, { action: 'install' })), 'firefox,gimp', 'action filter');
+  // filter: type (case-insensitive)
+  assert.strictEqual(names(filterActivity(entries, { type: 'AUR' })), 'yay', 'type filter');
+  // filter: query (substring, case-insensitive) — composes with action
+  assert.strictEqual(names(filterActivity(entries, { action: 'install', query: 'FIRE' })), 'firefox', 'query+action');
+  assert.strictEqual(filterActivity(entries, { query: 'nope' }).length, 0, 'no match');
+
+  // grouping by date
+  const groups = groupActivityByDate(entries, now);
+  assert.strictEqual(groups.map(g => g.key).join(','), 'today,yesterday,week,older', 'all buckets present, ordered');
+  assert.strictEqual(names(groups.find(g => g.key === 'today').items), 'firefox', 'today bucket');
+  assert.strictEqual(names(groups.find(g => g.key === 'older').items), 'gimp', 'older bucket');
+  // empty buckets are dropped
+  assert.strictEqual(groupActivityByDate([entries[0]], now).length, 1, 'only non-empty buckets');
+  // invalid timestamp → older, never throws
+  assert.doesNotThrow(() => groupActivityByDate([{ timestamp: 'garbage', action: 'install', pkg_name: 'x', pkg_type: 'aur', success: true }], now));
+
+  // per-entry rollback affordances
+  assert.strictEqual(JSON.stringify(activityEntryActions(entries[0])), JSON.stringify([{ label: 'Downgrade', handler: 'downgradeApp', id: 'arch_repo:firefox' }]), 'install→downgrade');
+  assert.strictEqual(JSON.stringify(activityEntryActions(entries[1])), JSON.stringify([{ label: 'Reinstall', handler: 'installApp', id: 'flatpak:vlc' }]), 'uninstall→reinstall');
+  assert.strictEqual(activityEntryActions(entries[3]).length, 0, 'failed entry → no actions');
+  assert.strictEqual(activityEntryActions({ action: 'install', pkg_type: 'snap', success: true }).length, 0, 'unsupported type → no downgrade');
+
+  // filter option discovery (All leads; known actions ordered; types sorted)
+  assert.strictEqual(activityActionsPresent(entries).join(','), 'all,install,update,uninstall', 'actions present');
+  assert.strictEqual(activityTypesPresent(entries).join(','), 'all,arch_repo,aur,flatpak', 'types present');
+}
+
 async function testShowTransactionPreviewUsesActionCopy() {
   // Uninstall routes to get_uninstall_preview and sets the Remove title + danger proceed button.
   const { document, hooks } = loadMainJs({
@@ -999,6 +1044,7 @@ async function testShowTransactionPreviewUsesActionCopy() {
     testStripProgressBarAndPercent,
     testTerminalFlowRunsWithoutError,
     testTerminalDoneWarnedState,
+    testActivityFilterGroupAndActions,
     testShowTransactionPreviewUsesActionCopy,
   ];
   for (const test of tests) {

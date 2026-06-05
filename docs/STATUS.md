@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-05 (Terminal: outcome-colored progress bar + "completed with warnings" state for failed optional deps; divider fix; 493 tests + 34 JS green)
+**Last updated:** 2026-06-05 (History/rollback center increment 1: Activity page filters + date groups + per-entry Downgrade/Reinstall; 493 tests + 35 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -77,6 +77,26 @@ re-add a native extension without a measured win. Details in the historical
 ---
 
 ## Done
+
+- **History / rollback center — increment 1 (2026-06-05).** Turned the flat Activity feed into a
+  usable history page (the BACKLOG "History / rollback center" item). **Frontend-heavy, low risk**
+  (one backend line): `get_activity` now reads up to 200 entries (was 50) since filtering is
+  client-side. New pure helpers (Node-VM-tested): `filterActivity(entries,{action,type,query})`
+  (composing, case-insensitive), `groupActivityByDate` (Today / Yesterday / Earlier this week /
+  Older; invalid timestamps → Older, never throws), `activityEntryActions` (which rollback button
+  an entry gets), `activityActionsPresent`/`activityTypesPresent` (filter-option discovery). The
+  page now has a **filter bar** (action chips + source-type select + name search — all re-render
+  from the cached entries, no refetch) and **date-grouped sections**. Each entry got **rollback
+  affordances** that reuse the existing safe flows: **Downgrade** on a successful Arch/AUR/Flatpak
+  install/update/downgrade (`downgradeApp(id)`), **Reinstall** on an uninstall (`installApp(id)`),
+  and a clickable package name that **searches** for it (the "view" path — the live card shows
+  accurate state). Affordances reconstruct the `{type}:{name}` id and route through the normal
+  preview → root-password → terminal flow (`_get_pkg` self-heals by search), so they're honest
+  entry points, not guarantees. Tests: `main_js_contracts::testActivityFilterGroupAndActions`.
+  Suite **493** + JS **35**. **Needs a GUI eyeball** (filters compose, date groups render,
+  Downgrade/Reinstall route through the preview, name-search navigates). **Deferred** to later
+  increments: pacman-log line links, log clear/export. Plan:
+  [plans/2026-06-05-history-rollback-center.md](plans/2026-06-05-history-rollback-center.md).
 
 - **Terminal polish — outcome-colored bar + "completed with warnings" state (2026-06-05, GUI-eyeball follow-up).**
   Two issues a GUI check surfaced. (1) **Progress bar never settled** — on done it stayed at whatever width

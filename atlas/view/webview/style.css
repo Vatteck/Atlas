@@ -1226,7 +1226,38 @@ body {
 .activity-action.update_all { background: rgba(245, 158, 11, 0.15); color: var(--status-warning); }
 .activity-action.downgrade { background: rgba(245, 158, 11, 0.15); color: var(--status-warning); }
 .activity-pkg { color: var(--text-primary); font-weight: 500; }
+.activity-pkg-link { cursor: pointer; }
+.activity-pkg-link:hover { color: var(--accent-color); text-decoration: underline; }
 .activity-time { color: var(--text-secondary); font-size: 12px; flex-shrink: 0; }
+.activity-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.btn.btn-sm { padding: 4px 10px; font-size: 12px; }
+
+/* History / rollback center — filter bar + date groups (see plan 2026-06-05). */
+.activity-page { padding: 24px 32px; }
+.activity-page .activity-feed { padding: 0; }
+.activity-filters {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    flex-wrap: wrap; margin-bottom: 16px;
+}
+.activity-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.activity-chip {
+    background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-secondary);
+    cursor: pointer; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px;
+    transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+.activity-chip:hover { color: var(--text-primary); }
+.activity-chip.active { background: var(--accent-color); border-color: var(--accent-color); color: #fff; }
+.activity-filter-right { display: flex; gap: 8px; align-items: center; }
+.activity-type-select, .activity-search {
+    background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-primary);
+    font-size: 13px; padding: 6px 10px; border-radius: var(--radius-sm);
+}
+.activity-search { min-width: 180px; }
+.activity-group { margin-bottom: 22px; }
+.activity-group-title {
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-secondary); margin: 0 0 10px 2px;
+}
 
 /* Disk Usage Breakdown View */
 .disk-view-container {

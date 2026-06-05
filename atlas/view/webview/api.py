@@ -2356,7 +2356,9 @@ class AtlasApi:
 
     def get_activity(self) -> dict:
         try:
-            logs = get_activity_log()
+            # A wider window than the dashboard card needs: the Activity page filters/groups this
+            # client-side, so give it enough history to be useful (the JSONL is tiny).
+            logs = get_activity_log(limit=200)
             return {'status': 'ok', 'data': logs}
         except Exception as e:
             self.logger.error(f"Error fetching activity log: {e}")
