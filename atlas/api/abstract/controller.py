@@ -109,10 +109,14 @@ class TransactionResult:
     The result of a given operation
     """
 
-    def __init__(self, success: bool, installed: Optional[List[SoftwarePackage]], removed: Optional[List[SoftwarePackage]]):
+    def __init__(self, success: bool, installed: Optional[List[SoftwarePackage]], removed: Optional[List[SoftwarePackage]],
+                 warnings: Optional[List[str]] = None):
         self.success = success
         self.installed = installed
         self.removed = removed
+        # Non-fatal advisories from an otherwise-successful transaction (e.g. an optional
+        # dependency failed to build). Lets the UI show a "completed with warnings" state.
+        self.warnings = warnings
 
     @staticmethod
     def fail() -> "TransactionResult":

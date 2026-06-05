@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-05 (Terminal: activity line + failure summary + progress-bar-glyph strip / %-parse; crash fix; 493 tests + 33 JS green)
+**Last updated:** 2026-06-05 (Terminal: outcome-colored progress bar + "completed with warnings" state for failed optional deps; divider fix; 493 tests + 34 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -78,6 +78,26 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Terminal polish — outcome-colored bar + "completed with warnings" state (2026-06-05, GUI-eyeball follow-up).**
+  Two issues a GUI check surfaced. (1) **Progress bar never settled** — on done it stayed at whatever width
+  it reached and was always green; now `terminalSetDone` fills it to 100% tinted by outcome (green success /
+  **amber warned** / red failure) and `terminalOpen` resets width + color for the next run. Also dropped a
+  doubled divider between the activity line and the "Raw output" toggle (both carried a 1px border →
+  removed the toggle's `border-top`). (2) **A failed *optional* dependency reported a bare green "Success"**
+  despite a scary `ERROR: Build failed` in the log (repro: `visual-studio-code-bin` + optdep `icu69`, whose
+  `check()` fails on Python 3.13). **Traced it end-to-end:** the success flag propagates faithfully — every
+  *hard* dep/makedep failure aborts (`_handle_missing_deps` → False), and `makechrootpkg` `die`s with exit 1
+  on a build failure. The **only** path where "Build failed" coexists with overall success is the *optional*
+  dep path: `_install_optdeps` (and `_build`'s try/except around it) deliberately swallow optdep failures —
+  optdeps are non-fatal, so the main package genuinely installed. The bug was honesty of presentation, not
+  correctness. Fix (the chosen "amber partial state"): `TransactionContext.warnings` collects an advisory when
+  an optdep build fails (`arch.install.optdep.warning[.generic]`); `install()` surfaces them via the new
+  `TransactionResult.warnings` field (shared contract, optional, gem-agnostic); `AtlasApi.install` passes them
+  to `terminalSetDone(success, warnings)`; the frontend shows an **amber "Completed with warnings"** status +
+  done message + an amber notice card naming the failed optdep(s), while the bar goes amber (not green). Other
+  paths/gems unaffected (warnings defaults to None). Tests: `main_js_contracts::testTerminalDoneWarnedState`
+  (amber state + plain-success stays green). Suite **493** + JS **34**. **GUI-verified 2026-06-05** (bar color +
+  divider fix + amber warnings state all eyeballed).
 - **Terminal polish — activity line + friendly failure summary (2026-06-05).** The terminal panel
   (live + final view of a transaction) is no longer a raw-log wall — it closes the operation-confidence
   loop the pre-flight preview opened. **Frontend-only** (the watcher already pushes

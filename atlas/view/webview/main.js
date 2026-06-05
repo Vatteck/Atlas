@@ -497,6 +497,7 @@ window.terminalOpen = (title) => {
     statusEl.textContent = 'Working…';
     statusEl.className = 'terminal-status running';
     progressFill.style.width = '0%';
+    progressFill.style.background = 'var(--accent-color)';
     output.innerHTML = '';
     doneMsg.className = 'hidden';
     doneMsg.textContent = '';
@@ -548,36 +549,63 @@ window.terminalSetProgress = (val) => {
     document.getElementById('terminal-progress-fill').style.width = `${val}%`;
 };
 
-window.terminalSetDone = (success) => {
+window.terminalSetDone = (success, warnings) => {
     operationInProgress = false;
     packageCache = {}; // Invalidate cache on terminal operation completion
+
+    // Three outcomes: failed (red) / succeeded-with-warnings (amber) / succeeded (green). A warning
+    // is a non-fatal advisory from an otherwise-successful transaction (e.g. an optional dependency
+    // failed to build) — the main package still installed, so it's not a failure.
+    warnings = Array.isArray(warnings) ? warnings.filter(Boolean) : [];
+    const warned = success && warnings.length > 0;
 
     // Stop the activity spinner and settle the line on a final message.
     const spinner = document.getElementById('terminal-activity-spinner');
     if (spinner) spinner.classList.add('done');
+
+    // Settle the progress bar full, tinted by outcome (green / amber / red).
+    const fill = document.getElementById('terminal-progress-fill');
+    if (fill) {
+        fill.style.width = '100%';
+        fill.style.background = !success ? 'var(--status-danger)'
+                              : warned ? 'var(--status-warning)'
+                              : 'var(--status-success)';
+    }
+
     terminalActivity.status = success ? 'Done' : 'Failed';
     terminalActivity.substatus = ''; terminalActivity.lastLine = '';
     renderTerminalActivity();
 
     const doneMsg = document.getElementById('terminal-done-msg');
-    doneMsg.className = success ? 'terminal-done-success' : 'terminal-done-error';
-    doneMsg.textContent = success ? '✓ Operation completed successfully.' : '✗ Operation failed.';
+    doneMsg.className = !success ? 'terminal-done-error'
+                      : warned ? 'terminal-done-warning'
+                      : 'terminal-done-success';
+    doneMsg.textContent = !success ? '✗ Operation failed.'
+                        : warned ? '⚠ Completed with warnings.'
+                        : '✓ Operation completed successfully.';
 
     const statusEl = document.getElementById('terminal-status');
-    statusEl.textContent = success ? 'Success' : 'Failed';
-    statusEl.className = 'terminal-status ' + (success ? 'ok' : 'failed');
+    statusEl.textContent = !success ? 'Failed' : warned ? 'Completed with warnings' : 'Success';
+    statusEl.className = 'terminal-status ' + (!success ? 'failed' : warned ? 'warned' : 'ok');
 
-    // On failure, surface a friendly summary of the likely cause above the raw log.
+    // Surface a friendly notice above the raw log: the likely failure cause (on failure), or the
+    // non-fatal warnings (on success-with-warnings). Reuses the one notice slot, toned by outcome.
     const failureEl = document.getElementById('terminal-failure');
     if (failureEl) {
-        const summary = success ? null : summarizeFailure(terminalLogBuffer);
-        if (summary) {
-            failureEl.className = 'terminal-failure';
-            failureEl.innerHTML = `<div class="terminal-failure-title">${escapeHtml(summary.title)}</div>` +
-                                  `<div class="terminal-failure-hint">${escapeHtml(summary.hint)}</div>`;
+        if (warned) {
+            failureEl.className = 'terminal-failure terminal-failure-warn';
+            failureEl.innerHTML = `<div class="terminal-failure-title">The main package was installed</div>` +
+                                  warnings.map(w => `<div class="terminal-failure-hint">${escapeHtml(w)}</div>`).join('');
         } else {
-            failureEl.className = 'terminal-failure hidden';
-            failureEl.innerHTML = '';
+            const summary = success ? null : summarizeFailure(terminalLogBuffer);
+            if (summary) {
+                failureEl.className = 'terminal-failure';
+                failureEl.innerHTML = `<div class="terminal-failure-title">${escapeHtml(summary.title)}</div>` +
+                                      `<div class="terminal-failure-hint">${escapeHtml(summary.hint)}</div>`;
+            } else {
+                failureEl.className = 'terminal-failure hidden';
+                failureEl.innerHTML = '';
+            }
         }
     }
 

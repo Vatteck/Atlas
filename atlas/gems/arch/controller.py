@@ -119,6 +119,10 @@ class TransactionContext:
         # Shared (per-transaction) dir holding already-built AUR packages, for `makechrootpkg -I`
         # injection of AUR deps into dependents' clean-chroot builds. Propagated to dep contexts.
         self.chroot_inject_dir: Optional[str] = None
+        # Non-fatal advisories collected during the transaction (e.g. an optional dependency
+        # failed to build) — surfaced via TransactionResult.warnings for a "completed with
+        # warnings" UI state. The main package still installed successfully.
+        self.warnings: List[str] = []
 
     @classmethod
     def gen_context_from(cls, pkg: ArchPackage, arch_config: dict, root_password: Optional[str], handler: ProcessHandler, aur_supported: Optional[bool] = None) -> "TransactionContext":
@@ -2381,6 +2385,7 @@ class ArchManager(SoftwareManager, SettingsController):
                 except Exception:
                     self.logger.warning("Optional-dependency handling for '{}' failed; the main package was installed successfully".format(context.name))
                     traceback.print_exc()
+                    context.warnings.append(self.i18n['arch.install.optdep.warning.generic'].format(pkg=context.name))
 
                 return True
 
@@ -2656,6 +2661,10 @@ class ArchManager(SoftwareManager, SettingsController):
 
                 if deps_not_installed:
                     message.show_optdeps_not_installed(deps_not_installed, context.watcher, self.i18n)
+                    # Non-fatal: the main package installed; record an advisory so the UI can show a
+                    # "completed with warnings" state instead of a bare green "Success".
+                    failed = ', '.join(sorted(deps_not_installed))
+                    context.warnings.append(self.i18n['arch.install.optdep.warning'].format(failed=failed, pkg=context.name))
                 else:
                     context.installed.update({dep[0] for dep in sorted_deps})
 
@@ -3021,7 +3030,8 @@ class ArchManager(SoftwareManager, SettingsController):
                         self.logger.warning("Could not load all installed packages. Missing: {}".format(missing))
 
         removed = [*install_context.removed.values()] if install_context.removed else []
-        return TransactionResult(success=pkg_installed, installed=installed, removed=removed)
+        return TransactionResult(success=pkg_installed, installed=installed, removed=removed,
+                                 warnings=install_context.warnings or None)
 
     def _install_from_repository(self, context: TransactionContext) -> bool:
         if not self._handle_missing_deps(context):

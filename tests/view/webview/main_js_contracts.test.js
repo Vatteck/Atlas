@@ -927,6 +927,28 @@ async function testTerminalFlowRunsWithoutError() {
   assert.ok(document.getElementById('terminal-failure').innerHTML.includes('Download failed'), 'failure summary shown');
 }
 
+async function testTerminalDoneWarnedState() {
+  // success + non-fatal warnings (e.g. an optional dependency failed to build) → amber
+  // "completed with warnings", not a bare green Success and not a red failure.
+  const { window, document } = loadMainJs({});
+  window.terminalOpen('Installing visual-studio-code-bin');
+  window.terminalSetDone(true, ['vscode was installed, but these optional dependencies could not be built: icu69']);
+  assert.strictEqual(document.getElementById('terminal-status').textContent, 'Completed with warnings', 'status pill');
+  assert.ok(document.getElementById('terminal-status').className.includes('warned'), 'status warned class');
+  assert.strictEqual(document.getElementById('terminal-done-msg').className, 'terminal-done-warning', 'done msg amber');
+  const notice = document.getElementById('terminal-failure');
+  assert.ok(notice.className.includes('terminal-failure-warn'), 'notice amber-toned');
+  assert.ok(notice.innerHTML.includes('icu69'), 'failed optdep named');
+  assert.ok(document.getElementById('terminal-progress-fill').style.background.includes('--status-warning'), 'bar amber');
+
+  // plain success (no warnings) stays green, notice hidden
+  window.terminalOpen('Installing vim');
+  window.terminalSetDone(true);
+  assert.strictEqual(document.getElementById('terminal-status').textContent, 'Success', 'plain success pill');
+  assert.ok(document.getElementById('terminal-failure').className.includes('hidden'), 'no notice on clean success');
+  assert.ok(document.getElementById('terminal-progress-fill').style.background.includes('--status-success'), 'bar green');
+}
+
 async function testShowTransactionPreviewUsesActionCopy() {
   // Uninstall routes to get_uninstall_preview and sets the Remove title + danger proceed button.
   const { document, hooks } = loadMainJs({
@@ -976,6 +998,7 @@ async function testShowTransactionPreviewUsesActionCopy() {
     testPickActivityText,
     testStripProgressBarAndPercent,
     testTerminalFlowRunsWithoutError,
+    testTerminalDoneWarnedState,
     testShowTransactionPreviewUsesActionCopy,
   ];
   for (const test of tests) {

@@ -902,6 +902,7 @@ body {
 }
 .terminal-done-success { color: var(--status-success); font-size: 13px; font-weight: 600; }
 .terminal-done-error { color: var(--status-danger); font-size: 13px; font-weight: 600; }
+.terminal-done-warning { color: var(--status-warning); font-size: 13px; font-weight: 600; }
 
 /* Transaction timeline polish (see docs/plans/2026-06-05-transaction-timeline.md) */
 .terminal-header-actions { display: flex; align-items: center; gap: 8px; }
@@ -913,6 +914,7 @@ body {
 .terminal-iconbtn:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
 .terminal-status.running { color: var(--accent-color); }
 .terminal-status.ok { color: var(--status-success); }
+.terminal-status.warned { color: var(--status-warning); }
 .terminal-status.failed { color: var(--status-danger); }
 
 /* Friendly failure summary (likely cause + next step), shown above the raw log on failure. */
@@ -923,6 +925,11 @@ body {
 }
 .terminal-failure-title { font-size: 13px; font-weight: 700; color: var(--status-danger); }
 .terminal-failure-hint { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
+/* Amber variant: a non-fatal warning on an otherwise-successful transaction. */
+.terminal-failure.terminal-failure-warn {
+    background: rgba(245, 158, 11, 0.10); border-color: rgba(245, 158, 11, 0.30);
+}
+.terminal-failure-warn .terminal-failure-title { color: var(--status-warning); }
 
 /* Current-activity line — the latest status/substatus/log line, with a spinner while running. */
 .terminal-activity {
@@ -942,7 +949,7 @@ body {
 .terminal-output-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .terminal-output-toggle {
     background: var(--bg-surface); border: none;
-    border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
     color: var(--text-secondary); cursor: pointer; font-size: 12px; text-align: left;
     padding: 8px 20px; flex-shrink: 0;
 }

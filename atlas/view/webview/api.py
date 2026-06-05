@@ -1399,14 +1399,15 @@ class AtlasApi:
             watcher = WebviewWatcher(self.logger, self.window, self)
             result = self.manager.install(pkg, root_password=root_password, disk_loader=None, handler=watcher)
             success = result.success if result else False
+            warnings = (result.warnings if result else None) or []
             if self.window:
-                self.window.evaluate_js(f"terminalSetDone({str(success).lower()})")
-            
+                self.window.evaluate_js(f"terminalSetDone({str(success).lower()}, {json.dumps(warnings)})")
+
             # Record Activity
             record_activity('install', pkg.name, pkg.get_type() or pkg.gem_name, success)
             self._notify(f"{pkg.name} installed successfully" if success else f"Failed to install {pkg.name}")
 
-            return {'status': 'ok', 'success': success}
+            return {'status': 'ok', 'success': success, 'warnings': warnings}
         except Exception as e:
             self.logger.error(f"Error installing package {pkg.name}: {e}")
             traceback.print_exc()
