@@ -115,8 +115,12 @@ re-add a native extension without a measured win. Details in the historical
   entry points, not guarantees. Tests: `main_js_contracts::testActivityFilterGroupAndActions`.
   Suite **493** + JS **35**. **Needs a GUI eyeball** (filters compose, date groups render,
   Downgrade/Reinstall route through the preview, name-search navigates). **Deferred** to later
-  increments: pacman-log line links, log clear/export. Plan:
+  increments: log clear/export. Plan:
   [plans/2026-06-05-history-rollback-center.md](plans/2026-06-05-history-rollback-center.md).
+  **Polish (2026-06-05, GUI-eyeball follow-up):** the `update_all` filter chip + per-entry chip now
+  show friendly labels ("Update All", underscores→spaces); failed-entry errors no longer dump the
+  raw stringified pywebview JS-error object — a new pure `cleanActivityError` pulls out just the
+  `message` (stack/line stripped), truncates, and the line is single-line/ellipsised. JS asserts added.
 
 - **Terminal polish — outcome-colored bar + "completed with warnings" state (2026-06-05, GUI-eyeball follow-up).**
   Two issues a GUI check surfaced. (1) **Progress bar never settled** — on done it stayed at whatever width

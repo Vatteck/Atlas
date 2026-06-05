@@ -1232,6 +1232,10 @@ body {
 .activity-action.removed { background: rgba(239, 68, 68, 0.15); color: var(--status-danger); }
 .activity-action.reinstalled { background: rgba(148, 163, 184, 0.18); color: var(--text-secondary); }
 .activity-pkg { color: var(--text-primary); font-weight: 500; }
+.activity-error {
+    color: var(--status-danger); margin-left: 8px;
+    max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .activity-pkg-link { cursor: pointer; }
 .activity-pkg-link:hover { color: var(--accent-color); text-decoration: underline; }
 .activity-time { color: var(--text-secondary); font-size: 12px; flex-shrink: 0; }

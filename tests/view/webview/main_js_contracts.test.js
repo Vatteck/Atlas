@@ -1000,6 +1000,14 @@ async function testActivityFilterGroupAndActions() {
   assert.strictEqual(activityHasPacmanLog(entries[1]), false, 'flatpak has no pacman log');
   const lineHTML = renderPacmanLogLine({ action: 'upgraded', version: '1.0-1 -> 1.1-1', timestamp: '2026-06-05T09:00:00-0400' });
   assert.ok(lineHTML.includes('activity-action upgraded') && lineHTML.includes('1.0-1 -&gt; 1.1-1'), 'log line renders action chip + escaped version');
+
+  // error cleanup: a stringified pywebview JS error → just the message, not the stack
+  const { cleanActivityError } = hooks;
+  const raw = `{'name': 'ReferenceError', 'message': "Can't find variable: substatusEl", 'line': 478, 'stack': '@file:///x.js:478:20'}`;
+  assert.strictEqual(cleanActivityError(raw), "Can't find variable: substatusEl", 'extracts message from stringified error');
+  assert.strictEqual(cleanActivityError('plain failure text'), 'plain failure text', 'passes through plain text');
+  assert.strictEqual(cleanActivityError(''), '', 'empty error → empty');
+  assert.ok(cleanActivityError('x'.repeat(500)).endsWith('…'), 'long error truncated');
 }
 
 async function testShowTransactionPreviewUsesActionCopy() {

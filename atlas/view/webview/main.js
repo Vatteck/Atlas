@@ -3137,7 +3137,7 @@ function activityEntryActions(entry) {
 
 // Distinct actions present in the log, for the action filter chips (always leads with All).
 function activityActionsPresent(entries) {
-    const order = ['install', 'update', 'uninstall', 'downgrade'];
+    const order = ['install', 'update', 'update_all', 'uninstall', 'downgrade'];
     const present = new Set((entries || []).map(e => e.action));
     return ['all', ...order.filter(a => present.has(a)), ...[...present].filter(a => !order.includes(a)).sort()];
 }
@@ -3167,7 +3167,7 @@ async function renderActivityFeed() {
 // Re-render the Activity page from the cached entries + active filter (no refetch). Called by
 // renderActivityFeed after fetch and by the filter controls.
 function renderActivityView() {
-    const ACTION_LABELS = { all: 'All', install: 'Installs', update: 'Updates', uninstall: 'Removals', downgrade: 'Downgrades' };
+    const ACTION_LABELS = { all: 'All', install: 'Installs', update: 'Updates', update_all: 'Update All', uninstall: 'Removals', downgrade: 'Downgrades' };
     const filtered = filterActivity(activityEntries, activityFilter);
     const groups = groupActivityByDate(filtered);
 
@@ -3231,6 +3231,18 @@ function renderActivityView() {
     });
 }
 
+// Turn a stored error into a concise human line. pywebview bubbles a JS exception as a stringified
+// object (e.g. "{'name': 'ReferenceError', 'message': "…", 'stack': …}"); pull out just the message
+// and drop the stack/line noise. Falls back to the raw string (truncated) when it's not that shape.
+function cleanActivityError(error) {
+    if (!error) return '';
+    const s = String(error);
+    const m = s.match(/['"]message['"]\s*:\s*(['"])([\s\S]*?)\1/);
+    let msg = (m ? m[2] : s).trim();
+    if (msg.length > 200) msg = msg.slice(0, 199) + '…';
+    return msg;
+}
+
 // Arch/AUR entries can show the matching pacman.log lines (those are the only ones pacman records).
 function activityHasPacmanLog(entry) {
     const type = (entry && entry.pkg_type || '').toLowerCase();
@@ -3254,10 +3266,10 @@ function buildActivityItem(act) {
     item.innerHTML = `
         <div class="activity-icon ${isSuccess ? 'success' : 'error'}">${isSuccess ? '✓' : '✗'}</div>
         <div class="activity-body">
-            <span class="activity-action ${escapeHtml(act.action)}">${escapeHtml(act.action.toUpperCase())}</span>
+            <span class="activity-action ${escapeHtml(act.action)}">${escapeHtml(act.action.replace(/_/g, ' ').toUpperCase())}</span>
             <span class="activity-pkg activity-pkg-link" title="Search for this package">${escapeHtml(act.pkg_name)}</span>
             <span style="color: var(--text-secondary);">(${escapeHtml(act.pkg_type)})</span>
-            ${!isSuccess && act.error ? `<span style="color: var(--status-danger); margin-left: 8px;">— ${escapeHtml(act.error)}</span>` : ''}
+            ${!isSuccess && act.error ? `<span class="activity-error" title="${escapeHtml(cleanActivityError(act.error))}">— ${escapeHtml(cleanActivityError(act.error))}</span>` : ''}
         </div>
         <div class="activity-actions">${actionsHTML}${logToggleHTML}</div>
         <div class="activity-time">${escapeHtml(timeStr)}</div>
@@ -4895,6 +4907,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         activityTypesPresent,
         activityHasPacmanLog,
         renderPacmanLogLine,
+        cleanActivityError,
         showInstallPreview,
         showTransactionPreview,
         resolveTxPreview,
