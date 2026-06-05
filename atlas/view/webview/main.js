@@ -784,19 +784,33 @@ function buildTransactionPreviewHTML(data) {
     if (warnings.length) {
         const order = { danger: 0, warn: 1, info: 2 };
         const sorted = warnings.slice().sort((a, b) => (order[a.level] ?? 3) - (order[b.level] ?? 3));
-        html += `<div class="txp-warnings">` + sorted.map(w => `
-            <div class="txp-warn txp-warn-${escapeHtml(w.level || 'info')}">
-                <div class="txp-warn-title">${escapeHtml(w.title || '')}</div>
-                ${w.detail ? `<div class="txp-warn-detail">${escapeHtml(w.detail)}</div>` : ''}
-            </div>`).join('') + `</div>`;
+        html += `<div class="txp-warnings">` + sorted.map(w => {
+            const level = w.level || 'info';
+            const colorClass = level === 'danger' ? 'perm-icon-danger' : (level === 'warn' ? 'perm-icon-warn' : 'perm-icon-info');
+            return `
+            <div class="txp-warn txp-warn-${escapeHtml(level)}">
+                <div class="rich-badge-icon ${colorClass}"><span class="material-symbols-outlined">${getWarningIcon(w.title, level)}</span></div>
+                <div class="txp-warn-text">
+                    <div class="txp-warn-title">${escapeHtml(w.title || '')}</div>
+                    ${w.detail ? `<div class="txp-warn-detail">${escapeHtml(w.detail)}</div>` : ''}
+                </div>
+            </div>`;
+        }).join('') + `</div>`;
     }
 
     if (perms && perms.length) {
         html += `<details class="txp-accordion"><summary>Permissions (${perms.length})</summary><div class="txp-acc-body">` +
-            perms.map(p => `<div class="txp-perm txp-perm-${escapeHtml(p.level || 'safe')}">
-                <span class="txp-perm-title">${escapeHtml(p.title || '')}</span>
-                ${p.detail ? `<span class="txp-perm-detail">${escapeHtml(p.detail)}</span>` : ''}
-            </div>`).join('') + `</div></details>`;
+            perms.map(p => {
+                const level = p.level || 'safe';
+                const colorClass = level === 'danger' ? 'perm-icon-danger' : (level === 'warn' ? 'perm-icon-warn' : 'perm-icon-safe');
+                return `<div class="txp-perm txp-perm-${escapeHtml(level)}">
+                <div class="rich-badge-icon ${colorClass}"><span class="material-symbols-outlined">${getPermissionIcon(p.title)}</span></div>
+                <div class="txp-perm-text">
+                    <span class="txp-perm-title">${escapeHtml(p.title || '')}</span>
+                    ${p.detail ? `<span class="txp-perm-detail">${escapeHtml(p.detail)}</span>` : ''}
+                </div>
+            </div>`;
+            }).join('') + `</div></details>`;
     }
 
     const direct = deps.direct || [];
@@ -1636,6 +1650,23 @@ function getPermissionIcon(title) {
     if (t.includes('proprietary')) return 'warning';
     if (t.includes('home')) return 'home';
     return 'security';
+}
+
+// Icon for a transaction-preview warning notice (unsafe perms, unverified, maintainer, etc.).
+// Falls back to a severity-appropriate glyph when the title doesn't match a known case.
+function getWarningIcon(title, level) {
+    const t = (title || '').toLowerCase();
+    if (t.includes('unverified') || t.includes('not verified')) return 'gpp_maybe';
+    if (t.includes('verified')) return 'verified';
+    if (t.includes('proprietary') || t.includes('closed')) return 'lock';
+    if (t.includes('maintainer') || t.includes('hands')) return 'manage_accounts';
+    if (t.includes('orphan')) return 'person_off';
+    if (t.includes('out-of-date') || t.includes('out of date') || t.includes('outdated')) return 'update';
+    if (t.includes('community') || t.includes('aur')) return 'groups';
+    if (t.includes('permission') || t.includes('unsafe') || t.includes('access')) return 'shield';
+    if (level === 'danger') return 'gpp_bad';
+    if (level === 'warn') return 'warning';
+    return 'info';
 }
 
 function permissionsPopupHtml(meta) {

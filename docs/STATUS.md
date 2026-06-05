@@ -76,6 +76,13 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Transaction preview — notice/permission icon polish (2026-06-04).** GUI-eyeball follow-up to
+  increment 1: the preview's permission rows and top notices now lead with the same colored circular
+  icon chip as the Flathub info-popup (reusing `getPermissionIcon` + new `getWarningIcon`, mapping
+  titles→glyphs; `rich-badge-icon` + `perm-icon-{danger,warn,info,safe}` classes). Dropped the old
+  left-accent stripe on notices in favour of a **subtle severity-tinted background wash** (`.txp-warn-*`,
+  `rgba(...,.10)`); permission rows keep an **uncolored** background. Frontend/CSS only; JS contracts +
+  webview suite green (139). GUI-verified.
 - **Transaction preview — increment 1: Install (2026-06-04).** A pre-flight "here's what this will
   do — proceed?" modal now gates **installs** (before anything privileged runs). Backend
   `AtlasApi.get_install_preview(pkg_id)` assembles a per-source payload — `{name, source,

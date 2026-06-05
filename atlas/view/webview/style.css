@@ -2674,15 +2674,18 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
 .txp-size-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
     color: var(--text-secondary); margin-right: 4px; }
 .txp-warnings { display: flex; flex-direction: column; gap: 8px; }
-.txp-warn { padding: 10px 12px; border-radius: var(--radius-md); border-left: 3px solid var(--border-color);
-    background: var(--bg-surface); }
+.txp-warn { display: flex; flex-direction: row; align-items: center; gap: 12px;
+    padding: 10px 12px; border-radius: var(--radius-md); background: var(--bg-surface); }
+.txp-warn .rich-badge-icon { flex-shrink: 0; }
+.txp-warn-text { display: flex; flex-direction: column; min-width: 0; }
 .txp-warn-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
 .txp-warn-detail { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
-.txp-warn-danger { border-left-color: var(--status-danger); }
+.txp-warn-danger { background: rgba(239, 68, 68, 0.10); }
 .txp-warn-danger .txp-warn-title { color: var(--status-danger); }
-.txp-warn-warn { border-left-color: var(--status-warning); }
+.txp-warn-warn { background: rgba(245, 158, 11, 0.10); }
 .txp-warn-warn .txp-warn-title { color: var(--status-warning); }
-.txp-warn-info { border-left-color: var(--accent-color); }
+.txp-warn-info { background: rgba(99, 102, 241, 0.10); }
+.perm-icon-info { color: var(--accent-color) !important; background-color: rgba(99, 102, 241, 0.15) !important; }
 .txp-accordion { border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-surface); }
 .txp-accordion > summary { cursor: pointer; padding: 10px 12px; font-size: 13px; font-weight: 600;
     color: var(--text-primary); list-style: none; }
@@ -2697,8 +2700,10 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
     color: var(--text-primary); font-family: ui-monospace, "Cascadia Code", Menlo, monospace; }
 .txp-optdep { display: flex; align-items: baseline; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
 .txp-optdep-detail { font-size: 12px; color: var(--text-secondary); }
-.txp-perm { display: flex; flex-direction: column; gap: 2px; padding: 6px 0; border-bottom: 1px solid var(--border-color); }
+.txp-perm { display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--border-color); }
 .txp-perm:last-child { border-bottom: none; }
+.txp-perm .rich-badge-icon { flex-shrink: 0; }
+.txp-perm-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .txp-perm-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
 .txp-perm-detail { font-size: 12px; color: var(--text-secondary); }
 .txp-perm-danger .txp-perm-title { color: var(--status-danger); }
