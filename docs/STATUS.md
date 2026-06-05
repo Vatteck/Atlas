@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-05 (Terminal: activity line + friendly failure + status HTML-strip; step timeline dropped — gems don't emit phases; 493 tests + 31 JS green)
+**Last updated:** 2026-06-05 (Terminal: activity line + failure summary + progress-bar-glyph strip / %-parse; crash fix; 493 tests + 33 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -97,6 +97,11 @@ re-add a native extension without a measured win. Details in the historical
   `main_js_contracts` (`summarizeFailure`, `pickActivityText`) + `test_watcher.py::WatcherStatusCleaningTest`
   (3). Suite **493** + JS **31**. **Needs a GUI eyeball.** Plan:
   [plans/2026-06-05-transaction-timeline.md](plans/2026-06-05-transaction-timeline.md).
+  **Follow-ups (2026-06-05):** (a) fixed a leftover `substatusEl` reference that crashed `terminalOpen`
+  (ReferenceError on every install) + added `testTerminalFlowRunsWithoutError` (drives the real
+  handlers in the DOM harness, catching this class of bug). (b) Some tools (Flatpak/OSTree) `print` a
+  **textual progress bar** out of block glyphs; the activity line now strips those (`stripProgressBar`,
+  raw log stays verbatim) and parses the `%` to drive the real progress bar (`extractPercent`). JS 33.
 - **Fix: misleading category chip counts (2026-06-05).** Category chips showed a package count
   (e.g. "Office · 1 package") computed from `categories.txt` (the **Arch-repo index only**), but
   opening a category also lists Flathub apps — so the number understated reality (Office → 1 shown,

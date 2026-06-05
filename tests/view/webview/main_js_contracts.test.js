@@ -891,6 +891,24 @@ async function testPickActivityText() {
   assert.strictEqual(hooks.pickActivityText(), 'Working…');
 }
 
+async function testStripProgressBarAndPercent() {
+  const { hooks } = loadMainJs({});
+  // Flatpak-style textual progress bar (block glyphs) is stripped; the meaningful text stays.
+  const flatpakLine = 'Installing… ██████ 100% 99.8 MB/s';
+  const cleaned = hooks.stripProgressBar(flatpakLine);
+  assert.ok(!/[─-◿]/.test(cleaned), 'block glyphs removed');
+  assert.ok(cleaned.includes('Installing') && cleaned.includes('100%') && cleaned.includes('99.8 MB/s'), 'text kept');
+  // ASCII-style bar too
+  assert.ok(!hooks.stripProgressBar('progress [#####=====] 50%').includes('#####'), 'ascii bar removed');
+  // pickActivityText applies the strip
+  assert.ok(!/[─-◿]/.test(hooks.pickActivityText({ lastLine: flatpakLine })), 'activity line stripped');
+  // percent extraction
+  assert.strictEqual(hooks.extractPercent('Installing… 33% 82.7 MB/s'), 33);
+  assert.strictEqual(hooks.extractPercent('100% done'), 100);
+  assert.strictEqual(hooks.extractPercent('no percent here'), null);
+  assert.strictEqual(hooks.extractPercent('999%'), null);  // out of range
+}
+
 async function testTerminalFlowRunsWithoutError() {
   // Drives the real terminal handlers end-to-end so runtime errors (e.g. an undeclared variable)
   // are caught here, not only in the live app. (Regression: terminalOpen referenced a removed
@@ -956,6 +974,7 @@ async function testShowTransactionPreviewUsesActionCopy() {
     testBuildSourceCompareHTML,
     testSummarizeFailureCategories,
     testPickActivityText,
+    testStripProgressBarAndPercent,
     testTerminalFlowRunsWithoutError,
     testShowTransactionPreviewUsesActionCopy,
   ];

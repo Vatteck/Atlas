@@ -443,12 +443,33 @@ function summarizeFailure(log) {
     return { title: 'The operation failed', hint: 'See the raw log below for details.' };
 }
 
+// Pure: strip textual progress-bar glyphs from a status line for clean display (some tools — e.g.
+// Flatpak/OSTree — draw a bar out of block/box characters in their output). Only used for the
+// activity line; the raw log keeps everything verbatim.
+function stripProgressBar(s) {
+    return (s || '')
+        .replace(/[\u2500-\u25ff]+/g, ' ')  // box-drawing + block elements + geometric shapes
+        .replace(/[#=|]{3,}/g, ' ')         // ASCII-style bars
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+}
+
+// Pure: pull a 0–100 percentage out of a status line (e.g. "… 33% 82.7 MB/s") so a tool that reports
+// progress as text can still drive the real progress bar. Returns a number or null.
+function extractPercent(s) {
+    const m = (s || '').match(/(\d{1,3})\s*%/);
+    if (!m) return null;
+    const v = parseInt(m[1], 10);
+    return (v >= 0 && v <= 100) ? v : null;
+}
+
 // Pure: pick the line to show as the "current activity" from the latest signals. Prefer the gem's
 // substatus, then its high-level status, then the last raw-log line (some gems — e.g. Flatpak —
-// blank the substatus and only print), then a generic fallback. Never returns an empty string.
+// blank the substatus and only print), then a generic fallback. Progress-bar glyphs are stripped;
+// never returns an empty string.
 function pickActivityText({ substatus, status, lastLine } = {}) {
-    return (substatus && substatus.trim()) || (status && status.trim())
-        || (lastLine && lastLine.trim()) || 'Working…';
+    return stripProgressBar(substatus) || stripProgressBar(status)
+        || stripProgressBar(lastLine) || 'Working…';
 }
 
 let terminalLogBuffer = '';
@@ -491,9 +512,19 @@ window.terminalOpen = (title) => {
     document.getElementById('terminal-close').style.display = 'none';
 };
 
+function maybeDriveProgress(text) {
+    // Tools that report progress as text (e.g. Flatpak/OSTree) can still move the real bar.
+    const pct = extractPercent(text);
+    if (pct != null) document.getElementById('terminal-progress-fill').style.width = `${pct}%`;
+}
+
 window.terminalAppend = (line) => {
     terminalLogBuffer += (line == null ? '' : line) + '\n';
-    if (line && line.trim()) { terminalActivity.lastLine = line; renderTerminalActivity(); }
+    if (line && line.trim()) {
+        terminalActivity.lastLine = line;
+        maybeDriveProgress(line);
+        renderTerminalActivity();
+    }
     const output = document.getElementById('terminal-output');
     const lineEl = document.createElement('span');
     lineEl.className = 'line';
@@ -509,6 +540,7 @@ window.terminalSetStatus = (status) => {
 
 window.terminalSetSubstatus = (substatus) => {
     terminalActivity.substatus = substatus || '';
+    maybeDriveProgress(substatus);
     renderTerminalActivity();
 };
 
@@ -4641,6 +4673,8 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildSourceCompareHTML,
         summarizeFailure,
         pickActivityText,
+        stripProgressBar,
+        extractPercent,
         showInstallPreview,
         showTransactionPreview,
         resolveTxPreview,
