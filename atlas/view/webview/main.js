@@ -414,8 +414,10 @@ async function pyApiCall(methodName, ...args) {
 }
 
 // Terminal Watcher Controls called from WebviewWatcher.
-// The terminal shows a step timeline (the gem's own change_status sequence), an optional raw log,
-// and — on failure — a friendly summary of the likely cause. See
+// The terminal shows a live "current activity" line, an optional raw log, and — on failure — a
+// friendly summary of the likely cause. (A discrete step timeline was attempted but dropped: gems
+// don't emit clean phase events — change_status is barely used and some gems blank the substatus —
+// so the honest signal is the latest status/substatus/log line.) See
 // docs/plans/2026-06-05-transaction-timeline.md.
 
 // Pure: turn the accumulated raw log into a likely-cause summary, most-specific first. Returns
@@ -441,20 +443,20 @@ function summarizeFailure(log) {
     return { title: 'The operation failed', hint: 'See the raw log below for details.' };
 }
 
-// Pure: render the step timeline. Each step = {label, state: 'done'|'active'|'failed'}.
-function buildStepsHTML(steps) {
-    return (steps || []).map(s => {
-        const icon = s.state === 'done' ? '✓' : (s.state === 'failed' ? '✗' : '');
-        return `<div class="tl-step tl-step-${escapeHtml(s.state)}"><span class="tl-dot">${icon}</span><span class="tl-label">${escapeHtml(s.label)}</span></div>`;
-    }).join('');
+// Pure: pick the line to show as the "current activity" from the latest signals. Prefer the gem's
+// substatus, then its high-level status, then the last raw-log line (some gems — e.g. Flatpak —
+// blank the substatus and only print), then a generic fallback. Never returns an empty string.
+function pickActivityText({ substatus, status, lastLine } = {}) {
+    return (substatus && substatus.trim()) || (status && status.trim())
+        || (lastLine && lastLine.trim()) || 'Working…';
 }
 
-let terminalSteps = [];
 let terminalLogBuffer = '';
+let terminalActivity = { substatus: '', status: '', lastLine: '' };
 
-function renderTerminalSteps() {
-    const el = document.getElementById('terminal-steps');
-    if (el) el.innerHTML = buildStepsHTML(terminalSteps);
+function renderTerminalActivity() {
+    const el = document.getElementById('terminal-activity-text');
+    if (el) el.textContent = pickActivityText(terminalActivity);
 }
 
 window.terminalOpen = (title) => {
@@ -463,24 +465,25 @@ window.terminalOpen = (title) => {
     const output = document.getElementById('terminal-output');
     const titleEl = document.getElementById('terminal-title');
     const statusEl = document.getElementById('terminal-status');
-    const substatusEl = document.getElementById('terminal-substatus');
     const progressFill = document.getElementById('terminal-progress-fill');
     const doneMsg = document.getElementById('terminal-done-msg');
     const failureEl = document.getElementById('terminal-failure');
 
     operationInProgress = true;
-    terminalSteps = [];
     terminalLogBuffer = '';
+    terminalActivity = { substatus: '', status: '', lastLine: '' };
     titleEl.textContent = title;
     statusEl.textContent = 'Working…';
     statusEl.className = 'terminal-status running';
-    substatusEl.textContent = '';
+    if (substatusEl) substatusEl.textContent = '';
     progressFill.style.width = '0%';
     output.innerHTML = '';
     doneMsg.className = 'hidden';
     doneMsg.textContent = '';
     if (failureEl) { failureEl.className = 'terminal-failure hidden'; failureEl.innerHTML = ''; }
-    renderTerminalSteps();
+    const spinner = document.getElementById('terminal-activity-spinner');
+    if (spinner) spinner.classList.remove('done');
+    renderTerminalActivity();
 
     panel.classList.remove('hidden');
     overlay.classList.remove('hidden');
@@ -491,6 +494,7 @@ window.terminalOpen = (title) => {
 
 window.terminalAppend = (line) => {
     terminalLogBuffer += (line == null ? '' : line) + '\n';
+    if (line && line.trim()) { terminalActivity.lastLine = line; renderTerminalActivity(); }
     const output = document.getElementById('terminal-output');
     const lineEl = document.createElement('span');
     lineEl.className = 'line';
@@ -499,17 +503,14 @@ window.terminalAppend = (line) => {
     output.scrollTop = output.scrollHeight;
 };
 
-// Each high-level status from the gem becomes a timeline step: finish the previous, start this one.
 window.terminalSetStatus = (status) => {
-    if (!status) return;
-    const prev = terminalSteps[terminalSteps.length - 1];
-    if (prev && prev.state === 'active') prev.state = 'done';
-    terminalSteps.push({ label: status, state: 'active' });
-    renderTerminalSteps();
+    terminalActivity.status = status || '';
+    renderTerminalActivity();
 };
 
 window.terminalSetSubstatus = (substatus) => {
-    document.getElementById('terminal-substatus').textContent = substatus;
+    terminalActivity.substatus = substatus || '';
+    renderTerminalActivity();
 };
 
 window.terminalSetProgress = (val) => {
@@ -520,9 +521,12 @@ window.terminalSetDone = (success) => {
     operationInProgress = false;
     packageCache = {}; // Invalidate cache on terminal operation completion
 
-    const last = terminalSteps[terminalSteps.length - 1];
-    if (last && last.state === 'active') last.state = success ? 'done' : 'failed';
-    renderTerminalSteps();
+    // Stop the activity spinner and settle the line on a final message.
+    const spinner = document.getElementById('terminal-activity-spinner');
+    if (spinner) spinner.classList.add('done');
+    terminalActivity.status = success ? 'Done' : 'Failed';
+    terminalActivity.substatus = ''; terminalActivity.lastLine = '';
+    renderTerminalActivity();
 
     const doneMsg = document.getElementById('terminal-done-msg');
     doneMsg.className = success ? 'terminal-done-success' : 'terminal-done-error';
@@ -4637,7 +4641,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildUpdateAllPreviewData,
         buildSourceCompareHTML,
         summarizeFailure,
-        buildStepsHTML,
+        pickActivityText,
         showInstallPreview,
         showTransactionPreview,
         resolveTxPreview,

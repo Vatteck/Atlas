@@ -878,18 +878,17 @@ async function testSummarizeFailureCategories() {
   assert.strictEqual(hooks.summarizeFailure('   '), null, 'whitespace log → null');
 }
 
-async function testBuildStepsHTML() {
+async function testPickActivityText() {
   const { hooks } = loadMainJs({});
-  const html = hooks.buildStepsHTML([
-    { label: 'Synchronizing databases', state: 'done' },
-    { label: 'Downloading', state: 'active' },
-    { label: 'Building <pkg>', state: 'failed' },
-  ]);
-  assert.ok(html.includes('tl-step-done') && html.includes('✓'), 'done step with check');
-  assert.ok(html.includes('tl-step-active'), 'active step');
-  assert.ok(html.includes('tl-step-failed') && html.includes('✗'), 'failed step with cross');
-  assert.ok(html.includes('&lt;pkg&gt;'), 'labels escaped');
-  assert.strictEqual(hooks.buildStepsHTML([]), '', 'empty → no markup');
+  // substatus wins when present
+  assert.strictEqual(hooks.pickActivityText({ substatus: 'Installing pulseaudio', status: 'Upgrading', lastLine: 'foo' }), 'Installing pulseaudio');
+  // falls back to status when substatus is blank (gems sometimes clear substatus)
+  assert.strictEqual(hooks.pickActivityText({ substatus: '   ', status: 'Upgrading', lastLine: 'foo' }), 'Upgrading');
+  // falls back to the last log line when both are blank (e.g. Flatpak: blank substatus, print only)
+  assert.strictEqual(hooks.pickActivityText({ substatus: '', status: '', lastLine: 'Uninstall complete.' }), 'Uninstall complete.');
+  // never empty
+  assert.strictEqual(hooks.pickActivityText({}), 'Working…');
+  assert.strictEqual(hooks.pickActivityText(), 'Working…');
 }
 
 async function testShowTransactionPreviewUsesActionCopy() {
@@ -938,7 +937,7 @@ async function testShowTransactionPreviewUsesActionCopy() {
     testBuildUpdateAllPreviewData,
     testBuildSourceCompareHTML,
     testSummarizeFailureCategories,
-    testBuildStepsHTML,
+    testPickActivityText,
     testShowTransactionPreviewUsesActionCopy,
   ];
   for (const test of tests) {

@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-05 (Transaction timeline + friendly failure summary + status HTML-strip fix; 493 tests + 31 JS green)
+**Last updated:** 2026-06-05 (Terminal: activity line + friendly failure + status HTML-strip; step timeline dropped — gems don't emit phases; 493 tests + 31 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -78,23 +78,25 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
-- **Transaction timeline + friendly failure summary (2026-06-05).** The terminal panel (live + final
-  view of a transaction) is no longer a raw-log wall — it closes the operation-confidence loop the
-  pre-flight preview opened. Four pieces, **frontend-only** (the watcher already pushes status/substatus/
-  append/done): (1) **Step timeline** — each gem `change_status` becomes a vertical stepper step
-  (prev→done, new→active; final→done/failed), so it honestly reads "Synchronizing → Checking deps →
-  Downloading → Building → Installing" from the gem's own sequence (no fragile fixed-phase mapping).
-  (2) **Collapse/expand raw output** — the log folds away; timeline + status are primary. (3) **Copy
-  full log** — header button → clipboard (reuses the `copyText` fallback). (4) **Friendly failure
-  summary** — on failure, a card names the likely cause + next step via a pure, ordered
-  `summarizeFailure(log)` (auth → PGP/keyring → download/404 → file conflict → package conflict →
-  dependency → build → generic), advisory, log stays below. Pure helpers `summarizeFailure` +
-  `buildStepsHTML` (Node-VM-tested, 2). Suite 490 + JS **31**. **GUI eyeball found + fixed:** the gem's
-  status/substatus carried HTML markup (bauh's `bold()` → `<span style=…>`) that leaked as literal text
-  ("Building package `<span …>`vesktop-bin`</span>`"); `WebviewWatcher.change_status`/`change_substatus`
-  now run the existing `_clean` tag-stripper. **`print` (raw log) stays verbatim** — it can contain
-  legit angle brackets (C++ template errors, redirects). Tests: `test_watcher.py::WatcherStatusCleaningTest`
-  (3). Suite **493**. Plan: [plans/2026-06-05-transaction-timeline.md](plans/2026-06-05-transaction-timeline.md).
+- **Terminal polish — activity line + friendly failure summary (2026-06-05).** The terminal panel
+  (live + final view of a transaction) is no longer a raw-log wall — it closes the operation-confidence
+  loop the pre-flight preview opened. **Frontend-only** (the watcher already pushes
+  status/substatus/append/done): (1) **Current-activity line** — a spinner + the latest meaningful
+  message, picked by a pure `pickActivityText` (substatus → status → last log line → "Working…", never
+  blank). (2) **Collapse/expand raw output**; (3) **Copy full log** (header button → clipboard);
+  (4) **Friendly failure summary** — on failure a card names the likely cause + next step via a pure
+  ordered `summarizeFailure(log)` (auth → PGP/keyring → download/404 → file conflict → package conflict
+  → dependency → build → generic); advisory, raw log stays below.
+  **Design note (GUI eyeball):** a discrete **step timeline was attempted and dropped** — gems don't
+  emit clean phase events (`change_status` is barely used; Flatpak blanks the substatus and only
+  `print`s), so the stepper was empty for most operations. The always-populated activity line is the
+  honest replacement.
+  **Also fixed:** gem status/substatus carried HTML (`bold()` → `<span style=…>`) that leaked as literal
+  text; `WebviewWatcher.change_status`/`change_substatus` now run the existing `_clean` tag-stripper —
+  **`print` (raw log) stays verbatim** (legit angle brackets: C++ templates, redirects). Tests:
+  `main_js_contracts` (`summarizeFailure`, `pickActivityText`) + `test_watcher.py::WatcherStatusCleaningTest`
+  (3). Suite **493** + JS **31**. **Needs a GUI eyeball.** Plan:
+  [plans/2026-06-05-transaction-timeline.md](plans/2026-06-05-transaction-timeline.md).
 - **Fix: misleading category chip counts (2026-06-05).** Category chips showed a package count
   (e.g. "Office · 1 package") computed from `categories.txt` (the **Arch-repo index only**), but
   opening a category also lists Flathub apps — so the number understated reality (Office → 1 shown,

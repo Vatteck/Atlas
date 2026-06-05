@@ -1,7 +1,17 @@
 # Plan — Transaction timeline + friendly failure summary
 
 **Date:** 2026-06-05
-**Status:** SHIPPED (frontend-only) — needs a GUI eyeball. 490 tests + 31 JS green.
+**Status:** SHIPPED (frontend-only). 493 tests + 31 JS green.
+
+> **Revision (2026-06-05, after GUI eyeball):** the discrete **step timeline** was dropped. Gems
+> don't emit clean phase events — `change_status` is barely used (arch: 2 calls, upgrade-only; some
+> gems none) and several gems *blank* the substatus (Flatpak sets it to `''` and only `print`s) — so
+> the stepper was empty for most real operations. Replaced with a robust **current-activity line**
+> (spinner + the latest meaningful message) that falls back substatus → status → last log line →
+> "Working…", so it's never blank. The other three pieces (collapse raw output, copy log, friendly
+> failure summary) shipped as planned. Also fixed: gem status/substatus carried HTML (`bold()` →
+> `<span>`) that leaked as text — the watcher now strips tags on status/substatus (raw `print` stays
+> verbatim).
 **Backlog item:** "Transaction timeline polish" (BACKLOG → Operation confidence).
 
 ## Goal

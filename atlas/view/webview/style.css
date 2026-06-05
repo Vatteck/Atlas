@@ -882,14 +882,6 @@ body {
     background: var(--accent-color);
     transition: width 0.3s ease;
 }
-.terminal-substatus {
-    font-size: 11px;
-    color: var(--text-secondary);
-    padding: 8px 20px;
-    min-height: 28px;
-    flex-shrink: 0;
-    border-bottom: 1px solid var(--border-color);
-}
 .terminal-output {
     flex: 1;
     overflow-y: auto;
@@ -932,29 +924,19 @@ body {
 .terminal-failure-title { font-size: 13px; font-weight: 700; color: var(--status-danger); }
 .terminal-failure-hint { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
 
-/* Step timeline — the gem's change_status sequence as a vertical stepper. */
-.terminal-steps {
-    padding: 12px 20px; flex-shrink: 0; max-height: 168px; overflow-y: auto;
-    border-bottom: 1px solid var(--border-color);
+/* Current-activity line — the latest status/substatus/log line, with a spinner while running. */
+.terminal-activity {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 20px; flex-shrink: 0; border-bottom: 1px solid var(--border-color);
+    font-size: 13px; min-height: 40px;
 }
-.terminal-steps:empty { display: none; padding: 0; border-bottom: none; }
-.tl-step { display: flex; align-items: center; gap: 10px; padding: 3px 0; font-size: 13px; }
-.tl-dot {
-    width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 11px; font-weight: 700; border: 1.5px solid var(--border-color);
-    color: var(--text-secondary); background: var(--bg-surface);
-}
-.tl-step-done .tl-dot { background: var(--status-success); border-color: var(--status-success); color: #fff; }
-.tl-step-failed .tl-dot { background: var(--status-danger); border-color: var(--status-danger); color: #fff; }
-.tl-step-active .tl-dot { border-color: var(--accent-color); }
-.tl-step-active .tl-dot::after {
-    content: ''; width: 8px; height: 8px; border-radius: 50%;
-    border: 2px solid var(--accent-color); border-top-color: transparent;
+.terminal-activity-spinner {
+    width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%;
+    border: 2px solid var(--border-color); border-top-color: var(--accent-color);
     animation: spin 0.7s linear infinite;
 }
-.tl-label { color: var(--text-secondary); }
-.tl-step-active .tl-label { color: var(--text-primary); font-weight: 600; }
+.terminal-activity-spinner.done { animation: none; border-color: transparent; }
+.terminal-activity-text { color: var(--text-primary); word-break: break-word; }
 
 /* Raw output collapse — the timeline + status are the primary view; the log folds away. */
 .terminal-output-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
