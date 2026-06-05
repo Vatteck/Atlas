@@ -48,8 +48,11 @@ Rejected: (b) download the full dump in Atlas (heavy per-user download + parse),
   - `get_aur_discovery()` → `[{key,label,icon,count}]` for non-empty buckets (gated on the arch/AUR
     gem being present).
   - `get_aur_bucket_packages(key)` → serialized cards (registered in `pkg_registry` like any card, so
-    install/detail/preview all work). Installed state is not resolved here (no `read_installed`) — a
-    discovery view shows "Install"; the detail/preview path re-checks. Noted as a v1 tradeoff.
+    install/detail/preview all work).
+- **Installed-state on cards (follow-up, 2026-06-05):** `list_aur_packages` does one cheap `pacman -Q`
+  (`pacman.map_installed` — *not* the slow `read_installed`) and feeds it through `map_api_data`'s
+  `pkgs_installed` arg, so cards read **Install / Uninstall / Update** correctly (Update computed with
+  `check_version_update` on installed vs AUR version). Fail-open. Test: `tests/gems/arch/test_aur_discovery.py`.
 - **frontend** (`main.js`): `renderBrowse` also fetches `get_aur_discovery` and renders an **AUR
   discovery** row of bucket cards under the category grid. `renderCategoryPackages(key,label,opts)`
   gains an optional `opts.api` so a bucket reuses the same list/back/topbar machinery with

@@ -4095,17 +4095,33 @@ class ArchManager(SoftwareManager, SettingsController):
     def list_aur_packages(self, entries: Collection[dict]) -> List[ArchPackage]:
         """Map AUR-RPC-shaped metadata dicts (Name/Version/NumVotes/Popularity/…) to ``ArchPackage``
         objects for the webview's AUR discovery buckets. Reuses the existing AUR data mapper — these
-        entries are the same shape the AUR ``info`` endpoint returns — so no new parsing path. Pure
-        in-memory mapping, no network (the discovery JSON is fetched by the caller). Installed state
-        is not resolved here (a discovery view shows new packages); the detail/preview path re-checks."""
+        entries are the same shape the AUR ``info`` endpoint returns — so no new parsing path. The
+        discovery JSON is fetched by the caller; the only I/O here is one cheap ``pacman -Q`` to mark
+        which buckets entries are already installed (so cards read Install vs Uninstall/Update) — not
+        the slow ``read_installed``."""
         if not entries:
             return []
+
+        # Cheap installed lookup: one `pacman -Q` (name -> installed version), reused for every entry.
+        # Shaped as the {name: {version}} dict map_api_data expects so installed state + the installed
+        # version flow through the normal path. Fail-open: on error, nothing is marked installed.
+        try:
+            installed = pacman.map_installed() or {}
+        except Exception:
+            self.logger.warning("Could not read installed packages for AUR discovery", exc_info=True)
+            installed = {}
+        pkgs_installed = {name: {'version': ver} for name, ver in installed.items()}
+
         pkgs = []
         for entry in entries:
             if not entry or not entry.get('Name'):
                 continue
             try:
-                pkgs.append(self.aur_mapper.map_api_data(entry, None, self.categories))
+                pkg = self.aur_mapper.map_api_data(entry, pkgs_installed, self.categories)
+                # An installed bucket entry that's behind the AUR version should read "Update".
+                if pkg.installed and not pkg.update:
+                    pkg.update = AURDataMapper.check_version_update(pkg.version, pkg.latest_version)
+                pkgs.append(pkg)
             except Exception:
                 self.logger.warning(f"Could not map AUR discovery entry {entry.get('Name')!r}", exc_info=True)
         return pkgs
