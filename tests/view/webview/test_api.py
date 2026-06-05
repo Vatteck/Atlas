@@ -1563,6 +1563,54 @@ class UninstallPreviewTest(unittest.TestCase):
         self.assertEqual('error', self.api.get_uninstall_preview('nope:nope')['status'])
 
 
+class UpdatePreviewTest(unittest.TestCase):
+    """get_update_preview: reuses the install assembler + adds from_version (current → new)."""
+
+    def setUp(self):
+        self.manager = Mock()
+        self.api = AtlasApi(self.manager, Mock())
+
+    def _pkg(self, name='vim', ptype='arch_repo', repository='extra', version='9.0', latest='9.1'):
+        p = Mock()
+        p.name = name
+        p.get_type.return_value = ptype
+        p.gem_name = 'arch'
+        p.repository = repository
+        p.id = None
+        p.installed = True
+        p.maintainer = None
+        p.version = version
+        p.latest_version = latest
+        p.download_size = None
+        p.size = None
+        return p
+
+    def test_repo_update_shows_from_and_to_version(self):
+        pkg = self._pkg()
+        self.api._get_pkg = Mock(return_value=pkg)
+        with patch('atlas.gems.arch.pacman.map_updates_data',
+                   return_value={'vim': {'v': '9.1', 'ds': 1200000, 's': 4000000, 'd': set()}}), \
+             patch('atlas.gems.arch.pacman.map_optional_deps', return_value={}):
+            d = self.api.get_update_preview('arch_repo:vim')['data']
+        self.assertEqual('update', d['action'])
+        self.assertEqual('9.0', d['from_version'])
+        self.assertEqual('9.1', d['version'])
+        self.assertEqual({'download': 1200000, 'installed': 4000000}, d['sizes'])
+
+    def test_fails_open(self):
+        pkg = self._pkg()
+        self.api._get_pkg = Mock(return_value=pkg)
+        with patch('atlas.gems.arch.pacman.map_updates_data', side_effect=RuntimeError('boom')), \
+             patch('atlas.gems.arch.pacman.map_optional_deps', side_effect=RuntimeError('boom')):
+            res = self.api.get_update_preview('arch_repo:vim')
+        self.assertEqual('ok', res['status'])
+        self.assertEqual('update', res['data']['action'])
+
+    def test_unknown_pkg_id_errors(self):
+        self.api._get_pkg = Mock(return_value=None)
+        self.assertEqual('error', self.api.get_update_preview('nope:nope')['status'])
+
+
 class DowngradePreviewTest(unittest.TestCase):
     """get_downgrade_preview: advisory rollback warnings (target chosen by the gem later)."""
 

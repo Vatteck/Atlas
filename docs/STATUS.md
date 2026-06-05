@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-04 (Transaction preview increment 2 — uninstall + downgrade — shipped; 477 tests + 26 JS green)
+**Last updated:** 2026-06-04 (Transaction preview increment 3 — update + Update-All aggregate — shipped; 480 tests + 28 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -44,10 +44,10 @@ the old `hroadmap.md` was folded in and deleted). Highest-value open items there
 - **AUR discovery buckets** (Popular / Recently-updated / VCS / binary) — the *feasible* form of AUR
   Browse (categories are infeasible). Needs the heavier `packages-meta-ext-v1.json.gz` dump, not just
   the names index — a real data-source decision.
-- **Universal transaction preview** — increment 1 (**Install**) + increment 2 (**uninstall +
-  downgrade**) ✅ **shipped 2026-06-04** (need a GUI eyeball; see Done). Next increments: **update**
-  preview + an **Update-All aggregate**, then the **source-comparison panel** UI on detail pages (the
-  install preview already shapes the per-source data it will reuse).
+- **Universal transaction preview** — install, uninstall, downgrade, **update**, and the **Update-All
+  aggregate** all ✅ **shipped 2026-06-04** (need a GUI eyeball; see Done). Only remaining piece: the
+  **source-comparison panel** UI on detail pages (the preview already shapes the per-source data it
+  will reuse).
 - **System Health page / `.pacnew` center / mirror polish** — the "Arch cockpit" (backends largely
   exist from the safety-net + maintenance-hub work).
 - **GUI sugar:** command palette (`Ctrl+K`), density modes, contextual topbar, finish empty/error
@@ -79,6 +79,20 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Transaction preview — increment 3: update + Update-All aggregate (2026-06-04).** The pre-flight
+  preview now also gates **single-package updates** and the **Update-All** bulk upgrade. *Single
+  update* (`get_update_preview`): an update is an acquire of a newer version, so it reuses the install
+  assembler (extracted as `_assemble_acquire_preview`) + adds `from_version`; the header renders
+  **`v{old} → v{new}`** and the same per-source advisories as install. *Update-All aggregate*
+  (`action='update-all'`): **frontend-assembled** by the pure `buildUpdateAllPreviewData(updates,
+  extras)` from the **already-loaded** updates list — **no extra `read_installed`** (the slow call) —
+  showing package count, per-source split (Arch/AUR/Flatpak), total download size (AUR excluded — built
+  from source, noted), and folding the cheap `check_upgrade_news` + `get_pacnew_files` counts in as
+  warnings. Reuses the one modal/renderer via a synthesised payload. The **rich Arch news gate is
+  kept** and fires *after* the aggregate (aggregate = the "what", news gate = the clickable articles to
+  read first); cancel at either stage aborts cleanly. Tests: `test_api.py::UpdatePreviewTest` (3) +
+  `main_js_contracts` (+2: version delta, aggregate builder). Suite **480** + JS **28**. **Needs a GUI
+  eyeball.** Plan: [plans/2026-06-04-transaction-preview.md](plans/2026-06-04-transaction-preview.md).
 - **Transaction preview — increment 2: uninstall + downgrade (2026-06-04).** The pre-flight
   "here's what this will do — proceed?" modal now also gates **uninstall** and **downgrade** (it
   already gated install). Same payload shape + a new `action` field; the modal title, description,

@@ -1571,26 +1571,47 @@ class AtlasApi:
         if not pkg:
             return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
         try:
-            ptype = self._preview_ptype(pkg)
-            version = getattr(pkg, 'latest_version', None) or getattr(pkg, 'version', None) or ''
-            data = self._preview_base(pkg, ptype, 'install', version)
-
-            repository = (getattr(pkg, 'repository', None) or '').lower()
-            if ptype == 'flatpak':
-                self._preview_flatpak(pkg, data)
-            elif repository == 'aur' or ptype == 'aur':
-                self._preview_aur(pkg, data)
-            elif repository or ptype in ('arch', 'arch_repo'):
-                self._preview_arch_repo(pkg, data)
-            else:
-                data['notes'].append("Details for this source aren't available before install.")
-
-            return {'status': 'ok', 'data': data}
+            return {'status': 'ok', 'data': self._assemble_acquire_preview(pkg, 'install')}
         except Exception as e:
             self.logger.error(f"get_install_preview failed: {e}")
             traceback.print_exc()
             # Fail open: a minimal payload still lets the user confirm.
             return {'status': 'ok', 'data': self._preview_failopen(pkg, 'install')}
+
+    def get_update_preview(self, pkg_id: str) -> dict:
+        """Pre-flight summary for updating a single package: current → new version, the update's
+        download size, and the same per-source advisories as install (AUR maintainer change /
+        out-of-date / community, Flatpak permissions). Reuses the install assembler — an update is an
+        acquire of a newer version — and adds `from_version`. Fails open, never blocks."""
+        pkg = self._get_pkg(pkg_id)
+        if not pkg:
+            return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
+        try:
+            data = self._assemble_acquire_preview(pkg, 'update')
+            data['from_version'] = getattr(pkg, 'version', None) or ''
+            return {'status': 'ok', 'data': data}
+        except Exception as e:
+            self.logger.error(f"get_update_preview failed: {e}")
+            traceback.print_exc()
+            return {'status': 'ok', 'data': self._preview_failopen(pkg, 'update')}
+
+    def _assemble_acquire_preview(self, pkg, action: str) -> dict:
+        """Shared assembler for the install/update preview (both acquire a package version). Picks the
+        per-source filler; each fails open per field. Raises only on a top-level error (caller fails
+        open)."""
+        ptype = self._preview_ptype(pkg)
+        version = getattr(pkg, 'latest_version', None) or getattr(pkg, 'version', None) or ''
+        data = self._preview_base(pkg, ptype, action, version)
+        repository = (getattr(pkg, 'repository', None) or '').lower()
+        if ptype == 'flatpak':
+            self._preview_flatpak(pkg, data)
+        elif repository == 'aur' or ptype == 'aur':
+            self._preview_aur(pkg, data)
+        elif repository or ptype in ('arch', 'arch_repo'):
+            self._preview_arch_repo(pkg, data)
+        else:
+            data['notes'].append("Details for this source aren't available beforehand.")
+        return data
 
     def _preview_failopen(self, pkg, action: str) -> dict:
         """Minimal payload returned when preview assembly raises — never blocks the action."""

@@ -808,6 +808,37 @@ async function testTransactionPreviewActionLabelsSizeRow() {
   assert.ok(!uninstall.includes('>Installed<'), 'uninstall does not label it Installed');
 }
 
+async function testTransactionPreviewUpdateShowsVersionDelta() {
+  const { hooks } = loadMainJs({});
+  const html = hooks.buildTransactionPreviewHTML({ action: 'update', name: 'vim', from_version: '9.0', version: '9.1', deps: { direct: [], optional: [] } });
+  assert.ok(html.includes('v9.0 → v9.1'), 'update shows from → to version');
+  // install with no from_version is unchanged (single version)
+  const inst = hooks.buildTransactionPreviewHTML({ action: 'install', name: 'vim', version: '9.1', deps: { direct: [], optional: [] } });
+  assert.ok(inst.includes('v9.1') && !inst.includes('→'), 'install shows single version');
+}
+
+async function testBuildUpdateAllPreviewData() {
+  const { hooks } = loadMainJs({});
+  const updates = [
+    { type: 'arch_repo', download_size: 1000 },
+    { type: 'flatpak', download_size: 2000 },
+    { type: 'aur' },  // no download size (built from source)
+  ];
+  const data = hooks.buildUpdateAllPreviewData(updates, { news_count: 2, pacnew_count: 1 });
+  assert.strictEqual(data.action, 'update-all');
+  assert.strictEqual(data.name, '3 packages');
+  assert.strictEqual(data.sizes.download, 3000);
+  assert.strictEqual(data.sizes.installed, null);
+  assert.ok(data.notes.some(n => n.includes('Arch: 1') && n.includes('AUR: 1') && n.includes('Flatpak: 1')), 'source split note');
+  const titles = data.warnings.map(w => w.title);
+  assert.ok(titles.some(t => t.includes('2 unread Arch news')), 'news warning');
+  assert.ok(titles.some(t => t.includes('1 config file')), 'pacnew warning');
+  // no sizes at all → sizes null; empty list → "0 packages"
+  const empty = hooks.buildUpdateAllPreviewData([], {});
+  assert.strictEqual(empty.sizes, null);
+  assert.strictEqual(empty.name, '0 packages');
+}
+
 async function testShowTransactionPreviewUsesActionCopy() {
   // Uninstall routes to get_uninstall_preview and sets the Remove title + danger proceed button.
   const { document, hooks } = loadMainJs({
@@ -850,6 +881,8 @@ async function testShowTransactionPreviewUsesActionCopy() {
     testShowInstallPreviewOpensModalThroughEnvelope,
     testShowInstallPreviewProceedsWhenBridgeReturnsNothing,
     testTransactionPreviewActionLabelsSizeRow,
+    testTransactionPreviewUpdateShowsVersionDelta,
+    testBuildUpdateAllPreviewData,
     testShowTransactionPreviewUsesActionCopy,
   ];
   for (const test of tests) {

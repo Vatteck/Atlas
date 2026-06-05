@@ -1,8 +1,8 @@
 # Plan — Universal transaction preview (increment 1: Install)
 
 **Date:** 2026-06-04
-**Status:** increment 1 SHIPPED (install preview); **increment 2 IN PROGRESS** (uninstall +
-downgrade previews). update + Update-All aggregate still deferred.
+**Status:** increments 1–3 SHIPPED — install, uninstall, downgrade, **update**, and the
+**Update-All aggregate**. Only the source-comparison **panel** UI on detail pages remains.
 **Backlog item:** "Universal transaction preview" + the data half of "source-comparison panel"
 (BACKLOG → Operation confidence / Better app detail pages).
 
@@ -120,6 +120,26 @@ stays generic — only label selection was added.
   `showTransactionPreview(id, action)` (generalised from `showInstallPreview`). Cancel aborts cleanly.
 - Tests: `test_api.py` uninstall/downgrade payloads (reverse-dep danger, freed size, fail-open) +
   `main_js_contracts` action-aware labels.
+
+## Increment 3 — update + Update-All aggregate (2026-06-04)
+
+- **Single-package update** (`get_update_preview`): an update is an *acquire of a newer version*, so it
+  reuses the install assembler (extracted as `_assemble_acquire_preview(pkg, action)`) and just adds
+  `from_version`. The header renders **`v{old} → v{new}`** for `action==='update'`. Same per-source
+  advisories as install (AUR maintainer-change/out-of-date/community, Flatpak permissions). Wired into
+  `updateApp`.
+- **Update-All aggregate** (`action==='update-all'`): **frontend-assembled** by pure
+  `buildUpdateAllPreviewData(updates, extras)` — built from the **already-loaded** updates list so it
+  costs **no extra `read_installed`** (the measured-cost call). Shows package count, per-source split
+  (Arch/AUR/Flatpak), total download size (only over packages that report one; AUR builds from source
+  → excluded, noted), and folds in the cheap `check_upgrade_news` count + `get_pacnew_files` count as
+  warnings. Reuses the same modal/renderer via a synthesised payload. The existing **rich news gate is
+  kept** and fires *after* the aggregate (it shows the clickable articles); the aggregate is the "what",
+  the news gate is the "read this first". `update_all` itself unchanged.
+- Tests: `test_api.py::UpdatePreviewTest` (version delta, fail-open) + `main_js_contracts`
+  (version-delta render, `buildUpdateAllPreviewData` split/sizes/warnings). Suite 480 + JS 28.
+- **Needs a GUI eyeball:** single update → `v→v` + size; Update-All → aggregate modal (counts/split/
+  size/news), then the news gate when there's news; cancel at either stage aborts.
 
 ## What was actually built (increment 1)
 

@@ -761,6 +761,9 @@ function buildTransactionPreviewHTML(data) {
     const action = data.action || 'install';
     const sourceLabel = escapeHtml(data.source_label || '');
     const version = escapeHtml(data.version || '');
+    const fromVersion = escapeHtml(data.from_version || '');
+    const versionText = (action === 'update' && fromVersion && version)
+        ? `v${fromVersion} → v${version}` : (version ? `v${version}` : '');
     const sizes = data.sizes || null;
     const deps = data.deps || { direct: [], optional: [] };
     const warnings = data.warnings || [];
@@ -771,7 +774,7 @@ function buildTransactionPreviewHTML(data) {
         <div class="txp-title">${escapeHtml(data.name || 'package')}</div>
         <div class="txp-sub">
             ${sourceLabel ? `<span class="txp-source-pill">${sourceLabel}</span>` : ''}
-            ${version ? `<span class="txp-version">v${version}</span>` : ''}
+            ${versionText ? `<span class="txp-version">${versionText}</span>` : ''}
         </div>
     </div>`;
 
@@ -848,9 +851,11 @@ function resolveTxPreview(proceed) {
 // Per-action copy for the shared preview modal. Keyed off data.action so install / uninstall /
 // downgrade reuse one modal + one renderer.
 const TX_PREVIEW_COPY = {
-    install:   { title: n => `Install ${n}?`,   desc: "Here's what this will do. The full dependency set is resolved at install time.", btn: 'Install',   danger: false },
-    uninstall: { title: n => `Remove ${n}?`,    desc: "Here's what removing this will do.",                                            btn: 'Remove',    danger: true  },
-    downgrade: { title: n => `Downgrade ${n}?`, desc: "Here's what rolling this back will do.",                                        btn: 'Downgrade', danger: false },
+    install:      { title: n => `Install ${n}?`,    desc: "Here's what this will do. The full dependency set is resolved at install time.", btn: 'Install',    danger: false },
+    uninstall:    { title: n => `Remove ${n}?`,     desc: "Here's what removing this will do.",                                            btn: 'Remove',     danger: true  },
+    downgrade:    { title: n => `Downgrade ${n}?`,  desc: "Here's what rolling this back will do.",                                        btn: 'Downgrade',  danger: false },
+    update:       { title: n => `Update ${n}?`,     desc: "Here's what updating this will do.",                                            btn: 'Update',     danger: false },
+    'update-all': { title: n => `Update ${n}?`,     desc: "Here's everything that will be upgraded.",                                      btn: 'Update All', danger: false },
 };
 
 function openTransactionPreview(data) {
@@ -876,7 +881,7 @@ function openTransactionPreview(data) {
 // {status,data} envelope, so `data` here is the preview payload itself. Backend fails open (always
 // returns a payload with at least `name`); we only skip the gate if the bridge returns nothing
 // (null on error / not injected) — never block the user.
-const TX_PREVIEW_API = { install: 'get_install_preview', uninstall: 'get_uninstall_preview', downgrade: 'get_downgrade_preview' };
+const TX_PREVIEW_API = { install: 'get_install_preview', uninstall: 'get_uninstall_preview', downgrade: 'get_downgrade_preview', update: 'get_update_preview' };
 
 async function showTransactionPreview(id, action = 'install') {
     const data = await pyApiCall(TX_PREVIEW_API[action] || TX_PREVIEW_API.install, id);
@@ -887,6 +892,52 @@ async function showTransactionPreview(id, action = 'install') {
 // Back-compat thin wrapper (install path + existing tests/command palette).
 async function showInstallPreview(id) {
     return showTransactionPreview(id, 'install');
+}
+
+// Pure builder: shape an Update-All aggregate into a tx-preview `data` payload so it reuses the
+// same modal + renderer. Built frontend-side from the already-loaded updates list (no second slow
+// read_installed). `extras` carries the cheap news/.pacnew counts. Node-VM contract-tested.
+function buildUpdateAllPreviewData(updates, extras) {
+    updates = Array.isArray(updates) ? updates : [];
+    extras = extras || {};
+    const counts = { arch: 0, aur: 0, flatpak: 0, other: 0 };
+    let totalDownload = 0, sizedCount = 0;
+    for (const p of updates) {
+        const t = normalizeType(p.type);
+        if (t === 'aur') counts.aur++;
+        else if (t === 'flatpak') counts.flatpak++;
+        else if (t === 'arch' || t === 'arch_repo') counts.arch++;
+        else counts.other++;
+        if (typeof p.download_size === 'number') { totalDownload += p.download_size; sizedCount++; }
+    }
+    const n = updates.length;
+    const data = {
+        action: 'update-all',
+        name: `${n} package${n === 1 ? '' : 's'}`,
+        source_label: '', version: '',
+        sizes: sizedCount > 0 ? { download: totalDownload, installed: null } : null,
+        deps: { direct: [], optional: [] }, permissions: null, warnings: [], notes: [],
+    };
+    const parts = [];
+    if (counts.arch) parts.push(`Arch: ${counts.arch}`);
+    if (counts.aur) parts.push(`AUR: ${counts.aur}`);
+    if (counts.flatpak) parts.push(`Flatpak: ${counts.flatpak}`);
+    if (counts.other) parts.push(`Other: ${counts.other}`);
+    if (parts.length) data.notes.push(parts.join(' · '));
+    if (counts.aur) data.notes.push('AUR packages are rebuilt from source — their download size and build time are not included above.');
+    if (sizedCount > 0 && sizedCount < n) data.notes.push('Download size shown covers only the packages that report one.');
+
+    const newsCount = extras.news_count || 0;
+    if (newsCount > 0) {
+        data.warnings.push({ level: 'warn', title: `${newsCount} unread Arch news item${newsCount === 1 ? '' : 's'}`,
+            detail: "Published since your last sync — review before upgrading (shown next)." });
+    }
+    const pacnewCount = extras.pacnew_count || 0;
+    if (pacnewCount > 0) {
+        data.warnings.push({ level: 'info', title: `${pacnewCount} config file${pacnewCount === 1 ? '' : 's'} to review`,
+            detail: '.pacnew/.pacsave files from a previous upgrade are still pending in the Updates view.' });
+    }
+    return data;
 }
 
 document.getElementById('tx-preview-proceed-btn').addEventListener('click', () => resolveTxPreview(true));
@@ -2226,12 +2277,26 @@ batchCancelBtn.addEventListener('click', () => {
 updateAllBtn.addEventListener('click', async () => {
     if (operationInProgress) { showToast('Busy', 'Another operation is already running', 'warning'); return; }
 
-    // Arch news gate: warn about news published since the last sync before a full upgrade.
-    // Fail-open — if the check errors, `news` is null and we proceed normally.
+    // Cheap pre-flight signals (news since last sync + pending .pacnew). Fail-open — a null result
+    // just means that signal is omitted; the upgrade is never blocked by a check failing.
     const news = await pyApiCall('check_upgrade_news');
+    const pacnew = await pyApiCall('get_pacnew_files');
+
+    // Aggregate preview: how many packages, the source split, total download size, and the above
+    // signals — built from the already-loaded updates list (no extra read_installed).
+    const updates = (currentPackages || []).filter(p => p && p.update_available);
+    const previewData = buildUpdateAllPreviewData(updates, {
+        news_count: news ? news.new_count : 0,
+        pacnew_count: pacnew ? pacnew.count : 0,
+    });
+    const proceed = await openTransactionPreview(previewData);
+    if (!proceed) { showToast('Upgrade cancelled', 'Nothing was changed', 'info'); return; }
+
+    // Arch news gate: after the aggregate, show the actual articles (clickable) so the user can read
+    // any manual-intervention notice before `-Syu`.
     if (news && news.new_count > 0) {
-        const proceed = await showNewsGate(news.news);
-        if (!proceed) {
+        const ok = await showNewsGate(news.news);
+        if (!ok) {
             showToast('Upgrade cancelled', 'Review the Arch news, then run Update All again', 'info');
             return;
         }
@@ -3221,6 +3286,9 @@ window.uninstallApp = async (id, btn = null) => {
 };
 
 window.updateApp = async (id, btn = null) => {
+    // Pre-flight preview — current → new version, size, advisories — before anything privileged runs.
+    const ok = await showTransactionPreview(id, 'update');
+    if (!ok) { if (btn) btn.classList.remove('loading'); return; }
     if (btn) btn.classList.add('loading');
     operationInProgress = true; // Synch lock
     showToast('Updating', 'Update started', 'info');
@@ -4377,6 +4445,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         systemHealthChecks,
         pacnewRisk,
         buildTransactionPreviewHTML,
+        buildUpdateAllPreviewData,
         showInstallPreview,
         showTransactionPreview,
         resolveTxPreview,
