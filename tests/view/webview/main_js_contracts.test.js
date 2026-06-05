@@ -857,6 +857,41 @@ async function testBuildSourceCompareHTML() {
   assert.ok(html.includes('Official Arch repository') && html.includes('Sandboxed'), 'per-source notes');
 }
 
+async function testSummarizeFailureCategories() {
+  const { hooks } = loadMainJs({});
+  const cases = [
+    ['sudo: incorrect password attempt', 'Authentication failed'],
+    ['error: key "ABC" could not be looked up remotely', 'PGP signature / keyring problem'],
+    ['error: failed retrieving file \'core.db\' from mirror : The requested URL returned error: 404', 'Download failed'],
+    ['error: could not resolve host: mirror.example.org', 'Download failed'],
+    ['error: failed to commit transaction (conflicting files)\nfoo: /usr/bin/x exists in filesystem', 'File conflict'],
+    ['error: unable to satisfy dependency \'libfoo\' required by bar', 'Dependency problem'],
+    ['==> ERROR: A failure occurred in build().', 'Build failed'],
+    ['some unrecognized output that still failed', 'The operation failed'],
+  ];
+  for (const [log, title] of cases) {
+    const r = hooks.summarizeFailure(log);
+    assert.ok(r && r.title === title, `"${log.slice(0, 30)}…" → ${title}, got ${r && r.title}`);
+    assert.ok(r.hint && r.hint.length, 'has a hint');
+  }
+  assert.strictEqual(hooks.summarizeFailure(''), null, 'empty log → null');
+  assert.strictEqual(hooks.summarizeFailure('   '), null, 'whitespace log → null');
+}
+
+async function testBuildStepsHTML() {
+  const { hooks } = loadMainJs({});
+  const html = hooks.buildStepsHTML([
+    { label: 'Synchronizing databases', state: 'done' },
+    { label: 'Downloading', state: 'active' },
+    { label: 'Building <pkg>', state: 'failed' },
+  ]);
+  assert.ok(html.includes('tl-step-done') && html.includes('✓'), 'done step with check');
+  assert.ok(html.includes('tl-step-active'), 'active step');
+  assert.ok(html.includes('tl-step-failed') && html.includes('✗'), 'failed step with cross');
+  assert.ok(html.includes('&lt;pkg&gt;'), 'labels escaped');
+  assert.strictEqual(hooks.buildStepsHTML([]), '', 'empty → no markup');
+}
+
 async function testShowTransactionPreviewUsesActionCopy() {
   // Uninstall routes to get_uninstall_preview and sets the Remove title + danger proceed button.
   const { document, hooks } = loadMainJs({
@@ -902,6 +937,8 @@ async function testShowTransactionPreviewUsesActionCopy() {
     testTransactionPreviewUpdateShowsVersionDelta,
     testBuildUpdateAllPreviewData,
     testBuildSourceCompareHTML,
+    testSummarizeFailureCategories,
+    testBuildStepsHTML,
     testShowTransactionPreviewUsesActionCopy,
   ];
   for (const test of tests) {

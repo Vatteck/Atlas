@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-05 (AUR discovery buckets live + GUI polish: card-action alignment + compact bucket chips; 490 tests + 29 JS green)
+**Last updated:** 2026-06-05 (Transaction timeline + friendly failure summary shipped; 490 tests + 31 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -78,6 +78,20 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Transaction timeline + friendly failure summary (2026-06-05).** The terminal panel (live + final
+  view of a transaction) is no longer a raw-log wall — it closes the operation-confidence loop the
+  pre-flight preview opened. Four pieces, **frontend-only** (the watcher already pushes status/substatus/
+  append/done): (1) **Step timeline** — each gem `change_status` becomes a vertical stepper step
+  (prev→done, new→active; final→done/failed), so it honestly reads "Synchronizing → Checking deps →
+  Downloading → Building → Installing" from the gem's own sequence (no fragile fixed-phase mapping).
+  (2) **Collapse/expand raw output** — the log folds away; timeline + status are primary. (3) **Copy
+  full log** — header button → clipboard (reuses the `copyText` fallback). (4) **Friendly failure
+  summary** — on failure, a card names the likely cause + next step via a pure, ordered
+  `summarizeFailure(log)` (auth → PGP/keyring → download/404 → file conflict → package conflict →
+  dependency → build → generic), advisory, log stays below. Pure helpers `summarizeFailure` +
+  `buildStepsHTML` (Node-VM-tested, 2). Suite 490 + JS **31**. **Needs a GUI eyeball** (run an
+  install → stepper advances; force a failure → summary card). Plan:
+  [plans/2026-06-05-transaction-timeline.md](plans/2026-06-05-transaction-timeline.md).
 - **Fix: misleading category chip counts (2026-06-05).** Category chips showed a package count
   (e.g. "Office · 1 package") computed from `categories.txt` (the **Arch-repo index only**), but
   opening a category also lists Flathub apps — so the number understated reality (Office → 1 shown,

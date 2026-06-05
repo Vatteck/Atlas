@@ -69,9 +69,10 @@ first:
   warnings/Flatpak-perms. Updates: current→new, source split, AUR maintainer change?, PKGBUILD diff?,
   Arch news newer than sync?, `.pacnew` present? Uninstall: will-remove + reverse-dep warnings +
   orphan candidates.
-- **Transaction timeline polish.** Step timeline (resolve → download → build → install → post-
-  checks), copy-full-log, collapse/expand raw output, and a **friendly failure summary** at top
-  (source 404 / PGP key failed / conflict / missing dep / root-auth failed). Raw log stays available.
+- ~~**Transaction timeline polish.**~~ ✅ **SHIPPED 2026-06-05** — step timeline (the gem's
+  `change_status` sequence as a stepper), collapse/expand raw output, copy-full-log, and a friendly
+  failure summary (auth / PGP-keyring / download-404 / conflict / dependency / build). Raw log stays.
+  See [plans/2026-06-05-transaction-timeline.md](plans/2026-06-05-transaction-timeline.md).
 - **History / rollback center.** Wrap the existing downgrade in a real History/Activity page:
   timeline of installs/updates/removals, filter by package/source/action, a per-package History tab,
   "downgrade available" / "reinstall previous version" affordances, pacman-log links.

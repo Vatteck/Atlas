@@ -413,7 +413,50 @@ async function pyApiCall(methodName, ...args) {
     }
 }
 
-// Terminal Watcher Controls called from WebviewWatcher
+// Terminal Watcher Controls called from WebviewWatcher.
+// The terminal shows a step timeline (the gem's own change_status sequence), an optional raw log,
+// and — on failure — a friendly summary of the likely cause. See
+// docs/plans/2026-06-05-transaction-timeline.md.
+
+// Pure: turn the accumulated raw log into a likely-cause summary, most-specific first. Returns
+// {title, hint} or null when there's nothing to go on. Node-VM contract-tested.
+function summarizeFailure(log) {
+    const t = (log || '').toLowerCase();
+    if (!t.trim()) return null;
+    const has = (...subs) => subs.some(s => t.includes(s));
+    if (has('incorrect password', 'authentication failure', 'a password is required', 'sorry, try again'))
+        return { title: 'Authentication failed', hint: 'The root password was rejected. Try again and re-enter it.' };
+    if (has('signature from', 'unknown trust', 'invalid or corrupted package (pgp', 'could not be looked up', 'corrupted (pgp', 'marginal trust'))
+        return { title: 'PGP signature / keyring problem', hint: 'A package signature couldn’t be verified. Update the keyring (e.g. archlinux-keyring) and retry.' };
+    if (has('failed retrieving file', ' 404', 'could not resolve host', 'connection timed out', 'unable to connect', 'temporary failure in name resolution', 'failed to download'))
+        return { title: 'Download failed', hint: 'A file couldn’t be fetched — a mirror may be down or you’re offline. Refresh mirrors / check your connection and retry.' };
+    if (has('conflicting files', 'exists in filesystem'))
+        return { title: 'File conflict', hint: 'A package would overwrite files owned by another. The log lists the files — resolve the conflict before retrying.' };
+    if (has('conflicting packages', 'are in conflict'))
+        return { title: 'Package conflict', hint: 'Two packages conflict and can’t be installed together (see the log).' };
+    if (has('unable to satisfy dependency', 'could not find all required packages', 'target not found', 'breaks dependency', 'cannot resolve'))
+        return { title: 'Dependency problem', hint: 'A required dependency couldn’t be found or satisfied (see the log).' };
+    if (has('==> error', 'build failed', 'a failure occurred in build', 'error: makepkg'))
+        return { title: 'Build failed', hint: 'The AUR package failed to build — see the log for the makepkg/compiler error.' };
+    return { title: 'The operation failed', hint: 'See the raw log below for details.' };
+}
+
+// Pure: render the step timeline. Each step = {label, state: 'done'|'active'|'failed'}.
+function buildStepsHTML(steps) {
+    return (steps || []).map(s => {
+        const icon = s.state === 'done' ? '✓' : (s.state === 'failed' ? '✗' : '');
+        return `<div class="tl-step tl-step-${escapeHtml(s.state)}"><span class="tl-dot">${icon}</span><span class="tl-label">${escapeHtml(s.label)}</span></div>`;
+    }).join('');
+}
+
+let terminalSteps = [];
+let terminalLogBuffer = '';
+
+function renderTerminalSteps() {
+    const el = document.getElementById('terminal-steps');
+    if (el) el.innerHTML = buildStepsHTML(terminalSteps);
+}
+
 window.terminalOpen = (title) => {
     const panel = document.getElementById('terminal-panel');
     const overlay = document.getElementById('terminal-overlay');
@@ -423,24 +466,31 @@ window.terminalOpen = (title) => {
     const substatusEl = document.getElementById('terminal-substatus');
     const progressFill = document.getElementById('terminal-progress-fill');
     const doneMsg = document.getElementById('terminal-done-msg');
+    const failureEl = document.getElementById('terminal-failure');
 
     operationInProgress = true;
+    terminalSteps = [];
+    terminalLogBuffer = '';
     titleEl.textContent = title;
-    statusEl.textContent = 'Initializing...';
+    statusEl.textContent = 'Working…';
+    statusEl.className = 'terminal-status running';
     substatusEl.textContent = '';
     progressFill.style.width = '0%';
     output.innerHTML = '';
     doneMsg.className = 'hidden';
     doneMsg.textContent = '';
+    if (failureEl) { failureEl.className = 'terminal-failure hidden'; failureEl.innerHTML = ''; }
+    renderTerminalSteps();
 
     panel.classList.remove('hidden');
     overlay.classList.remove('hidden');
-    
+
     // Hide close button during run
     document.getElementById('terminal-close').style.display = 'none';
 };
 
 window.terminalAppend = (line) => {
+    terminalLogBuffer += (line == null ? '' : line) + '\n';
     const output = document.getElementById('terminal-output');
     const lineEl = document.createElement('span');
     lineEl.className = 'line';
@@ -449,8 +499,13 @@ window.terminalAppend = (line) => {
     output.scrollTop = output.scrollHeight;
 };
 
+// Each high-level status from the gem becomes a timeline step: finish the previous, start this one.
 window.terminalSetStatus = (status) => {
-    document.getElementById('terminal-status').textContent = status;
+    if (!status) return;
+    const prev = terminalSteps[terminalSteps.length - 1];
+    if (prev && prev.state === 'active') prev.state = 'done';
+    terminalSteps.push({ label: status, state: 'active' });
+    renderTerminalSteps();
 };
 
 window.terminalSetSubstatus = (substatus) => {
@@ -464,15 +519,36 @@ window.terminalSetProgress = (val) => {
 window.terminalSetDone = (success) => {
     operationInProgress = false;
     packageCache = {}; // Invalidate cache on terminal operation completion
+
+    const last = terminalSteps[terminalSteps.length - 1];
+    if (last && last.state === 'active') last.state = success ? 'done' : 'failed';
+    renderTerminalSteps();
+
     const doneMsg = document.getElementById('terminal-done-msg');
     doneMsg.className = success ? 'terminal-done-success' : 'terminal-done-error';
     doneMsg.textContent = success ? '✓ Operation completed successfully.' : '✗ Operation failed.';
-    
-    document.getElementById('terminal-status').textContent = success ? 'Success' : 'Failed';
-    
+
+    const statusEl = document.getElementById('terminal-status');
+    statusEl.textContent = success ? 'Success' : 'Failed';
+    statusEl.className = 'terminal-status ' + (success ? 'ok' : 'failed');
+
+    // On failure, surface a friendly summary of the likely cause above the raw log.
+    const failureEl = document.getElementById('terminal-failure');
+    if (failureEl) {
+        const summary = success ? null : summarizeFailure(terminalLogBuffer);
+        if (summary) {
+            failureEl.className = 'terminal-failure';
+            failureEl.innerHTML = `<div class="terminal-failure-title">${escapeHtml(summary.title)}</div>` +
+                                  `<div class="terminal-failure-hint">${escapeHtml(summary.hint)}</div>`;
+        } else {
+            failureEl.className = 'terminal-failure hidden';
+            failureEl.innerHTML = '';
+        }
+    }
+
     // Show close button
     document.getElementById('terminal-close').style.display = 'block';
-    
+
     // Reset any buttons loading spinner
     document.querySelectorAll('.btn.loading').forEach(b => b.classList.remove('loading'));
 };
@@ -481,6 +557,29 @@ document.getElementById('terminal-close').addEventListener('click', () => {
     document.getElementById('terminal-panel').classList.add('hidden');
     document.getElementById('terminal-overlay').classList.add('hidden');
     refreshCurrentView(); // refresh whatever view is active (not just package lists)
+});
+
+// Copy the full raw log to the clipboard.
+document.getElementById('terminal-copy').addEventListener('click', () => {
+    const text = terminalLogBuffer.trim();
+    if (!text) { showToast('Nothing to copy', 'The log is empty', 'info'); return; }
+    const done = () => showToast('Copied', 'Full log copied to the clipboard', 'success');
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done, () => { fallbackCopy(text); });
+            return;
+        }
+    } catch (e) { /* fall through */ }
+    fallbackCopy(text);
+});
+
+// Collapse/expand the raw output (the timeline + status are the primary view).
+document.getElementById('terminal-output-toggle').addEventListener('click', () => {
+    const wrap = document.getElementById('terminal-output-wrap');
+    const toggle = document.getElementById('terminal-output-toggle');
+    const collapsed = wrap.classList.toggle('collapsed');
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    toggle.textContent = (collapsed ? '▸' : '▾') + ' Raw output';
 });
 
 // --- Root password modal ---------------------------------------------------
@@ -4537,6 +4636,8 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildTransactionPreviewHTML,
         buildUpdateAllPreviewData,
         buildSourceCompareHTML,
+        summarizeFailure,
+        buildStepsHTML,
         showInstallPreview,
         showTransactionPreview,
         resolveTxPreview,

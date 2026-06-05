@@ -173,13 +173,21 @@
                 <span class="terminal-title" id="terminal-title">Operation</span>
                 <span class="terminal-status" id="terminal-status"></span>
             </div>
-            <button class="terminal-close" id="terminal-close" aria-label="Close terminal">✕</button>
+            <div class="terminal-header-actions">
+                <button class="terminal-iconbtn" id="terminal-copy" title="Copy the full log to the clipboard">Copy log</button>
+                <button class="terminal-close" id="terminal-close" aria-label="Close terminal">✕</button>
+            </div>
         </div>
         <div class="terminal-progress-bar">
             <div class="terminal-progress-fill" id="terminal-progress-fill" style="width:0%"></div>
         </div>
+        <div class="terminal-failure hidden" id="terminal-failure"></div>
+        <div class="terminal-steps" id="terminal-steps"></div>
         <div class="terminal-substatus" id="terminal-substatus"></div>
-        <div class="terminal-output" id="terminal-output"></div>
+        <div class="terminal-output-wrap" id="terminal-output-wrap">
+            <button class="terminal-output-toggle" id="terminal-output-toggle" aria-expanded="true">▾ Raw output</button>
+            <div class="terminal-output" id="terminal-output"></div>
+        </div>
         <div class="terminal-footer">
             <span id="terminal-done-msg" class="hidden"></span>
         </div>
