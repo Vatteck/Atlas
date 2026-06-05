@@ -2,7 +2,7 @@ import unittest
 import json
 from datetime import datetime, date, timezone
 from unittest.mock import Mock, patch, mock_open
-from atlas.view.webview.api import AtlasApi, _json_safe
+from atlas.view.webview.api import AtlasApi, _json_safe, parse_pacman_log
 
 
 class GetInstalledFilterTest(unittest.TestCase):
@@ -523,6 +523,35 @@ class JsonSafeTest(unittest.TestCase):
         payload = _json_safe({'a': 1, 'b': 'x', 'c': True, 'd': None, 'e': [1, 2.5]})
         self.assertEqual({'a': 1, 'b': 'x', 'c': True, 'd': None, 'e': [1, 2.5]}, payload)
         json.dumps(payload)  # must not raise
+
+
+class ParsePacmanLogTest(unittest.TestCase):
+    """Pure parser for /var/log/pacman.log ALPM lines (History/rollback center increment 2)."""
+
+    LOG = '\n'.join([
+        '[2026-06-01T10:00:00-0400] [ALPM] installed firefox (1.0-1)',
+        '[2026-06-02T11:00:00-0400] [PACMAN] Running \'pacman -Syu\'',  # non-ALPM, ignored
+        '[2026-06-03T12:00:00-0400] [ALPM] upgraded firefox (1.0-1 -> 1.1-1)',
+        '[2026-06-03T12:00:00-0400] [ALPM] installed vlc (3.0-1)',  # other package
+        '[2026-06-04T09:00:00-0400] [ALPM] downgraded firefox (1.1-1 -> 1.0-1)',
+        '[2026-06-05T09:00:00-0400] [ALPM] removed firefox (1.0-1)',
+    ])
+
+    def test_filters_to_package_newest_first_with_fields(self):
+        out = parse_pacman_log(self.LOG, 'firefox')
+        self.assertEqual(['removed', 'downgraded', 'upgraded', 'installed'], [e['action'] for e in out])
+        self.assertEqual('1.0-1 -> 1.1-1', out[2]['version'])  # upgrade keeps the old -> new token
+        self.assertEqual('2026-06-05T09:00:00-0400', out[0]['timestamp'])
+        self.assertTrue(all(e['action'] in {'installed', 'upgraded', 'downgraded', 'removed'} for e in out))
+
+    def test_exact_name_match_only(self):
+        # a prefix package must not match (e.g. firefox vs firefox-developer-edition)
+        log = '[2026-06-01T10:00:00-0400] [ALPM] installed firefox-developer-edition (1.0-1)'
+        self.assertEqual([], parse_pacman_log(log, 'firefox'))
+
+    def test_limit_and_empty(self):
+        self.assertEqual([], parse_pacman_log('', 'firefox'))
+        self.assertEqual(2, len(parse_pacman_log(self.LOG, 'firefox', limit=2)))
 
 
 class AtlasApiOrphansTest(unittest.TestCase):

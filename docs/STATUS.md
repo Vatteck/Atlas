@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-05 (History/rollback center increment 1: Activity page filters + date groups + per-entry Downgrade/Reinstall; 493 tests + 35 JS green)
+**Last updated:** 2026-06-05 (History/rollback center increments 1+2: Activity filters + date groups + per-entry Downgrade/Reinstall + pacman-log disclosure; 496 tests + 35 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -78,6 +78,17 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **History / rollback center — increment 2: pacman-log links (2026-06-05).** Arch/AUR activity
+  entries now carry a **"pacman log"** disclosure: first expand lazily fetches
+  `AtlasApi.get_pacman_log(pkg_name)` and lists the matching `/var/log/pacman.log` lines (action
+  verb + version token + timestamp, newest first). Backend = a pure
+  `parse_pacman_log(text, pkg_name, limit=20)` (exact-name match on ALPM
+  `installed|upgraded|downgraded|removed|reinstalled` lines; upgrades keep the `old -> new` token)
+  + a thin reader that **fails open** (missing/unreadable/non-Arch → empty; the log is
+  world-readable, so no root). Flatpak entries don't get it (pacman doesn't record them). Tests:
+  `test_api.py::ParsePacmanLogTest` (3) + JS assertions (`activityHasPacmanLog`,
+  `renderPacmanLogLine`). Suite **496** + JS 35. **Needs a GUI eyeball.** Plan:
+  [plans/2026-06-05-history-rollback-center.md](plans/2026-06-05-history-rollback-center.md).
 - **History / rollback center — increment 1 (2026-06-05).** Turned the flat Activity feed into a
   usable history page (the BACKLOG "History / rollback center" item). **Frontend-heavy, low risk**
   (one backend line): `get_activity` now reads up to 200 entries (was 50) since filtering is

@@ -992,6 +992,14 @@ async function testActivityFilterGroupAndActions() {
   // filter option discovery (All leads; known actions ordered; types sorted)
   assert.strictEqual(activityActionsPresent(entries).join(','), 'all,install,update,uninstall', 'actions present');
   assert.strictEqual(activityTypesPresent(entries).join(','), 'all,arch_repo,aur,flatpak', 'types present');
+
+  // pacman.log disclosure is Arch/AUR-only; flatpak entries don't get it
+  const { activityHasPacmanLog, renderPacmanLogLine } = hooks;
+  assert.strictEqual(activityHasPacmanLog(entries[0]), true, 'arch_repo has pacman log');
+  assert.strictEqual(activityHasPacmanLog(entries[2]), true, 'aur has pacman log');
+  assert.strictEqual(activityHasPacmanLog(entries[1]), false, 'flatpak has no pacman log');
+  const lineHTML = renderPacmanLogLine({ action: 'upgraded', version: '1.0-1 -> 1.1-1', timestamp: '2026-06-05T09:00:00-0400' });
+  assert.ok(lineHTML.includes('activity-action upgraded') && lineHTML.includes('1.0-1 -&gt; 1.1-1'), 'log line renders action chip + escaped version');
 }
 
 async function testShowTransactionPreviewUsesActionCopy() {

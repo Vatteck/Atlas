@@ -1,7 +1,7 @@
 # History / rollback center
 
-**Status:** increment 1 shipped (2026-06-05) — needs a GUI eyeball; pacman-log links + log
-management deferred to later increments.
+**Status:** increments 1 + 2 shipped (2026-06-05) — needs a GUI eyeball. Log management
+(clear/export) + per-package History tab still deferred.
 **Backlog item:** "History / rollback center" (BACKLOG.md → Operation confidence) — *Wrap the
 existing downgrade in a real History/Activity page: timeline of installs/updates/removals, filter
 by package/source/action, a per-package History tab, "downgrade available" / "reinstall previous
@@ -52,10 +52,20 @@ Pure helpers (`filterActivity`, `groupActivityByDate`, and a small `activityEntr
 that decides which buttons an entry gets) are unit-tested in the JS contract harness; the DOM
 wiring (chips, search, click handlers) is exercised by a flow test where practical.
 
+## Increment 2 — pacman-log links (shipped 2026-06-05)
+
+Arch/AUR activity entries now carry a **"pacman log"** disclosure: on first expand it lazily
+fetches `AtlasApi.get_pacman_log(pkg_name)` and lists the matching `/var/log/pacman.log` lines
+(action verb + version token + timestamp), newest first. Backend is a pure, side-effect-free
+`parse_pacman_log(text, pkg_name, limit=20)` (exact-name match on ALPM
+`installed|upgraded|downgraded|removed|reinstalled` lines, upgrades keep the `old -> new` token) +
+a thin `get_pacman_log` that reads the world-readable log and **fails open** (missing/unreadable/
+non-Arch → empty, never blocks). Flatpak entries don't get the disclosure (pacman doesn't record
+them). Tests: `test_api.py::ParsePacmanLogTest` (3) + JS assertions on `activityHasPacmanLog` /
+`renderPacmanLogLine`.
+
 ## Deferred to later increments
 
-- **pacman-log links** — surface the matching `/var/log/pacman.log` lines for an Arch entry
-  (needs a backend reader + time/name matching; more involved, separate increment).
 - **Per-package History tab on the page** (the detail modal already covers version history).
 - **Log management** — clear / export the activity log; cap its size.
 

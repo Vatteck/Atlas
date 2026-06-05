@@ -34,6 +34,31 @@ from atlas.view.webview.watcher import WebviewWatcher
 from atlas.view.webview.activity_log import record_activity, get_activity_log
 from atlas.view.webview.export import write_manifest, read_manifest
 
+PACMAN_LOG = '/var/log/pacman.log'
+# `[2026-06-05T10:51:12-0400] [ALPM] installed visual-studio-code-bin (1.123.0-4)`
+# upgrades carry `(old -> new)`. pacman.log is world-readable, so no root is needed to read it.
+_RE_PACMAN_LOG = re.compile(
+    r'^\[(?P<ts>[^\]]+)\] \[ALPM\] '
+    r'(?P<action>installed|upgraded|downgraded|removed|reinstalled) '
+    r'(?P<name>\S+) \((?P<version>[^)]*)\)')
+
+
+def parse_pacman_log(text: str, pkg_name: str, limit: int = 20) -> List[dict]:
+    """Pure: extract a package's transaction lines from pacman.log content, newest first.
+
+    Returns ``[{timestamp, action, version}]`` (version is the raw token, e.g. ``1.0-1`` or
+    ``1.0-1 -> 1.1-1`` for an upgrade). Only exact name matches are kept. Best-effort and
+    side-effect-free so it's trivially testable; the caller handles file/permission errors."""
+    entries = []
+    for line in (text or '').splitlines():
+        m = _RE_PACMAN_LOG.match(line)
+        if m and m.group('name') == pkg_name:
+            entries.append({'timestamp': m.group('ts'),
+                            'action': m.group('action'),
+                            'version': m.group('version')})
+    entries.reverse()  # pacman.log is chronological; the page wants newest first
+    return entries[:limit]
+
 
 class AtlasApi:
 
@@ -2363,6 +2388,20 @@ class AtlasApi:
         except Exception as e:
             self.logger.error(f"Error fetching activity log: {e}")
             return {'status': 'error', 'message': str(e)}
+
+    def get_pacman_log(self, pkg_name: str) -> dict:
+        """The matching `/var/log/pacman.log` transaction lines for a package (newest first), so an
+        Arch/AUR activity entry can show what pacman actually recorded. Fails open (no log / not
+        readable / non-Arch system → empty); the file is world-readable, so no root is needed."""
+        try:
+            if not pkg_name or not os.path.exists(PACMAN_LOG):
+                return {'status': 'ok', 'data': []}
+            with open(PACMAN_LOG, 'r', encoding='utf-8', errors='replace') as f:
+                entries = parse_pacman_log(f.read(), pkg_name)
+            return {'status': 'ok', 'data': entries}
+        except Exception as e:
+            self.logger.error(f"Error reading pacman log for {pkg_name}: {e}")
+            return {'status': 'ok', 'data': []}
 
     def get_disk_usage(self) -> dict:
         try:

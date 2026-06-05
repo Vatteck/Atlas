@@ -3231,7 +3231,16 @@ function renderActivityView() {
     });
 }
 
+// Arch/AUR entries can show the matching pacman.log lines (those are the only ones pacman records).
+function activityHasPacmanLog(entry) {
+    const type = (entry && entry.pkg_type || '').toLowerCase();
+    return type === 'arch_repo' || type === 'arch' || type === 'aur';
+}
+
 function buildActivityItem(act) {
+    const entry = document.createElement('div');
+    entry.className = 'activity-entry';
+
     const item = document.createElement('div');
     item.className = 'activity-item';
     const isSuccess = act.success;
@@ -3239,6 +3248,8 @@ function buildActivityItem(act) {
     const actions = activityEntryActions(act);
     const actionsHTML = actions.map(a =>
         `<button class="btn btn-outline btn-sm activity-rollback" data-handler="${escapeHtml(a.handler)}" data-id="${escapeHtml(a.id)}">${escapeHtml(a.label)}</button>`).join('');
+    const logToggleHTML = activityHasPacmanLog(act)
+        ? `<button class="btn btn-outline btn-sm activity-log-toggle" aria-expanded="false">pacman log</button>` : '';
 
     item.innerHTML = `
         <div class="activity-icon ${isSuccess ? 'success' : 'error'}">${isSuccess ? '✓' : '✗'}</div>
@@ -3248,9 +3259,10 @@ function buildActivityItem(act) {
             <span style="color: var(--text-secondary);">(${escapeHtml(act.pkg_type)})</span>
             ${!isSuccess && act.error ? `<span style="color: var(--status-danger); margin-left: 8px;">— ${escapeHtml(act.error)}</span>` : ''}
         </div>
-        <div class="activity-actions">${actionsHTML}</div>
+        <div class="activity-actions">${actionsHTML}${logToggleHTML}</div>
         <div class="activity-time">${escapeHtml(timeStr)}</div>
     `;
+    entry.appendChild(item);
 
     // Clicking the package name searches for it (the "view" path — the live card shows accurate state).
     item.querySelector('.activity-pkg-link').addEventListener('click', () => {
@@ -3263,7 +3275,36 @@ function buildActivityItem(act) {
         const fn = window[btn.dataset.handler];
         if (typeof fn === 'function') fn(btn.dataset.id);
     }));
-    return item;
+
+    // Lazy pacman.log disclosure: fetch the matching lines on first expand, then just toggle.
+    const logToggle = item.querySelector('.activity-log-toggle');
+    if (logToggle) {
+        const panel = document.createElement('div');
+        panel.className = 'activity-log hidden';
+        entry.appendChild(panel);
+        let loaded = false;
+        logToggle.addEventListener('click', async () => {
+            const open = panel.classList.toggle('hidden') === false;
+            logToggle.setAttribute('aria-expanded', String(open));
+            if (open && !loaded) {
+                loaded = true;
+                panel.innerHTML = '<div class="activity-log-line muted">Loading pacman log…</div>';
+                const lines = await pyApiCall('get_pacman_log', act.pkg_name) || [];
+                panel.innerHTML = lines.length
+                    ? lines.map(renderPacmanLogLine).join('')
+                    : '<div class="activity-log-line muted">No matching pacman.log entries.</div>';
+            }
+        });
+    }
+    return entry;
+}
+
+// One pacman.log row: an action chip + version (raw token, e.g. "1.0-1" or "1.0-1 -> 1.1-1") + time.
+function renderPacmanLogLine(line) {
+    return `<div class="activity-log-line">` +
+        `<span class="activity-action ${escapeHtml(line.action)}">${escapeHtml(line.action.toUpperCase())}</span>` +
+        `<span class="activity-log-ver">${escapeHtml(line.version)}</span>` +
+        `<span class="activity-log-ts">${escapeHtml(line.timestamp)}</span></div>`;
 }
 
 // Data Fetching
@@ -4852,6 +4893,8 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         activityEntryActions,
         activityActionsPresent,
         activityTypesPresent,
+        activityHasPacmanLog,
+        renderPacmanLogLine,
         showInstallPreview,
         showTransactionPreview,
         resolveTxPreview,
