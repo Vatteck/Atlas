@@ -450,8 +450,10 @@ body {
     padding-top: 16px;
     border-top: 1px solid var(--border-color);
 }
-/* Keep the Pin/Install/Uninstall group together and never let it shrink/clip. */
-.package-footer > div:last-child { flex-shrink: 0; }
+/* Keep the Pin/Install/Uninstall group together, never shrink/clip it, and always pin it to the
+   bottom-right — margin-left:auto keeps it right-aligned even when the footer wraps it to its own
+   line (otherwise a wide badge or "Uninstall" label makes some cards' buttons jump bottom-left). */
+.package-footer > div:last-child { flex-shrink: 0; margin-left: auto; }
 
 /* List layout: one package per full-width row (icon+title | description | tags+actions),
    independent of pane width. Toggled via #view-toggle; the grid uses .view-grid by default. */
@@ -1850,7 +1852,7 @@ body {
     color: var(--text-secondary);
 }
 
-/* AUR discovery buckets — community-maintained, kept visually distinct from official categories. */
+/* AUR discovery buckets — community-maintained, compact chips distinct from the big category tiles. */
 .browse-header-note {
     margin-left: 8px;
     font-weight: 600;
@@ -1859,10 +1861,36 @@ body {
     color: #b26a00;
 }
 [data-theme="dark"] .browse-header-note { color: #f0a83c; }
-.aur-bucket-card { border-color: rgba(217, 119, 6, 0.30); }
-.aur-bucket-card:hover { border-color: rgba(217, 119, 6, 0.70); }
-.aur-bucket-card .category-label { color: #b26a00; }
-[data-theme="dark"] .aur-bucket-card .category-label { color: #f0a83c; }
+
+.aur-bucket-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.aur-bucket-card {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px 12px 14px;
+    min-width: 168px;
+    background: var(--bg-surface);
+    border: 1px solid rgba(217, 119, 6, 0.30);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    text-align: left;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.aur-bucket-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(217, 119, 6, 0.70);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.aur-bucket-icon { font-size: 22px; line-height: 1; }
+.aur-bucket-text { display: flex; flex-direction: column; gap: 2px; }
+.aur-bucket-label { font-size: 14px; font-weight: 600; color: #b26a00; }
+[data-theme="dark"] .aur-bucket-label { color: #f0a83c; }
+.aur-bucket-count { font-size: 12px; color: var(--text-secondary); }
 
 /* Back header above a category's package grid — spans the whole grid row. */
 .browse-subheader {

@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-05 (AUR discovery buckets shipped + live + installed-state on cards; 490 tests + 29 JS green)
+**Last updated:** 2026-06-05 (AUR discovery buckets live + GUI polish: card-action alignment + compact bucket chips; 490 tests + 29 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -78,6 +78,15 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **GUI polish — card-action alignment + AUR bucket chips (2026-06-05, GUI eyeball follow-up).** Two
+  fixes after eyeballing the AUR buckets: (1) **Card action buttons** (Pin/Install/Uninstall/Update)
+  jumped between bottom-right and bottom-left across cards — the footer is `space-between` + `flex-wrap`,
+  so a wide vote badge or the longer "Uninstall" label wrapped the action group to a left-aligned second
+  line on some cards. Now `.package-footer > div:last-child { margin-left: auto }` keeps the group
+  **bottom-right consistently**, wrapped or not. (Affects all package cards.) (2) **AUR discovery row**
+  looked clunky as 4 big tiles in a grid sized for 8; reworked into **compact left-packed chips**
+  (`.aur-bucket-row`/`.aur-bucket-card`: icon + label + count, horizontal), visually distinct from the
+  big category tiles. CSS/markup only; suites unchanged (490 + 29).
 - **AUR discovery buckets (2026-06-05).** Browse now offers AUR **discovery buckets** — the feasible
   alternative to (impossible) AUR categories: **Popular**, **Recently updated**, **VCS (-git)**,
   **Binary (-bin)**, shown as a distinct "Discover on the AUR" row under the official categories.

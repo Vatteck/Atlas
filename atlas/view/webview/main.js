@@ -3172,16 +3172,19 @@ async function renderBrowse() {
         ? `<div class="browse-header browse-header-spaced">Suggested for you</div><div class="browse-suggested" id="browse-suggested"></div>`
         : '';
 
-    // AUR discovery buckets (community-maintained — kept visually distinct from official categories).
+    // AUR discovery buckets (community-maintained — compact chips, distinct from the big category
+    // tiles and left-packed so a short list of buckets doesn't leave a half-empty grid row).
     const hasAur = Array.isArray(aurBuckets) && aurBuckets.length > 0;
     const aurCards = hasAur ? aurBuckets.map(b => `
-        <button class="category-card aur-bucket-card" data-aur-key="${escapeHtml(b.key)}" data-aur-label="${escapeHtml(b.label)}">
-            <span class="category-icon">${escapeHtml(b.icon || '📦')}</span>
-            <span class="category-label">${escapeHtml(b.label)}</span>
-            <span class="category-count">${escapeHtml(b.count)} package${b.count === 1 ? '' : 's'}</span>
+        <button class="aur-bucket-card" data-aur-key="${escapeHtml(b.key)}" data-aur-label="${escapeHtml(b.label)}">
+            <span class="aur-bucket-icon">${escapeHtml(b.icon || '📦')}</span>
+            <span class="aur-bucket-text">
+                <span class="aur-bucket-label">${escapeHtml(b.label)}</span>
+                <span class="aur-bucket-count">${escapeHtml(b.count)} package${b.count === 1 ? '' : 's'}</span>
+            </span>
         </button>`).join('') : '';
     const aurSection = hasAur
-        ? `<div class="browse-header browse-header-spaced">Discover on the AUR <span class="browse-header-note">community-maintained</span></div><div class="category-grid">${aurCards}</div>`
+        ? `<div class="browse-header browse-header-spaced">Discover on the AUR <span class="browse-header-note">community-maintained</span></div><div class="aur-bucket-row">${aurCards}</div>`
         : '';
 
     // Categories first (the primary purpose of Browse), then AUR discovery, then the suggested row.
