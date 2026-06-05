@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-04 (Transaction preview increment 1 — Install — shipped; 468 tests + 22 JS green)
+**Last updated:** 2026-06-04 (Transaction preview increment 2 — uninstall + downgrade — shipped; 477 tests + 26 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -44,10 +44,10 @@ the old `hroadmap.md` was folded in and deleted). Highest-value open items there
 - **AUR discovery buckets** (Popular / Recently-updated / VCS / binary) — the *feasible* form of AUR
   Browse (categories are infeasible). Needs the heavier `packages-meta-ext-v1.json.gz` dump, not just
   the names index — a real data-source decision.
-- **Universal transaction preview** — increment 1 (**Install**) ✅ **shipped 2026-06-04** (needs a GUI
-  eyeball; see Done). Next increments: **update / uninstall / downgrade** previews + an Update-All
-  aggregate, then the **source-comparison panel** UI on detail pages (the install preview already
-  shapes the per-source data it will reuse).
+- **Universal transaction preview** — increment 1 (**Install**) + increment 2 (**uninstall +
+  downgrade**) ✅ **shipped 2026-06-04** (need a GUI eyeball; see Done). Next increments: **update**
+  preview + an **Update-All aggregate**, then the **source-comparison panel** UI on detail pages (the
+  install preview already shapes the per-source data it will reuse).
 - **System Health page / `.pacnew` center / mirror polish** — the "Arch cockpit" (backends largely
   exist from the safety-net + maintenance-hub work).
 - **GUI sugar:** command palette (`Ctrl+K`), density modes, contextual topbar, finish empty/error
@@ -57,8 +57,11 @@ See BACKLOG's **Non-goals** for what we've decided *against* (AI recs, YaST-styl
 auto-`.pacnew`-merge, Rust/Qt, fake AUR categories).
 
 > **Handoff note (next agent):** sprints 1 + 2 are fast-forward merged into `master` and pushed;
-> **released 0.11.0** (tag `v0.11.0` pushed; `CHANGELOG.md` written). 451 tests pass. **AUR publish
-> not done** — outward-facing; run `linux_dist/arch/publish-aur.sh` when ready.
+> **released 0.11.0** (tag `v0.11.0` pushed; `CHANGELOG.md` written). 451 tests pass. **AUR is
+> current** — `publish-aur.sh --dry-run` (2026-06-04) reports nothing to push; the published
+> `atlas-pm-git` PKGBUILD is byte-identical to ours (it's a `-git` pkg, so only PKGBUILD/.SRCINFO
+> *content* changes need a re-publish — `pkgver` is computed at build time). Re-run the script
+> whenever the PKGBUILD changes.
 > Known external (not Atlas): the AUR `antigravity` 2.0.11 update fails to build — upstream source
 > URL 404s (Google pulled the tarball). The maintainer-change advisory can't flag `antigravity`
 > (installed before maintainer-caching → no baseline); it works for packages installed since.
@@ -76,6 +79,24 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Transaction preview — increment 2: uninstall + downgrade (2026-06-04).** The pre-flight
+  "here's what this will do — proceed?" modal now also gates **uninstall** and **downgrade** (it
+  already gated install). Same payload shape + a new `action` field; the modal title, description,
+  proceed-button label/colour, and size-row label key off it (one modal, one renderer). **Uninstall**
+  (`get_uninstall_preview`/`_preview_uninstall_arch`): reverse dependencies via
+  `pacman.map_required_by` → a **danger** warning listing the installed packages that depend on it
+  (truncated to 12), or a reassuring note when nothing does; **freed space** from
+  `pacman.get_installed_size` (rendered as "Frees"); an orphan-cleanup note; Flatpak shows freed size
+  + a runtime-reclaim note. **Downgrade** (`get_downgrade_preview`): advisory only (the gem picks the
+  target version interactively, not cheaply knowable up front) — a **warn** ("rolling back can
+  reintroduce fixed bugs/security issues") + notes ("you'll pick the version next", "deps aren't
+  downgraded", AUR rebuilds from previous source). Honest scope unchanged: no second resolver,
+  **fail-open per field**, never blocks. Frontend: `installApp`/`uninstallApp`/`downgradeApp` all await
+  a shared `showTransactionPreview(id, action)` (generalised from `showInstallPreview`, kept as a thin
+  wrapper); cancel aborts cleanly. Tests: `test_api.py::UninstallPreviewTest` (5) + `DowngradePreviewTest`
+  (3) + install action assertion; `main_js_contracts` (+2: action labels, action copy). Suite **477** +
+  JS **26**. **Needs a GUI eyeball** (uninstall a pkg with dependents → danger list; downgrade → advisory;
+  confirm proceeds, cancel aborts). Plan: [plans/2026-06-04-transaction-preview.md](plans/2026-06-04-transaction-preview.md).
 - **Transaction preview — notice/permission icon polish (2026-06-04).** GUI-eyeball follow-up to
   increment 1: the preview's permission rows and top notices now lead with the same colored circular
   icon chip as the Flathub info-popup (reusing `getPermissionIcon` + new `getWarningIcon`, mapping

@@ -758,6 +758,7 @@ document.getElementById('news-gate-modal').addEventListener('keydown', (e) => {
 // See docs/plans/2026-06-04-transaction-preview.md.
 function buildTransactionPreviewHTML(data) {
     data = data || {};
+    const action = data.action || 'install';
     const sourceLabel = escapeHtml(data.source_label || '');
     const version = escapeHtml(data.version || '');
     const sizes = data.sizes || null;
@@ -775,9 +776,10 @@ function buildTransactionPreviewHTML(data) {
     </div>`;
 
     if (sizes && (sizes.download != null || sizes.installed != null)) {
+        const installedLabel = action === 'uninstall' ? 'Frees' : 'Installed';
         html += `<div class="txp-sizes">`;
         if (sizes.download != null) html += `<span class="txp-size"><span class="txp-size-label">Download</span> ${formatBytes(sizes.download)}</span>`;
-        if (sizes.installed != null) html += `<span class="txp-size"><span class="txp-size-label">Installed</span> ${formatBytes(sizes.installed)}</span>`;
+        if (sizes.installed != null) html += `<span class="txp-size"><span class="txp-size-label">${installedLabel}</span> ${formatBytes(sizes.installed)}</span>`;
         html += `</div>`;
     }
 
@@ -843,23 +845,48 @@ function resolveTxPreview(proceed) {
     if (resolve) resolve(proceed);
 }
 
+// Per-action copy for the shared preview modal. Keyed off data.action so install / uninstall /
+// downgrade reuse one modal + one renderer.
+const TX_PREVIEW_COPY = {
+    install:   { title: n => `Install ${n}?`,   desc: "Here's what this will do. The full dependency set is resolved at install time.", btn: 'Install',   danger: false },
+    uninstall: { title: n => `Remove ${n}?`,    desc: "Here's what removing this will do.",                                            btn: 'Remove',    danger: true  },
+    downgrade: { title: n => `Downgrade ${n}?`, desc: "Here's what rolling this back will do.",                                        btn: 'Downgrade', danger: false },
+};
+
 function openTransactionPreview(data) {
+    const copy = TX_PREVIEW_COPY[(data && data.action) || 'install'] || TX_PREVIEW_COPY.install;
+    const name = (data && data.name) || 'package';
     document.getElementById('tx-preview-body').innerHTML = buildTransactionPreviewHTML(data);
     const title = document.getElementById('tx-preview-title');
-    if (title) title.textContent = `Install ${(data && data.name) || 'package'}?`;
+    if (title) title.textContent = copy.title(name);
+    const desc = document.getElementById('tx-preview-desc');
+    if (desc) desc.textContent = copy.desc;
+    const proceed = document.getElementById('tx-preview-proceed-btn');
+    if (proceed) {
+        proceed.textContent = copy.btn;
+        proceed.classList.toggle('btn-danger', !!copy.danger);
+        proceed.classList.toggle('btn-primary', !copy.danger);
+    }
     document.getElementById('tx-preview-modal').classList.remove('hidden');
-    setTimeout(() => document.getElementById('tx-preview-proceed-btn').focus(), 50);
+    setTimeout(() => proceed && proceed.focus(), 50);
     return new Promise(resolve => { txPreviewResolver = resolve; });
 }
 
-// Fetch the preview and show the modal; resolves whether to proceed. pyApiCall unwraps the
+// Fetch a preview and show the modal; resolves whether to proceed. pyApiCall unwraps the
 // {status,data} envelope, so `data` here is the preview payload itself. Backend fails open (always
 // returns a payload with at least `name`); we only skip the gate if the bridge returns nothing
 // (null on error / not injected) — never block the user.
-async function showInstallPreview(id) {
-    const data = await pyApiCall('get_install_preview', id);
+const TX_PREVIEW_API = { install: 'get_install_preview', uninstall: 'get_uninstall_preview', downgrade: 'get_downgrade_preview' };
+
+async function showTransactionPreview(id, action = 'install') {
+    const data = await pyApiCall(TX_PREVIEW_API[action] || TX_PREVIEW_API.install, id);
     if (!data || typeof data !== 'object' || !data.name) return true;
     return openTransactionPreview(data);
+}
+
+// Back-compat thin wrapper (install path + existing tests/command palette).
+async function showInstallPreview(id) {
+    return showTransactionPreview(id, 'install');
 }
 
 document.getElementById('tx-preview-proceed-btn').addEventListener('click', () => resolveTxPreview(true));
@@ -3167,6 +3194,9 @@ window.installApp = async (id, btn = null) => {
 };
 
 window.uninstallApp = async (id, btn = null) => {
+    // Pre-flight preview — what depends on this + space freed — before anything privileged runs.
+    const ok = await showTransactionPreview(id, 'uninstall');
+    if (!ok) { if (btn) btn.classList.remove('loading'); return; }
     if (btn) btn.classList.add('loading');
     operationInProgress = true; // Synch lock
     showToast('Uninstalling', 'Uninstallation started', 'info');
@@ -3216,6 +3246,9 @@ window.updateApp = async (id, btn = null) => {
 };
 
 window.downgradeApp = async (id, btn = null) => {
+    // Pre-flight preview — advisory rollback warnings — before anything privileged runs.
+    const ok = await showTransactionPreview(id, 'downgrade');
+    if (!ok) { if (btn) btn.classList.remove('loading'); return; }
     if (btn) btn.classList.add('loading');
     operationInProgress = true; // Synch lock
     showToast('Downgrading', 'Downgrade started', 'info');
@@ -4345,6 +4378,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         pacnewRisk,
         buildTransactionPreviewHTML,
         showInstallPreview,
+        showTransactionPreview,
         resolveTxPreview,
         refreshCurrentView,
         activateView,

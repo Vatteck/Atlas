@@ -1535,35 +1535,45 @@ class AtlasApi:
             return f'Arch · {repository}'
         return 'Arch'
 
+    def _preview_ptype(self, pkg) -> str:
+        try:
+            return str(pkg.get_type() or pkg.gem_name or '').lower()
+        except Exception:
+            return str(getattr(pkg, 'gem_name', '') or '').lower()
+
+    def _preview_base(self, pkg, ptype: str, action: str, version) -> dict:
+        """The common transaction-preview envelope shared by install / uninstall / downgrade.
+        The frontend keys the modal title, description, proceed button, and size-row label off
+        `action`; the rest of the payload is filled per-source/per-action by the callers."""
+        return {
+            'action': action,
+            'name': pkg.name or '',
+            'source': ptype,
+            'source_label': self._source_label(pkg, ptype),
+            'version': version or '',
+            'sizes': None,
+            'deps': {'direct': [], 'optional': []},
+            'permissions': None,
+            'warnings': [],
+            'notes': [],
+        }
+
     def get_install_preview(self, pkg_id: str) -> dict:
         """Pre-flight summary for an install: source, version, a size estimate, direct + optional
         dependencies, and advisory warnings (AUR community/maintainer/PKGBUILD, Flatpak permissions/
         verification). The full dependency set is resolved by pacman/makepkg at install time — this
         shows only what's cheaply knowable up front. Fails open per field (a failed probe → None/[]
         + a note), never blocks the install. Shape:
-            {name, source, source_label, version, sizes:{download,installed}|None,
+            {action, name, source, source_label, version, sizes:{download,installed}|None,
              deps:{direct:[str], optional:[{name,detail}]}, permissions:[{title,detail,level}]|None,
              warnings:[{level,title,detail}], notes:[str]}"""
         pkg = self._get_pkg(pkg_id)
         if not pkg:
             return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
         try:
-            try:
-                ptype = str(pkg.get_type() or pkg.gem_name or '').lower()
-            except Exception:
-                ptype = str(getattr(pkg, 'gem_name', '') or '').lower()
-
-            data = {
-                'name': pkg.name or '',
-                'source': ptype,
-                'source_label': self._source_label(pkg, ptype),
-                'version': getattr(pkg, 'latest_version', None) or getattr(pkg, 'version', None) or '',
-                'sizes': None,
-                'deps': {'direct': [], 'optional': []},
-                'permissions': None,
-                'warnings': [],
-                'notes': [],
-            }
+            ptype = self._preview_ptype(pkg)
+            version = getattr(pkg, 'latest_version', None) or getattr(pkg, 'version', None) or ''
+            data = self._preview_base(pkg, ptype, 'install', version)
 
             repository = (getattr(pkg, 'repository', None) or '').lower()
             if ptype == 'flatpak':
@@ -1580,11 +1590,15 @@ class AtlasApi:
             self.logger.error(f"get_install_preview failed: {e}")
             traceback.print_exc()
             # Fail open: a minimal payload still lets the user confirm.
-            return {'status': 'ok', 'data': {
-                'name': getattr(pkg, 'name', ''), 'source': '', 'source_label': '',
-                'version': getattr(pkg, 'version', '') or '', 'sizes': None,
-                'deps': {'direct': [], 'optional': []}, 'permissions': None, 'warnings': [],
-                'notes': ["Couldn't gather full details for this package; proceed with care."]}}
+            return {'status': 'ok', 'data': self._preview_failopen(pkg, 'install')}
+
+    def _preview_failopen(self, pkg, action: str) -> dict:
+        """Minimal payload returned when preview assembly raises — never blocks the action."""
+        return {
+            'action': action, 'name': getattr(pkg, 'name', ''), 'source': '', 'source_label': '',
+            'version': getattr(pkg, 'version', '') or '', 'sizes': None,
+            'deps': {'direct': [], 'optional': []}, 'permissions': None, 'warnings': [],
+            'notes': ["Couldn't gather full details for this package; proceed with care."]}
 
     def _preview_arch_repo(self, pkg, data: dict) -> None:
         from atlas.gems.arch import pacman
@@ -1675,6 +1689,80 @@ class AtlasApi:
             data['warnings'].append({'level': 'info', 'title': 'Unverified on Flathub',
                                      'detail': 'Not published by the original developer (community-packaged).'})
         data['notes'].append("Flatpak permissions can be adjusted after install on the Permissions page.")
+
+    def get_uninstall_preview(self, pkg_id: str) -> dict:
+        """Pre-flight summary for an uninstall: what depends on this package (the safety signal),
+        the disk space it would free, and an orphan-cleanup note. Reuses pacman's cheap `Required By`
+        + installed-size fields; no transitive removal simulation. Fails open, never blocks."""
+        pkg = self._get_pkg(pkg_id)
+        if not pkg:
+            return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
+        try:
+            ptype = self._preview_ptype(pkg)
+            data = self._preview_base(pkg, ptype, 'uninstall', getattr(pkg, 'version', None))
+            repository = (getattr(pkg, 'repository', None) or '').lower()
+            if ptype == 'flatpak':
+                s = getattr(pkg, 'size', None)
+                if s is not None:
+                    data['sizes'] = {'download': None, 'installed': s}
+                data['notes'].append("Runtimes pulled in only for this app can be reclaimed later from System Health.")
+            elif repository or ptype in ('arch', 'arch_repo', 'aur'):
+                self._preview_uninstall_arch(pkg, data)
+            else:
+                data['notes'].append("Details for this source aren't available before removal.")
+            return {'status': 'ok', 'data': data}
+        except Exception as e:
+            self.logger.error(f"get_uninstall_preview failed: {e}")
+            traceback.print_exc()
+            return {'status': 'ok', 'data': self._preview_failopen(pkg, 'uninstall')}
+
+    def _preview_uninstall_arch(self, pkg, data: dict) -> None:
+        from atlas.gems.arch import pacman
+        name = pkg.name
+        try:
+            s = (pacman.get_installed_size([name]) or {}).get(name)
+            if s:
+                data['sizes'] = {'download': None, 'installed': s}
+        except Exception as e:
+            self.logger.debug(f"preview: installed size failed for {name}: {e}")
+        try:
+            req_by = (pacman.map_required_by([name]) or {}).get(name) or set()
+        except Exception as e:
+            self.logger.debug(f"preview: required-by failed for {name}: {e}")
+            req_by = None
+        if req_by:
+            ordered = sorted(req_by)
+            listed = ", ".join(ordered[:12])
+            more = "" if len(ordered) <= 12 else f" (+{len(ordered) - 12} more)"
+            n = len(ordered)
+            data['warnings'].append({'level': 'danger',
+                                     'title': f"{n} installed package{'s' if n != 1 else ''} depend on this",
+                                     'detail': f"Removing it may also remove or break: {listed}{more}."})
+        elif req_by is not None:
+            data['notes'].append("Nothing else installed depends on this package.")
+        data['notes'].append("Dependencies installed only for this package may be left as orphans — clean them up later from System Health.")
+
+    def get_downgrade_preview(self, pkg_id: str) -> dict:
+        """Pre-flight summary for a downgrade. The target version is chosen interactively by the gem
+        afterward (and isn't cheaply knowable up front), so this is advisory: the current version plus
+        what rolling back implies. Fails open, never blocks."""
+        pkg = self._get_pkg(pkg_id)
+        if not pkg:
+            return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
+        try:
+            ptype = self._preview_ptype(pkg)
+            data = self._preview_base(pkg, ptype, 'downgrade', getattr(pkg, 'version', None))
+            data['warnings'].append({'level': 'warn', 'title': 'Rolling back a version',
+                                     'detail': 'Downgrading can reintroduce bugs or security issues that the newer version fixed.'})
+            data['notes'].append("You'll choose which previous version to roll back to next.")
+            data['notes'].append("Dependencies are not downgraded automatically; the older version may expect different dependency versions.")
+            if (getattr(pkg, 'repository', None) or '').lower() == 'aur':
+                data['notes'].append("AUR downgrades rebuild the package from its previous source.")
+            return {'status': 'ok', 'data': data}
+        except Exception as e:
+            self.logger.error(f"get_downgrade_preview failed: {e}")
+            traceback.print_exc()
+            return {'status': 'ok', 'data': self._preview_failopen(pkg, 'downgrade')}
 
     def _flatpak_pkg_and_manager(self, pkg_id: str):
         """(pkg, flatpak_manager) for an installed Flatpak, else (None, None)."""

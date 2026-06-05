@@ -799,6 +799,30 @@ async function testShowInstallPreviewProceedsWhenBridgeReturnsNothing() {
   assert.strictEqual(await hooks.showInstallPreview('x:y'), true, 'proceeds on backend error');
 }
 
+async function testTransactionPreviewActionLabelsSizeRow() {
+  const { hooks } = loadMainJs({});
+  const install = hooks.buildTransactionPreviewHTML({ action: 'install', name: 'vim', sizes: { download: null, installed: 5000000 }, deps: { direct: [], optional: [] } });
+  assert.ok(install.includes('Installed'), 'install shows Installed size');
+  const uninstall = hooks.buildTransactionPreviewHTML({ action: 'uninstall', name: 'vim', sizes: { download: null, installed: 5000000 }, deps: { direct: [], optional: [] } });
+  assert.ok(uninstall.includes('Frees'), 'uninstall shows Frees size');
+  assert.ok(!uninstall.includes('>Installed<'), 'uninstall does not label it Installed');
+}
+
+async function testShowTransactionPreviewUsesActionCopy() {
+  // Uninstall routes to get_uninstall_preview and sets the Remove title + danger proceed button.
+  const { document, hooks } = loadMainJs({
+    get_uninstall_preview: async () => ({ status: 'ok', data: { action: 'uninstall', name: 'vim', source_label: 'Arch', deps: { direct: [], optional: [] } } }),
+  });
+  const pending = hooks.showTransactionPreview('arch_repo:vim', 'uninstall');
+  await flushPromises();
+  assert.strictEqual(document.getElementById('tx-preview-title').textContent, 'Remove vim?', 'remove title');
+  const btn = document.getElementById('tx-preview-proceed-btn');
+  assert.strictEqual(btn.textContent, 'Remove', 'proceed button label');
+  assert.ok(btn.classList.contains('btn-danger'), 'proceed button is danger-styled for removal');
+  hooks.resolveTxPreview(true);
+  assert.strictEqual(await pending, true, 'proceed resolves true');
+}
+
 (async () => {
   const tests = [
     testRenderCategoryPackagesStoresCurrentPackages,
@@ -825,6 +849,8 @@ async function testShowInstallPreviewProceedsWhenBridgeReturnsNothing() {
     testTransactionPreviewEscapesNames,
     testShowInstallPreviewOpensModalThroughEnvelope,
     testShowInstallPreviewProceedsWhenBridgeReturnsNothing,
+    testTransactionPreviewActionLabelsSizeRow,
+    testShowTransactionPreviewUsesActionCopy,
   ];
   for (const test of tests) {
     await test();

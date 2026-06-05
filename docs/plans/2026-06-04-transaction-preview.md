@@ -1,8 +1,8 @@
 # Plan — Universal transaction preview (increment 1: Install)
 
 **Date:** 2026-06-04
-**Status:** increment 1 SHIPPED (install preview) — needs a GUI eyeball; update/uninstall/downgrade
-deferred to later increments. 468 Python tests + 22 JS contract tests green.
+**Status:** increment 1 SHIPPED (install preview); **increment 2 IN PROGRESS** (uninstall +
+downgrade previews). update + Update-All aggregate still deferred.
 **Backlog item:** "Universal transaction preview" + the data half of "source-comparison panel"
 (BACKLOG → Operation confidence / Better app detail pages).
 
@@ -95,12 +95,31 @@ Document the call; do not silently double-prompt without a note.
 
 ## Out of scope (later increments)
 
-- Update / uninstall / downgrade previews (uninstall = will-remove + reverse-deps + orphan
-  candidates; update = current→new + maintainer/diff/news/.pacnew rollup).
-- Update-All aggregate preview.
+- ~~uninstall / downgrade previews~~ → increment 2 (see below).
+- Update preview (current→new + maintainer/diff/news/.pacnew rollup) + Update-All aggregate.
 - The source-comparison **panel** UI on detail pages (this increment only shapes the data for it).
 - Full transitive dependency tree.
 ```
+
+## Increment 2 — uninstall + downgrade previews (2026-06-04)
+
+Same shape + a new `action` field (`install`/`uninstall`/`downgrade`); the modal title, description,
+proceed-button label, and size-row label key off it. The pure renderer `buildTransactionPreviewHTML`
+stays generic — only label selection was added.
+
+- **Uninstall** (`get_uninstall_preview` → `_preview_uninstall_arch`): reverse dependencies via
+  `pacman.map_required_by([name])` (the cheap "Required By" signal) → a **danger** warning listing the
+  installed packages that depend on it (truncated), or a reassuring note when nothing does; **freed
+  space** from `pacman.get_installed_size([name])` (shown as "Frees"); an orphan-cleanup note. Flatpak:
+  freed size from `pkg.size` + a runtime-reclaim note. No reverse-dep concept off Arch.
+- **Downgrade** (`get_downgrade_preview`): advisory only — a **warn** ("rolling back can reintroduce
+  fixed bugs/security issues") + notes ("you'll pick the version next", "deps aren't downgraded",
+  AUR rebuilds from the previous source). No target enumeration (the gem prompts; cheaply unknowable).
+- Honest scope unchanged: no second resolver, fail-open per field, never blocks the action.
+- Frontend: `installApp`/`uninstallApp`/`downgradeApp` all await a shared
+  `showTransactionPreview(id, action)` (generalised from `showInstallPreview`). Cancel aborts cleanly.
+- Tests: `test_api.py` uninstall/downgrade payloads (reverse-dep danger, freed size, fail-open) +
+  `main_js_contracts` action-aware labels.
 
 ## What was actually built (increment 1)
 

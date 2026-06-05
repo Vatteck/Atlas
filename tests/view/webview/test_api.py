@@ -1493,6 +1493,112 @@ class InstallPreviewTest(unittest.TestCase):
         res = self.api.get_install_preview('nope:nope')
         self.assertEqual('error', res['status'])
 
+    def test_install_payload_carries_action(self):
+        pkg = self._pkg(name='vim', ptype='arch_repo', repository='extra')
+        self.api._get_pkg = Mock(return_value=pkg)
+        with patch('atlas.gems.arch.pacman.map_updates_data', return_value={}), \
+             patch('atlas.gems.arch.pacman.map_optional_deps', return_value={}):
+            d = self.api.get_install_preview('arch_repo:vim')['data']
+        self.assertEqual('install', d['action'])
+
+
+class UninstallPreviewTest(unittest.TestCase):
+    """get_uninstall_preview: reverse-dep danger signal, freed space, fail-open."""
+
+    def setUp(self):
+        self.manager = Mock()
+        self.api = AtlasApi(self.manager, Mock())
+
+    def _pkg(self, name='pkg', ptype='arch_repo', repository='extra', size=None):
+        p = Mock()
+        p.name = name
+        p.get_type.return_value = ptype
+        p.gem_name = 'arch'
+        p.repository = repository
+        p.id = None
+        p.version = '1.0'
+        p.size = size
+        return p
+
+    def test_arch_reverse_deps_become_danger(self):
+        pkg = self._pkg(name='glibc', repository='core')
+        self.api._get_pkg = Mock(return_value=pkg)
+        with patch('atlas.gems.arch.pacman.get_installed_size', return_value={'glibc': 5000000}), \
+             patch('atlas.gems.arch.pacman.map_required_by', return_value={'glibc': {'bash', 'coreutils'}}):
+            d = self.api.get_uninstall_preview('arch_repo:glibc')['data']
+        self.assertEqual('uninstall', d['action'])
+        self.assertEqual({'download': None, 'installed': 5000000}, d['sizes'])
+        danger = [w for w in d['warnings'] if w['level'] == 'danger']
+        self.assertEqual(1, len(danger))
+        self.assertIn('bash', danger[0]['detail'])
+        self.assertIn('coreutils', danger[0]['detail'])
+
+    def test_arch_no_reverse_deps_is_reassuring_note(self):
+        pkg = self._pkg(name='cowsay', repository='extra')
+        self.api._get_pkg = Mock(return_value=pkg)
+        with patch('atlas.gems.arch.pacman.get_installed_size', return_value={'cowsay': 50000}), \
+             patch('atlas.gems.arch.pacman.map_required_by', return_value={'cowsay': set()}):
+            d = self.api.get_uninstall_preview('arch_repo:cowsay')['data']
+        self.assertEqual([], [w for w in d['warnings'] if w['level'] == 'danger'])
+        self.assertTrue(any('nothing else' in n.lower() for n in d['notes']))
+
+    def test_flatpak_shows_freed_size(self):
+        pkg = self._pkg(name='Dropbox', ptype='flatpak', repository=None, size=8000000)
+        self.api._get_pkg = Mock(return_value=pkg)
+        d = self.api.get_uninstall_preview('flatpak:Dropbox')['data']
+        self.assertEqual({'download': None, 'installed': 8000000}, d['sizes'])
+
+    def test_fails_open_when_required_by_raises(self):
+        pkg = self._pkg(name='glibc', repository='core')
+        self.api._get_pkg = Mock(return_value=pkg)
+        with patch('atlas.gems.arch.pacman.get_installed_size', return_value={}), \
+             patch('atlas.gems.arch.pacman.map_required_by', side_effect=RuntimeError('boom')):
+            res = self.api.get_uninstall_preview('arch_repo:glibc')
+        self.assertEqual('ok', res['status'])
+        # no reverse-dep info → no false "nothing depends on this" reassurance
+        self.assertFalse(any('nothing else' in n.lower() for n in res['data']['notes']))
+
+    def test_unknown_pkg_id_errors(self):
+        self.api._get_pkg = Mock(return_value=None)
+        self.assertEqual('error', self.api.get_uninstall_preview('nope:nope')['status'])
+
+
+class DowngradePreviewTest(unittest.TestCase):
+    """get_downgrade_preview: advisory rollback warnings (target chosen by the gem later)."""
+
+    def setUp(self):
+        self.manager = Mock()
+        self.api = AtlasApi(self.manager, Mock())
+
+    def _pkg(self, name='vim', ptype='arch_repo', repository='extra'):
+        p = Mock()
+        p.name = name
+        p.get_type.return_value = ptype
+        p.gem_name = 'arch'
+        p.repository = repository
+        p.id = None
+        p.version = '9.1'
+        return p
+
+    def test_advisory_warning_and_notes(self):
+        pkg = self._pkg()
+        self.api._get_pkg = Mock(return_value=pkg)
+        d = self.api.get_downgrade_preview('arch_repo:vim')['data']
+        self.assertEqual('downgrade', d['action'])
+        self.assertEqual('9.1', d['version'])
+        self.assertTrue(any(w['level'] == 'warn' for w in d['warnings']))
+        self.assertTrue(any('roll back to next' in n.lower() for n in d['notes']))
+
+    def test_aur_mentions_rebuild(self):
+        pkg = self._pkg(name='yay', ptype='aur', repository='aur')
+        self.api._get_pkg = Mock(return_value=pkg)
+        d = self.api.get_downgrade_preview('aur:yay')['data']
+        self.assertTrue(any('rebuild' in n.lower() for n in d['notes']))
+
+    def test_unknown_pkg_id_errors(self):
+        self.api._get_pkg = Mock(return_value=None)
+        self.assertEqual('error', self.api.get_downgrade_preview('nope:nope')['status'])
+
 
 class DashboardSummaryTest(unittest.TestCase):
     """get_dashboard_summary: cheap, concurrent, fail-open 'attention center' signals."""
