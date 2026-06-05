@@ -3160,12 +3160,15 @@ async function renderBrowse() {
         return;
     }
 
+    // No count on category chips: the count is repo-only (categories.txt), but an opened category
+    // also lists Flathub apps, so the number would understate what you actually see. (Counting
+    // Flatpak per bucket would mean a network call per category on every Browse open.) The AUR
+    // buckets below keep their count — those are exactly the curated top-N we show.
     const cards = data.map(c => `
         <button class="browse-chip" data-cat-key="${escapeHtml(c.key)}" data-cat-label="${escapeHtml(c.label)}">
             <span class="browse-chip-icon">${escapeHtml(c.icon || '📦')}</span>
             <span class="browse-chip-text">
                 <span class="browse-chip-label">${escapeHtml(c.label)}</span>
-                <span class="browse-chip-count">${escapeHtml(c.count)} package${c.count === 1 ? '' : 's'}</span>
             </span>
         </button>`).join('');
 

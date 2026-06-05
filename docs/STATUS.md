@@ -78,6 +78,13 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Fix: misleading category chip counts (2026-06-05).** Category chips showed a package count
+  (e.g. "Office · 1 package") computed from `categories.txt` (the **Arch-repo index only**), but
+  opening a category also lists Flathub apps — so the number understated reality (Office → 1 shown,
+  ~40 on open). Accurate combined counts would need a Flathub network call per category on every
+  Browse open (the count path is deliberately cheap/no-network). Fix: **drop the count from category
+  chips** (label only); the **AUR buckets keep their count** (those are exactly the curated top-60 we
+  show, so it's truthful). Frontend-only.
 - **GUI polish — Browse chips + card-action alignment (2026-06-05, GUI eyeball follow-up).** (1) **Card
   action buttons** (Pin/Install/Uninstall/Update) jumped between bottom-right and bottom-left across
   cards — the footer is `space-between` + `flex-wrap`, so a wide vote badge or the longer "Uninstall"
