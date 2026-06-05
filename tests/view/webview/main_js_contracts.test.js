@@ -926,6 +926,14 @@ async function testBuildDependencySummaryHTML() {
   // missing groups are omitted (no "Required by" when empty)
   const partial = buildDependencySummaryHTML({ direct: ['glibc'], optional: [], required_by: [] });
   assert.ok(partial.includes('Requires') && !partial.includes('Required by'), 'empty groups omitted');
+
+  // "why is this installed?" reason line
+  assert.ok(buildDependencySummaryHTML({ install_reason: 'explicit' }).includes('installed this explicitly'), 'explicit reason');
+  const orphan = buildDependencySummaryHTML({ install_reason: 'dependency', orphan: true });
+  assert.ok(orphan.includes('orphan'), 'orphan reason');
+  assert.ok(buildDependencySummaryHTML({ install_reason: 'dependency', orphan: false }).includes('dependency of other packages'), 'plain dependency reason');
+  // reason alone (no deps) still renders
+  assert.notStrictEqual(buildDependencySummaryHTML({ install_reason: 'explicit' }), '', 'reason-only renders');
 }
 
 async function testStripProgressBarAndPercent() {

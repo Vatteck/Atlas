@@ -65,3 +65,33 @@ class ParseInfoOutputTest(TestCase):
     def test_description_flag_off(self):
         res = _parse_info_output_py(SI_OUTPUT, description=False)
         self.assertIsNone(res['yakuake']['des'])
+
+
+class GetInstallReasonTest(TestCase):
+    """pacman.get_install_reason parses the local `pacman -Qi` 'Install Reason' line."""
+
+    def _qi(self, reason_line):
+        return (f"Name            : foo\nVersion         : 1.0-1\n"
+                f"Install Reason  : {reason_line}\nValidated By    : SHA-256 Sum\n")
+
+    def test_explicit(self):
+        from unittest.mock import patch
+        with patch('atlas.gems.arch.pacman.get_info', return_value=self._qi('Explicitly installed')):
+            from atlas.gems.arch.pacman import get_install_reason
+            self.assertEqual('explicit', get_install_reason('foo'))
+
+    def test_dependency(self):
+        from unittest.mock import patch
+        from atlas.gems.arch.pacman import get_install_reason
+        with patch('atlas.gems.arch.pacman.get_info',
+                   return_value=self._qi('Installed as a dependency for another package')):
+            self.assertEqual('dependency', get_install_reason('foo'))
+
+    def test_not_installed_or_no_field(self):
+        from unittest.mock import patch
+        from atlas.gems.arch.pacman import get_install_reason
+        with patch('atlas.gems.arch.pacman.get_info', return_value=None):
+            self.assertIsNone(get_install_reason('foo'))
+        with patch('atlas.gems.arch.pacman.get_info', return_value='Name : foo\n'):
+            self.assertIsNone(get_install_reason('foo'))
+        self.assertIsNone(get_install_reason(''))

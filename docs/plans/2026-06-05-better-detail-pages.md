@@ -51,12 +51,23 @@ Lazy (fetched after the modal opens, like `get_info`), stale-guarded by the exis
 `stillCurrentDetail()` check, cached is unnecessary (cheap). Pure `buildDependencySummaryHTML(data)`
 (counts + accordions) Node-VM-tested.
 
+## Increment 2 — "Why is this installed?" (shipped 2026-06-05)
+
+Folded into the same dependency summary (it's the natural home — required-by was already there). For
+an **installed** package, `get_dependency_summary` now also returns `install_reason`
+(`'explicit'` / `'dependency'` / `None`) and a derived `orphan` flag. New pure
+`pacman.get_install_reason(name)` parses the local `pacman -Qi` "Install Reason" line (reuses the
+existing `get_info`); `orphan = install_reason == 'dependency' and not required_by`. The detail
+section now leads with a one-line reason banner: "You installed this explicitly." / "Installed as a
+dependency of other packages." / (amber) "Installed as a dependency, but nothing requires it now — an
+orphan you can likely remove." Tests: `test_pacman_info.py::GetInstallReasonTest` (3) +
+`DependencySummaryTest` orphan/explicit cases + JS reason-line assertions. This answers the BACKLOG
+"Why is this installed?" item (explicit vs dep, orphan status, required-by).
+
 ## Deferred
 
 - A real **dependency tree** (direct/optional/build + provides/conflicts/replaces as an accordion
   tree) — its own BACKLOG "Power-user sugar" item.
-- "Why is this installed?" (explicit vs dep, orphan status) — separate BACKLOG item; required-by here
-  is a first taste.
 
 ## Verification
 

@@ -22,6 +22,7 @@ RE_REPOSITORY_FIELDS = re.compile(r'(Repository|Name|Description|Version|Install
 RE_INSTALLED_SIZE = re.compile(r'Installed Size\s*:\s*([0-9,.]+)\s(\w+)\n?', re.IGNORECASE)
 RE_DOWNLOAD_SIZE = re.compile(r'Download Size\s*:\s*([0-9,.]+)\s(\w+)\n?', re.IGNORECASE)
 RE_PKG_NAME = re.compile(r'^Name\s*:\s*(\S+)', re.MULTILINE)
+RE_INSTALL_REASON = re.compile(r'Install Reason\s*:\s*(.+)')
 RE_UPDATE_REQUIRED_FIELDS = re.compile(r'(\bProvides\b|\bInstalled Size\b|\bConflicts With\b)\s*:\s(.+)\n')
 RE_REMOVE_TRANSITIVE_DEPS = re.compile(r'removing\s([\w\-_]+)\s.+required\sby\s([\w\-_]+)\n?')
 RE_AVAILABLE_MIRRORS = re.compile(r'.+\s+OK\s+.+\s+(\d+:\d+)\s+.+(http.+)')
@@ -61,6 +62,26 @@ def get_repositories(pkgs: Iterable[str]) -> dict:
 
 def get_info(pkg_name, remote: bool = False) -> str:
     return run_cmd('pacman -{}i {}'.format('Q' if not remote else 'S', pkg_name), print_error=False)
+
+
+def get_install_reason(pkg_name: str) -> Optional[str]:
+    """How an installed package got here: ``'explicit'`` (the user asked for it) or
+    ``'dependency'`` (pulled in by something else). ``None`` when not installed / unknown.
+    Parses the local ``pacman -Qi`` "Install Reason" line."""
+    if not pkg_name:
+        return None
+    info = get_info(pkg_name)  # local -Qi
+    if not info:
+        return None
+    m = RE_INSTALL_REASON.search(info)
+    if not m:
+        return None
+    reason = m.group(1).strip().lower()
+    if reason.startswith('explicit'):
+        return 'explicit'
+    if 'depend' in reason:
+        return 'dependency'
+    return None
 
 
 def get_info_list(pkg_name: str, remote: bool = False) -> List[tuple]:

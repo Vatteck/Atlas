@@ -1615,11 +1615,24 @@ class DependencySummaryTest(unittest.TestCase):
              patch('atlas.gems.arch.pacman.map_optional_deps',
                    return_value={'vim': {'python': 'scripting'}}), \
              patch('atlas.gems.arch.pacman.map_required_by',
-                   return_value={'vim': {'neovim-stub'}}):
+                   return_value={'vim': {'neovim-stub'}}), \
+             patch('atlas.gems.arch.pacman.get_install_reason', return_value='explicit'):
             d = self.api.get_dependency_summary('arch_repo:vim')['data']
         self.assertEqual(['glibc', 'gpm'], d['direct'])
         self.assertEqual([{'name': 'python', 'detail': 'scripting'}], d['optional'])
         self.assertEqual(['neovim-stub'], d['required_by'])
+        self.assertEqual('explicit', d['install_reason'])
+        self.assertFalse(d['orphan'])  # something requires it
+
+    def test_orphan_when_dependency_and_nothing_requires_it(self):
+        self._pkg(name='libfoo', ptype='arch_repo', repository='extra', installed=True)
+        with patch('atlas.gems.arch.pacman.map_updates_data', return_value={}), \
+             patch('atlas.gems.arch.pacman.map_optional_deps', return_value={}), \
+             patch('atlas.gems.arch.pacman.map_required_by', return_value={'libfoo': set()}), \
+             patch('atlas.gems.arch.pacman.get_install_reason', return_value='dependency'):
+            d = self.api.get_dependency_summary('arch_repo:libfoo')['data']
+        self.assertEqual('dependency', d['install_reason'])
+        self.assertTrue(d['orphan'])  # installed as a dep, now required by nothing
 
     def test_not_installed_skips_required_by(self):
         self._pkg(name='vim', ptype='arch_repo', repository='extra', installed=False)

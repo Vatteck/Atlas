@@ -1556,7 +1556,8 @@ class AtlasApi:
         pkg = self._get_pkg(pkg_id)
         if not pkg:
             return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
-        data = {'direct': [], 'optional': [], 'required_by': [], 'note': ''}
+        data = {'direct': [], 'optional': [], 'required_by': [], 'note': '',
+                'install_reason': None, 'orphan': False}
         try:
             ptype = self._preview_ptype(pkg)
             repository = (getattr(pkg, 'repository', None) or '').lower()
@@ -1594,13 +1595,20 @@ class AtlasApi:
                     self.logger.debug(f"dep summary: optional deps failed for {name}: {e}")
                 data['note'] = "Direct requirements; pacman resolves the full set at install time."
 
-            # Reverse deps only make sense for an installed package (queried from the local db).
+            # Reverse deps + "why is this installed?" only make sense for an installed package
+            # (both queried from the local db).
             if installed:
                 try:
                     req = (pacman.map_required_by([name]) or {}).get(name) or set()
                     data['required_by'] = sorted(req)
                 except Exception as e:
                     self.logger.debug(f"dep summary: required_by failed for {name}: {e}")
+                try:
+                    data['install_reason'] = pacman.get_install_reason(name)
+                except Exception as e:
+                    self.logger.debug(f"dep summary: install reason failed for {name}: {e}")
+                # An orphan candidate: pulled in as a dependency, but now nothing requires it.
+                data['orphan'] = data['install_reason'] == 'dependency' and not data['required_by']
             return {'status': 'ok', 'data': data}
         except Exception as e:
             self.logger.error(f"get_dependency_summary failed for {pkg_id}: {e}")

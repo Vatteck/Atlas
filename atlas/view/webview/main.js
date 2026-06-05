@@ -1306,7 +1306,17 @@ function buildDependencySummaryHTML(data) {
     const direct = data.direct || [];
     const optional = data.optional || [];
     const requiredBy = data.required_by || [];
-    if (!direct.length && !optional.length && !requiredBy.length && !data.note) return '';
+    if (!direct.length && !optional.length && !requiredBy.length && !data.note && !data.install_reason) return '';
+
+    // "Why is this installed?" — install reason + orphan status (installed packages only).
+    let reasonHTML = '';
+    if (data.install_reason === 'explicit') {
+        reasonHTML = `<p class="dep-reason dep-reason-explicit">✓ You installed this explicitly.</p>`;
+    } else if (data.install_reason === 'dependency') {
+        reasonHTML = data.orphan
+            ? `<p class="dep-reason dep-reason-orphan">⚠ Installed as a dependency, but nothing requires it now — an orphan you can likely remove.</p>`
+            : `<p class="dep-reason">Installed as a dependency of other packages.</p>`;
+    }
 
     const chip = s => `<span class="dep-chip">${escapeHtml(s)}</span>`;
     const optChip = o => `<span class="dep-chip" title="${escapeHtml(o.detail || '')}">${escapeHtml(o.name)}</span>`;
@@ -1320,7 +1330,7 @@ function buildDependencySummaryHTML(data) {
         block('Required by', requiredBy.length, requiredBy.map(chip).join('')),
     ].join('');
     const note = data.note ? `<p class="dep-note">${escapeHtml(data.note)}</p>` : '';
-    return groups + note;
+    return reasonHTML + groups + note;
 }
 
 // Inner HTML of a card for the given active source — re-rendered on source switch.

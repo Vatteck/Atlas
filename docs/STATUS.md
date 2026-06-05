@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-05 (Better detail pages: "why this source?" hint + dependency summary; 502 tests + 37 JS green)
+**Last updated:** 2026-06-05 (Better detail pages: "why this source?" hint + dependency summary + "why is this installed?"/orphan; 506 tests + 37 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -78,6 +78,16 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **"Why is this installed?" — install reason + orphan status (2026-06-05).** Folded into the
+  dependency summary (its natural home — required-by was already there). For an **installed** package,
+  `get_dependency_summary` now also returns `install_reason` (`explicit`/`dependency`/`None`) + a
+  derived `orphan` flag, via a new pure `pacman.get_install_reason(name)` that parses the local
+  `pacman -Qi` "Install Reason" line (`orphan = dependency && nothing requires it`). The detail section
+  leads with a one-line banner: "You installed this explicitly." / "Installed as a dependency of other
+  packages." / (amber) "…an orphan you can likely remove." Answers the BACKLOG "Why is this installed?"
+  item. Tests: `test_pacman_info.py::GetInstallReasonTest` (3) + `DependencySummaryTest` orphan/explicit
+  + JS assertions. Suite **506** + JS 37. **Needs a GUI eyeball.** Plan:
+  [plans/2026-06-05-better-detail-pages.md](plans/2026-06-05-better-detail-pages.md).
 - **Better app detail pages — "why this source?" + dependency summary (2026-06-05).** Two additions to
   the detail modal serving Atlas's multi-source-honesty angle (the BACKLOG "Better app detail pages"
   item; the source-compare panel + transaction preview already shipped). (1) **"Why this source?" hint**
