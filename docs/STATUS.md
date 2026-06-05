@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-04 (Dashboard "Attention Center" shipped; 454 tests green)
+**Last updated:** 2026-06-04 (Transaction preview increment 1 — Install — shipped; 468 tests + 22 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -44,7 +44,10 @@ the old `hroadmap.md` was folded in and deleted). Highest-value open items there
 - **AUR discovery buckets** (Popular / Recently-updated / VCS / binary) — the *feasible* form of AUR
   Browse (categories are infeasible). Needs the heavier `packages-meta-ext-v1.json.gz` dump, not just
   the names index — a real data-source decision.
-- **Source-comparison panel + universal transaction preview** — the multi-source decision UX.
+- **Universal transaction preview** — increment 1 (**Install**) ✅ **shipped 2026-06-04** (needs a GUI
+  eyeball; see Done). Next increments: **update / uninstall / downgrade** previews + an Update-All
+  aggregate, then the **source-comparison panel** UI on detail pages (the install preview already
+  shapes the per-source data it will reuse).
 - **System Health page / `.pacnew` center / mirror polish** — the "Arch cockpit" (backends largely
   exist from the safety-net + maintenance-hub work).
 - **GUI sugar:** command palette (`Ctrl+K`), density modes, contextual topbar, finish empty/error
@@ -73,6 +76,28 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Transaction preview — increment 1: Install (2026-06-04).** A pre-flight "here's what this will
+  do — proceed?" modal now gates **installs** (before anything privileged runs). Backend
+  `AtlasApi.get_install_preview(pkg_id)` assembles a per-source payload — `{name, source,
+  source_label, version, sizes:{download,installed}|None, deps:{direct,optional}, permissions|None,
+  warnings:[{level,title,detail}], notes}` — **reusing existing signals**, not re-implementing the
+  resolver: repo → one `pacman.map_updates_data` (`-Si`: version/sizes/**direct** depends) +
+  `map_optional_deps`; AUR → `aur_client.get_info` (version/maintainer/depends/makedepends/out-of-date,
+  **no size** — built from source) + community/maintainer-change/orphaned/out-of-date warnings;
+  Flatpak → `get_flathub_metadata` (permissions list + advisory safety tier + proprietary/unverified
+  warnings). **Fails open per field** (failed probe → None/[] + a note; a top-level failure still
+  returns a minimal `ok` payload) so it never blocks an install. Honest scope: deps shown are
+  **direct** only, labelled "pacman/makepkg resolves the full set at install time" — no second
+  resolver. Frontend: pure `buildTransactionPreviewHTML` (header / size row / severity-sorted
+  warnings / permissions + deps accordions / notes, Node-VM-tested) + a promise-based
+  `#tx-preview-modal` mirroring the news gate; `installApp` awaits it first, cancel aborts cleanly.
+  One gate covers both card and detail-modal installs (both route through `installApp`). The existing
+  **mid-build AUR PKGBUILD confirmation is kept** (it sees the post-edit text; preview is
+  advisory-before — complementary). Tests: `test_api.py::InstallPreviewTest` (5) +
+  `main_js_contracts` (3). Suite **468** + JS harness **22**. **Needs a GUI eyeball** (repo / AUR /
+  Flatpak install → preview renders; confirm proceeds, cancel aborts). Next increments:
+  update/uninstall/downgrade + Update-All aggregate, then the source-comparison panel UI. Plan:
+  [plans/2026-06-04-transaction-preview.md](plans/2026-06-04-transaction-preview.md).
 - **`.pacnew` center + mirror polish + no-flash view renders (2026-06-04).** Finished the Arch
   cockpit. **`.pacnew` center**: a reviewable sub-view (reached from the System Health "Config files"
   card + the Updates notice; `currentView='pacnew'`, no nav item) listing each file with a **risk

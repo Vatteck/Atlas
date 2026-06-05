@@ -1,0 +1,139 @@
+# Plan — Universal transaction preview (increment 1: Install)
+
+**Date:** 2026-06-04
+**Status:** increment 1 SHIPPED (install preview) — needs a GUI eyeball; update/uninstall/downgrade
+deferred to later increments. 468 Python tests + 22 JS contract tests green.
+**Backlog item:** "Universal transaction preview" + the data half of "source-comparison panel"
+(BACKLOG → Operation confidence / Better app detail pages).
+
+## Goal
+
+Insert a **pre-flight preview** between the user's click and the privileged transaction:
+"here's exactly what's about to happen — proceed?", rendered as cards/badges, *not* a wall of
+text. First increment covers **Install** only (strangler-fig: prove the shell + plumbing, then
+extend to update / uninstall / downgrade in later increments).
+
+## Decisions already made
+
+- **Install first** (richest payload, best showcase).
+- **Share the data layer, render only the preview.** One Python assembler produces a structured
+  dict that a future source-comparison panel can also consume; we render only the confirm modal
+  now. We do **not** build the side-by-side comparison UI in this increment.
+- Follow the house pattern: a **pure/testable Python assembler** + a **thin JS renderer**
+  (Node-VM contract-tested), like `get_dashboard_summary`→`buildAttentionCenterHTML` and
+  `get_system_health`→`systemHealthChecks`.
+
+## Hard constraint (the honest scope line)
+
+Full **transitive** dependency resolution only happens inside the real transaction (privileged,
+heavy, source-specific). The preview must **not** re-implement the resolver. So increment 1 shows
+what is *cheaply* knowable up front and is clearly labelled as such:
+
+- repo packages: `pacman -Si` → version, repository, **download size**, **installed size**,
+  **direct depends**, **optdepends**, conflicts/replaces.
+- AUR packages: RPC `get_info` → version, maintainer, **direct depends/makedepends**, the existing
+  AUR safety signals (PKGBUILD scan findings, maintainer-change advisory) — **no size** (AUR builds
+  from source; unknown until built — say so).
+- Flatpak: Flathub summary → version, download size, **permissions/safety tier** (already computed
+  by `gems/flatpak/permissions.py`), verified/FOSS badges.
+
+Deps are shown as **"direct dependencies"** with a note that pacman/makepkg resolves the full set
+at install time. This is accurate and avoids a fragile second resolver.
+
+## Backend
+
+New pure assembler (location TBD — likely `atlas/view/webview/transaction_preview.py` or a method
+cluster on `AtlasApi`):
+
+```
+build_install_preview(pkg) -> {
+    action: 'install',
+    name, source, version,
+    sizes: {download, installed} | None,          # None for AUR (built from source)
+    deps: {direct: [...], optional: [...]},        # direct only; note full-resolution caveat
+    warnings: [ {level, title, detail}, ... ],     # AUR PKGBUILD findings, maintainer change,
+                                                    #   unverified Flatpak, proprietary, etc.
+    permissions: [...] | None,                      # Flatpak only (reuse permissions.describe)
+    notes: [...],                                   # "deps resolved at install time", etc.
+}
+```
+
+- Reuse existing signals — **do not** add new fetch paths where one exists:
+  `pacman.map_download_sizes`/`get_installed_size`/`map_required_dependencies`, the AUR audit
+  (`pkgbuild_audit` / maintainer cache), `flathub`/`permissions` modules.
+- **Fail open per field** (same discipline as `get_dashboard_summary`): a failed size/dep/badge
+  fetch yields `None`/`[]` and a "couldn't determine" note — never blocks the install.
+- New `AtlasApi.get_install_preview(pkg_id)` exposes it to the webview.
+
+## Frontend
+
+- `AtlasApi.install(pkg_id)` no longer fires immediately from the card/detail button. The button
+  calls a new `previewThenInstall(pkgId)`: fetch `get_install_preview`, render the modal, and only
+  on confirm call the existing `install` path (root-password → terminal → transaction — unchanged).
+- New self-contained modal `#transaction-preview-modal` (promise-based, like `#news-gate-modal` —
+  the confirm modal is bound to the Python watcher and can't be reused) with a pure renderer
+  `buildTransactionPreviewHTML(data)` (Node-VM-tested): header (name + source pill + version),
+  a size row, a collapsible deps accordion, a warnings/permissions block, the confirm/cancel
+  footer. Reuse `.meta-badge`, `emptyStateHTML`-style helpers, existing safety colours.
+- Settings toggle later (skippable preview); **default on** for increment 1. Keep it out of scope
+  if it bloats — note in STATUS.
+
+## Interaction with existing gates
+
+The AUR PKGBUILD review and Update-All news gate fire **mid-build** today. For install, the new
+preview surfaces the *same* AUR findings up front. Decide during implementation whether the
+pre-build `request_confirmation` becomes redundant for the install path (likely keep it — it runs
+after the optional PKGBUILD edit step, so it sees the final text; the preview is advisory-before).
+Document the call; do not silently double-prompt without a note.
+
+## Tests
+
+- `test_api.py::InstallPreviewTest` — payload shape per source (repo / AUR / Flatpak), fail-open on
+  each field, AUR-has-no-size, warnings surfaced.
+- `main_js_contracts.test.js` — `buildTransactionPreviewHTML` renders each section, handles
+  missing/None fields, escapes names.
+
+## Out of scope (later increments)
+
+- Update / uninstall / downgrade previews (uninstall = will-remove + reverse-deps + orphan
+  candidates; update = current→new + maintainer/diff/news/.pacnew rollup).
+- Update-All aggregate preview.
+- The source-comparison **panel** UI on detail pages (this increment only shapes the data for it).
+- Full transitive dependency tree.
+```
+
+## What was actually built (increment 1)
+
+- **Backend** (`api.py`): `get_install_preview(pkg_id)` + `_source_label` + per-source helpers
+  `_preview_arch_repo` / `_preview_aur` / `_preview_flatpak`. Reuses `pacman.map_updates_data`
+  (one `-Si` call → version/download+installed size/direct depends) + `pacman.map_optional_deps`,
+  the AUR RPC (`aur_client.get_info` → version/maintainer/depends/makedepends/out-of-date), and the
+  Flatpak `get_flathub_metadata` (permissions + safety tier + verified/FOSS badges). Fails open per
+  field; a top-level failure returns a minimal payload (still `ok`) so the user can always proceed.
+- **Frontend** (`main.js` + `index.html` + `style.css`): pure `buildTransactionPreviewHTML(data)`
+  (header / size row / sorted warnings / permissions accordion / deps accordion / notes) + a
+  promise-based `#tx-preview-modal` (`openTransactionPreview` / `showInstallPreview` /
+  `resolveTxPreview`, mirroring the news gate). `installApp` now awaits `showInstallPreview` before
+  anything privileged; cancel aborts with nothing started. Both card and detail-modal installs route
+  through `installApp`, so one gate covers both.
+- **Tests:** `test_api.py::InstallPreviewTest` (5: repo/AUR/Flatpak payloads, fail-open, unknown id)
+  + `main_js_contracts` (5: full render, missing-field, escaping, + the two gate-flow regression
+  tests below).
+- **Bug found in GUI test + fixed:** the gate silently skipped — `pyApiCall` **unwraps** the
+  `{status,data}` envelope (returns `response.data`), but `showInstallPreview` checked
+  `res.status !== 'ok'` on the already-unwrapped payload, so it always returned `true` (proceed)
+  and the modal never showed. Now it treats the result as the payload (guards on `data.name`). Added
+  `testShowInstallPreviewOpensModalThroughEnvelope` + `...ProceedsWhenBridgeReturnsNothing` so the
+  full fetch→render→resolve path is covered, not just the pure renderer.
+
+## Decision resolved (per user, "keep it")
+
+The existing **mid-build AUR PKGBUILD `request_confirmation`** is **kept** — it runs after the
+optional PKGBUILD-edit step so it sees the final text, whereas the new preview is advisory-before.
+They are complementary, not duplicates. No change to that path.
+
+## Verification
+
+`python -m pytest` green (468); `node main_js_contracts.test.js` green (22). **Still needs a GUI
+eyeball:** install preview for a repo pkg, an AUR pkg, and a Flatpak (sizes/deps/warnings/perms
+render; confirm proceeds, cancel aborts cleanly).

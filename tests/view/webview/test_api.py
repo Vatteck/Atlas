@@ -1398,6 +1398,102 @@ class BrowseCategoryTest(unittest.TestCase):
         flatpak.list_category_packages.assert_not_called()
 
 
+class InstallPreviewTest(unittest.TestCase):
+    """get_install_preview: per-source pre-flight payload, fail-open per field."""
+
+    def setUp(self):
+        self.manager = Mock()
+        self.api = AtlasApi(self.manager, Mock())
+
+    def _pkg(self, name='pkg', ptype='arch_repo', repository=None, app_id=None,
+             installed=False, maintainer=None, version='1.0', download_size=None, size=None):
+        p = Mock()
+        p.name = name
+        p.get_type.return_value = ptype
+        p.gem_name = 'arch'
+        p.repository = repository
+        p.id = app_id
+        p.installed = installed
+        p.maintainer = maintainer
+        p.version = version
+        p.latest_version = version
+        p.download_size = download_size
+        p.size = size
+        return p
+
+    def test_arch_repo_payload(self):
+        pkg = self._pkg(name='vim', ptype='arch_repo', repository='extra')
+        self.api._get_pkg = Mock(return_value=pkg)
+        with patch('atlas.gems.arch.pacman.map_updates_data',
+                   return_value={'vim': {'v': '9.1', 'ds': 1500000, 's': 5000000, 'd': {'glibc', 'gpm'}}}), \
+             patch('atlas.gems.arch.pacman.map_optional_deps',
+                   return_value={'vim': {'python': 'scripting support'}}):
+            res = self.api.get_install_preview('arch_repo:vim')
+
+        self.assertEqual('ok', res['status'])
+        d = res['data']
+        self.assertEqual('vim', d['name'])
+        self.assertEqual('Arch · extra', d['source_label'])
+        self.assertEqual('9.1', d['version'])
+        self.assertEqual({'download': 1500000, 'installed': 5000000}, d['sizes'])
+        self.assertEqual(['glibc', 'gpm'], d['deps']['direct'])
+        self.assertEqual([{'name': 'python', 'detail': 'scripting support'}], d['deps']['optional'])
+
+    def test_aur_payload_warns_community_and_no_size(self):
+        pkg = self._pkg(name='yay', ptype='aur', repository='aur', installed=True, maintainer='alice')
+        self.api._get_pkg = Mock(return_value=pkg)
+        arch_man = Mock()
+        arch_man.aur_client.get_info.return_value = [{
+            'Version': '12.1', 'Maintainer': 'bob', 'Depends': ['go', 'git'],
+            'MakeDepends': ['gcc'], 'OutOfDate': 1700000000}]
+        self.api._manager_by_gem = Mock(return_value=arch_man)
+
+        d = self.api.get_install_preview('aur:yay')['data']
+        self.assertEqual('AUR', d['source_label'])
+        self.assertIsNone(d['sizes'])  # built from source
+        self.assertEqual(['git', 'go'], d['deps']['direct'])
+        titles = {w['title'] for w in d['warnings']}
+        self.assertIn('Maintainer changed', titles)       # alice -> bob, installed + baseline
+        self.assertIn('Flagged out of date', titles)
+        self.assertIn('Community-maintained (AUR)', titles)
+
+    def test_flatpak_payload_surfaces_permissions_and_safety(self):
+        pkg = self._pkg(name='Dropbox', ptype='flatpak', app_id='com.dropbox.Client',
+                        download_size=2000000, size=8000000)
+        self.api._get_pkg = Mock(return_value=pkg)
+        flatpak_man = Mock()
+        flatpak_man.get_flathub_metadata.return_value = {
+            'is_free': False, 'verified': False,
+            'safety': {'level': 'unsafe'},
+            'permissions': [{'title': 'Home folder', 'detail': 'rw', 'level': 'danger'}]}
+        self.api._manager_by_gem = Mock(return_value=flatpak_man)
+
+        d = self.api.get_install_preview('flatpak:Dropbox')['data']
+        self.assertEqual('Flatpak', d['source_label'])
+        self.assertEqual({'download': 2000000, 'installed': 8000000}, d['sizes'])
+        self.assertEqual(1, len(d['permissions']))
+        titles = {w['title'] for w in d['warnings']}
+        self.assertIn('Potentially unsafe permissions', titles)
+        self.assertIn('Proprietary', titles)
+        self.assertIn('Unverified on Flathub', titles)
+
+    def test_fails_open_when_probe_raises(self):
+        pkg = self._pkg(name='vim', ptype='arch_repo', repository='extra')
+        self.api._get_pkg = Mock(return_value=pkg)
+        with patch('atlas.gems.arch.pacman.map_updates_data', side_effect=RuntimeError('boom')), \
+             patch('atlas.gems.arch.pacman.map_optional_deps', side_effect=RuntimeError('boom')):
+            res = self.api.get_install_preview('arch_repo:vim')
+        # never blocks: still ok, with a note explaining the missing size
+        self.assertEqual('ok', res['status'])
+        self.assertIsNone(res['data']['sizes'])
+        self.assertTrue(any('unavailable' in n.lower() for n in res['data']['notes']))
+
+    def test_unknown_pkg_id_errors(self):
+        self.api._get_pkg = Mock(return_value=None)
+        res = self.api.get_install_preview('nope:nope')
+        self.assertEqual('error', res['status'])
+
+
 class DashboardSummaryTest(unittest.TestCase):
     """get_dashboard_summary: cheap, concurrent, fail-open 'attention center' signals."""
 

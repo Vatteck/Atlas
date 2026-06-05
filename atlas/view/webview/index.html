@@ -326,6 +326,28 @@
         </div>
     </div>
 
+    <!-- Transaction preview (pre-flight): what an install will change, before anything privileged runs -->
+    <div id="tx-preview-modal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-header-left">
+                    <div>
+                        <h2 id="tx-preview-title">Install package?</h2>
+                        <p class="modal-description">Here's what this will do. The full dependency set is resolved at install time.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div id="tx-preview-body" class="txp-body"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="tx-preview-cancel-btn">Cancel</button>
+                <button class="btn btn-primary" id="tx-preview-proceed-btn">Install</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Generic info popup (e.g. clicking a Flatpak safety/license badge) -->
     <div id="info-popup" class="modal hidden" role="dialog" aria-modal="true">
         <div class="modal-backdrop"></div>

@@ -1517,6 +1517,165 @@ class AtlasApi:
             self.logger.error(f"get_aur_meta failed: {e}")
             return {'status': 'ok', 'data': {}}
 
+    # ---- Transaction preview (pre-flight) ------------------------------------------------
+    # A "here's what will happen — proceed?" summary shown before an install. Increment 1 of the
+    # universal transaction preview (see docs/plans/2026-06-04-transaction-preview.md). Shows only
+    # what's cheaply knowable up front (direct deps + cheap size/badges) — pacman/makepkg resolves
+    # the full dependency set at install time. Fails open per field so a failed probe never blocks.
+
+    def _source_label(self, pkg, ptype: str) -> str:
+        repository = (getattr(pkg, 'repository', None) or '')
+        if ptype == 'flatpak':
+            return 'Flatpak'
+        if repository.lower() == 'aur':
+            return 'AUR'
+        if ptype == 'appimage':
+            return 'AppImage'
+        if repository and repository.lower() != 'aur':
+            return f'Arch · {repository}'
+        return 'Arch'
+
+    def get_install_preview(self, pkg_id: str) -> dict:
+        """Pre-flight summary for an install: source, version, a size estimate, direct + optional
+        dependencies, and advisory warnings (AUR community/maintainer/PKGBUILD, Flatpak permissions/
+        verification). The full dependency set is resolved by pacman/makepkg at install time — this
+        shows only what's cheaply knowable up front. Fails open per field (a failed probe → None/[]
+        + a note), never blocks the install. Shape:
+            {name, source, source_label, version, sizes:{download,installed}|None,
+             deps:{direct:[str], optional:[{name,detail}]}, permissions:[{title,detail,level}]|None,
+             warnings:[{level,title,detail}], notes:[str]}"""
+        pkg = self._get_pkg(pkg_id)
+        if not pkg:
+            return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
+        try:
+            try:
+                ptype = str(pkg.get_type() or pkg.gem_name or '').lower()
+            except Exception:
+                ptype = str(getattr(pkg, 'gem_name', '') or '').lower()
+
+            data = {
+                'name': pkg.name or '',
+                'source': ptype,
+                'source_label': self._source_label(pkg, ptype),
+                'version': getattr(pkg, 'latest_version', None) or getattr(pkg, 'version', None) or '',
+                'sizes': None,
+                'deps': {'direct': [], 'optional': []},
+                'permissions': None,
+                'warnings': [],
+                'notes': [],
+            }
+
+            repository = (getattr(pkg, 'repository', None) or '').lower()
+            if ptype == 'flatpak':
+                self._preview_flatpak(pkg, data)
+            elif repository == 'aur' or ptype == 'aur':
+                self._preview_aur(pkg, data)
+            elif repository or ptype in ('arch', 'arch_repo'):
+                self._preview_arch_repo(pkg, data)
+            else:
+                data['notes'].append("Details for this source aren't available before install.")
+
+            return {'status': 'ok', 'data': data}
+        except Exception as e:
+            self.logger.error(f"get_install_preview failed: {e}")
+            traceback.print_exc()
+            # Fail open: a minimal payload still lets the user confirm.
+            return {'status': 'ok', 'data': {
+                'name': getattr(pkg, 'name', ''), 'source': '', 'source_label': '',
+                'version': getattr(pkg, 'version', '') or '', 'sizes': None,
+                'deps': {'direct': [], 'optional': []}, 'permissions': None, 'warnings': [],
+                'notes': ["Couldn't gather full details for this package; proceed with care."]}}
+
+    def _preview_arch_repo(self, pkg, data: dict) -> None:
+        from atlas.gems.arch import pacman
+        name = pkg.name
+        try:
+            info = (pacman.map_updates_data([name]) or {}).get(name) or {}
+        except Exception as e:
+            self.logger.debug(f"preview: map_updates_data failed for {name}: {e}")
+            info = {}
+        if info.get('v'):
+            data['version'] = info['v']
+        ds, s = info.get('ds'), info.get('s')
+        if ds is not None or s is not None:
+            data['sizes'] = {'download': ds, 'installed': s}
+        else:
+            data['notes'].append("Size estimate unavailable.")
+        deps = info.get('d')
+        if deps:
+            data['deps']['direct'] = sorted(deps)
+        try:
+            opt = (pacman.map_optional_deps([name], remote=True, not_installed=False) or {}).get(name) or {}
+            data['deps']['optional'] = [{'name': k, 'detail': v or ''} for k, v in sorted(opt.items())]
+        except Exception as e:
+            self.logger.debug(f"preview: optional deps failed for {name}: {e}")
+        data['notes'].append("Dependencies shown are direct requirements; pacman resolves the full set at install time.")
+
+    def _preview_aur(self, pkg, data: dict) -> None:
+        arch_man = self._manager_by_gem('arch')
+        aur_client = getattr(arch_man, 'aur_client', None)
+        info = {}
+        if aur_client is not None:
+            try:
+                infos = aur_client.get_info((pkg.name,))
+                info = (infos[0] if infos else {}) or {}
+            except Exception as e:
+                self.logger.debug(f"preview: AUR get_info failed for {pkg.name}: {e}")
+        if info.get('Version'):
+            data['version'] = info['Version']
+        deps = info.get('Depends') or []
+        if deps:
+            data['deps']['direct'] = sorted(set(deps))
+        makedeps = info.get('MakeDepends') or []
+        if makedeps:
+            data['notes'].append("Build-time dependencies: " + ", ".join(sorted(set(makedeps))) + ".")
+        data['notes'].append("AUR packages are built from source — download/install size isn't known until the build runs.")
+        data['notes'].append("Dependencies are the PKGBUILD's direct requires; the full set is resolved at build time.")
+
+        maintainer = info.get('Maintainer')
+        baseline = getattr(pkg, 'maintainer', None)
+        if aur_client is not None and maintainer is None:
+            data['warnings'].append({'level': 'warn', 'title': 'Orphaned package',
+                                     'detail': 'This AUR package currently has no maintainer.'})
+        if getattr(pkg, 'installed', False) and baseline and maintainer and maintainer != baseline:
+            data['warnings'].append({'level': 'warn', 'title': 'Maintainer changed',
+                                     'detail': f'Maintainer changed since you installed: {baseline} → {maintainer}.'})
+        if info.get('OutOfDate'):
+            data['warnings'].append({'level': 'warn', 'title': 'Flagged out of date',
+                                     'detail': 'The AUR community has flagged this package out of date.'})
+        data['warnings'].append({'level': 'info', 'title': 'Community-maintained (AUR)',
+                                 'detail': 'AUR packages are user-submitted and not vetted by Arch. Atlas scans the PKGBUILD before building.'})
+
+    def _preview_flatpak(self, pkg, data: dict) -> None:
+        app_id = getattr(pkg, 'id', None)
+        flatpak_man = self._manager_by_gem('flatpak')
+        badges = {}
+        if app_id and flatpak_man is not None and hasattr(flatpak_man, 'get_flathub_metadata'):
+            try:
+                badges = flatpak_man.get_flathub_metadata(app_id) or {}
+            except Exception as e:
+                self.logger.debug(f"preview: Flathub metadata failed for {app_id}: {e}")
+        ds, s = getattr(pkg, 'download_size', None), getattr(pkg, 'size', None)
+        if ds is not None or s is not None:
+            data['sizes'] = {'download': ds, 'installed': s}
+        perms = badges.get('permissions')
+        if perms:
+            data['permissions'] = perms
+        tier = (badges.get('safety') or {}).get('level')
+        if tier == 'unsafe':
+            data['warnings'].append({'level': 'danger', 'title': 'Potentially unsafe permissions',
+                                     'detail': 'This app requests broad access (filesystem, devices, or session bus). Review the permissions below.'})
+        elif tier == 'moderate':
+            data['warnings'].append({'level': 'warn', 'title': 'Some sensitive permissions',
+                                     'detail': 'This app requests a few sensitive permissions. Review them below.'})
+        if badges.get('is_free') is False:
+            data['warnings'].append({'level': 'info', 'title': 'Proprietary',
+                                     'detail': 'This app uses a proprietary (non-free) license.'})
+        if badges.get('verified') is False:
+            data['warnings'].append({'level': 'info', 'title': 'Unverified on Flathub',
+                                     'detail': 'Not published by the original developer (community-packaged).'})
+        data['notes'].append("Flatpak permissions can be adjusted after install on the Permissions page.")
+
     def _flatpak_pkg_and_manager(self, pkg_id: str):
         """(pkg, flatpak_manager) for an installed Flatpak, else (None, None)."""
         pkg = self._get_pkg(pkg_id)

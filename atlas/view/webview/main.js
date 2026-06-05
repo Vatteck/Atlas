@@ -751,6 +751,109 @@ document.getElementById('news-gate-modal').addEventListener('keydown', (e) => {
     if (e.key === 'Escape') resolveNewsGate(false);
 });
 
+// --- Transaction preview (pre-flight, before install) ----------------------
+// Self-contained + promise-based like the news gate (the confirm modal is bound to the Python
+// watcher and can't be reused). Resolves true (proceed) / false (cancel). buildTransactionPreviewHTML
+// is pure (escapeHtml + formatBytes only) so it's unit-testable in the Node VM harness.
+// See docs/plans/2026-06-04-transaction-preview.md.
+function buildTransactionPreviewHTML(data) {
+    data = data || {};
+    const sourceLabel = escapeHtml(data.source_label || '');
+    const version = escapeHtml(data.version || '');
+    const sizes = data.sizes || null;
+    const deps = data.deps || { direct: [], optional: [] };
+    const warnings = data.warnings || [];
+    const perms = data.permissions || null;
+    const notes = data.notes || [];
+
+    let html = `<div class="txp-header">
+        <div class="txp-title">${escapeHtml(data.name || 'package')}</div>
+        <div class="txp-sub">
+            ${sourceLabel ? `<span class="txp-source-pill">${sourceLabel}</span>` : ''}
+            ${version ? `<span class="txp-version">v${version}</span>` : ''}
+        </div>
+    </div>`;
+
+    if (sizes && (sizes.download != null || sizes.installed != null)) {
+        html += `<div class="txp-sizes">`;
+        if (sizes.download != null) html += `<span class="txp-size"><span class="txp-size-label">Download</span> ${formatBytes(sizes.download)}</span>`;
+        if (sizes.installed != null) html += `<span class="txp-size"><span class="txp-size-label">Installed</span> ${formatBytes(sizes.installed)}</span>`;
+        html += `</div>`;
+    }
+
+    if (warnings.length) {
+        const order = { danger: 0, warn: 1, info: 2 };
+        const sorted = warnings.slice().sort((a, b) => (order[a.level] ?? 3) - (order[b.level] ?? 3));
+        html += `<div class="txp-warnings">` + sorted.map(w => `
+            <div class="txp-warn txp-warn-${escapeHtml(w.level || 'info')}">
+                <div class="txp-warn-title">${escapeHtml(w.title || '')}</div>
+                ${w.detail ? `<div class="txp-warn-detail">${escapeHtml(w.detail)}</div>` : ''}
+            </div>`).join('') + `</div>`;
+    }
+
+    if (perms && perms.length) {
+        html += `<details class="txp-accordion"><summary>Permissions (${perms.length})</summary><div class="txp-acc-body">` +
+            perms.map(p => `<div class="txp-perm txp-perm-${escapeHtml(p.level || 'safe')}">
+                <span class="txp-perm-title">${escapeHtml(p.title || '')}</span>
+                ${p.detail ? `<span class="txp-perm-detail">${escapeHtml(p.detail)}</span>` : ''}
+            </div>`).join('') + `</div></details>`;
+    }
+
+    const direct = deps.direct || [];
+    const optional = deps.optional || [];
+    if (direct.length || optional.length) {
+        html += `<details class="txp-accordion"><summary>Dependencies (${direct.length} required${optional.length ? `, ${optional.length} optional` : ''})</summary><div class="txp-acc-body">`;
+        if (direct.length) {
+            html += `<div class="txp-dep-group"><div class="txp-dep-head">Direct requirements</div><div class="txp-dep-list">` +
+                direct.map(d => `<span class="txp-dep-chip">${escapeHtml(d)}</span>`).join('') + `</div></div>`;
+        }
+        if (optional.length) {
+            html += `<div class="txp-dep-group"><div class="txp-dep-head">Optional</div>` +
+                optional.map(o => `<div class="txp-optdep"><span class="txp-dep-chip">${escapeHtml(o.name || '')}</span>${o.detail ? `<span class="txp-optdep-detail">${escapeHtml(o.detail)}</span>` : ''}</div>`).join('') + `</div>`;
+        }
+        html += `</div></details>`;
+    }
+
+    if (notes.length) {
+        html += `<div class="txp-notes">` + notes.map(n => `<div class="txp-note">${escapeHtml(n)}</div>`).join('') + `</div>`;
+    }
+    return html;
+}
+
+let txPreviewResolver = null;
+
+function resolveTxPreview(proceed) {
+    document.getElementById('tx-preview-modal').classList.add('hidden');
+    const resolve = txPreviewResolver;
+    txPreviewResolver = null;
+    if (resolve) resolve(proceed);
+}
+
+function openTransactionPreview(data) {
+    document.getElementById('tx-preview-body').innerHTML = buildTransactionPreviewHTML(data);
+    const title = document.getElementById('tx-preview-title');
+    if (title) title.textContent = `Install ${(data && data.name) || 'package'}?`;
+    document.getElementById('tx-preview-modal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('tx-preview-proceed-btn').focus(), 50);
+    return new Promise(resolve => { txPreviewResolver = resolve; });
+}
+
+// Fetch the preview and show the modal; resolves whether to proceed. pyApiCall unwraps the
+// {status,data} envelope, so `data` here is the preview payload itself. Backend fails open (always
+// returns a payload with at least `name`); we only skip the gate if the bridge returns nothing
+// (null on error / not injected) — never block the user.
+async function showInstallPreview(id) {
+    const data = await pyApiCall('get_install_preview', id);
+    if (!data || typeof data !== 'object' || !data.name) return true;
+    return openTransactionPreview(data);
+}
+
+document.getElementById('tx-preview-proceed-btn').addEventListener('click', () => resolveTxPreview(true));
+document.getElementById('tx-preview-cancel-btn').addEventListener('click', () => resolveTxPreview(false));
+document.getElementById('tx-preview-modal').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') resolveTxPreview(false);
+});
+
 window.showMessageModal = (opts) => {
     opts = opts || {};
     messageResolved = false;
@@ -3002,6 +3105,13 @@ async function renderUpdatesNotice() {
 
 // Action Handlers
 window.installApp = async (id, btn = null) => {
+    // Pre-flight transaction preview — show what will change and confirm before anything
+    // privileged runs. Cancel here aborts cleanly with nothing started.
+    const proceed = await showInstallPreview(id);
+    if (!proceed) {
+        if (btn) btn.classList.remove('loading');
+        return;
+    }
     if (btn) btn.classList.add('loading');
     operationInProgress = true; // Synch lock
     showToast('Installing', 'Installation started in background', 'info');
@@ -4202,6 +4312,9 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         emptyStateHTML,
         systemHealthChecks,
         pacnewRisk,
+        buildTransactionPreviewHTML,
+        showInstallPreview,
+        resolveTxPreview,
         refreshCurrentView,
         activateView,
         fetchPackages,

@@ -727,6 +727,78 @@ async function testAttentionCenterFailsOpenOnNullSummary() {
   assert.ok(html.includes('Couldn'), 'degrades to couldn’t check');
 }
 
+async function testTransactionPreviewRendersAllSections() {
+  const { hooks } = loadMainJs({});
+  const html = hooks.buildTransactionPreviewHTML({
+    name: 'gimp', source: 'flatpak', source_label: 'Flatpak', version: '2.10.36',
+    sizes: { download: 1000000, installed: 5000000 },
+    deps: { direct: ['glib2', 'gtk3'], optional: [{ name: 'python', detail: 'scripting' }] },
+    permissions: [{ title: 'Home folder', detail: 'read/write', level: 'danger' }],
+    warnings: [
+      { level: 'info', title: 'Proprietary', detail: 'non-free license' },
+      { level: 'danger', title: 'Potentially unsafe permissions', detail: 'broad access' },
+    ],
+    notes: ['Permissions can be adjusted later.'],
+  });
+  assert.ok(html.includes('txp-title">gimp<'), 'name');
+  assert.ok(html.includes('Flatpak') && html.includes('v2.10.36'), 'source + version');
+  assert.ok(html.includes('1 MB') && html.includes('5 MB'), 'human sizes');
+  assert.ok(html.includes('glib2') && html.includes('gtk3'), 'direct deps');
+  assert.ok(html.includes('python') && html.includes('scripting'), 'optional dep + detail');
+  assert.ok(html.includes('Dependencies (2 required, 1 optional)'), 'dep accordion summary');
+  assert.ok(html.includes('Permissions (1)'), 'perms accordion');
+  assert.ok(html.includes('txp-perm-danger'), 'perm level class');
+  assert.ok(html.includes('Permissions can be adjusted later.'), 'note');
+  // danger warning sorts above info
+  assert.ok(html.indexOf('Potentially unsafe') < html.indexOf('Proprietary'), 'danger sorts first');
+}
+
+async function testTransactionPreviewHandlesMissingFields() {
+  const { hooks } = loadMainJs({});
+  // AUR-style payload: no sizes, no perms, no optional deps
+  const html = hooks.buildTransactionPreviewHTML({
+    name: 'yay', source_label: 'AUR', version: '12.0',
+    sizes: null, deps: { direct: ['go'], optional: [] }, permissions: null,
+    warnings: [], notes: ['Built from source.'],
+  });
+  assert.ok(html.includes('yay'), 'name');
+  assert.ok(!html.includes('txp-sizes'), 'no size row when sizes null');
+  assert.ok(!html.includes('Permissions ('), 'no perms accordion');
+  assert.ok(html.includes('Dependencies (1 required)'), 'no optional count when empty');
+  // empty object must not throw
+  assert.doesNotThrow(() => hooks.buildTransactionPreviewHTML({}));
+  assert.doesNotThrow(() => hooks.buildTransactionPreviewHTML(null));
+}
+
+async function testTransactionPreviewEscapesNames() {
+  const { hooks } = loadMainJs({});
+  const html = hooks.buildTransactionPreviewHTML({ name: '<img src=x>', deps: { direct: [], optional: [] } });
+  assert.ok(!html.includes('<img src=x>'), 'name is escaped');
+  assert.ok(html.includes('&lt;img'), 'escaped form present');
+}
+
+async function testShowInstallPreviewOpensModalThroughEnvelope() {
+  // Regression: pyApiCall unwraps {status,data}, so showInstallPreview must treat the result as the
+  // payload itself (not check .status) — otherwise the gate silently skips. (Bug found in GUI test.)
+  const { document, hooks } = loadMainJs({
+    get_install_preview: async () => ({ status: 'ok', data: { name: 'vim', source_label: 'Arch', deps: { direct: [], optional: [] } } }),
+  });
+  const pending = hooks.showInstallPreview('arch_repo:vim');
+  await flushPromises();
+  const modal = document.getElementById('tx-preview-modal');
+  assert.ok(!modal.classList.contains('hidden'), 'preview modal is shown');
+  assert.ok(document.getElementById('tx-preview-body').innerHTML.includes('vim'), 'payload rendered');
+  hooks.resolveTxPreview(false);
+  assert.strictEqual(await pending, false, 'cancel resolves false');
+  assert.ok(modal.classList.contains('hidden'), 'modal hidden after resolve');
+}
+
+async function testShowInstallPreviewProceedsWhenBridgeReturnsNothing() {
+  // Bridge error / not-injected → pyApiCall returns null → never block the user (proceed).
+  const { hooks } = loadMainJs({ get_install_preview: async () => ({ status: 'error', message: 'x' }) });
+  assert.strictEqual(await hooks.showInstallPreview('x:y'), true, 'proceeds on backend error');
+}
+
 (async () => {
   const tests = [
     testRenderCategoryPackagesStoresCurrentPackages,
@@ -748,6 +820,11 @@ async function testAttentionCenterFailsOpenOnNullSummary() {
     testStaleUtilityRenderDoesNotClobber,
     testRefreshCurrentViewRespectsUtilityViews,
     testAttentionCenterFailsOpenOnNullSummary,
+    testTransactionPreviewRendersAllSections,
+    testTransactionPreviewHandlesMissingFields,
+    testTransactionPreviewEscapesNames,
+    testShowInstallPreviewOpensModalThroughEnvelope,
+    testShowInstallPreviewProceedsWhenBridgeReturnsNothing,
   ];
   for (const test of tests) {
     await test();
