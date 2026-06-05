@@ -78,6 +78,15 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Fix: test polluting the real activity log (2026-06-05).** `test_import_packages_install_success`
+  exercised the real `import_packages` → `record_activity` without patching it, so every test run
+  appended a bogus `missing-pkg (Flatpak)` install row to the user's
+  `~/.cache/atlaspm/activity.jsonl` (226 had accumulated, flooding the new Activity page). Patched
+  `record_activity` in that test (+ asserted it's called with `('install','missing-pkg','Flatpak',True)`);
+  verified the log no longer grows across a full suite run. Cleaned the 226 junk rows from the local
+  log (backup kept), preserving the 110 real entries. **Gotcha for future tests:** any test that
+  drives an install/uninstall/update/downgrade/import/batch path must patch
+  `atlas.view.webview.api.record_activity` (the others already do).
 - **History / rollback center — increment 2: pacman-log links (2026-06-05).** Arch/AUR activity
   entries now carry a **"pacman log"** disclosure: first expand lazily fetches
   `AtlasApi.get_pacman_log(pkg_name)` and lists the matching `/var/log/pacman.log` lines (action

@@ -724,9 +724,10 @@ class AtlasApiExportImportTest(unittest.TestCase):
         self.assertEqual(res['data']['skipped'], 1)
         self.assertEqual(res['data']['failed'], [])
 
+    @patch('atlas.view.webview.api.record_activity')
     @patch('atlas.view.webview.api.WebviewWatcher')
     @patch('atlas.view.webview.api.read_manifest')
-    def test_import_packages_install_success(self, mock_read, mock_watcher_cls):
+    def test_import_packages_install_success(self, mock_read, mock_watcher_cls, mock_record):
         mock_read.return_value = [{'name': 'missing-pkg', 'type': 'Flatpak'}]
         
         # Installed packages (none matching 'missing-pkg')
@@ -761,6 +762,8 @@ class AtlasApiExportImportTest(unittest.TestCase):
         self.assertEqual(res['data']['skipped'], 0)
         self.assertEqual(res['data']['failed'], [])
         self.manager.install.assert_called_once_with(candidate, root_password=None, disk_loader=None, handler=mock_watcher_cls.return_value)
+        # activity must be recorded via the patched recorder (never the real on-disk log)
+        mock_record.assert_called_once_with('install', 'missing-pkg', 'Flatpak', True)
 
     @patch('atlas.view.webview.api.read_manifest')
     def test_import_packages_invalid_entries_skipped(self, mock_read):
