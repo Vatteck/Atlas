@@ -657,11 +657,28 @@ async function testSystemHealthChecks() {
   }));
   assert.strictEqual(c.db.tone, 'danger');             // >7d
   assert.strictEqual(c.lock.tone, 'danger');
+  assert.strictEqual(c.lock.actionId, 'remove-lock', 'locked → gated remove action');
+  assert.ok(c.lock.more, 'lock card has a details disclosure');
   assert.strictEqual(c.pacnew.tone, 'warn');
   assert.strictEqual(c.pacnew.actionId, 'pacnew-center');
   assert.strictEqual(c.orphans.tone, 'warn');
   assert.strictEqual(c.orphans.actionId, 'orphans');
   assert.strictEqual(c.flatpak.actionId, 'flatpak');
+
+  // keyring freshness: stale (>90d) warns, fresh is ok; both carry the refresh command in `more`
+  let k = byId(hooks.systemHealthChecks({ keyring: { age_days: 120 } }));
+  assert.strictEqual(k.keyring.tone, 'warn');
+  assert.ok(/pacman-key/.test(k.keyring.more), 'keyring details show the refresh command');
+  k = byId(hooks.systemHealthChecks({ keyring: { age_days: 5 } }));
+  assert.strictEqual(k.keyring.tone, 'ok');
+  // no keyring signal → no card
+  assert.ok(!byId(hooks.systemHealthChecks({ keyring: { age_days: null } })).keyring, 'no keyring card without data');
+
+  // AUR index: old (>14d) → info + refresh action; absent → no card
+  let a = byId(hooks.systemHealthChecks({ aur_index: { age_days: 30 } }));
+  assert.strictEqual(a['aur-index'].actionId, 'aur-index');
+  assert.strictEqual(a['aur-index'].tone, 'info');
+  assert.ok(!byId(hooks.systemHealthChecks({ aur_index: { age_days: null } }))['aur-index'], 'no aur-index card without data');
 
   // fail-open: null fields → info "couldn't check", page still has cards
   c = byId(hooks.systemHealthChecks({ db_sync: { age_hours: null }, pacnew: { count: null },

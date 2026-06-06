@@ -2780,6 +2780,14 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
 .health-card.tone-danger .health-status { color: var(--status-danger);  background: rgba(239, 68, 68, 0.15); }
 .health-card.tone-info   .health-status { color: var(--text-secondary); background: var(--bg-surface-hover); }
 .health-detail { font-size: 13px; color: var(--text-secondary); line-height: 1.5; flex: 1; }
+.health-more { font-size: 12px; margin-top: 2px; }
+.health-more > summary { cursor: pointer; color: var(--accent-color); list-style: none; }
+.health-more > summary::-webkit-details-marker { display: none; }
+.health-more > summary::before { content: '▸ '; color: var(--text-secondary); }
+.health-more[open] > summary::before { content: '▾ '; }
+.health-more-body { margin-top: 6px; padding: 8px 10px; border-radius: var(--radius-sm);
+    background: var(--bg-base); color: var(--text-secondary); line-height: 1.5;
+    font-family: ui-monospace, monospace; white-space: pre-wrap; word-break: break-word; }
 .health-action {
     align-self: flex-start;
     margin-top: 2px;

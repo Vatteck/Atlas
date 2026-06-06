@@ -84,8 +84,9 @@ first:
 - ~~**System Health page.**~~ ✅ **shipped 2026-06-04** — Health page with 8 checks (DB-sync age,
   mirrorlist, pacman lock, `.pacnew`, orphans, cache, unused runtimes, AUR chroot), each status +
   one safe action. See [plans/2026-06-04-system-health.md](plans/2026-06-04-system-health.md).
-  *Possible follow-ups:* keyring freshness, AUR-index age, a gated "remove stale lock" action, and a
-  per-check details disclosure.
+  **Follow-ups ✅ shipped 2026-06-05** (needs a GUI eyeball): keyring freshness + AUR-index-age checks,
+  a **gated** "remove stale lock" action (refuses while pacman is running), and a per-check details
+  disclosure. *(All "possible follow-ups" done.)*
 - ~~**`.pacnew` center.**~~ ✅ **shipped 2026-06-04** — reviewable sub-view with per-file risk badges,
   read-only diff, copy-path, open-pacdiff, regenerate-mirrorlist. No auto-merge. See
   [plans/2026-06-04-pacnew-center-mirror-polish.md](plans/2026-06-04-pacnew-center-mirror-polish.md).

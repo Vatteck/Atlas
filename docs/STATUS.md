@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-05 (Browse 2.0 polish — rich category cards + breadcrumbs + resume + skeletons; 536 tests + 39 JS green)
+**Last updated:** 2026-06-05 (System Health follow-ups — keyring + AUR-index checks, gated remove-lock, per-check details; 540 tests + 39 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -78,6 +78,22 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **System Health follow-ups (2026-06-05).** Extended the System Health page (the BACKLOG "possible
+  follow-ups" on the shipped Health page). **Two new checks** (cheap, concurrent, fail-open in
+  `get_system_health`): **keyring freshness** (`_keyring` — mtime of the `archlinux-keyring` local-db
+  entry → `age_days`; >90d warns, since a stale keyring is the classic "invalid/corrupted package (PGP
+  signature)" cause; the `more` disclosure shows the refresh command) and **AUR index age**
+  (`_aur_index` — mtime of `AUR_INDEX_FILE`; >14d → info + a Refresh action; card omitted when no index
+  exists). **Gated "Remove stale lock" action** — the pacman-lock card now offers `remove-lock` →
+  `AtlasApi.remove_pacman_lock()`, which **refuses while a pacman process is actually running**
+  (`pgrep -x pacman`) and otherwise removes `/var/lib/pacman/db.lck` via the root broker. New
+  `refresh_aur_index()` reuses the arch gem's `_update_aur_index` (non-privileged). **Per-check details
+  disclosure** — an optional `more` field renders an expandable "Details" block (commands / why it
+  matters). Tests: `SystemHealthTest` (+4: remove-lock no-lock / refuses-when-running / removes-when-idle,
+  refresh-aur-index) + `testSystemHealthChecks` (keyring tones + command, aur-index action, lock action +
+  more). Suite **540** + JS 39. **Needs a GUI eyeball** (keyring/AUR-index cards; expand Details; with a
+  stale `db.lck` present → Remove stale lock; Refresh index). Plan:
+  [plans/2026-06-04-system-health.md](plans/2026-06-04-system-health.md).
 - **Browse 2.0 polish (2026-06-05).** Frontend-heavy polish of the Browse landing + category pages
   (the BACKLOG "Browse 2.0" item). (1) **Richer category cards** — pure `buildCategoryCardHTML` adds
   an **icon + short description** (descriptions added as a 6th element of `CATEGORY_BUCKETS`, surfaced

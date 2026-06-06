@@ -1027,6 +1027,31 @@ class AtlasApi:
                 pass
             return out
 
+        def _keyring():
+            # archlinux-keyring freshness: a stale keyring causes "invalid/corrupted package (PGP
+            # signature)" errors. The local-db entry's mtime ≈ when it was last installed/updated.
+            try:
+                import glob as _glob
+                dirs = _glob.glob('/var/lib/pacman/local/archlinux-keyring-*')
+                if dirs:
+                    mtime = max(os.path.getmtime(d) for d in dirs)
+                    age = datetime.now(timezone.utc).timestamp() - mtime
+                    return {'age_days': round(age / 86400.0, 1)}
+            except Exception:
+                pass
+            return {'age_days': None}
+
+        def _aur_index():
+            # Age of the cached AUR package-name index (used for dependency resolution).
+            try:
+                from atlas.gems.arch import AUR_INDEX_FILE
+                if os.path.exists(AUR_INDEX_FILE):
+                    age = datetime.now(timezone.utc).timestamp() - os.path.getmtime(AUR_INDEX_FILE)
+                    return {'age_days': round(age / 86400.0, 1)}
+            except Exception:
+                pass
+            return {'age_days': None}
+
         def _chroot():
             out = {'enabled': False, 'available': False}
             arch_man = self._manager_by_gem('arch')
@@ -1044,7 +1069,8 @@ class AtlasApi:
 
         try:
             jobs = {'db_sync': _db_sync, 'mirrors': _mirrors, 'lock': _lock,
-                    'pacnew': _pacnew, 'reclaim': _reclaim, 'chroot': _chroot}
+                    'pacnew': _pacnew, 'reclaim': _reclaim, 'chroot': _chroot,
+                    'keyring': _keyring, 'aur_index': _aur_index}
             futures = {k: self._executor.submit(fn) for k, fn in jobs.items()}
             data = {}
             for k, fut in futures.items():
@@ -1060,6 +1086,48 @@ class AtlasApi:
             return {'status': 'ok', 'data': data}
         except Exception as e:
             self.logger.error(f"get_system_health failed: {e}")
+            return {'status': 'error', 'message': str(e)}
+
+    def remove_pacman_lock(self) -> dict:
+        """Remove a stale pacman db lock (`/var/lib/pacman/db.lck`). **Gated:** refuses while a
+        pacman process is actually running (the lock is legitimate then). Needs root."""
+        lock = '/var/lib/pacman/db.lck'
+        try:
+            if not os.path.exists(lock):
+                return {'status': 'ok', 'removed': False}
+            # The lock is legitimate while pacman is actually running — never remove it then.
+            try:
+                running = run_cmd('pgrep -x pacman', print_error=False)
+            except Exception:
+                running = None
+            if running and running.strip():
+                return {'status': 'error',
+                        'message': 'A package operation is running (pacman is active) — do not remove the lock.'}
+            pwd = self.ensure_root_password()
+            if pwd is None:
+                return {'status': 'cancelled'}
+            proc = new_root_subprocess(['rm', '-f', lock], root_password=pwd)
+            _, err = proc.communicate()
+            if proc.returncode != 0:
+                msg = (err or b'').decode(errors='replace').strip() or 'failed to remove the lock'
+                self.logger.error(f"remove_pacman_lock: {msg}")
+                return {'status': 'error', 'message': msg}
+            self._notify('Removed the stale pacman lock')
+            return {'status': 'ok', 'removed': True}
+        except Exception as e:
+            self.logger.error(f"remove_pacman_lock failed: {e}")
+            return {'status': 'error', 'message': str(e)}
+
+    def refresh_aur_index(self) -> dict:
+        """Re-download the AUR package-name index (used for dependency resolution). Non-privileged."""
+        try:
+            arch_man = self._manager_by_gem('arch')
+            if arch_man is None or not hasattr(arch_man, '_update_aur_index'):
+                return {'status': 'error', 'message': 'AUR support is not available.'}
+            arch_man._update_aur_index(None)
+            return {'status': 'ok'}
+        except Exception as e:
+            self.logger.error(f"refresh_aur_index failed: {e}")
             return {'status': 'error', 'message': str(e)}
 
     def _dashboard_user(self) -> Optional[str]:

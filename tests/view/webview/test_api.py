@@ -2119,7 +2119,37 @@ class SystemHealthTest(unittest.TestCase):
             res = self.api.get_system_health()
         self.assertTrue(res['data']['chroot']['enabled'])
 
+    def test_remove_pacman_lock_no_lock(self):
+        with patch('os.path.exists', return_value=False):
+            res = self.api.remove_pacman_lock()
+        self.assertEqual('ok', res['status'])
+        self.assertFalse(res['removed'])
 
+    def test_remove_pacman_lock_refuses_when_pacman_running(self):
+        with patch('os.path.exists', return_value=True), \
+             patch('atlas.view.webview.api.run_cmd', return_value='12345\n'):
+            res = self.api.remove_pacman_lock()
+        self.assertEqual('error', res['status'])
+        self.assertIn('running', res['message'].lower())
+
+    def test_remove_pacman_lock_removes_when_idle(self):
+        proc = Mock(); proc.communicate.return_value = (b'', b''); proc.returncode = 0
+        with patch('os.path.exists', return_value=True), \
+             patch('atlas.view.webview.api.run_cmd', return_value=''), \
+             patch.object(self.api, 'ensure_root_password', return_value='pw'), \
+             patch.object(self.api, '_notify'), \
+             patch('atlas.view.webview.api.new_root_subprocess', return_value=proc) as nrs:
+            res = self.api.remove_pacman_lock()
+        self.assertEqual('ok', res['status'])
+        self.assertTrue(res['removed'])
+        nrs.assert_called_once()
+
+    def test_refresh_aur_index_calls_gem(self):
+        arch = Mock(); arch.__module__ = 'atlas.gems.arch.controller'
+        self.manager.managers = [arch]
+        res = self.api.refresh_aur_index()
+        self.assertEqual('ok', res['status'])
+        arch._update_aur_index.assert_called_once()
 
 
 class PacnewMirrorTest(unittest.TestCase):

@@ -3413,9 +3413,34 @@ function systemHealthChecks(data) {
     const locked = d.lock ? d.lock.locked : null;
     checks.push(locked
         ? { id: 'lock', icon: '🔒', title: 'Pacman lock', tone: 'danger',
-            detail: 'A database lock (/var/lib/pacman/db.lck) is present — a package operation may be running, or a previous one was interrupted. If nothing is running, remove the lock file manually.' }
+            detail: 'A database lock (/var/lib/pacman/db.lck) is present — a package operation may be running, or a previous one was interrupted.',
+            actionLabel: 'Remove stale lock', actionId: 'remove-lock',
+            more: 'Atlas refuses to remove it while a pacman process is actually running, so this is safe when nothing is in progress.' }
         : { id: 'lock', icon: '🔒', title: 'Pacman lock', tone: 'ok',
             detail: 'No stale database lock.' });
+
+    // Keyring freshness — a stale archlinux-keyring is the classic cause of PGP signature errors.
+    const kd = d.keyring ? d.keyring.age_days : null;
+    if (kd != null) {
+        const stale = kd > 90;
+        checks.push({ id: 'keyring', icon: '🔑', title: 'Keyring freshness', tone: stale ? 'warn' : 'ok',
+            detail: stale
+                ? `archlinux-keyring was last updated ${Math.round(kd)} days ago. A stale keyring causes “invalid or corrupted package (PGP signature)” errors — refresh it before a big upgrade.`
+                : `archlinux-keyring updated ${Math.round(kd)} days ago.`,
+            more: 'Refresh with: sudo pacman -Sy archlinux-keyring && sudo pacman-key --populate archlinux' });
+    }
+
+    // AUR index age — only shown when an index exists (AUR users); drives dependency resolution.
+    const ai = d.aur_index ? d.aur_index.age_days : null;
+    if (ai != null) {
+        const old = ai > 14;
+        checks.push({ id: 'aur-index', icon: '📇', title: 'AUR index', tone: old ? 'info' : 'ok',
+            detail: old
+                ? `The AUR package index is ${Math.round(ai)} days old. Refresh it so dependency resolution sees recently-added packages.`
+                : `AUR package index refreshed ${Math.round(ai)} days ago.`,
+            actionLabel: 'Refresh index', actionId: 'aur-index',
+            more: 'Atlas downloads aur.archlinux.org/packages.gz and caches the package names locally.' });
+    }
 
     const pn = d.pacnew ? d.pacnew.count : null;
     if (pn == null) checks.push({ id: 'pacnew', icon: '📝', title: 'Config files (.pacnew)', tone: 'info',
@@ -3475,7 +3500,30 @@ function runHealthAction(actionId, btn) {
         case 'cache':
         case 'flatpak':
         case 'orphans': handleMaintenanceAction(actionId, renderSystemHealth); break;
+        case 'remove-lock': removePacmanLock(btn); break;
+        case 'aur-index': refreshAurIndex(btn); break;
     }
+}
+
+// Remove a stale pacman db lock (backend refuses while pacman is actually running).
+async function removePacmanLock(btn) {
+    if (btn) btn.classList.add('loading');
+    const r = await pyApiCall('remove_pacman_lock');  // null on error (toast already shown)
+    if (btn) btn.classList.remove('loading');
+    if (!r || r.status === 'cancelled') return;
+    showToast('Pacman lock', r.removed ? 'Removed the stale lock' : 'No lock to remove', 'success');
+    renderSystemHealth();
+}
+
+// Re-download the AUR package-name index (can take a few seconds).
+async function refreshAurIndex(btn) {
+    if (btn) btn.classList.add('loading');
+    showToast('AUR index', 'Refreshing the AUR package index…', 'info');
+    const r = await pyApiCall('refresh_aur_index');  // null on error (toast already shown)
+    if (btn) btn.classList.remove('loading');
+    if (!r) return;
+    showToast('AUR index', 'AUR package index refreshed', 'success');
+    renderSystemHealth();
 }
 
 async function renderSystemHealth() {
@@ -3498,6 +3546,7 @@ async function renderSystemHealth() {
                 <span class="health-status">${escapeHtml(healthStatusLabel(c.tone))}</span>
             </div>
             <div class="health-detail">${escapeHtml(c.detail)}</div>
+            ${c.more ? `<details class="health-more"><summary>Details</summary><div class="health-more-body">${escapeHtml(c.more)}</div></details>` : ''}
             ${c.actionLabel && c.actionId
                 ? `<button class="health-action" data-health-action="${escapeHtml(c.actionId)}">${escapeHtml(c.actionLabel)}</button>`
                 : ''}
