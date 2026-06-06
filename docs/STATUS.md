@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-06 (security/webview loading pass follow-ups — centralized external URL hardening + shared Updates-view fetch; 545 tests + 43 JS green)
+**Last updated:** 2026-06-06 (deferred-tail: flatpak-override copy on the Permissions page completes "Copy exact command" + History log clear/export; 559 tests + 44 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -78,6 +78,37 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Fix: Permissions-page icons stuck on letter avatars (2026-06-06).** The Permissions master list
+  rendered every app as a letter avatar. Root cause: `renderPermsAppList` observed its lazy icons only
+  `if (window.iconObserver)`, but that shared IntersectionObserver is created inside `deferredIconLoad()`,
+  which only runs when a **package grid** renders. Since the app lands on the **dashboard** (Attention
+  Center, no grid — a 2026-06-04 change), opening Permissions first left the observer undefined → the
+  guard silently skipped → icons never resolved (their remote Flathub-CDN `data-src` was never probed).
+  Fix: extracted observer creation into `ensureIconObserver()` (idempotent, on `window`), called by both
+  `deferredIconLoad` and the perms list; the perms list now also sets `data-pkgicon` as a backend
+  fallback for apps with no embedded/remote icon. Test:
+  `main_js_contracts::testPermsListEnsuresIconObserver`. JS **45**. **GUI eyeball pending** (open
+  Permissions straight from the dashboard → real icons, not letters).
+- **Deferred-tail: flatpak-override copy + History log clear/export (2026-06-06).** Cleared the two
+  explicitly-deferred small items. **(1) `flatpak override` copy completes "Copy exact command"** —
+  every Flatpak permission *edit* now surfaces the exact `flatpak override --user <flag> <app_id>` it
+  ran (copyable — click the toast; "nothing hidden from CLI users"). New pure
+  `permissions.override_command(app_id, flag)` (shlex-quoted); the four `AtlasApi.set_flatpak_*`
+  methods (toggle/filesystem/bus/env) return `{'status':'ok','command':…}` computed from the same pure
+  `*_flag` helpers the gem applies (so it's exactly what ran); failure → error, no command. Frontend:
+  `showToast` gained an optional `copyText` (click-to-copy + hint); shared `permissionUpdatedToast(r)`
+  shows `Updated · <command>` (copyable) or the old generic toast, wired into all four edit paths +
+  the detail-modal quick-editor popup. **(2) History log clear/export** — the Activity page filter bar
+  gained **Export** (`export_activity` → `~/atlas-activity.json`, toasts count+path) and **Clear**
+  (`clear_activity` → removes the local JSONL via `clear_activity_log()`, thread-safe/idempotent; the
+  button **confirms inline** — one re-click within 3s, `btn-danger` — no WebKitGTK `confirm`; clears
+  Atlas's feed only, never `/var/log/pacman.log`). Tests: `test_permissions.py::test_override_command`,
+  `test_api.py::FlatpakOverrideCommandTest` (5) + `ActivityLogTest` (4), `test_activity_log.py` (4),
+  `main_js_contracts::testPermissionUpdatedToastSurfacesCopyableCommand`. Suite **559** + JS **44**;
+  `git diff --check` clean. **Needs a GUI eyeball** (toggle a Flatpak permission → copyable override
+  command; Activity → Export writes the file; Clear → re-click confirms → list empties). Plans:
+  [plans/2026-06-05-copy-exact-command.md](plans/2026-06-05-copy-exact-command.md) (inc. 3),
+  [plans/2026-06-05-history-rollback-center.md](plans/2026-06-05-history-rollback-center.md) (inc. 3).
 - **Security + webview loading pass (2026-06-06).** Focused hardening/optimization pass for the
   pywebview surface. **Security:** `atlas.commons.html.bold()` and `link()` now HTML-escape text,
   href attributes, and visible URL text before those helper strings flow into webview-rendered

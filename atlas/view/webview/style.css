@@ -768,6 +768,16 @@ body {
 .toast-message {
     font-size: 13px;
     color: var(--text-secondary);
+    word-break: break-word;
+}
+
+/* A toast carrying a copyable command (e.g. a flatpak override): click anywhere to copy. */
+.toast-copyable { cursor: pointer; }
+.toast-copyable .toast-message { font-family: var(--font-mono, monospace); }
+.toast-copy-hint {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--accent-color);
 }
 
 @keyframes toastIn {

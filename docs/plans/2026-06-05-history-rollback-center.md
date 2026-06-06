@@ -64,10 +64,27 @@ non-Arch → empty, never blocks). Flatpak entries don't get the disclosure (pac
 them). Tests: `test_api.py::ParsePacmanLogTest` (3) + JS assertions on `activityHasPacmanLog` /
 `renderPacmanLogLine`.
 
+## Increment 3 (shipped 2026-06-06) — log management (clear + export)
+
+The History page's filter bar gained **Export** and **Clear** buttons.
+- **Export** → `AtlasApi.export_activity()` writes the full log (newest first) to
+  `~/atlas-activity.json` (`{exported, version, count, activity}`, mirroring the package-manifest
+  export) and toasts `<count> entries → <path>`.
+- **Clear** → `AtlasApi.clear_activity()` removes the local JSONL (`clear_activity_log()`, thread-safe,
+  idempotent — a missing file is already-cleared). Destructive, so the button **confirms inline**
+  (one re-click within 3s, styled `btn-danger`) rather than firing immediately or using a modal — no
+  WebKitGTK `confirm`. On success the cached entries are emptied, filters reset, and the page
+  re-renders to the empty state. **Only Atlas's own feed — never touches `/var/log/pacman.log`.**
+- New `activity_log.clear_activity_log()` / `export_activity_log(path)`. Tests:
+  `test_activity_log.py` (clear removes/idempotent; export writes-all newest-first / empty),
+  `test_api.py::ActivityLogTest` (clear ok/error, export path+count, export failure).
+
+**Needs a GUI eyeball** (Export → file written + toast; Clear → re-click confirms → list empties).
+
 ## Deferred to later increments
 
 - **Per-package History tab on the page** (the detail modal already covers version history).
-- **Log management** — clear / export the activity log; cap its size.
+- **Cap the log size** (export/clear shipped; an automatic size cap is still open).
 
 ## Verification
 

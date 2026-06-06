@@ -6,6 +6,7 @@ ADVISORY ONLY. This describes the permissions an app *declares*, not what it act
 "Potentially unsafe" means "has broad access worth understanding before installing", NOT "is
 malware". A clean result does not mean an app is trustworthy. Never present it as a safety verdict.
 """
+import shlex
 from typing import Dict, List, Optional
 
 SAFE, WARN, DANGER = 'safe', 'warn', 'danger'
@@ -231,6 +232,16 @@ def override_flag(key: str, enabled: bool) -> Optional[str]:
     if not spec or not value:
         return None
     return (spec[1] if enabled else spec[2]) + value
+
+
+def override_command(app_id: str, flag: Optional[str]) -> str:
+    """The full `flatpak override --user <flag> <app_id>` for a resolved flag, shlex-quoted so a CLI
+    user can copy it verbatim ("nothing hidden"). '' when there's no flag (unknown toggle) or no app
+    id — the frontend then shows nothing to copy."""
+    app_id = (app_id or '').strip()
+    if not flag or not app_id:
+        return ''
+    return f'flatpak override --user {shlex.quote(flag)} {shlex.quote(app_id)}'
 
 
 # --- filesystem section (predefined dirs + custom paths, with access modes) ------------------

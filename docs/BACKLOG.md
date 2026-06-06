@@ -76,9 +76,12 @@ first:
   PGP-keyring / download-404 / conflict / dependency / build). Raw log stays. *(A discrete step
   timeline was dropped — gems don't emit clean phase events.)*
   See [plans/2026-06-05-transaction-timeline.md](plans/2026-06-05-transaction-timeline.md).
-- **History / rollback center.** Wrap the existing downgrade in a real History/Activity page:
-  timeline of installs/updates/removals, filter by package/source/action, a per-package History tab,
-  "downgrade available" / "reinstall previous version" affordances, pacman-log links.
+- 🟡 **History / rollback center** — **increments 1–3 SHIPPED** (needs a GUI eyeball): a real
+  History/Activity page with filters (action/source/name), date grouping, Downgrade/Reinstall
+  rollback affordances, pacman-log links (inc. 1–2, 2026-06-05), and **log clear + export** (inc. 3,
+  2026-06-06). *Remaining:* a per-package History tab on the page (the detail modal already shows
+  version history) + an automatic log-size cap. See
+  [plans/2026-06-05-history-rollback-center.md](plans/2026-06-05-history-rollback-center.md).
 
 ### Arch utility cockpit (package-maintenance health only — *not* a YaST)
 - ~~**System Health page.**~~ ✅ **shipped 2026-06-04** — Health page with 8 checks (DB-sync age,
@@ -126,11 +129,11 @@ first:
   **`.install` scriptlet tab**, a **copy** button, and a **"changed since your build" diff tab** (for
   installed AUR pkgs whose built commit we cached). See
   [plans/2026-06-05-pkgbuild-viewer.md](plans/2026-06-05-pkgbuild-viewer.md).
-- 🟡 **Copy exact command** — **increments 1+2 SHIPPED 2026-06-05** (needs a GUI eyeball): a "Copy
-  command" button copies the equivalent pacman/makepkg/flatpak command in the **transaction preview**
-  *and* the **detail page**, plus a **reflector** copy button in Settings → Mirrors. *Remaining:*
-  `flatpak override` copy on the Permissions page (per-edit command; lower value). See
-  [plans/2026-06-05-copy-exact-command.md](plans/2026-06-05-copy-exact-command.md).
+- ~~**Copy exact command**~~ ✅ **COMPLETE 2026-06-06** (needs a GUI eyeball): a "Copy command" button
+  copies the equivalent pacman/makepkg/flatpak command in the **transaction preview** *and* the
+  **detail page**, a **reflector** copy in Settings → Mirrors, and — final increment — every Flatpak
+  permission edit on the **Permissions page** surfaces the exact `flatpak override --user …` it ran
+  (copyable toast). See [plans/2026-06-05-copy-exact-command.md](plans/2026-06-05-copy-exact-command.md).
 
 ---
 

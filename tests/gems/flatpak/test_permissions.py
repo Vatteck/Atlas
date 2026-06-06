@@ -129,6 +129,18 @@ class EditableTogglesTest(unittest.TestCase):
         self.assertIsNone(perms.override_flag('bogus', True))
         self.assertIsNone(perms.override_flag('socket:', True))  # empty value
 
+    def test_override_command(self):
+        # The copyable CLI equivalent of a single override edit (shlex-quoted).
+        self.assertEqual('flatpak override --user --share=network org.x.App',
+                         perms.override_command('org.x.App', '--share=network'))
+        # A flag with a space (e.g. an env value) is quoted as one token.
+        self.assertEqual("flatpak override --user '--env=FOO=a b' org.x.App",
+                         perms.override_command('org.x.App', '--env=FOO=a b'))
+        # No flag (unknown toggle) or no app id → nothing to copy.
+        self.assertEqual('', perms.override_command('org.x.App', None))
+        self.assertEqual('', perms.override_command('org.x.App', ''))
+        self.assertEqual('', perms.override_command('', '--share=network'))
+
 
 class GroupedTogglesTest(unittest.TestCase):
     def test_groups_and_flag_labels(self):

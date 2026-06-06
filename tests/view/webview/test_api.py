@@ -244,6 +244,72 @@ class CommandTest(unittest.TestCase):
         self.assertEqual('error', self.api.get_command('nope:nope')['status'])
 
 
+class FlatpakOverrideCommandTest(unittest.TestCase):
+    """The set_flatpak_* permission methods return the exact `flatpak override` they ran (copyable
+    in the toast — "nothing hidden from CLI users")."""
+
+    def setUp(self):
+        self.api = AtlasApi(Mock(), Mock())
+        self.pkg = Mock(); self.pkg.id = 'org.x.App'
+        self.man = Mock()
+        self.man.set_permission.return_value = True
+        self.man.set_filesystem_permission.return_value = True
+        self.man.set_bus_permission.return_value = True
+        self.man.set_env_permission.return_value = True
+        self.api._flatpak_pkg_and_manager = Mock(return_value=(self.pkg, self.man))
+
+    def test_toggle_returns_command(self):
+        r = self.api.set_flatpak_override('flatpak:App', 'share:network', True)
+        self.assertEqual('ok', r['status'])
+        self.assertEqual('flatpak override --user --share=network org.x.App', r['command'])
+
+    def test_filesystem_returns_command(self):
+        r = self.api.set_flatpak_filesystem('flatpak:App', 'home', True, 'ro')
+        self.assertEqual('flatpak override --user --filesystem=home:ro org.x.App', r['command'])
+
+    def test_bus_returns_command(self):
+        r = self.api.set_flatpak_bus('flatpak:App', 'session', 'org.foo', 'talk', True)
+        self.assertEqual('flatpak override --user --talk-name=org.foo org.x.App', r['command'])
+
+    def test_env_returns_command(self):
+        r = self.api.set_flatpak_env('flatpak:App', 'GTK_THEME', 'Adwaita', True)
+        self.assertEqual('flatpak override --user --env=GTK_THEME=Adwaita org.x.App', r['command'])
+
+    def test_failure_has_no_command(self):
+        self.man.set_permission.return_value = False
+        r = self.api.set_flatpak_override('flatpak:App', 'share:network', True)
+        self.assertEqual('error', r['status'])
+        self.assertNotIn('command', r)
+
+
+class ActivityLogTest(unittest.TestCase):
+    """clear_activity / export_activity wrappers over the activity log."""
+
+    def setUp(self):
+        self.api = AtlasApi(Mock(), Mock())
+
+    @patch('atlas.view.webview.api.clear_activity_log', return_value=True)
+    def test_clear_ok(self, mock_clear):
+        self.assertEqual('ok', self.api.clear_activity()['status'])
+        mock_clear.assert_called_once()
+
+    @patch('atlas.view.webview.api.clear_activity_log', return_value=False)
+    def test_clear_failure_is_error(self, mock_clear):
+        self.assertEqual('error', self.api.clear_activity()['status'])
+
+    @patch('atlas.view.webview.api.get_activity_log', return_value=[{'a': 1}, {'b': 2}])
+    @patch('atlas.view.webview.api.export_activity_log', return_value='/home/u/atlas-activity.json')
+    def test_export_returns_path_and_count(self, mock_export, mock_get):
+        r = self.api.export_activity()
+        self.assertEqual('ok', r['status'])
+        self.assertEqual('/home/u/atlas-activity.json', r['data']['path'])
+        self.assertEqual(2, r['data']['count'])
+
+    @patch('atlas.view.webview.api.export_activity_log', side_effect=OSError('disk full'))
+    def test_export_failure_is_error(self, mock_export):
+        self.assertEqual('error', self.api.export_activity()['status'])
+
+
 class SerializeSortFieldsTest(unittest.TestCase):
     """The Sort dropdown's 'recently updated' mode needs last_modified serialized."""
 

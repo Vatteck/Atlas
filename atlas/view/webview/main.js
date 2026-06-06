@@ -68,10 +68,10 @@ function openExternalUrl(url) {
 // Toast Notifications
 const toastContainer = document.getElementById('toast-container');
 
-function showToast(title, message, type = 'info') {
+function showToast(title, message, type = 'info', copyText = null) {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    
+
     let iconSvg = '';
     if (type === 'success') {
         iconSvg = `<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
@@ -81,13 +81,27 @@ function showToast(title, message, type = 'info') {
         iconSvg = `<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`;
     }
 
+    // An optional copyable command (e.g. the exact `flatpak override` a permission toggle ran):
+    // nothing is hidden from CLI users — click the toast to copy it.
+    const copyHint = copyText ? `<div class="toast-copy-hint">⧉ Click to copy command</div>` : '';
     toast.innerHTML = `
         ${iconSvg}
         <div class="toast-content">
             <div class="toast-title">${escapeHtml(title)}</div>
             <div class="toast-message">${escapeHtml(message)}</div>
+            ${copyHint}
         </div>
     `;
+    if (copyText) {
+        toast.classList.add('toast-copyable');
+        toast.title = 'Click to copy command';
+        toast.addEventListener('click', () => {
+            const done = () => showToast('Copied command', copyText, 'success');
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(copyText).then(done).catch(() => {});
+            } else { done(); }
+        });
+    }
 
     toastContainer.appendChild(toast);
 
@@ -1724,7 +1738,11 @@ function appendPackageCards(container, groups) {
 
 // Silently probe remote icon URLs and upgrade from placeholder on success.
 // Uses JS Image() objects which do NOT log 404 errors to console on failure.
-function deferredIconLoad() {
+// Create the shared lazy-icon IntersectionObserver if it doesn't exist yet, and return it. Lives on
+// `window` so every lazy-icon consumer (the package grid *and* the Permissions list) shares one — and
+// so a consumer that renders before any grid (e.g. navigating straight to Permissions from the
+// dashboard, which has no grid) still gets a working observer instead of silently skipping.
+function ensureIconObserver() {
     if (!window.iconObserver) {
         window.iconObserver = new IntersectionObserver((entries, observer) => {
             entries.forEach(entry => {
@@ -1754,10 +1772,14 @@ function deferredIconLoad() {
             });
         }, { rootMargin: '200px' }); // probe slightly before scrolling into view
     }
+    return window.iconObserver;
+}
 
+function deferredIconLoad() {
+    const observer = ensureIconObserver();
     const imgs = packagesGrid.querySelectorAll('img.package-icon[data-src], img.package-icon[data-pkgicon]');
     imgs.forEach(img => {
-        window.iconObserver.observe(img);
+        observer.observe(img);
     });
 }
 
@@ -2131,6 +2153,13 @@ const SKIP_DETAIL_KEYS = new Set(['id', 'name', 'version', 'description', 'depen
 
 // Package Detail Modal View
 // --- Permissions page (Flatseal-style, master/detail) ----------------------
+// A successful permission edit surfaces the exact `flatpak override --user …` command it ran
+// (click the toast to copy) — Atlas's "nothing hidden from CLI users" angle.
+function permissionUpdatedToast(r) {
+    const cmd = r && r.command;
+    showToast('Permissions', cmd ? `Updated · ${cmd}` : 'Updated — effective next launch', 'success', cmd || null);
+}
+
 let permsPageApps = [];
 let permsPageSelected = null;
 let permsActiveTab = null;   // which category tab is open in the detail panel (persists across re-renders)
@@ -2163,17 +2192,24 @@ async function renderPermissionsPage() {
 
 function renderPermsAppList() {
     const el = document.getElementById('perms-applist');
-    el.innerHTML = permsPageApps.map(a => `
+    el.innerHTML = permsPageApps.map(a => {
+        const hasData = a.icon_url && a.icon_url.startsWith('data:');
+        // These are all installed Flatpaks; if there's no embedded/remote icon, let the backend
+        // resolve one from the system (.desktop / icon theme) lazily via data-pkgicon.
+        const pkgIconAttr = (!hasData && !getIconDataSrc(a.icon_url)) ? ` data-pkgicon="${escapeHtml(a.id)}"` : '';
+        return `
         <button class="perms-app ${a.id === permsPageSelected ? 'active' : ''}" data-app-id="${escapeHtml(a.id)}">
-            <img class="perms-app-icon" src="${(a.icon_url && a.icon_url.startsWith('data:')) ? a.icon_url : letterAvatar(a)}" data-src="${escapeHtml(getIconDataSrc(a.icon_url))}" alt="" loading="lazy">
+            <img class="perms-app-icon" src="${hasData ? a.icon_url : letterAvatar(a)}" data-src="${escapeHtml(getIconDataSrc(a.icon_url))}"${pkgIconAttr} alt="" loading="lazy">
             <span class="perms-app-name">${escapeHtml(a.name)}</span>
-        </button>`).join('');
+        </button>`;
+    }).join('');
     el.querySelectorAll('.perms-app').forEach(b => b.addEventListener('click', () => {
         permsPageSelected = b.getAttribute('data-app-id');
         renderPermsAppList();
         renderPermsDetail(permsPageSelected);
     }));
-    if (window.iconObserver) el.querySelectorAll('img.perms-app-icon[data-src]').forEach(i => window.iconObserver.observe(i));
+    const observer = ensureIconObserver();
+    el.querySelectorAll('img.perms-app-icon[data-src], img.perms-app-icon[data-pkgicon]').forEach(i => observer.observe(i));
 }
 
 async function renderPermsDetail(appId) {
@@ -2230,7 +2266,7 @@ async function renderPermsDetail(appId) {
     }));
     el.querySelectorAll('input[data-perm-key]').forEach(cb => cb.addEventListener('change', async () => {
         const r = await pyApiCall('set_flatpak_override', appId, cb.getAttribute('data-perm-key'), cb.checked);
-        if (r && r.status === 'ok') showToast('Permissions', 'Updated — effective next launch', 'success');
+        if (r && r.status === 'ok') permissionUpdatedToast(r);
         else cb.checked = !cb.checked;
     }));
     wireFilesystemHandlers(el, appId);
@@ -2286,7 +2322,7 @@ function wireFilesystemHandlers(el, appId) {
     const apply = async (name, enabled, mode, rerender) => {
         const r = await pyApiCall('set_flatpak_filesystem', appId, name, enabled, mode || 'rw');
         if (r && r.status === 'ok') {
-            showToast('Permissions', 'Updated — effective next launch', 'success');
+            permissionUpdatedToast(r);
             if (rerender) renderPermsDetail(appId);
             return true;
         }
@@ -2372,7 +2408,7 @@ function environmentSectionHtml(env) {
 
 function wireBusEnvHandlers(el, appId) {
     const done = (r) => {
-        if (r && r.status === 'ok') { showToast('Permissions', 'Updated — effective next launch', 'success'); renderPermsDetail(appId); return true; }
+        if (r && r.status === 'ok') { permissionUpdatedToast(r); renderPermsDetail(appId); return true; }
         return false;
     };
     el.querySelectorAll('button[data-bus-remove]').forEach(btn => btn.addEventListener('click', async () => {
@@ -2434,7 +2470,7 @@ async function openPermissionsEditor(pkg) {
         cb.addEventListener('change', async () => {
             const r = await pyApiCall('set_flatpak_override', pkg.id, cb.getAttribute('data-perm-key'), cb.checked);
             if (r && r.status === 'ok') {
-                showToast('Permissions', 'Updated — effective next launch', 'success');
+                permissionUpdatedToast(r);
             } else {
                 cb.checked = !cb.checked;  // revert (pyApiCall already surfaced the error)
             }
@@ -3832,6 +3868,8 @@ function renderActivityView() {
         <div class="activity-filter-right">
             <select class="activity-type-select" aria-label="Filter by source">${typeOpts}</select>
             <input class="activity-search" type="search" placeholder="Filter by name…" value="${escapeHtml(activityFilter.query)}" aria-label="Filter activity by package name">
+            <button class="btn btn-outline btn-sm activity-export-btn" title="Export the activity log to a JSON file">Export</button>
+            <button class="btn btn-outline btn-sm activity-clear-btn" title="Clear the activity log">Clear</button>
         </div>`;
     container.appendChild(bar);
 
@@ -3872,6 +3910,33 @@ function renderActivityView() {
         // restore focus + caret after the re-render replaces the input
         const s = packagesGrid.querySelector('.activity-search');
         if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
+    });
+
+    // Export: write the log to ~/atlas-activity.json and tell the user where it landed.
+    bar.querySelector('.activity-export-btn').addEventListener('click', async () => {
+        const r = await pyApiCall('export_activity');
+        if (r && r.path) showToast('Activity exported', `${r.count} entries → ${r.path}`, 'success');
+    });
+
+    // Clear: destructive, so confirm inline (one re-click within 3s) rather than fire immediately.
+    const clearBtn = bar.querySelector('.activity-clear-btn');
+    clearBtn.addEventListener('click', async () => {
+        if (clearBtn.dataset.armed !== '1') {
+            clearBtn.dataset.armed = '1';
+            clearBtn.textContent = 'Click to confirm';
+            clearBtn.classList.add('btn-danger');
+            setTimeout(() => {
+                if (clearBtn.isConnected) { clearBtn.dataset.armed = ''; clearBtn.textContent = 'Clear'; clearBtn.classList.remove('btn-danger'); }
+            }, 3000);
+            return;
+        }
+        const r = await pyApiCall('clear_activity');
+        if (r && r.status === 'ok') {
+            activityEntries = [];
+            activityFilter = { action: 'all', type: 'all', query: '' };
+            showToast('Activity cleared', 'The activity log is now empty.', 'success');
+            renderActivityFeed();
+        }
     });
 }
 
@@ -5621,6 +5686,10 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         activityHasPacmanLog,
         renderPacmanLogLine,
         cleanActivityError,
+        permissionUpdatedToast,
+        ensureIconObserver,
+        renderPermsAppList,
+        setPermsPageApps: (apps) => { permsPageApps = apps; },
         showInstallPreview,
         showTransactionPreview,
         resolveTxPreview,

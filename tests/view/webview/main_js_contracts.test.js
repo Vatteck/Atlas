@@ -1297,6 +1297,41 @@ async function testShowTransactionPreviewUsesActionCopy() {
   assert.strictEqual(await pending, true, 'proceed resolves true');
 }
 
+function testPermissionUpdatedToastSurfacesCopyableCommand() {
+  // A permission edit that ran a flatpak override surfaces it as a copyable toast (nothing hidden).
+  const { document, hooks } = loadMainJs();
+  hooks.permissionUpdatedToast({ status: 'ok', command: 'flatpak override --user --share=network org.x.App' });
+  const toasts = document.getElementById('toast-container').children;
+  assert.strictEqual(toasts.length, 1, 'one toast shown');
+  const toast = toasts[0];
+  assert.ok(toast.classList.contains('toast-copyable'), 'toast is copyable');
+  assert.ok(toast.innerHTML.includes('flatpak override --user --share=network org.x.App'), 'shows the exact command');
+  assert.ok(toast.innerHTML.includes('toast-copy-hint'), 'shows the click-to-copy hint');
+
+  // No command (a no-op / non-override result) → an ordinary, non-copyable toast.
+  hooks.permissionUpdatedToast({ status: 'ok' });
+  const plain = document.getElementById('toast-container').children[1];
+  assert.ok(!plain.classList.contains('toast-copyable'), 'plain toast is not copyable');
+  assert.ok(plain.innerHTML.includes('effective next launch'), 'falls back to the generic message');
+}
+
+function testPermsListEnsuresIconObserver() {
+  // Regression: the Permissions list used to observe lazy icons only `if (window.iconObserver)` —
+  // but that observer is created by the package grid, which never renders if you open Permissions
+  // straight from the dashboard. Result: every app stuck on a letter avatar. The list must now
+  // create the shared observer on demand.
+  const { window, hooks } = loadMainJs();
+  assert.ok(!window.iconObserver, 'no observer exists before any grid/perms render');
+  hooks.setPermsPageApps([
+    { id: 'com.x.App', name: 'App', icon_url: 'https://dl.flathub.org/icon.png' },
+    { id: 'com.y.Two', name: 'Two', icon_url: '' },
+  ]);
+  hooks.renderPermsAppList();
+  assert.ok(window.iconObserver, 'perms list creates the shared icon observer on demand');
+  // ensureIconObserver is idempotent — repeated calls reuse the one instance.
+  assert.strictEqual(hooks.ensureIconObserver(), window.iconObserver, 'observer is reused, not recreated');
+}
+
 (async () => {
   const tests = [
     testRenderCategoryPackagesStoresCurrentPackages,
@@ -1342,6 +1377,8 @@ async function testShowTransactionPreviewUsesActionCopy() {
     testTerminalDoneWarnedState,
     testActivityFilterGroupAndActions,
     testShowTransactionPreviewUsesActionCopy,
+    testPermissionUpdatedToastSurfacesCopyableCommand,
+    testPermsListEnsuresIconObserver,
   ];
   for (const test of tests) {
     await test();

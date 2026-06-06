@@ -52,3 +52,34 @@ def get_activity_log(limit: int = 50) -> List[dict]:
             
     # Return reversed to have newest first, limited
     return entries[::-1][:limit]
+
+
+def clear_activity_log() -> bool:
+    """Delete the activity log file (the History page's "Clear" action). Thread-safe; a missing file
+    is already-cleared (returns True). Returns False only on an actual removal error."""
+    with _log_lock:
+        try:
+            if os.path.exists(LOG_FILE):
+                os.remove(LOG_FILE)
+            return True
+        except Exception as e:
+            print(f"[activity_log] Error clearing activity log: {e}")
+            return False
+
+
+EXPORT_PATH = os.path.expanduser('~/atlas-activity.json')
+
+
+def export_activity_log(path: str = EXPORT_PATH) -> str:
+    """Write the full activity log (newest first) to a JSON file the user can keep/script against.
+    Returns the path written. Raises on a write failure (the caller reports it)."""
+    entries = get_activity_log(limit=10000)
+    payload = {
+        'exported': datetime.datetime.now().isoformat(),
+        'version': 1,
+        'count': len(entries),
+        'activity': entries,
+    }
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+    return path

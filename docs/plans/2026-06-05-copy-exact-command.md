@@ -43,6 +43,22 @@ button. `shlex.quote`d; never raises.
   (`get_mirror_status().command`); added a **"Copy command"** button beside Regenerate that copies it
   (+ "✓ Copied" / toast). No backend change.
 
-## Deferred to a later increment
-- **`flatpak override` command** on the Permissions page (copy the equivalent of a permission edit) —
-  genuinely different shape (per-edit command construction); lower value than the transaction copies.
+## Increment 3 (shipped 2026-06-06) — `flatpak override` command on the Permissions page
+The deferred final surface. Rather than a button per toggle (huge surface), each permission **edit**
+now surfaces the exact `flatpak override --user <flag> <app_id>` it ran:
+- **Backend:** new pure `permissions.override_command(app_id, flag)` (shlex-quoted; `''` for an
+  unknown flag / empty app id). The four `AtlasApi.set_flatpak_*` methods (`override` / `filesystem`
+  / `bus` / `env`) now return `{'status':'ok','command': …}` on success, computed from the same pure
+  `*_flag` helpers the gem applies (so the displayed command is exactly what ran). Failure → error,
+  no `command`.
+- **Frontend:** `showToast` gained an optional `copyText` (a copyable command — click the toast to
+  copy, with a "⧉ Click to copy command" hint). A shared `permissionUpdatedToast(r)` shows
+  `Updated · <command>` (copyable) when a command came back, else the old generic
+  "effective next launch" toast. Wired into all four permission edit paths (the Permissions page
+  toggle/filesystem/bus/env handlers + the detail-modal quick editor popup).
+- **Tests:** `test_permissions.py::test_override_command`, `test_api.py::FlatpakOverrideCommandTest`
+  (4 surfaces + failure has no command), `main_js_contracts::testPermissionUpdatedToastSurfacesCopyableCommand`.
+
+**This completes the "Copy exact command" theme** — install/update/uninstall (preview + detail),
+reflector (Mirrors), and now per-edit flatpak override (Permissions). **Needs a GUI eyeball** (toggle
+a Flatpak permission → toast shows the override command → click to copy).

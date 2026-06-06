@@ -32,8 +32,9 @@ from atlas.commons.system import (validate_root_password, run_cmd, new_subproces
 from atlas.commons.view_utils import get_human_size_str
 from atlas.view.core.controller import GenericSoftwareManager
 from atlas.view.webview.watcher import WebviewWatcher
-from atlas.view.webview.activity_log import record_activity, get_activity_log
+from atlas.view.webview.activity_log import record_activity, get_activity_log, clear_activity_log, export_activity_log
 from atlas.view.webview.export import write_manifest, read_manifest
+from atlas.gems.flatpak import permissions as fp_permissions
 
 PACMAN_LOG = '/var/log/pacman.log'
 # `[2026-06-05T10:51:12-0400] [ALPM] installed visual-studio-code-bin (1.123.0-4)`
@@ -2235,7 +2236,10 @@ class AtlasApi:
             if not man:
                 return {'status': 'error', 'message': 'Not a Flatpak package'}
             ok = man.set_permission(pkg, key, bool(enabled))
-            return {'status': 'ok'} if ok else {'status': 'error', 'message': 'Could not apply the permission change'}
+            if not ok:
+                return {'status': 'error', 'message': 'Could not apply the permission change'}
+            cmd = fp_permissions.override_command(pkg.id, fp_permissions.override_flag(key, bool(enabled)))
+            return {'status': 'ok', 'command': cmd}
         except Exception as e:
             self.logger.error(f"set_flatpak_override failed: {e}")
             return {'status': 'error', 'message': str(e)}
@@ -2247,7 +2251,10 @@ class AtlasApi:
             if not man or not hasattr(man, 'set_filesystem_permission'):
                 return {'status': 'error', 'message': 'Not a Flatpak package'}
             ok = man.set_filesystem_permission(pkg, name, bool(enabled), mode or 'rw')
-            return {'status': 'ok'} if ok else {'status': 'error', 'message': 'Could not apply the filesystem change'}
+            if not ok:
+                return {'status': 'error', 'message': 'Could not apply the filesystem change'}
+            cmd = fp_permissions.override_command(pkg.id, fp_permissions.filesystem_flag(name, bool(enabled), mode or 'rw'))
+            return {'status': 'ok', 'command': cmd}
         except Exception as e:
             self.logger.error(f"set_flatpak_filesystem failed: {e}")
             return {'status': 'error', 'message': str(e)}
@@ -2259,7 +2266,10 @@ class AtlasApi:
             if not man or not hasattr(man, 'set_bus_permission'):
                 return {'status': 'error', 'message': 'Not a Flatpak package'}
             ok = man.set_bus_permission(pkg, scope, name, policy, bool(enabled))
-            return {'status': 'ok'} if ok else {'status': 'error', 'message': 'Could not apply the bus change'}
+            if not ok:
+                return {'status': 'error', 'message': 'Could not apply the bus change'}
+            cmd = fp_permissions.override_command(pkg.id, fp_permissions.bus_flag(scope, name, policy, bool(enabled)))
+            return {'status': 'ok', 'command': cmd}
         except Exception as e:
             self.logger.error(f"set_flatpak_bus failed: {e}")
             return {'status': 'error', 'message': str(e)}
@@ -2271,7 +2281,10 @@ class AtlasApi:
             if not man or not hasattr(man, 'set_env_permission'):
                 return {'status': 'error', 'message': 'Not a Flatpak package'}
             ok = man.set_env_permission(pkg, var, value or '', bool(enabled))
-            return {'status': 'ok'} if ok else {'status': 'error', 'message': 'Could not apply the variable change'}
+            if not ok:
+                return {'status': 'error', 'message': 'Could not apply the variable change'}
+            cmd = fp_permissions.override_command(pkg.id, fp_permissions.env_flag(var, value or '', bool(enabled)))
+            return {'status': 'ok', 'command': cmd}
         except Exception as e:
             self.logger.error(f"set_flatpak_env failed: {e}")
             return {'status': 'error', 'message': str(e)}
@@ -2697,6 +2710,28 @@ class AtlasApi:
             return {'status': 'ok', 'data': logs}
         except Exception as e:
             self.logger.error(f"Error fetching activity log: {e}")
+            return {'status': 'error', 'message': str(e)}
+
+    def clear_activity(self) -> dict:
+        """Clear the History page's activity log (the local JSONL). Only Atlas's own activity feed —
+        never touches pacman's log. Returns ok/error so the frontend can confirm."""
+        try:
+            if clear_activity_log():
+                return {'status': 'ok'}
+            return {'status': 'error', 'message': 'Could not clear the activity log'}
+        except Exception as e:
+            self.logger.error(f"Error clearing activity log: {e}")
+            return {'status': 'error', 'message': str(e)}
+
+    def export_activity(self) -> dict:
+        """Export the activity log to a JSON file (~/atlas-activity.json) the user can keep/script
+        against. Returns {path, count} so the frontend can show where it landed."""
+        try:
+            path = export_activity_log()
+            count = len(get_activity_log(limit=10000))
+            return {'status': 'ok', 'data': {'path': path, 'count': count}}
+        except Exception as e:
+            self.logger.error(f"Error exporting activity log: {e}")
             return {'status': 'error', 'message': str(e)}
 
     def get_pacman_log(self, pkg_name: str) -> dict:
