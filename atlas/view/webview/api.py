@@ -11,6 +11,7 @@ import webbrowser
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 from typing import List, Optional, Tuple
+from urllib.parse import urlsplit
 
 
 def _json_safe(obj):
@@ -2319,8 +2320,20 @@ class AtlasApi:
     def open_url(self, url: str) -> dict:
         """Open an external URL in the user's browser. Routed through Python because a
         plain link would navigate the pywebview window instead. Only http(s) is allowed."""
-        if not isinstance(url, str) or not url.startswith(('http://', 'https://')):
+        if not isinstance(url, str):
             return {'status': 'error', 'message': 'Invalid URL'}
+
+        if re.search(r'[\x00-\x20\x7f]', url):
+            return {'status': 'error', 'message': 'Invalid URL'}
+
+        try:
+            parsed = urlsplit(url)
+        except Exception:
+            return {'status': 'error', 'message': 'Invalid URL'}
+
+        if parsed.scheme.lower() not in {'http', 'https'} or not parsed.netloc:
+            return {'status': 'error', 'message': 'Invalid URL'}
+
         try:
             webbrowser.open(url)
             return {'status': 'ok'}

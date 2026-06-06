@@ -36,6 +36,35 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
+function safeExternalUrl(url) {
+    if (typeof url !== 'string') return '';
+    if (!url || /[\u0000-\u0020\u007f]/.test(url)) return '';
+    try {
+        const parsed = new URL(url);
+        if ((parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.hostname) return url;
+    } catch (e) {
+        return '';
+    }
+    return '';
+}
+
+function externalLinkHTML(url, label, className = '') {
+    const safe = safeExternalUrl(url);
+    const text = label || url || '';
+    if (!safe) return escapeHtml(text);
+    const cls = className ? ` class="${escapeHtml(className)}"` : '';
+    return `<a href="#"${cls} data-url="${escapeHtml(safe)}">${escapeHtml(text)} ↗</a>`;
+}
+
+function openExternalUrl(url) {
+    const safe = safeExternalUrl(url);
+    if (!safe) {
+        showToast('Invalid URL', 'Atlas refused to open a non-http(s) URL.', 'error');
+        return Promise.resolve(null);
+    }
+    return pyApiCall('open_url', safe);
+}
+
 // Toast Notifications
 const toastContainer = document.getElementById('toast-container');
 
@@ -925,10 +954,10 @@ function showNewsGate(items) {
                 ${n.date ? `<span class="news-date">${escapeHtml(n.date)}</span>` : ''}
             </div>
             ${n.summary ? `<p class="news-summary">${escapeHtml(n.summary)}</p>` : ''}
-            ${n.url ? `<a class="news-link" href="#" data-news-url="${escapeHtml(n.url)}">Read on archlinux.org ↗</a>` : ''}
+            ${safeExternalUrl(n.url) ? `<a class="news-link" href="#" data-news-url="${escapeHtml(safeExternalUrl(n.url))}">Read on archlinux.org ↗</a>` : ''}
         </article>`).join('');
     list.querySelectorAll('a[data-news-url]').forEach(a => {
-        a.addEventListener('click', (e) => { e.preventDefault(); pyApiCall('open_url', a.dataset.newsUrl); });
+        a.addEventListener('click', (e) => { e.preventDefault(); openExternalUrl(a.dataset.newsUrl); });
     });
     document.getElementById('news-gate-modal').classList.remove('hidden');
     setTimeout(() => document.getElementById('news-gate-cancel-btn').focus(), 50);
@@ -1511,17 +1540,11 @@ function buildPkgbuildMetaHTML(meta) {
         row('Contributors', escapeHtml(meta.contributors.join(', ')));
     if (meta.pkgver) row('pkgver', escapeHtml(meta.pkgver));
     if (meta.url) {
-        const u = escapeHtml(meta.url);
-        row('Upstream', `<a href="#" class="pkgb-link" data-url="${u}">${u} ↗</a>`);
+        row('Upstream', externalLinkHTML(meta.url, meta.url, 'pkgb-link'));
     }
     const sources = meta.sources || [];
     if (sources.length) {
-        const items = sources.map(s => {
-            const u = escapeHtml(s);
-            return /^(https?|ftp|git)/.test(s)
-                ? `<a href="#" class="pkgb-link" data-url="${u}">${u} ↗</a>`
-                : u;
-        }).join('<br>');
+        const items = sources.map(s => externalLinkHTML(s, s, 'pkgb-link')).join('<br>');
         row(`Sources (${sources.length})`, items);
     }
     const sums = meta.checksums || [];
@@ -2032,7 +2055,7 @@ async function openPkgbuildViewer(pkg) {
         });
         if (data && data.url) {
             link.href = '#';
-            link.onclick = (e) => { e.preventDefault(); pyApiCall('open_url', data.url); };
+            link.onclick = (e) => { e.preventDefault(); openExternalUrl(data.url); };
             link.classList.remove('hidden');
         }
         return;
@@ -2052,7 +2075,7 @@ async function openPkgbuildViewer(pkg) {
     if (copyBtn) copyBtn.classList.remove('hidden');
     if (data.url) {
         link.href = '#';
-        link.onclick = (e) => { e.preventDefault(); pyApiCall('open_url', data.url); };
+        link.onclick = (e) => { e.preventDefault(); openExternalUrl(data.url); };
         link.classList.remove('hidden');
     }
 }
@@ -2567,7 +2590,7 @@ function openDetailModal(pkg, group) {
         linkEl.textContent = lt === 'aur' ? 'View on AUR ↗'
             : lt === 'flatpak' ? 'View on Flathub ↗'
             : 'View package page ↗';
-        linkEl.onclick = (e) => { e.preventDefault(); pyApiCall('open_url', pageUrl); };
+        linkEl.onclick = (e) => { e.preventDefault(); openExternalUrl(pageUrl); };
         linkEl.classList.remove('hidden');
     } else {
         linkEl.classList.add('hidden');
@@ -2933,7 +2956,7 @@ if (pkgbuildModal) {
         const a = e.target.closest('.pkgb-link');
         if (!a) return;
         e.preventDefault();
-        if (a.dataset.url) pyApiCall('open_url', a.dataset.url);
+        if (a.dataset.url) openExternalUrl(a.dataset.url);
     });
     // Switch tabs (PKGBUILD ↔ .install scriptlets).
     document.getElementById('pkgbuild-tabs').addEventListener('click', (e) => {
@@ -4020,7 +4043,7 @@ async function fetchPackages() {
         if (currentView === 'installed') {
             results = await pyApiCall('get_installed', 'all');
         } else if (currentView === 'updates') {
-            results = await pyApiCall('get_updates', 'all');
+            results = await getUpdatesCached();
         } else if (currentView === 'activity') {
             loadingState.classList.add('hidden');
             renderActivityFeed();
@@ -4100,12 +4123,12 @@ async function renderNews() {
                 ${n.date ? `<span class="news-date">${escapeHtml(n.date)}</span>` : ''}
             </div>
             ${n.summary ? `<p class="news-summary">${escapeHtml(n.summary)}</p>` : ''}
-            ${n.url ? `<a class="news-link" href="#" data-news-url="${escapeHtml(n.url)}">Read on archlinux.org ↗</a>` : ''}
+            ${safeExternalUrl(n.url) ? `<a class="news-link" href="#" data-news-url="${escapeHtml(safeExternalUrl(n.url))}">Read on archlinux.org ↗</a>` : ''}
         </article>`).join('');
 
     packagesGrid.innerHTML = `<div class="news-list"><div class="news-header">Arch Linux News</div>${items}</div>`;
     packagesGrid.querySelectorAll('a[data-news-url]').forEach(a => {
-        a.addEventListener('click', (e) => { e.preventDefault(); pyApiCall('open_url', a.dataset.newsUrl); });
+        a.addEventListener('click', (e) => { e.preventDefault(); openExternalUrl(a.dataset.newsUrl); });
     });
 }
 
@@ -5585,6 +5608,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildPkgbuildTabsHTML,
         buildPkgbuildViews,
         buildPkgbuildDiffHTML,
+        safeExternalUrl,
         summarizeFailure,
         pickActivityText,
         stripProgressBar,

@@ -568,6 +568,61 @@ async function testAttentionCenterAndBadgeShareUpdatesFetch() {
   assert.ok(attentionHtml.includes('attention-hero">1</div>'), 'dashboard updated from shared result');
 }
 
+async function testUpdatesViewSharesInFlightBadgeFetch() {
+  const updates = controlledPromise();
+  let updateCalls = 0;
+  const pkg = makePkg('arch_repo:vim', 'Vim', 'arch_repo');
+  const { context, document, hooks } = loadMainJs({
+    get_updates: () => {
+      updateCalls += 1;
+      return updates.promise;
+    },
+  });
+
+  const badgePromise = context.refreshUpdatesBadge();
+  await flushPromises();
+  hooks.setCurrentView('updates');
+  const fetchPromise = hooks.fetchPackages();
+  await flushPromises();
+
+  assert.strictEqual(updateCalls, 1, 'Updates view reuses the in-flight badge get_updates call');
+
+  updates.resolve([pkg]);
+  await badgePromise;
+  await fetchPromise;
+
+  assert.strictEqual(document.getElementById('updates-badge').textContent, '1', 'badge updated from shared fetch');
+  assert.deepStrictEqual(hooks.getState().currentPackages.map(p => p.id), ['arch_repo:vim'], 'Updates view consumed shared result');
+}
+
+async function testExternalUrlHelpersRejectUnsafeValues() {
+  const opened = [];
+  const { context, hooks } = loadMainJs({
+    open_url: async url => { opened.push(url); return { status: 'ok' }; },
+  });
+
+  assert.strictEqual(hooks.safeExternalUrl('https://example.invalid/path?q=1'), 'https://example.invalid/path?q=1', 'valid https allowed');
+  assert.strictEqual(hooks.safeExternalUrl('HTTP://example.invalid/path'), 'HTTP://example.invalid/path', 'valid http is scheme-case tolerant');
+  for (const bad of [
+    'javascript:alert(1)',
+    'file:///etc/passwd',
+    'ftp://example.invalid/file.tar.gz',
+    'git+https://example.invalid/repo.git',
+    'https://',
+    'https://example.invalid/\nfile:///etc/passwd',
+    'https://exa mple.invalid/path',
+    '',
+    null,
+  ]) {
+    assert.strictEqual(hooks.safeExternalUrl(bad), '', `${bad} rejected`);
+  }
+
+  await context.openExternalUrl('javascript:alert(1)');
+  assert.deepStrictEqual(opened, [], 'unsafe URL never reaches backend bridge');
+  await context.openExternalUrl('https://example.invalid/ok');
+  assert.deepStrictEqual(opened, ['https://example.invalid/ok'], 'safe URL reaches backend bridge');
+}
+
 async function testDashboardHeaderGreetingAndMessage() {
   const { hooks } = loadMainJs({});
   // greeting tracks the hour
@@ -1088,6 +1143,26 @@ async function testPkgbuildViewerBuilders() {
   assert.ok(diffHtml.includes('diff-add') && diffHtml.includes('&lt;x&gt;'), 'diff row colored + escaped');
 }
 
+async function testPkgbuildMetaOnlyLinksSafeHttpUrls() {
+  const { hooks } = loadMainJs({});
+  const html = hooks.buildPkgbuildMetaHTML({
+    url: 'javascript:alert(1)',
+    sources: [
+      'https://safe.example/src.tar.gz',
+      'ftp://legacy.example/src.tar.gz',
+      'git+https://git.example/repo.git',
+      'https://bad.example/\nfile:///tmp/x',
+      '<img src=x onerror=alert(1)>',
+    ],
+  });
+
+  assert.ok(html.includes('data-url="https://safe.example/src.tar.gz"'), 'safe http(s) source is clickable');
+  assert.ok(!html.includes('data-url="javascript:'), 'javascript upstream is not clickable');
+  assert.ok(!html.includes('data-url="ftp:'), 'ftp source is not clickable');
+  assert.ok(!html.includes('data-url="git+https:'), 'git source is not clickable');
+  assert.ok(!html.includes('<img src=x'), 'source text remains escaped');
+}
+
 async function testStripProgressBarAndPercent() {
   const { hooks } = loadMainJs({});
   // Flatpak-style textual progress bar (block glyphs) is stripped; the meaningful text stays.
@@ -1234,6 +1309,8 @@ async function testShowTransactionPreviewUsesActionCopy() {
     testAttentionCenterBuildsCardsAndTones,
     testAttentionUpdatesCardStates,
     testAttentionCenterAndBadgeShareUpdatesFetch,
+    testUpdatesViewSharesInFlightBadgeFetch,
+    testExternalUrlHelpersRejectUnsafeValues,
     testDashboardHeaderGreetingAndMessage,
     testCommandPaletteFilterAndAvailability,
     testDensityClass,
@@ -1257,6 +1334,7 @@ async function testShowTransactionPreviewUsesActionCopy() {
     testBuildDependencySummaryHTML,
     testBrowseLandingBuilders,
     testPkgbuildViewerBuilders,
+    testPkgbuildMetaOnlyLinksSafeHttpUrls,
     testSummarizeFailureCategories,
     testPickActivityText,
     testStripProgressBarAndPercent,

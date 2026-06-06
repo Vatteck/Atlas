@@ -504,6 +504,20 @@ class OpenUrlTest(unittest.TestCase):
             self.assertEqual('error', res['status'])
         mock_open.assert_not_called()
 
+    @patch('atlas.view.webview.api.webbrowser.open')
+    def test_rejects_malformed_or_control_character_http_urls(self, mock_open):
+        for bad in ['https://', 'https:///missing-host', 'https://example.com/\nfile:///etc/passwd',
+                    'https://example.com/\x00payload', 'http://exa mple.com/path']:
+            res = self.api.open_url(bad)
+            self.assertEqual('error', res['status'])
+        mock_open.assert_not_called()
+
+    @patch('atlas.view.webview.api.webbrowser.open')
+    def test_accepts_case_insensitive_http_scheme(self, mock_open):
+        res = self.api.open_url('HTTPS://example.invalid/path')
+        self.assertEqual('ok', res['status'])
+        mock_open.assert_called_once_with('HTTPS://example.invalid/path')
+
 
 class AppSettingsTest(unittest.TestCase):
     def setUp(self):

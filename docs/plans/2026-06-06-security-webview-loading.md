@@ -77,3 +77,56 @@
 - `git status --short --branch`
 
 **STATUS update:** Add a concise Done entry with exact tests and remaining GUI-eyeball note if any.
+
+---
+
+## Follow-up Task 5: Centralize external URL hardening
+
+**Objective:** Route every JS → Python external-open affordance through one client-side `safeExternalUrl`/
+`openExternalUrl` helper and make the Python bridge validate parsed http(s) URLs, not just raw prefixes.
+
+**Files:**
+- Modify: `tests/view/webview/main_js_contracts.test.js`
+- Modify: `tests/view/webview/test_api.py`
+- Modify after RED: `atlas/view/webview/main.js`
+- Modify after RED: `atlas/view/webview/api.py`
+
+**Steps:**
+1. Add JS contract tests proving unsafe schemes/control-character URLs are not opened and PKGBUILD metadata
+   only renders clickable links for parsed `http://`/`https://` URLs.
+2. Add Python bridge tests proving `open_url` rejects missing hosts and control-character URLs while
+   accepting valid http(s).
+3. Implement a small `safeExternalUrl` helper in `main.js`; use it for Arch news links, PKGBUILD
+   metadata/source links, detail-page package links, and direct `open_url` click handlers.
+4. Harden `AtlasApi.open_url` with `urllib.parse.urlsplit`, scheme normalization, netloc requirement,
+   and control-character rejection before calling `webbrowser.open`.
+
+## Follow-up Task 6: Reuse in-flight Updates fetch from the Updates view too
+
+**Objective:** If the dashboard/sidebar already started `get_updates('all')`, opening the Updates view
+should await that same promise instead of firing a second expensive `read_installed` path.
+
+**Files:**
+- Modify: `tests/view/webview/main_js_contracts.test.js`
+- Modify after RED: `atlas/view/webview/main.js`
+
+**Steps:**
+1. Add a Node VM contract test that starts `refreshUpdatesBadge()` with a controlled updates promise,
+   then activates/fetches the Updates view before it resolves.
+2. Assert only one backend `get_updates` call happens and the Updates grid/badge consume the shared
+   result.
+3. In `fetchPackages()`, use `getUpdatesCached()` for the no-query Updates view path.
+
+## Outcome (2026-06-06)
+
+Follow-up Tasks 5 and 6 shipped in the same security/webview loading pass:
+
+- Added URL-sink contracts in `main_js_contracts` plus `OpenUrlTest` malformed/control-character cases.
+- Added `safeExternalUrl()`/`openExternalUrl()` in `main.js` and routed Arch news, PKGBUILD viewer/meta,
+  and detail-page external-open handlers through that choke point.
+- Hardened `AtlasApi.open_url()` with `urlsplit`, scheme normalization, netloc requirement, and
+  control/space rejection.
+- Reused `getUpdatesCached()` from the no-query Updates view so dashboard/sidebar/Updates navigation share
+  the same in-flight `get_updates('all')` request.
+- Verification: `tests/view/webview` = 194 passed; full suite = 545 passed, 3 warnings; added-line static
+  scan clean; `git diff --check` clean.

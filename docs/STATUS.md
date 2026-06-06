@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-06 (security/webview loading pass — escaped HTML helpers + shared dashboard/badge updates fetch; 543 tests + 41 JS green)
+**Last updated:** 2026-06-06 (security/webview loading pass follow-ups — centralized external URL hardening + shared Updates-view fetch; 545 tests + 43 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -81,15 +81,20 @@ re-add a native extension without a measured win. Details in the historical
 - **Security + webview loading pass (2026-06-06).** Focused hardening/optimization pass for the
   pywebview surface. **Security:** `atlas.commons.html.bold()` and `link()` now HTML-escape text,
   href attributes, and visible URL text before those helper strings flow into webview-rendered
-  modal/status HTML. Added `tests/common/test_html.py` for the injection cases and kept
-  `strip_html` behavior pinned. **Loading:** dashboard `renderAttentionCenter()` and the sidebar
-  `refreshUpdatesBadge()` now share one cached/in-flight `get_updates('all')` request via
-  `getUpdatesCached()`, removing the duplicate startup Updates read when the dashboard renders.
-  `setUpdatesBadge()` now writes an explicit string to match browser `textContent` coercion.
-  Tests: `tests/common/test_html.py`, `tests/view/webview/test_main_js.py`; subtree
-  `tests/view/webview tests/common` = **233 passed**; full suite = **543 passed, 3 warnings**;
-  added-line static scan clean; `git diff --check` clean. Plan:
-  [plans/2026-06-06-security-webview-loading.md](plans/2026-06-06-security-webview-loading.md).
+  modal/status HTML. `AtlasApi.open_url()` now parses URLs with `urlsplit`, rejects control/space
+  characters and missing hosts, and only opens parsed `http`/`https` schemes (case-insensitive).
+  The JS side now routes external-open affordances through `safeExternalUrl()`/`openExternalUrl()`;
+  Arch news links and PKGBUILD metadata/source links only render clickable anchors for safe parsed
+  HTTP(S) URLs. Added `tests/common/test_html.py` for the injection cases, kept `strip_html`
+  behavior pinned, and extended `OpenUrlTest` + `main_js_contracts` for URL-sink regressions.
+  **Loading:** dashboard `renderAttentionCenter()`, the sidebar `refreshUpdatesBadge()`, and the
+  no-query Updates view now share one cached/in-flight `get_updates('all')` request via
+  `getUpdatesCached()`, removing duplicate expensive Updates reads across startup and rapid
+  Updates-view navigation. `setUpdatesBadge()` now writes an explicit string to match browser
+  `textContent` coercion. Tests: `tests/common/test_html.py`, `tests/view/webview/test_main_js.py`,
+  `tests/view/webview/test_api.py::OpenUrlTest`; subtree `tests/view/webview` = **194 passed**;
+  full suite = **545 passed, 3 warnings**; added-line static scan clean; `git diff --check` clean.
+  Plan: [plans/2026-06-06-security-webview-loading.md](plans/2026-06-06-security-webview-loading.md).
 - **System Health follow-ups (2026-06-05).** Extended the System Health page (the BACKLOG "possible
   follow-ups" on the shipped Health page). **Two new checks** (cheap, concurrent, fail-open in
   `get_system_health`): **keyring freshness** (`_keyring` — mtime of the `archlinux-keyring` local-db
