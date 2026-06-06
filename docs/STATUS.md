@@ -5,8 +5,8 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-06 (deferred-tail: flatpak-override copy on the Permissions page completes "Copy exact command" + History log clear/export; 559 tests + 44 JS green)
-**Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
+**Last updated:** 2026-06-06 (released **0.12.0** — the polish-and-trust release; tag `v0.12.0` + AUR published; 559 tests + 45 JS green)
+**Version:** 0.12.0 (the polish-and-trust release; 0.11.0 was the first cohesive Atlas release)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)** — the longer-horizon menu we pull
@@ -78,6 +78,21 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Release 0.12.0 — the polish-and-trust release (2026-06-06).** Bumped `__version__`
+  0.11.0 → **0.12.0** (`atlas/__init__.py`, README status line, PKGBUILD `pkgver`), wrote a themed
+  `CHANGELOG.md` 0.12.0 section (everything since the `v0.11.0` tag — Attention Center, command
+  palette, Browse 2.0 + AUR buckets, detail-page/PKGBUILD/dependency work, universal transaction
+  preview + terminal polish, history center, copy-exact-command, System Health + `.pacnew` cockpit,
+  GUI polish, the sidebar/Browse/icon fixes, and the security pass). Tagged **`v0.12.0`** and pushed;
+  ran `linux_dist/arch/publish-aur.sh` to sync `atlas-pm-git`. 559 tests + 45 JS green. Plan basis:
+  [plans/2026-06-04-release-0.11.0.md](plans/2026-06-04-release-0.11.0.md) (same process).
+- **Browse landing polish — sidebar icons, category/AUR grid (2026-06-06).** Pre-release visual sweep
+  from a GUI eyeball: (1) **distinct sidebar icons** — Dashboard/Browse shared a grid glyph and
+  Health/Activity shared an ECG glyph; Browse → compass, Activity → list, so all ten nav icons differ.
+  (2) **Unified Browse rows** — the category cards sized each tile to its text (ragged columns, an
+  8→6+2 wrap gap) and the AUR chips were a different size; both rows now lay out on one fixed 4-column
+  grid with the same rich tile (categories = 2 even rows, AUR = 1, columns aligned, no gap). CSS/markup
+  only; JS 45.
 - **Fix: Permissions-page icons stuck on letter avatars (2026-06-06).** The Permissions master list
   rendered every app as a letter avatar. Root cause: `renderPermsAppList` observed its lazy icons only
   `if (window.iconObserver)`, but that shared IntersectionObserver is created inside `deferredIconLoad()`,

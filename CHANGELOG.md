@@ -8,6 +8,69 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 > Entries from `0.11.0` on are Atlas; `0.10.7` and earlier are inherited bauh history (the
 > fork point — `__version__` was never bumped between then and the first Atlas release).
 
+## [0.12.0] 2026-06-06
+The polish-and-trust release. Building on 0.11.0's foundations, this round makes Atlas feel
+like a *store you can reason about*: a dashboard that answers "what needs my attention?", a
+universal pre-flight preview for every system change, first-class AUR build-recipe reading, an
+Arch maintenance cockpit, and a keyboard-first launcher — plus a security/hardening pass.
+
+### Discovery & dashboard
+- **Dashboard "Attention Center"** — the dashboard now answers *"what needs my attention today?"*
+  with lazy, fail-open cards (Updates, System safety, Reclaim space, Recent activity, AUR safety),
+  each click-through to the page that acts on it. App suggestions moved to **Browse** ("Suggested
+  for you").
+- **Command palette** (**Ctrl+K** / **Ctrl+P**) — fuzzy-filtered launcher to navigate any page or
+  run an action (update all, clean orphans, regenerate mirrors, export, …), with shortcut badges.
+- **Browse 2.0** — richer category cards (icon + description), breadcrumbs, a "resume last category"
+  chip, and skeletons on category pages; the category and **AUR discovery** rows share one uniform
+  4-up grid.
+- **AUR discovery buckets** — Popular / Recently-updated / VCS (`-git`) / Binary (`-bin`), precomputed
+  daily in `atlas-files` (the RPC has no browse-all endpoint); cards show accurate install state.
+- **Flatpak categories in Browse** and theme-aware installed-app icon resolution carried forward.
+
+### Better app detail pages
+- **"Why this source?"** trust hint (signed repo / community AUR / verified-vs-community Flatpak).
+- **"Why is this installed?"** — explicit vs dependency, orphan status, required-by.
+- **Dependency summary + drill-down tree** — Requires / Optional / Build / Provides / Conflicts /
+  Replaces / Required-by, with Requires + Build expandable one lazy level at a time.
+- **PKGBUILD viewer** — a first-class AUR build-recipe reader from the detail page *and* the install
+  preview: combined risk summary, maintainer/source/checksum panel, line-linked findings, a
+  syntax-highlighted line-numbered PKGBUILD, an `.install` scriptlet tab, copy, and a "changed since
+  your build" diff. Advisory, never a gate.
+- **Source-comparison panel** for apps offered by more than one source.
+
+### Operation confidence
+- **Universal transaction preview** before install / update / uninstall / downgrade and an
+  **Update-All aggregate** — cards/badges/accordions (sizes, deps, AUR warnings, Flatpak permissions,
+  reverse-dep danger on removal), fail-open, never blocking.
+- **Transaction terminal polish** — a current-activity line, collapsible/copyable raw log, a friendly
+  failure summary (auth / PGP-keyring / download / conflict / dependency / build), an outcome-colored
+  progress bar, and an amber **"completed with warnings"** state for non-fatal optdep failures.
+- **History / rollback center** — the Activity feed became a real page: filters (action/source/name),
+  date grouping, Downgrade/Reinstall affordances, pacman-log links, and **log clear/export**.
+- **Copy exact command** — copy the equivalent `pacman`/`makepkg`/`flatpak` command in the preview and
+  the detail page, the `reflector` command in Mirrors, and the exact `flatpak override` for each
+  Permissions edit ("nothing hidden from CLI users").
+
+### Arch maintenance cockpit
+- **System Health page** — 8+ checks (DB-sync age, mirrorlist, pacman lock, `.pacnew`, orphans, cache,
+  unused runtimes, AUR chroot, keyring freshness, AUR-index age), each a status + one safe action,
+  including a **gated** "remove stale lock" (refuses while pacman is running).
+- **`.pacnew` center** — per-file risk badges, read-only diff, copy-path, `pacdiff` launch, mirrorlist
+  regenerate. No auto-merge.
+- **Mirror manager polish** — active-mirror summary + the exact regenerate command.
+
+### GUI polish & robustness
+- **Display density** (Comfortable/Compact/Dense), a **contextual topbar** (list controls only where
+  they apply), unified **empty/error states**, and **stale-render guards** (last-clicked-wins, no flash)
+  across every async view.
+- Distinct **sidebar icons** (no duplicate glyphs) and a fix for Permissions-page icons stuck on
+  letter avatars (lazy-icon observer created on demand).
+
+### Security
+- HTML helper output (`bold`/`link`) is escaped before reaching webview-rendered HTML; `open_url`
+  validates scheme/host and only opens `http(s)`; external links render as anchors only for safe URLs.
+
 ## [0.11.0] 2026-06-04
 The first cohesive Atlas release. Everything here diverged from the bauh fork point
 (`0.10.7`): the rebrand, the UI port, the move to pure Python, the Arch focus, and the
