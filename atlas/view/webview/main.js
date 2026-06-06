@@ -121,9 +121,31 @@ let selectedPackages = new Set();
 let operationInProgress = false;
 
 let packageCache = {};
+let updatesInFlight = null;
 
 function getCacheKey(view, type, query) {
     return `${view}\0${type}\0${query}`;
+}
+
+function getUpdatesCached() {
+    const updatesKey = getCacheKey('updates', 'all', '');
+    if (packageCache[updatesKey] !== undefined) {
+        return Promise.resolve(packageCache[updatesKey]);
+    }
+    if (!updatesInFlight) {
+        updatesInFlight = pyApiCall('get_updates', 'all').then(
+            updates => {
+                if (Array.isArray(updates)) writeToCache(updatesKey, updates);
+                updatesInFlight = null;
+                return updates;
+            },
+            error => {
+                updatesInFlight = null;
+                throw error;
+            }
+        );
+    }
+    return updatesInFlight;
 }
 
 // --- Source types ----------------------------------------------------------
@@ -4037,14 +4059,14 @@ function setUpdatesBadge(count) {
     const el = document.getElementById('updates-badge');
     if (!el) return;
     const n = Math.max(0, Number(count) || 0);
-    el.textContent = n;
+    el.textContent = String(n);
     el.style.display = n > 0 ? '' : 'none';
 }
 window.setUpdatesBadge = setUpdatesBadge;  // the tray (Python) calls this to keep the badge live
 
 async function refreshUpdatesBadge() {
     try {
-        const results = await pyApiCall('get_updates', 'all');
+        const results = await getUpdatesCached();
         setUpdatesBadge((results || []).length);
     } catch (e) {
         // non-fatal: the badge just won't refresh this time
@@ -5350,10 +5372,7 @@ async function renderAttentionCenter() {
     const summaryP = pyApiCall('get_dashboard_summary');
     // Updates is the one expensive signal (read_installed). Reuse the Updates view's warm cache
     // when present, and warm it here otherwise, so the dashboard and Updates view share one fetch.
-    const updatesKey = getCacheKey('updates', 'all', '');
-    const updatesP = (packageCache[updatesKey] !== undefined)
-        ? Promise.resolve(packageCache[updatesKey])
-        : pyApiCall('get_updates', 'all').then(u => { if (Array.isArray(u)) writeToCache(updatesKey, u); return u; });
+    const updatesP = getUpdatesCached();
 
     const summary = await summaryP;
     if (token !== attentionEpoch || currentView !== 'dashboard') return;  // user moved on

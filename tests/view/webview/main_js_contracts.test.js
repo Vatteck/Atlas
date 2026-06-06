@@ -540,6 +540,34 @@ async function testAttentionUpdatesCardStates() {
   assert.ok(hooks.buildUpdatesCardHTML([]).includes('up to date'), 'empty → up to date');
 }
 
+async function testAttentionCenterAndBadgeShareUpdatesFetch() {
+  const updates = controlledPromise();
+  let updateCalls = 0;
+  const { context, document, hooks } = loadMainJs({
+    get_dashboard_summary: async () => ({ user: 'Cory' }),
+    get_updates: () => {
+      updateCalls += 1;
+      return updates.promise;
+    },
+  });
+
+  hooks.setCurrentView('dashboard');
+  const renderPromise = hooks.renderAttentionCenter();
+  await flushPromises();  // dashboard summary resolved; updates fetch is still in flight
+  const badgePromise = context.refreshUpdatesBadge();
+  await flushPromises();
+
+  assert.strictEqual(updateCalls, 1, 'dashboard and sidebar badge reuse one in-flight get_updates call');
+
+  updates.resolve([{ type: 'arch_repo' }]);
+  await renderPromise;
+  await badgePromise;
+
+  assert.strictEqual(document.getElementById('updates-badge').textContent, '1', 'badge updated from shared result');
+  const attentionHtml = document.getElementById('attention-center').innerHTML;
+  assert.ok(attentionHtml.includes('attention-hero">1</div>'), 'dashboard updated from shared result');
+}
+
 async function testDashboardHeaderGreetingAndMessage() {
   const { hooks } = loadMainJs({});
   // greeting tracks the hour
@@ -1205,6 +1233,7 @@ async function testShowTransactionPreviewUsesActionCopy() {
     testBrowseRendersSuggestedRowAboveCategories,
     testAttentionCenterBuildsCardsAndTones,
     testAttentionUpdatesCardStates,
+    testAttentionCenterAndBadgeShareUpdatesFetch,
     testDashboardHeaderGreetingAndMessage,
     testCommandPaletteFilterAndAvailability,
     testDensityClass,
