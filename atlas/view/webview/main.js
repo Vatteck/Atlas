@@ -1026,10 +1026,19 @@ const TX_PREVIEW_COPY = {
     'update-all': { title: n => `Update ${n}?`,     desc: "Here's everything that will be upgraded.",                                      btn: 'Update All', danger: false },
 };
 
-function openTransactionPreview(data) {
+function openTransactionPreview(data, pkgId) {
     const copy = TX_PREVIEW_COPY[(data && data.action) || 'install'] || TX_PREVIEW_COPY.install;
     const name = (data && data.name) || 'package';
     document.getElementById('tx-preview-body').innerHTML = buildTransactionPreviewHTML(data);
+
+    // "View PKGBUILD" — the natural review moment for an AUR build. AUR only, and only when we have
+    // a single package id to fetch (not the Update-All aggregate).
+    const pkgbBtn = document.getElementById('tx-preview-pkgbuild-btn');
+    if (pkgbBtn) {
+        const isAur = data && data.source_label === 'AUR' && pkgId;
+        pkgbBtn.classList.toggle('hidden', !isAur);
+        pkgbBtn.onclick = isAur ? () => openPkgbuildViewer({ id: pkgId, name, type: 'aur' }) : null;
+    }
     const title = document.getElementById('tx-preview-title');
     if (title) title.textContent = copy.title(name);
     const desc = document.getElementById('tx-preview-desc');
@@ -1054,7 +1063,7 @@ const TX_PREVIEW_API = { install: 'get_install_preview', uninstall: 'get_uninsta
 async function showTransactionPreview(id, action = 'install') {
     const data = await pyApiCall(TX_PREVIEW_API[action] || TX_PREVIEW_API.install, id);
     if (!data || typeof data !== 'object' || !data.name) return true;
-    return openTransactionPreview(data);
+    return openTransactionPreview(data, id);
 }
 
 // Back-compat thin wrapper (install path + existing tests/command palette).

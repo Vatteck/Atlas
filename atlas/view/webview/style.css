@@ -1098,6 +1098,8 @@ body {
 
 /* ---- PKGBUILD viewer (first-class AUR build-recipe reader) ---- */
 .detail-section-hint { margin: 0 0 12px; font-size: 13px; color: var(--text-secondary); }
+/* Above the other modals (z 300) so it stacks on top when opened from the install preview. */
+#pkgbuild-modal { z-index: 400; }
 .pkgbuild-modal-content { width: 880px; max-height: 86vh; }
 .pkgbuild-body { display: flex; flex-direction: column; gap: 16px; padding: 20px 24px 24px; overflow: auto; }
 /* Sticky risk summary lives between header and the scrolling body. */
