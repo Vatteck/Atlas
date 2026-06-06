@@ -59,11 +59,25 @@ will run *before* deciding to install — Atlas's "honest enough for Arch people
   (line ids + flagged class), `buildPkgbuildRiskHTML`, `buildPkgbuildMetaHTML`,
   `buildPkgbuildFindingsHTML` (line links).
 
-## Deferred to increment 2
-- **`.install` tab** — fetch + scan `<base>.install` scriptlets (cgit), tab alongside PKGBUILD.
-- **Anchored diff** — "changed since your last build" for installed packages (reuse `diff_lines`
-  + cached commit), anchored to the same line ids.
-- **Copy raw PKGBUILD** button.
+## Increment 2 (shipped 2026-06-05) — `.install` tab + copy-raw + AUR preview entry point
+- **`.install` scriptlet tab** — `get_pkgbuild` now resolves the `install=` filename(s) via the pure
+  `pkgbuild.parse_install_files(text, base)` (expands `$pkgname`/`$pkgbase`/`$_*` vars; drops anything
+  unresolved), fetches each via the generalised controller `fetch_aur_file(base, path, commit=None)`
+  (`fetch_pkgbuild` is now a thin wrapper), scans them, and returns a **`files`** list (PKGBUILD
+  first, then each `.install`). The viewer shows a **tab bar** (`buildPkgbuildTabsHTML`) when >1 file,
+  each tab badged with its warn count; the **risk summary is now combined** across PKGBUILD +
+  scriptlets (scriptlets run as root on install/upgrade/remove — they matter).
+- **Copy** button (header) — copies the **active** file's raw text to the clipboard.
+- **Entry point from the install transaction preview** — a "View PKGBUILD" button in the tx-preview
+  footer, AUR-only (detected via `source_label`), so the viewer is reachable at the actual
+  review-before-build moment, not just the detail page. Viewer modal `z-index` lifted above the other
+  modals so it stacks on top when opened from the preview.
+
+## Deferred to a later increment
+- **Anchored diff** — "changed since your last build" for *installed* AUR packages being updated
+  (reuse `diff_lines` + the cached commit), anchored to the same line ids. Lower value: the viewer is
+  most used pre-install (uninstalled → no "last build"), and the baseline commit isn't in the viewer's
+  package object — needs a local-install lookup. The build-time audit already shows this diff.
 
 ## Non-goals
 - No editing here (PKGBUILD edition stays its own build-time flow).

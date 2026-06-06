@@ -116,3 +116,45 @@ def parse_metadata(text: str) -> Dict:
                 data['checksums'].append({'algo': algo, 'value': val,
                                           'skip': val.upper() == 'SKIP'})
     return data
+
+
+_RE_INSTALL = re.compile(r'^\s*install\s*=\s*(.+?)\s*$')
+_RE_PKGNAME = re.compile(r'^\s*pkgname\s*=\s*(.+?)\s*$')
+
+
+def parse_install_files(text: str, base: str = None) -> list:
+    """Resolve the ``.install`` scriptlet filename(s) referenced by a PKGBUILD's ``install=``
+    assignment(s). Substitutes the common ``$pkgname``/``$pkgbase``/``$_pkgname`` vars (best-effort —
+    bash expansion isn't fully evaluated). Returns a de-duplicated list of filenames. Pure."""
+    if not text:
+        return []
+    lines = text.splitlines()
+    # Gather simple scalar vars we may need to expand (first plain assignment wins).
+    vars_ = {}
+    if base:
+        vars_['pkgbase'] = base
+    for raw in lines:
+        m = _RE_PKGNAME.match(raw)
+        if m and 'pkgname' not in vars_:
+            val = _unquote(m.group(1))
+            if val and not val.startswith('('):  # skip array pkgname=(a b)
+                vars_['pkgname'] = val
+            continue
+        m2 = re.match(r'^\s*(_\w+)\s*=\s*(.+?)\s*$', raw)
+        if m2 and m2.group(1) not in vars_:
+            vars_[m2.group(1)] = _unquote(m2.group(2))
+    vars_.setdefault('pkgbase', vars_.get('pkgname'))
+
+    def _expand(token: str) -> str:
+        return re.sub(r'\$\{?(\w+)\}?', lambda m: vars_.get(m.group(1), m.group(0)), token)
+
+    out = []
+    for raw in lines:
+        m = _RE_INSTALL.match(raw)
+        if not m:
+            continue
+        name = _expand(_unquote(m.group(1)))
+        # Only keep something that looks like a resolved filename (no leftover $, parens).
+        if name and '$' not in name and '(' not in name and name not in out:
+            out.append(name)
+    return out

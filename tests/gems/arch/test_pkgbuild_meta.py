@@ -57,3 +57,34 @@ class ParseMetadataTest(unittest.TestCase):
         data = pkgbuild.parse_metadata(text)
         self.assertEqual(['https://example.com/a.tar.gz'], data['sources'])
         self.assertEqual('sha256', data['checksums'][0]['algo'])
+
+
+class ParseInstallFilesTest(unittest.TestCase):
+
+    def test_none_when_no_install(self):
+        self.assertEqual([], pkgbuild.parse_install_files("pkgname=foo\n"))
+        self.assertEqual([], pkgbuild.parse_install_files(''))
+
+    def test_expands_pkgname_var(self):
+        text = "pkgname=visual-studio-code-bin\ninstall=$pkgname.install\n"
+        self.assertEqual(['visual-studio-code-bin.install'], pkgbuild.parse_install_files(text))
+
+    def test_braced_var_and_quotes(self):
+        text = "pkgname=foo\ninstall=\"${pkgname}.install\"\n"
+        self.assertEqual(['foo.install'], pkgbuild.parse_install_files(text))
+
+    def test_literal_filename(self):
+        text = "install=scriptlet.install\n"
+        self.assertEqual(['scriptlet.install'], pkgbuild.parse_install_files(text))
+
+    def test_pkgbase_fallback(self):
+        text = "install=$pkgbase.install\n"
+        self.assertEqual(['mybase.install'], pkgbuild.parse_install_files(text, base='mybase'))
+
+    def test_unresolved_var_dropped(self):
+        # nothing to expand $missing → not a usable filename, dropped (never guess)
+        self.assertEqual([], pkgbuild.parse_install_files("install=$missing.install\n"))
+
+    def test_custom_underscore_var(self):
+        text = "_name=bar\ninstall=$_name.install\n"
+        self.assertEqual(['bar.install'], pkgbuild.parse_install_files(text))

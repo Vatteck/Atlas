@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-05 (PKGBUILD viewer — first-class AUR build-recipe reader, increment 1; 516 tests + 38 JS green)
+**Last updated:** 2026-06-05 (PKGBUILD viewer increments 1+2: viewer + tx-preview entry point + .install tab + copy; 525 tests + 38 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -99,6 +99,19 @@ re-add a native extension without a measured win. Details in the historical
   non-AUR pkg shows no button; offline → friendly empty state). **Deferred to increment 2:** `.install`
   scriptlet tab, anchored "changed since last build" diff, copy-raw button. Plan:
   [plans/2026-06-05-pkgbuild-viewer.md](plans/2026-06-05-pkgbuild-viewer.md).
+  **Increment 2 (2026-06-05, GUI-verified increment 1):** (a) a **"View PKGBUILD" button in the
+  install transaction preview** (AUR-only, via `source_label`) — the viewer is now reachable at the
+  actual review-before-build moment, not just the detail page (viewer `z-index` lifted above the other
+  modals so it stacks on top when opened from the preview); (b) a **`.install` scriptlet tab** —
+  `get_pkgbuild` resolves `install=` filename(s) via pure `pkgbuild.parse_install_files` (expands
+  `$pkgname`/`$pkgbase`/`$_*`), fetches each via the generalised `fetch_aur_file`, scans them, and
+  returns a `files` list (PKGBUILD first); the viewer shows a tab bar (`buildPkgbuildTabsHTML`, warn-
+  count badges) when >1 file, and the **risk summary is now combined** across PKGBUILD + scriptlets;
+  (c) a header **Copy** button (active file → clipboard). Tests: `test_pkgbuild_meta.py::ParseInstallFilesTest`
+  (7) + `PkgbuildViewTest` (+2) + `testPkgbuildViewerBuilders` tabs assertions. Suite **525** + JS 38.
+  **Needs a GUI eyeball** (open an AUR pkg with an `.install`, e.g. `visual-studio-code-bin` → tab + badge;
+  Copy; combined risk count). **Deferred:** anchored "changed since last build" diff (installed-update
+  case only; baseline commit not in the viewer's pkg object — build-time audit already shows it).
 - **"Why is this installed?" — install reason + orphan status (2026-06-05).** Folded into the
   dependency summary (its natural home — required-by was already there). For an **installed** package,
   `get_dependency_summary` now also returns `install_reason` (`explicit`/`dependency`/`None`) + a

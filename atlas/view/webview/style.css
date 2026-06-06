@@ -1140,6 +1140,14 @@ body {
 .pkgb-code { white-space: pre-wrap; word-break: break-word; }
 .pkgbuild-loading { padding: 24px; text-align: center; color: var(--text-secondary); }
 
+.pkgbuild-header-actions { display: flex; align-items: center; gap: 10px; }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+.pkgbuild-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border-color); }
+.pkgb-tab { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); font-family: ui-monospace, monospace; font-size: 12.5px; cursor: pointer; }
+.pkgb-tab:hover { color: var(--text-primary); }
+.pkgb-tab.active { color: var(--text-primary); border-bottom-color: var(--accent-color); }
+.pkgb-tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: rgba(217, 119, 6, 0.18); color: #d97706; font-size: 11px; font-weight: 700; }
+
 /* bash token colors */
 .tok-comment { color: #6b7280; font-style: italic; }
 .tok-str { color: #34d399; }

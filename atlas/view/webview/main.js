@@ -1821,9 +1821,35 @@ function renderPkgbuildAffordance(pkg) {
 }
 
 const pkgbuildModal = document.getElementById('pkgbuild-modal');
+let pkgbuildFiles = [];      // [{name, text, findings}] — PKGBUILD first, then .install scriptlets
+let pkgbuildActiveTab = 0;
 
 function closePkgbuildViewer() {
     if (pkgbuildModal) pkgbuildModal.classList.add('hidden');
+}
+
+// Tab bar across the viewable files (PKGBUILD + any .install scriptlets). Pure.
+function buildPkgbuildTabsHTML(files, activeIdx) {
+    files = files || [];
+    if (files.length < 2) return '';   // nothing to tab between
+    return files.map((f, i) => {
+        const warns = (f.findings || []).filter(x => x.severity === 'warn').length;
+        const badge = warns ? `<span class="pkgb-tab-badge">${warns}</span>` : '';
+        return `<button class="pkgb-tab${i === activeIdx ? ' active' : ''}" data-tab="${i}">` +
+            `${escapeHtml(f.name)}${badge}</button>`;
+    }).join('');
+}
+
+// Render the findings + code for the active file.
+function renderPkgbuildTab(idx) {
+    const file = pkgbuildFiles[idx];
+    if (!file) return;
+    pkgbuildActiveTab = idx;
+    const tabsEl = document.getElementById('pkgbuild-tabs');
+    if (tabsEl) tabsEl.querySelectorAll('.pkgb-tab').forEach(t =>
+        t.classList.toggle('active', Number(t.dataset.tab) === idx));
+    document.getElementById('pkgbuild-findings').innerHTML = buildPkgbuildFindingsHTML(file.findings);
+    document.getElementById('pkgbuild-code').innerHTML = buildPkgbuildCodeHTML(file.text, file.findings);
 }
 
 // Open the first-class PKGBUILD viewer for an AUR package (lazy fetch + scan + render).
@@ -1832,15 +1858,21 @@ async function openPkgbuildViewer(pkg) {
     const viewerPkgId = String(pkg.id || '');
     pkgbuildModal.dataset.pkgId = viewerPkgId;
     const stillCurrent = () => pkgbuildModal.dataset.pkgId === viewerPkgId;
+    pkgbuildFiles = [];
+    pkgbuildActiveTab = 0;
 
     document.getElementById('pkgbuild-name').textContent = pkg.name || '';
     document.getElementById('pkgbuild-risk').innerHTML = '';
     document.getElementById('pkgbuild-meta').innerHTML = '';
     document.getElementById('pkgbuild-findings').innerHTML = '';
+    const tabsEl = document.getElementById('pkgbuild-tabs');
+    tabsEl.innerHTML = ''; tabsEl.classList.add('hidden');
     document.getElementById('pkgbuild-code').innerHTML =
         '<div class="pkgbuild-loading">Fetching PKGBUILD…</div>';
     const link = document.getElementById('pkgbuild-link');
+    const copyBtn = document.getElementById('pkgbuild-copy-btn');
     link.classList.add('hidden');
+    if (copyBtn) copyBtn.classList.add('hidden');
     pkgbuildModal.classList.remove('hidden');
     if (pkgbuildModal.focus) setTimeout(() => pkgbuildModal.focus(), 50);
 
@@ -1864,10 +1896,16 @@ async function openPkgbuildViewer(pkg) {
     document.getElementById('pkgbuild-risk').innerHTML =
         buildPkgbuildRiskHTML(data.summary, data.disclaimer);
     document.getElementById('pkgbuild-meta').innerHTML = buildPkgbuildMetaHTML(data.metadata);
-    document.getElementById('pkgbuild-findings').innerHTML = buildPkgbuildFindingsHTML(data.findings);
-    document.getElementById('pkgbuild-code').innerHTML =
-        buildPkgbuildCodeHTML(data.text, data.findings);
 
+    // Files: prefer the server's `files` list (PKGBUILD + .install tabs); fall back to a single file.
+    pkgbuildFiles = (Array.isArray(data.files) && data.files.length)
+        ? data.files
+        : [{ name: 'PKGBUILD', text: data.text, findings: data.findings }];
+    tabsEl.innerHTML = buildPkgbuildTabsHTML(pkgbuildFiles, 0);
+    tabsEl.classList.toggle('hidden', pkgbuildFiles.length < 2);
+    renderPkgbuildTab(0);
+
+    if (copyBtn) copyBtn.classList.remove('hidden');
     if (data.url) {
         link.href = '#';
         link.onclick = (e) => { e.preventDefault(); pyApiCall('open_url', data.url); };
@@ -2738,6 +2776,25 @@ if (pkgbuildModal) {
         if (!a) return;
         e.preventDefault();
         if (a.dataset.url) pyApiCall('open_url', a.dataset.url);
+    });
+    // Switch tabs (PKGBUILD ↔ .install scriptlets).
+    document.getElementById('pkgbuild-tabs').addEventListener('click', (e) => {
+        const tab = e.target.closest('.pkgb-tab');
+        if (tab) renderPkgbuildTab(Number(tab.dataset.tab));
+    });
+    // Copy the active file's raw text.
+    const pkgbCopyBtn = document.getElementById('pkgbuild-copy-btn');
+    if (pkgbCopyBtn) pkgbCopyBtn.addEventListener('click', () => {
+        const file = pkgbuildFiles[pkgbuildActiveTab];
+        if (!file) return;
+        const done = () => {
+            const orig = pkgbCopyBtn.textContent;
+            pkgbCopyBtn.textContent = '✓ Copied';
+            setTimeout(() => { pkgbCopyBtn.textContent = orig; }, 1500);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(file.text).then(done).catch(() => {});
+        }
     });
 }
 
@@ -5256,6 +5313,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildPkgbuildMetaHTML,
         buildPkgbuildFindingsHTML,
         buildPkgbuildCodeHTML,
+        buildPkgbuildTabsHTML,
         summarizeFailure,
         pickActivityText,
         stripProgressBar,

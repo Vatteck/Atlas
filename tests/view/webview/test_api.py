@@ -125,11 +125,12 @@ class PkgbuildViewTest(unittest.TestCase):
         "}\n"
     )
 
-    def _setup(self, repository='aur', text=SAMPLE, has_man=True, base='demo'):
+    def _setup(self, repository='aur', text=SAMPLE, has_man=True, base='demo', install_text=None):
         pkg = Mock(name='pkg'); pkg.name = 'demo'; pkg.repository = repository; pkg.base = base
         self.api._get_pkg = Mock(return_value=pkg)
         arch_man = Mock()
         arch_man.fetch_pkgbuild.return_value = text
+        arch_man.fetch_aur_file.return_value = install_text
         arch_man.aur_client.get_info.return_value = [{'PackageBase': base}]
         self.api._manager_by_gem = Mock(return_value=arch_man if has_man else None)
         return arch_man
@@ -158,6 +159,24 @@ class PkgbuildViewTest(unittest.TestCase):
         data = self.api.get_pkgbuild('demo')['data']
         self.assertEqual('demo-git', data['base'])
         arch_man.fetch_pkgbuild.assert_called_once_with('demo-git')
+
+    def test_files_list_has_pkgbuild_first(self):
+        self._setup()
+        data = self.api.get_pkgbuild('demo')['data']
+        self.assertEqual('PKGBUILD', data['files'][0]['name'])
+        self.assertEqual(self.SAMPLE, data['files'][0]['text'])
+
+    def test_install_scriptlet_becomes_a_tab_and_folds_into_summary(self):
+        pkgbuild_text = ("pkgname=demo\ninstall=$pkgname.install\nbuild() { make; }\n")
+        # the .install scriptlet trips a rule (sudo) so it contributes a warn to the combined summary
+        install_text = "post_install() { sudo systemctl enable demo; }\n"
+        arch_man = self._setup(text=pkgbuild_text, install_text=install_text)
+        data = self.api.get_pkgbuild('demo')['data']
+        names = [f['name'] for f in data['files']]
+        self.assertEqual(['PKGBUILD', 'demo.install'], names)
+        arch_man.fetch_aur_file.assert_called_once_with('demo', 'demo.install')
+        # combined summary counts findings from the scriptlet too
+        self.assertGreaterEqual(data['summary']['warn'], 1)
 
 
 class SerializeSortFieldsTest(unittest.TestCase):

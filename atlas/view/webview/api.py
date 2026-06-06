@@ -1734,10 +1734,28 @@ class AtlasApi:
 
             findings = list(pkgbuild_audit.scan(text))
             url = f'https://aur.archlinux.org/cgit/aur.git/tree/PKGBUILD?h={base}'
+
+            # The PKGBUILD is the primary file; .install scriptlets (which run as root on install/
+            # upgrade/remove) get their own tab. Best-effort: a scriptlet that 404s is skipped.
+            files = [{'name': 'PKGBUILD', 'text': text, 'findings': findings}]
+            all_findings = list(findings)
+            for fname in pkgbuild.parse_install_files(text, base):
+                ftext = None
+                try:
+                    ftext = arch_man.fetch_aur_file(base, fname)
+                except Exception as e:
+                    self.logger.debug(f"get_pkgbuild: could not fetch '{fname}': {e}")
+                if not ftext:
+                    continue
+                ffindings = list(pkgbuild_audit.scan(ftext))
+                files.append({'name': fname, 'text': ftext, 'findings': ffindings})
+                all_findings.extend(ffindings)
+
             return {'status': 'ok', 'data': {
                 'text': text,
                 'findings': findings,
-                'summary': pkgbuild_audit.summarize(findings),
+                'files': files,
+                'summary': pkgbuild_audit.summarize(all_findings),  # combined across PKGBUILD + .install
                 'metadata': pkgbuild.parse_metadata(text),
                 'base': base,
                 'url': url,

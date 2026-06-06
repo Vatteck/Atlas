@@ -254,11 +254,15 @@
                     </div>
                     <a id="pkgbuild-link" class="detail-link hidden" href="#" rel="noopener">View on AUR ↗</a>
                 </div>
-                <button class="modal-close" id="pkgbuild-close" aria-label="Close">✕</button>
+                <div class="pkgbuild-header-actions">
+                    <button class="btn btn-secondary btn-sm hidden" id="pkgbuild-copy-btn">⧉ Copy</button>
+                    <button class="modal-close" id="pkgbuild-close" aria-label="Close">✕</button>
+                </div>
             </div>
             <div id="pkgbuild-risk" class="pkgbuild-risk"></div>
             <div class="modal-body pkgbuild-body">
                 <div id="pkgbuild-meta" class="pkgbuild-meta"></div>
+                <div id="pkgbuild-tabs" class="pkgbuild-tabs hidden"></div>
                 <div id="pkgbuild-findings" class="pkgbuild-findings"></div>
                 <div id="pkgbuild-code" class="pkgbuild-code"></div>
             </div>

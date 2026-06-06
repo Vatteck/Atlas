@@ -939,7 +939,7 @@ async function testBuildDependencySummaryHTML() {
 async function testPkgbuildViewerBuilders() {
   const { hooks } = loadMainJs({});
   const { highlightBashLine, buildPkgbuildRiskHTML, buildPkgbuildMetaHTML,
-          buildPkgbuildFindingsHTML, buildPkgbuildCodeHTML } = hooks;
+          buildPkgbuildFindingsHTML, buildPkgbuildCodeHTML, buildPkgbuildTabsHTML } = hooks;
 
   // highlightBashLine: escapes HTML, colors comments/strings/keywords/vars, never stalls.
   assert.ok(highlightBashLine('# a comment').includes('tok-comment'), 'full-line comment');
@@ -972,6 +972,16 @@ async function testPkgbuildViewerBuilders() {
   const code = buildPkgbuildCodeHTML('a\nb\nc', [{ line_no: 2, severity: 'warn', why: 'x' }]);
   assert.ok(code.includes('id="pkgb-line-1"') && code.includes('id="pkgb-line-3"'), 'every line gets an id');
   assert.ok(code.includes('class="pkgb-line flagged sev-warn" id="pkgb-line-2"'), 'flagged line carries severity class');
+
+  // tabs: only when >1 file; active marked; warn count badged
+  assert.strictEqual(buildPkgbuildTabsHTML([{ name: 'PKGBUILD', findings: [] }], 0), '', 'single file → no tabs');
+  const tabs = buildPkgbuildTabsHTML([
+    { name: 'PKGBUILD', findings: [] },
+    { name: 'x.install', findings: [{ severity: 'warn' }, { severity: 'info' }] },
+  ], 0);
+  assert.ok(tabs.includes('data-tab="0"') && tabs.includes('data-tab="1"'), 'a tab per file');
+  assert.ok(/data-tab="0"[^>]*class="pkgb-tab active"|class="pkgb-tab active" data-tab="0"/.test(tabs), 'active tab marked');
+  assert.ok(tabs.includes('pkgb-tab-badge">1<'), 'warn count badge (info excluded)');
 }
 
 async function testStripProgressBarAndPercent() {
