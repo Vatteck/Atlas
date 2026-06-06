@@ -2020,6 +2020,16 @@ body {
 .browse-chip-rich .browse-chip-icon { font-size: 26px; margin-top: 1px; }
 .browse-chip-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.35; }
 
+/* Browse landing: both the category row and the AUR discovery row lay their rich tiles out on the
+   same fixed 4-column grid, so every tile is the same size, columns line up across the two sections,
+   and the rows fill evenly (8 categories → 2 rows, 4 AUR buckets → 1 row) with no orphaned gap. */
+.browse-chip-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: stretch;
+}
+.browse-chip-grid .browse-chip-rich { min-width: 0; max-width: none; width: auto; }
+
 /* "Resume your last category" convenience chip on the landing. */
 .browse-resume { margin-bottom: 16px; }
 .browse-resume-btn {

@@ -4278,7 +4278,7 @@ async function renderBrowse() {
     // tiles and left-packed so a short list of buckets doesn't leave a half-empty grid row).
     const hasAur = Array.isArray(aurBuckets) && aurBuckets.length > 0;
     const aurCards = hasAur ? aurBuckets.map(b => `
-        <button class="browse-chip browse-chip-aur" data-aur-key="${escapeHtml(b.key)}" data-aur-label="${escapeHtml(b.label)}">
+        <button class="browse-chip browse-chip-rich browse-chip-aur" data-aur-key="${escapeHtml(b.key)}" data-aur-label="${escapeHtml(b.label)}">
             <span class="browse-chip-icon">${escapeHtml(b.icon || '📦')}</span>
             <span class="browse-chip-text">
                 <span class="browse-chip-label">${escapeHtml(b.label)}</span>
@@ -4286,7 +4286,7 @@ async function renderBrowse() {
             </span>
         </button>`).join('') : '';
     const aurSection = hasAur
-        ? `<div class="browse-header browse-header-spaced">Discover on the AUR <span class="browse-header-note browse-header-note-aur">community-maintained</span></div><div class="browse-chip-row">${aurCards}</div>`
+        ? `<div class="browse-header browse-header-spaced">Discover on the AUR <span class="browse-header-note browse-header-note-aur">community-maintained</span></div><div class="browse-chip-row browse-chip-grid">${aurCards}</div>`
         : '';
 
     // Resume chip (if any), then categories (the primary purpose of Browse), then AUR discovery,
@@ -4294,7 +4294,7 @@ async function renderBrowse() {
     packagesGrid.innerHTML =
         `<div class="browse-view">` +
         `${resumeSection}` +
-        `<div class="browse-header">Browse by category <span class="browse-header-note">official repos & Flatpak</span></div><div class="browse-chip-row">${cards}</div>` +
+        `<div class="browse-header">Browse by category <span class="browse-header-note">official repos & Flatpak</span></div><div class="browse-chip-row browse-chip-grid">${cards}</div>` +
         `${aurSection}${suggestedSection}</div>`;
 
     // Render the suggestions as real package cards (install/detail/source-switch all work via the
