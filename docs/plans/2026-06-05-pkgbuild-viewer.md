@@ -73,11 +73,20 @@ will run *before* deciding to install — Atlas's "honest enough for Arch people
   review-before-build moment, not just the detail page. Viewer modal `z-index` lifted above the other
   modals so it stacks on top when opened from the preview.
 
-## Deferred to a later increment
-- **Anchored diff** — "changed since your last build" for *installed* AUR packages being updated
-  (reuse `diff_lines` + the cached commit), anchored to the same line ids. Lower value: the viewer is
-  most used pre-install (uninstalled → no "last build"), and the baseline commit isn't in the viewer's
-  package object — needs a local-install lookup. The build-time audit already shows this diff.
+## Increment 3 (shipped 2026-06-05) — "changed since your build" diff
+- For an **installed** AUR package whose **built commit** we cached (`commit` is a cached `ArchPackage`
+  attr, restored by `fill_cached_data`), `get_pkgbuild` now fetches the PKGBUILD at that commit and
+  `diff_lines`s it against the current published one (the compromised-release signal). Best-effort:
+  no baseline / unchanged / fetch failure → empty `diff`. Returned as `data.diff`.
+- Frontend: the viewer is now a list of **views** (pure `buildPkgbuildViews(data)`): a **"Changed
+  since your build" diff tab leads** (badge = add/del count, accent-colored) when present, followed by
+  the PKGBUILD + `.install` tabs. Diff rendered by pure `buildPkgbuildDiffHTML` (reuses the build-time
+  review's `.diff-line` markup). Copy on the diff tab copies the diff text.
+- Tests: `PkgbuildViewTest` (+3: not-installed → no diff, installed+changed → diff w/ adds, unchanged
+  → none) + `testPkgbuildViewerBuilders` views/diff assertions. Suite **528** + JS 38.
+- **Note:** the viewer is most used pre-install (uninstalled → no baseline → no diff tab); the diff
+  appears on the detail page of an installed-but-behind AUR pkg, or its update preview. Complements
+  the build-time review modal, which still shows this diff at confirm time.
 
 ## Non-goals
 - No editing here (PKGBUILD edition stays its own build-time flow).

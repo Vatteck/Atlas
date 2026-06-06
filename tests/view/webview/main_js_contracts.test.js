@@ -939,7 +939,8 @@ async function testBuildDependencySummaryHTML() {
 async function testPkgbuildViewerBuilders() {
   const { hooks } = loadMainJs({});
   const { highlightBashLine, buildPkgbuildRiskHTML, buildPkgbuildMetaHTML,
-          buildPkgbuildFindingsHTML, buildPkgbuildCodeHTML, buildPkgbuildTabsHTML } = hooks;
+          buildPkgbuildFindingsHTML, buildPkgbuildCodeHTML, buildPkgbuildTabsHTML,
+          buildPkgbuildViews, buildPkgbuildDiffHTML } = hooks;
 
   // highlightBashLine: escapes HTML, colors comments/strings/keywords/vars, never stalls.
   assert.ok(highlightBashLine('# a comment').includes('tok-comment'), 'full-line comment');
@@ -973,15 +974,32 @@ async function testPkgbuildViewerBuilders() {
   assert.ok(code.includes('id="pkgb-line-1"') && code.includes('id="pkgb-line-3"'), 'every line gets an id');
   assert.ok(code.includes('class="pkgb-line flagged sev-warn" id="pkgb-line-2"'), 'flagged line carries severity class');
 
-  // tabs: only when >1 file; active marked; warn count badged
-  assert.strictEqual(buildPkgbuildTabsHTML([{ name: 'PKGBUILD', findings: [] }], 0), '', 'single file → no tabs');
-  const tabs = buildPkgbuildTabsHTML([
-    { name: 'PKGBUILD', findings: [] },
-    { name: 'x.install', findings: [{ severity: 'warn' }, { severity: 'info' }] },
-  ], 0);
-  assert.ok(tabs.includes('data-tab="0"') && tabs.includes('data-tab="1"'), 'a tab per file');
-  assert.ok(/data-tab="0"[^>]*class="pkgb-tab active"|class="pkgb-tab active" data-tab="0"/.test(tabs), 'active tab marked');
-  assert.ok(tabs.includes('pkgb-tab-badge">1<'), 'warn count badge (info excluded)');
+  // views: a diff view (when present) leads, then PKGBUILD + .install files; each precomputes a badge
+  const noDiffViews = buildPkgbuildViews({
+    files: [{ name: 'PKGBUILD', findings: [] }, { name: 'x.install', findings: [{ severity: 'warn' }, { severity: 'info' }] }],
+  });
+  assert.strictEqual(JSON.stringify(noDiffViews.map(v => v.name)), '["PKGBUILD","x.install"]', 'files in order, no diff');
+  assert.strictEqual(noDiffViews[1].badge, 1, 'warn count badge (info excluded)');
+
+  const withDiff = buildPkgbuildViews({
+    diff: [{ kind: 'add', text: '+x' }, { kind: 'del', text: '-y' }, { kind: 'ctx', text: ' z' }],
+    files: [{ name: 'PKGBUILD', findings: [] }],
+  });
+  assert.strictEqual(withDiff[0].kind, 'diff', 'diff view leads');
+  assert.strictEqual(withDiff[0].badge, 2, 'diff badge counts add/del only');
+  assert.strictEqual(withDiff[1].name, 'PKGBUILD', 'file follows diff');
+
+  // single view → no tab bar; >1 → a tab each, active marked, diff badge styled
+  assert.strictEqual(buildPkgbuildTabsHTML(buildPkgbuildViews({ files: [{ name: 'PKGBUILD', findings: [] }] }), 0), '', 'single view → no tabs');
+  const tabs = buildPkgbuildTabsHTML(withDiff, 0);
+  assert.ok(tabs.includes('data-tab="0"') && tabs.includes('data-tab="1"'), 'a tab per view');
+  assert.ok(tabs.includes('class="pkgb-tab active" data-tab="0"'), 'active tab marked');
+  assert.ok(tabs.includes('pkgb-tab-badge-diff'), 'diff badge uses the diff style');
+
+  // diff renderer: colored unified-diff rows, escaped
+  assert.strictEqual(buildPkgbuildDiffHTML([]), '', 'empty diff → nothing');
+  const diffHtml = buildPkgbuildDiffHTML([{ kind: 'add', text: '+<x>' }]);
+  assert.ok(diffHtml.includes('diff-add') && diffHtml.includes('&lt;x&gt;'), 'diff row colored + escaped');
 }
 
 async function testStripProgressBarAndPercent() {

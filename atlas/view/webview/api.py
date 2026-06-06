@@ -1751,10 +1751,24 @@ class AtlasApi:
                 files.append({'name': fname, 'text': ftext, 'findings': ffindings})
                 all_findings.extend(ffindings)
 
+            # "Changed since your build" — for an installed AUR package whose built commit we cached,
+            # diff the PKGBUILD you built against the current published one (the compromised-release
+            # signal). Best-effort: no baseline / unchanged / fetch failure → empty.
+            diff = []
+            commit = getattr(pkg, 'commit', None)
+            if getattr(pkg, 'installed', False) and commit:
+                try:
+                    old_text = arch_man.fetch_aur_file(base, 'PKGBUILD', commit)
+                    if old_text and old_text != text:
+                        diff = pkgbuild_audit.diff_lines(old_text, text)
+                except Exception as e:
+                    self.logger.debug(f"get_pkgbuild: diff vs commit {commit} failed: {e}")
+
             return {'status': 'ok', 'data': {
                 'text': text,
                 'findings': findings,
                 'files': files,
+                'diff': diff,
                 'summary': pkgbuild_audit.summarize(all_findings),  # combined across PKGBUILD + .install
                 'metadata': pkgbuild.parse_metadata(text),
                 'base': base,

@@ -125,8 +125,10 @@ class PkgbuildViewTest(unittest.TestCase):
         "}\n"
     )
 
-    def _setup(self, repository='aur', text=SAMPLE, has_man=True, base='demo', install_text=None):
+    def _setup(self, repository='aur', text=SAMPLE, has_man=True, base='demo', install_text=None,
+               installed=False, commit=None):
         pkg = Mock(name='pkg'); pkg.name = 'demo'; pkg.repository = repository; pkg.base = base
+        pkg.installed = installed; pkg.commit = commit
         self.api._get_pkg = Mock(return_value=pkg)
         arch_man = Mock()
         arch_man.fetch_pkgbuild.return_value = text
@@ -177,6 +179,27 @@ class PkgbuildViewTest(unittest.TestCase):
         arch_man.fetch_aur_file.assert_called_once_with('demo', 'demo.install')
         # combined summary counts findings from the scriptlet too
         self.assertGreaterEqual(data['summary']['warn'], 1)
+
+    def test_no_diff_when_not_installed(self):
+        self._setup(installed=False, commit='abc')
+        self.assertEqual([], self.api.get_pkgbuild('demo')['data']['diff'])
+
+    def test_diff_when_installed_commit_differs(self):
+        # PKGBUILD without an install= line so fetch_aur_file is used only for the diff baseline
+        new_text = "pkgname=demo\npkgver=2\nbuild() { make; }\n"
+        old_text = "pkgname=demo\npkgver=1\nbuild() { make; }\n"
+        arch_man = self._setup(text=new_text, installed=True, commit='oldsha')
+        arch_man.fetch_aur_file.return_value = old_text
+        data = self.api.get_pkgbuild('demo')['data']
+        self.assertTrue(data['diff'])  # structured diff_lines, non-empty
+        self.assertTrue(any(d['kind'] == 'add' for d in data['diff']))
+        arch_man.fetch_aur_file.assert_called_once_with('demo', 'PKGBUILD', 'oldsha')
+
+    def test_no_diff_when_unchanged(self):
+        same = "pkgname=demo\npkgver=1\n"
+        arch_man = self._setup(text=same, installed=True, commit='oldsha')
+        arch_man.fetch_aur_file.return_value = same
+        self.assertEqual([], self.api.get_pkgbuild('demo')['data']['diff'])
 
 
 class SerializeSortFieldsTest(unittest.TestCase):

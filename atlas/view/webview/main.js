@@ -1821,35 +1821,72 @@ function renderPkgbuildAffordance(pkg) {
 }
 
 const pkgbuildModal = document.getElementById('pkgbuild-modal');
-let pkgbuildFiles = [];      // [{name, text, findings}] — PKGBUILD first, then .install scriptlets
+let pkgbuildViews = [];      // [{name, kind:'diff'|'code', ...}] — diff (if any) first, then files
 let pkgbuildActiveTab = 0;
 
 function closePkgbuildViewer() {
     if (pkgbuildModal) pkgbuildModal.classList.add('hidden');
 }
 
-// Tab bar across the viewable files (PKGBUILD + any .install scriptlets). Pure.
-function buildPkgbuildTabsHTML(files, activeIdx) {
-    files = files || [];
-    if (files.length < 2) return '';   // nothing to tab between
-    return files.map((f, i) => {
+// Pure: the ordered viewer "views" — an optional "changed since your build" diff first, then the
+// PKGBUILD and any .install scriptlets. Each view precomputes its tab badge. Node-VM contract-tested.
+function buildPkgbuildViews(data) {
+    data = data || {};
+    const views = [];
+    const diff = data.diff || [];
+    if (diff.length) {
+        const changes = diff.filter(d => d.kind === 'add' || d.kind === 'del').length;
+        views.push({ name: 'Changed since your build', kind: 'diff', diff, badge: changes, badgeKind: 'diff' });
+    }
+    const files = (Array.isArray(data.files) && data.files.length)
+        ? data.files
+        : [{ name: 'PKGBUILD', text: data.text, findings: data.findings }];
+    files.forEach(f => {
         const warns = (f.findings || []).filter(x => x.severity === 'warn').length;
-        const badge = warns ? `<span class="pkgb-tab-badge">${warns}</span>` : '';
+        views.push({ name: f.name, kind: 'code', text: f.text, findings: f.findings,
+                     badge: warns, badgeKind: 'warn' });
+    });
+    return views;
+}
+
+// Tab bar across the views. Pure. '' when there's only one (nothing to tab between).
+function buildPkgbuildTabsHTML(views, activeIdx) {
+    views = views || [];
+    if (views.length < 2) return '';
+    return views.map((v, i) => {
+        const badge = v.badge
+            ? `<span class="pkgb-tab-badge${v.badgeKind === 'diff' ? ' pkgb-tab-badge-diff' : ''}">${v.badge}</span>`
+            : '';
         return `<button class="pkgb-tab${i === activeIdx ? ' active' : ''}" data-tab="${i}">` +
-            `${escapeHtml(f.name)}${badge}</button>`;
+            `${escapeHtml(v.name)}${badge}</button>`;
     }).join('');
 }
 
-// Render the findings + code for the active file.
+// Pure: a colored unified diff (reuses the build-time review's .diff-line markup).
+function buildPkgbuildDiffHTML(diff) {
+    diff = diff || [];
+    if (!diff.length) return '';
+    const rows = diff.map(d => `<div class="diff-line diff-${escapeHtml(d.kind)}">${escapeHtml(d.text)}</div>`).join('');
+    return `<div class="review-diff pkgb-diff">${rows}</div>`;
+}
+
+// Render the active view (diff, or findings + code for a file).
 function renderPkgbuildTab(idx) {
-    const file = pkgbuildFiles[idx];
-    if (!file) return;
+    const view = pkgbuildViews[idx];
+    if (!view) return;
     pkgbuildActiveTab = idx;
     const tabsEl = document.getElementById('pkgbuild-tabs');
     if (tabsEl) tabsEl.querySelectorAll('.pkgb-tab').forEach(t =>
         t.classList.toggle('active', Number(t.dataset.tab) === idx));
-    document.getElementById('pkgbuild-findings').innerHTML = buildPkgbuildFindingsHTML(file.findings);
-    document.getElementById('pkgbuild-code').innerHTML = buildPkgbuildCodeHTML(file.text, file.findings);
+    const findingsEl = document.getElementById('pkgbuild-findings');
+    const codeEl = document.getElementById('pkgbuild-code');
+    if (view.kind === 'diff') {
+        findingsEl.innerHTML = '';
+        codeEl.innerHTML = buildPkgbuildDiffHTML(view.diff);
+    } else {
+        findingsEl.innerHTML = buildPkgbuildFindingsHTML(view.findings);
+        codeEl.innerHTML = buildPkgbuildCodeHTML(view.text, view.findings);
+    }
 }
 
 // Open the first-class PKGBUILD viewer for an AUR package (lazy fetch + scan + render).
@@ -1858,7 +1895,7 @@ async function openPkgbuildViewer(pkg) {
     const viewerPkgId = String(pkg.id || '');
     pkgbuildModal.dataset.pkgId = viewerPkgId;
     const stillCurrent = () => pkgbuildModal.dataset.pkgId === viewerPkgId;
-    pkgbuildFiles = [];
+    pkgbuildViews = [];
     pkgbuildActiveTab = 0;
 
     document.getElementById('pkgbuild-name').textContent = pkg.name || '';
@@ -1897,12 +1934,11 @@ async function openPkgbuildViewer(pkg) {
         buildPkgbuildRiskHTML(data.summary, data.disclaimer);
     document.getElementById('pkgbuild-meta').innerHTML = buildPkgbuildMetaHTML(data.metadata);
 
-    // Files: prefer the server's `files` list (PKGBUILD + .install tabs); fall back to a single file.
-    pkgbuildFiles = (Array.isArray(data.files) && data.files.length)
-        ? data.files
-        : [{ name: 'PKGBUILD', text: data.text, findings: data.findings }];
-    tabsEl.innerHTML = buildPkgbuildTabsHTML(pkgbuildFiles, 0);
-    tabsEl.classList.toggle('hidden', pkgbuildFiles.length < 2);
+    // Views: an optional "changed since your build" diff first (draws the eye to changes on an
+    // update), then PKGBUILD + .install scriptlet tabs.
+    pkgbuildViews = buildPkgbuildViews(data);
+    tabsEl.innerHTML = buildPkgbuildTabsHTML(pkgbuildViews, 0);
+    tabsEl.classList.toggle('hidden', pkgbuildViews.length < 2);
     renderPkgbuildTab(0);
 
     if (copyBtn) copyBtn.classList.remove('hidden');
@@ -2785,15 +2821,19 @@ if (pkgbuildModal) {
     // Copy the active file's raw text.
     const pkgbCopyBtn = document.getElementById('pkgbuild-copy-btn');
     if (pkgbCopyBtn) pkgbCopyBtn.addEventListener('click', () => {
-        const file = pkgbuildFiles[pkgbuildActiveTab];
-        if (!file) return;
+        const view = pkgbuildViews[pkgbuildActiveTab];
+        if (!view) return;
+        const text = view.kind === 'diff'
+            ? (view.diff || []).map(d => d.text).join('\n')
+            : view.text;
+        if (!text) return;
         const done = () => {
             const orig = pkgbCopyBtn.textContent;
             pkgbCopyBtn.textContent = '✓ Copied';
             setTimeout(() => { pkgbCopyBtn.textContent = orig; }, 1500);
         };
         if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(file.text).then(done).catch(() => {});
+            navigator.clipboard.writeText(text).then(done).catch(() => {});
         }
     });
 }
@@ -5314,6 +5354,8 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildPkgbuildFindingsHTML,
         buildPkgbuildCodeHTML,
         buildPkgbuildTabsHTML,
+        buildPkgbuildViews,
+        buildPkgbuildDiffHTML,
         summarizeFailure,
         pickActivityText,
         stripProgressBar,
