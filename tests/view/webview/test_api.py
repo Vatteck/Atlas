@@ -202,6 +202,48 @@ class PkgbuildViewTest(unittest.TestCase):
         self.assertEqual([], self.api.get_pkgbuild('demo')['data']['diff'])
 
 
+class CommandTest(unittest.TestCase):
+    """get_command: the equivalent terminal command per source/action ("copy exact command")."""
+
+    def setUp(self):
+        self.api = AtlasApi(Mock(), Mock())
+
+    def _pkg(self, name='vim', ptype='arch_repo', repository='extra', app_id=None, base=None):
+        p = Mock(); p.name = name; p.get_type.return_value = ptype; p.gem_name = 'arch'
+        p.repository = repository; p.id = app_id; p.package_base = base
+        self.api._get_pkg = Mock(return_value=p)
+        return p
+
+    def test_repo_install_and_uninstall(self):
+        self._pkg(name='vim', ptype='arch_repo', repository='extra')
+        self.assertEqual('sudo pacman -S vim', self.api.get_command('arch_repo:vim', 'install')['data']['command'])
+        self.assertEqual('sudo pacman -Rns vim', self.api.get_command('arch_repo:vim', 'uninstall')['data']['command'])
+
+    def test_aur_install_uses_base_and_notes_helper(self):
+        self._pkg(name='yay', ptype='aur', repository='aur', base='yay')
+        d = self.api.get_command('aur:yay', 'install')['data']
+        self.assertEqual('git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si', d['command'])
+        self.assertIn('paru -S yay', d['note'])
+
+    def test_aur_uninstall_is_pacman(self):
+        self._pkg(name='yay', ptype='aur', repository='aur', base='yay')
+        self.assertEqual('sudo pacman -Rns yay', self.api.get_command('aur:yay', 'uninstall')['data']['command'])
+
+    def test_flatpak_actions(self):
+        self._pkg(name='Dropbox', ptype='flatpak', repository=None, app_id='com.dropbox.Client')
+        self.assertEqual('flatpak install flathub com.dropbox.Client', self.api.get_command('flatpak:Dropbox', 'install')['data']['command'])
+        self.assertEqual('flatpak update com.dropbox.Client', self.api.get_command('flatpak:Dropbox', 'update')['data']['command'])
+        self.assertEqual('flatpak uninstall com.dropbox.Client', self.api.get_command('flatpak:Dropbox', 'uninstall')['data']['command'])
+
+    def test_unsupported_action_returns_empty_command(self):
+        self._pkg(name='vim', ptype='arch_repo', repository='extra')
+        self.assertEqual('', self.api.get_command('arch_repo:vim', 'downgrade')['data']['command'])
+
+    def test_unknown_pkg_errors(self):
+        self.api._get_pkg = Mock(return_value=None)
+        self.assertEqual('error', self.api.get_command('nope:nope')['status'])
+
+
 class SerializeSortFieldsTest(unittest.TestCase):
     """The Sort dropdown's 'recently updated' mode needs last_modified serialized."""
 

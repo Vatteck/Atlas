@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-05 (Dependency tree view — build/provides/conflicts/replaces groups + drill-down tree; 530 tests + 38 JS green)
+**Last updated:** 2026-06-05 (Copy exact command — equivalent CLI command in the transaction preview; 536 tests + 38 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -78,6 +78,21 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Copy exact command — increment 1 (2026-06-05).** The pre-flight transaction preview now has a
+  **"⧉ Copy command"** button that copies the equivalent terminal command for that exact transaction
+  (Atlas's "honest enough for Arch people" angle — nothing hidden from CLI users; the BACKLOG "Copy
+  exact command" item). Backend `AtlasApi.get_command(pkg_id, action)` → `{command, note}` from the
+  real package object: repo → `sudo pacman -S/-Rns <name>`; AUR → `git clone …<package_base>.git && cd
+  … && makepkg -si` (+ a `paru -S` helper note) / `pacman -Rns` for uninstall; Flatpak →
+  `flatpak install flathub/update/uninstall <app_id>` (uses `pkg.id`, the real app id). `''` for
+  actions with no clean one-liner (downgrade) → the button hides; `shlex.quote`d; never raises.
+  Frontend: footer button in a new `.modal-footer-left` group beside "View PKGBUILD" (single-package
+  install/update/uninstall only — not Update-All); `copyEquivalentCommand` copies + flashes "✓ Copied"
+  + toasts the command/note. Tests: `test_api.py::CommandTest` (6). Suite **536** + JS 38. **Needs a
+  GUI eyeball** (repo/AUR/Flatpak install preview → Copy command → correct command on the clipboard +
+  toast). **Deferred:** copy on the detail page; `flatpak override` copy on the Permissions page;
+  `reflector` copy in Mirrors (already previews the command). Plan:
+  [plans/2026-06-05-copy-exact-command.md](plans/2026-06-05-copy-exact-command.md).
 - **Dependency tree view (2026-06-05).** Completed the detail-page Dependencies section into a full
   relationship picture + a drill-down tree (the BACKLOG "Dependency tree view" item). **Backend:**
   `get_dependency_summary` now additionally returns `makedepends`/`checkdepends` (AUR only — binary

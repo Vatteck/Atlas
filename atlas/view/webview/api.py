@@ -1641,6 +1641,46 @@ class AtlasApi:
             self.logger.debug(f"get_subdeps failed for {name}: {e}")
             return {'status': 'ok', 'data': {'direct': []}}
 
+    def get_command(self, pkg_id: str, action: str = 'install') -> dict:
+        """The equivalent terminal command for a transaction, so nothing feels hidden from CLI users
+        ("copy exact command"). Per source/action: pacman for repo, makepkg (or an AUR helper) for
+        AUR, flatpak for Flatpak. Returns ``{command, note}`` (`command` '' when there's no clean
+        one-liner, e.g. downgrade — the frontend then hides the affordance). Never raises."""
+        pkg = self._get_pkg(pkg_id)
+        if not pkg:
+            return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
+        try:
+            ptype = self._preview_ptype(pkg)
+            repository = (getattr(pkg, 'repository', None) or '').lower()
+            name = pkg.name or ''
+            q = shlex.quote(name)
+            command, note = '', ''
+            if ptype == 'flatpak':
+                app = shlex.quote(getattr(pkg, 'id', None) or name)
+                if action == 'uninstall':
+                    command = f'flatpak uninstall {app}'
+                elif action == 'update':
+                    command = f'flatpak update {app}'
+                elif action == 'install':
+                    command = f'flatpak install flathub {app}'
+            elif repository == 'aur' or ptype == 'aur':
+                if action == 'uninstall':
+                    command = f'sudo pacman -Rns {q}'
+                elif action in ('install', 'update'):
+                    base = shlex.quote(getattr(pkg, 'package_base', None) or name)
+                    command = (f'git clone https://aur.archlinux.org/{base}.git && '
+                               f'cd {base} && makepkg -si')
+                    note = f'Or with an AUR helper: paru -S {name}'
+            else:  # official Arch repositories
+                if action == 'uninstall':
+                    command = f'sudo pacman -Rns {q}'
+                elif action in ('install', 'update'):
+                    command = f'sudo pacman -S {q}'
+            return {'status': 'ok', 'data': {'command': command, 'note': note}}
+        except Exception as e:
+            self.logger.error(f"get_command failed for {pkg_id}: {e}")
+            return {'status': 'ok', 'data': {'command': '', 'note': ''}}
+
     @staticmethod
     def _split_optdep(token: str) -> dict:
         """Split an AUR/pacman optdep token 'name: why it's useful' into {name, detail}."""

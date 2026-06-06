@@ -1049,10 +1049,12 @@ body {
 .detail-table td { padding: 10px 6px; }
 .detail-table td:first-child { color: var(--text-secondary); width: 35%; font-weight: 500; }
 .modal-footer {
-    display: flex; gap: 12px; justify-content: flex-end;
+    display: flex; gap: 12px; justify-content: flex-end; align-items: center;
     padding: 16px 24px; border-top: 1px solid var(--border-color); flex-shrink: 0;
     background: var(--bg-surface-hover);
 }
+.modal-footer-left { margin-right: auto; display: flex; gap: 12px; }
+.modal-footer-left:empty { display: none; }
 
 /* Root password modal */
 .password-modal-content { width: 420px; }

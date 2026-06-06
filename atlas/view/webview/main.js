@@ -1026,6 +1026,31 @@ const TX_PREVIEW_COPY = {
     'update-all': { title: n => `Update ${n}?`,     desc: "Here's everything that will be upgraded.",                                      btn: 'Update All', danger: false },
 };
 
+// Fetch the equivalent terminal command for a transaction and copy it to the clipboard. Shows the
+// command (+ any note, e.g. the AUR-helper alternative) in a toast so the user sees what they got.
+async function copyEquivalentCommand(pkgId, action, btn) {
+    const data = await pyApiCall('get_command', pkgId, action);
+    const command = data && data.command;
+    if (!command) {
+        showToast('No command', 'No equivalent one-liner for this action', 'info');
+        return;
+    }
+    const finish = () => {
+        if (btn) {
+            const orig = btn.textContent;
+            btn.textContent = '✓ Copied';
+            setTimeout(() => { btn.textContent = orig; }, 1500);
+        }
+        showToast('Copied command', data.note ? `${command}\n${data.note}` : command, 'success');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(command).then(finish).catch(() =>
+            showToast('Copied command', command, 'success'));
+    } else {
+        finish();
+    }
+}
+
 function openTransactionPreview(data, pkgId) {
     const copy = TX_PREVIEW_COPY[(data && data.action) || 'install'] || TX_PREVIEW_COPY.install;
     const name = (data && data.name) || 'package';
@@ -1038,6 +1063,17 @@ function openTransactionPreview(data, pkgId) {
         const isAur = data && data.source_label === 'AUR' && pkgId;
         pkgbBtn.classList.toggle('hidden', !isAur);
         pkgbBtn.onclick = isAur ? () => openPkgbuildViewer({ id: pkgId, name, type: 'aur' }) : null;
+    }
+
+    // "Copy command" — the equivalent terminal command for this transaction (CLI users; nothing
+    // hidden). Single-package actions only (not the Update-All aggregate, which has no single id).
+    const copyCmdBtn = document.getElementById('tx-preview-copy-cmd-btn');
+    if (copyCmdBtn) {
+        const act = (data && data.action) || 'install';
+        const eligible = pkgId && ['install', 'update', 'uninstall'].includes(act);
+        copyCmdBtn.classList.toggle('hidden', !eligible);
+        copyCmdBtn.textContent = '⧉ Copy command';
+        copyCmdBtn.onclick = eligible ? () => copyEquivalentCommand(pkgId, act, copyCmdBtn) : null;
     }
     const title = document.getElementById('tx-preview-title');
     if (title) title.textContent = copy.title(name);
