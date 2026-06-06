@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-05 (PKGBUILD viewer complete — increments 1+2+3: viewer + tx-preview entry + .install tab + copy + "changed since your build" diff; 528 tests + 38 JS green)
+**Last updated:** 2026-06-05 (Dependency tree view — build/provides/conflicts/replaces groups + drill-down tree; 530 tests + 38 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -78,6 +78,24 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Dependency tree view (2026-06-05).** Completed the detail-page Dependencies section into a full
+  relationship picture + a drill-down tree (the BACKLOG "Dependency tree view" item). **Backend:**
+  `get_dependency_summary` now additionally returns `makedepends`/`checkdepends` (AUR only — binary
+  repos don't carry build deps in `pacman -Si`), `conflicts`/`provides` (repo: `map_updates_data`
+  `c`/`p`; AUR: `get_info`), and `replaces` (repo: `map_conflicts_with` `r`; AUR `get_info`) — all
+  additive + **fail-open per field**. New cheap `get_subdeps(name)` returns a single package's direct
+  requires (repo via `map_updates_data`; fail-open → leaf) for lazy expansion. **Frontend:**
+  `buildDependencySummaryHTML` renders new accordion groups (Build / Provides / Conflicts / Replaces)
+  alongside Requires / Optional / Required-by + the install-reason banner; **Requires + Build are
+  drill-down trees** — each dep is an expandable node (pure `buildDepNodesHTML`, `data-dep` = bare
+  name with version constraint stripped) that lazily fetches `get_subdeps` on first expand and renders
+  its requires as the same nodes (drill arbitrarily deep, one cheap pacman call per level, bounded by
+  clicks). Optional/Provides/Conflicts/Replaces/Required-by stay flat chips (relationships, not trees).
+  Wired by `wireDependencyTree` (delegated click, load-once). Tests: `DependencySummaryTest` (new
+  groups repo+AUR, fail-open) + `get_subdeps` (2) + `main_js_contracts` (new groups, nodes,
+  constraint-stripping). Suite **530** + JS 38. **Needs a GUI eyeball** (repo pkg: Provides/Conflicts;
+  AUR pkg: Build deps; expand a Requires node → sub-deps load). Plan:
+  [plans/2026-06-05-dependency-tree-view.md](plans/2026-06-05-dependency-tree-view.md).
 - **PKGBUILD viewer — first-class AUR build-recipe reader, increment 1 (2026-06-05).** The BACKLOG
   "PKGBUILD viewer as a first-class UI" item — Atlas's potential signature AUR feature. The advisory
   scanner (`pkgbuild_audit`) was build-time-only and undiscoverable; now any **AUR** package's detail

@@ -111,8 +111,11 @@ first:
 ### Power-user sugar (make it beautiful)
 - **"Why is this installed?"** — explicit vs dependency, required-by list, orphan status, reverse
   deps.
-- **Dependency tree view** — direct/optional/build deps + required-by + conflict/replaces/provides,
-  as an accordion tree (not node spaghetti).
+- ~~**Dependency tree view**~~ ✅ **SHIPPED 2026-06-05** (needs a GUI eyeball): the detail-page
+  Dependencies section now shows Requires / Optional / Build / Provides / Conflicts / Replaces /
+  Required-by as accordion groups, with **Requires + Build as drill-down trees** (expand a dep → its
+  requires load lazily, one cheap level per click). See
+  [plans/2026-06-05-dependency-tree-view.md](plans/2026-06-05-dependency-tree-view.md).
 - ~~**PKGBUILD viewer as a first-class UI**~~ ✅ **COMPLETE 2026-06-05** (needs a GUI eyeball):
   reachable from the **AUR detail page** ("Build recipe → View PKGBUILD") *and* the **install
   transaction preview**; a dedicated viewer with a sticky combined risk summary, maintainer/source/

@@ -1549,7 +1549,8 @@ class AtlasApi:
             return {'status': 'error', 'message': str(e)}
 
     def get_dependency_summary(self, pkg_id: str) -> dict:
-        """A scannable dependency picture for the detail page: ``{direct, optional, required_by, note}``.
+        """A scannable dependency picture for the detail page: ``{direct, optional, required_by,
+        makedepends, checkdepends, conflicts, replaces, provides, install_reason, orphan, note}``.
         Reuses the same cheap pacman/AUR signals as the transaction preview and **fails open per
         field** (a failed probe → empty list), so it never blocks the modal. Flatpak has no
         pacman-style deps (runtime-based) → empty + a note; we don't fake it."""
@@ -1557,7 +1558,8 @@ class AtlasApi:
         if not pkg:
             return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
         data = {'direct': [], 'optional': [], 'required_by': [], 'note': '',
-                'install_reason': None, 'orphan': False}
+                'install_reason': None, 'orphan': False,
+                'makedepends': [], 'checkdepends': [], 'conflicts': [], 'replaces': [], 'provides': []}
         try:
             ptype = self._preview_ptype(pkg)
             repository = (getattr(pkg, 'repository', None) or '').lower()
@@ -1581,11 +1583,18 @@ class AtlasApi:
                 data['direct'] = sorted(set(info.get('Depends') or []))
                 # AUR OptDepends are "dep: description" strings; keep them as {name, detail}.
                 data['optional'] = [self._split_optdep(o) for o in (info.get('OptDepends') or [])]
+                data['makedepends'] = sorted(set(info.get('MakeDepends') or []))
+                data['checkdepends'] = sorted(set(info.get('CheckDepends') or []))
+                data['conflicts'] = sorted(set(info.get('Conflicts') or []))
+                data['replaces'] = sorted(set(info.get('Replaces') or []))
+                data['provides'] = sorted(set(info.get('Provides') or []))
                 data['note'] = "Direct requirements from the PKGBUILD; pacman/makepkg resolves the full set at build time."
             else:
                 try:
                     info = (pacman.map_updates_data([name]) or {}).get(name) or {}
                     data['direct'] = sorted(info.get('d') or [])
+                    data['conflicts'] = sorted(info.get('c') or [])
+                    data['provides'] = sorted(info.get('p') or [])
                 except Exception as e:
                     self.logger.debug(f"dep summary: map_updates_data failed for {name}: {e}")
                 try:
@@ -1593,6 +1602,12 @@ class AtlasApi:
                     data['optional'] = [{'name': k, 'detail': v or ''} for k, v in sorted(opt.items())]
                 except Exception as e:
                     self.logger.debug(f"dep summary: optional deps failed for {name}: {e}")
+                try:
+                    rep = (pacman.map_conflicts_with([name], remote=True) or {}).get(name) or {}
+                    data['replaces'] = sorted(rep.get('r') or [])
+                except Exception as e:
+                    self.logger.debug(f"dep summary: replaces failed for {name}: {e}")
+                # makedepends/checkdepends aren't recorded for binary repo packages (build-time only).
                 data['note'] = "Direct requirements; pacman resolves the full set at install time."
 
             # Reverse deps + "why is this installed?" only make sense for an installed package
@@ -1613,6 +1628,18 @@ class AtlasApi:
         except Exception as e:
             self.logger.error(f"get_dependency_summary failed for {pkg_id}: {e}")
             return {'status': 'ok', 'data': data}  # fail open — never block the modal
+
+    def get_subdeps(self, name: str) -> dict:
+        """Direct requirements of a single package **by name** — for lazy drill-down in the
+        dependency tree. Repo-resolved (one cheap `pacman -Si`); returns ``{direct:[str]}``. Fails
+        open → ``{direct:[]}`` (an AUR-only/unknown name or any error → a leaf node, no RPC storm)."""
+        try:
+            from atlas.gems.arch import pacman
+            info = (pacman.map_updates_data([name]) or {}).get(name) or {}
+            return {'status': 'ok', 'data': {'direct': sorted(info.get('d') or [])}}
+        except Exception as e:
+            self.logger.debug(f"get_subdeps failed for {name}: {e}")
+            return {'status': 'ok', 'data': {'direct': []}}
 
     @staticmethod
     def _split_optdep(token: str) -> dict:

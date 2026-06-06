@@ -1307,15 +1307,35 @@ function renderWhySource(pkg, opts) {
     el.innerHTML = `<span class="why-source-icon">${icon}</span><span>${escapeHtml(hint.text)}</span>`;
 }
 
-// Pure: the detail-page Dependencies section — three counts (Requires / Optional / Required by),
-// each an expandable chip list. Built from get_dependency_summary; '' when there's nothing to show
+// Pure: a list of expandable dependency nodes (the drill-down tree). Each node carries its name in a
+// `data-dep` attr; its child container is filled lazily on first expand by the consumer. Node-VM
+// contract-tested. A version constraint (e.g. "glibc>=2.38") is split so we resolve the bare name.
+function buildDepNodesHTML(names) {
+    names = names || [];
+    return names.map(n => {
+        const bare = String(n).split(/[<>=:]/)[0];
+        return `<details class="dep-node" data-dep="${escapeHtml(bare)}">` +
+            `<summary class="dep-node-label">${escapeHtml(n)}</summary>` +
+            `<div class="dep-node-children"></div></details>`;
+    }).join('');
+}
+
+// Pure: the detail-page Dependencies section — Requires / Optional / Build / Provides / Conflicts /
+// Replaces / Required by, each an expandable group. Requires + Build are drill-down trees (nodes);
+// the rest are flat chip lists. Built from get_dependency_summary; '' when there's nothing to show
 // (and no note). Node-VM contract-tested.
 function buildDependencySummaryHTML(data) {
     data = data || {};
     const direct = data.direct || [];
     const optional = data.optional || [];
     const requiredBy = data.required_by || [];
-    if (!direct.length && !optional.length && !requiredBy.length && !data.note && !data.install_reason) return '';
+    const build = [...(data.makedepends || []), ...(data.checkdepends || [])];
+    const provides = data.provides || [];
+    const conflicts = data.conflicts || [];
+    const replaces = data.replaces || [];
+    const anyGroup = direct.length || optional.length || requiredBy.length || build.length ||
+        provides.length || conflicts.length || replaces.length;
+    if (!anyGroup && !data.note && !data.install_reason) return '';
 
     // "Why is this installed?" — install reason + orphan status (installed packages only).
     let reasonHTML = '';
@@ -1329,13 +1349,17 @@ function buildDependencySummaryHTML(data) {
 
     const chip = s => `<span class="dep-chip">${escapeHtml(s)}</span>`;
     const optChip = o => `<span class="dep-chip" title="${escapeHtml(o.detail || '')}">${escapeHtml(o.name)}</span>`;
-    const block = (label, count, chipsHTML) => count === 0 ? '' :
+    const block = (label, count, bodyHTML, bodyClass = 'dep-chips') => count === 0 ? '' :
         `<details class="dep-group"><summary><span class="dep-count">${count}</span> ${escapeHtml(label)}</summary>` +
-        `<div class="dep-chips">${chipsHTML}</div></details>`;
+        `<div class="${bodyClass}">${bodyHTML}</div></details>`;
 
     const groups = [
-        block('Requires', direct.length, direct.map(chip).join('')),
+        block('Requires', direct.length, buildDepNodesHTML(direct), 'dep-tree'),
         block('Optional', optional.length, optional.map(optChip).join('')),
+        block('Build', build.length, buildDepNodesHTML(build), 'dep-tree'),
+        block('Provides', provides.length, provides.map(chip).join('')),
+        block('Conflicts', conflicts.length, conflicts.map(chip).join('')),
+        block('Replaces', replaces.length, replaces.map(chip).join('')),
         block('Required by', requiredBy.length, requiredBy.map(chip).join('')),
     ].join('');
     const note = data.note ? `<p class="dep-note">${escapeHtml(data.note)}</p>` : '';
@@ -1804,6 +1828,32 @@ async function renderDependencySummary(pkg, stillCurrent = () => true) {
     if (!html) return;  // nothing to show (e.g. a Flatpak with no note)
     body.innerHTML = html;
     section.classList.remove('hidden');
+    wireDependencyTree(body);
+}
+
+// Lazy drill-down: when a dependency node is first expanded, fetch its direct requires and render
+// them as the same expandable nodes (one cheap level per click; recursion bounded by the user).
+function wireDependencyTree(body) {
+    if (!body || body._depTreeWired) return;
+    body._depTreeWired = true;
+    body.addEventListener('click', (e) => {
+        const summary = e.target.closest('summary.dep-node-label');
+        if (!summary) return;
+        const node = summary.parentElement;
+        const children = node.querySelector('.dep-node-children');
+        if (!children || children.dataset.loaded) return;   // load once
+        children.dataset.loaded = '1';
+        const name = node.dataset.dep;
+        children.innerHTML = '<span class="dep-node-loading">Loading…</span>';
+        pyApiCall('get_subdeps', name).then(res => {
+            const deps = (res && res.direct) || [];
+            children.innerHTML = deps.length
+                ? buildDepNodesHTML(deps)
+                : '<span class="dep-node-leaf">No further requirements (or not in the repos).</span>';
+        }).catch(() => {
+            children.innerHTML = '<span class="dep-node-leaf">Couldn’t load.</span>';
+        });
+    });
 }
 
 // Show/hide the "Build recipe" affordance — AUR only (repo packages are built+signed by Arch;
@@ -5348,6 +5398,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildSourceCompareHTML,
         whySourceHint,
         buildDependencySummaryHTML,
+        buildDepNodesHTML,
         highlightBashLine,
         buildPkgbuildRiskHTML,
         buildPkgbuildMetaHTML,

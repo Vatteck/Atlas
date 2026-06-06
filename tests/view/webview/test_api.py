@@ -1706,9 +1706,11 @@ class DependencySummaryTest(unittest.TestCase):
     def test_repo_installed_returns_all_three(self):
         self._pkg(name='vim', ptype='arch_repo', repository='extra', installed=True)
         with patch('atlas.gems.arch.pacman.map_updates_data',
-                   return_value={'vim': {'d': {'glibc', 'gpm'}}}), \
+                   return_value={'vim': {'d': {'glibc', 'gpm'}, 'c': {'vi'}, 'p': {'xxd'}}}), \
              patch('atlas.gems.arch.pacman.map_optional_deps',
                    return_value={'vim': {'python': 'scripting'}}), \
+             patch('atlas.gems.arch.pacman.map_conflicts_with',
+                   return_value={'vim': {'c': {'vi'}, 'r': {'gvim'}}}), \
              patch('atlas.gems.arch.pacman.map_required_by',
                    return_value={'vim': {'neovim-stub'}}), \
              patch('atlas.gems.arch.pacman.get_install_reason', return_value='explicit'):
@@ -1716,6 +1718,9 @@ class DependencySummaryTest(unittest.TestCase):
         self.assertEqual(['glibc', 'gpm'], d['direct'])
         self.assertEqual([{'name': 'python', 'detail': 'scripting'}], d['optional'])
         self.assertEqual(['neovim-stub'], d['required_by'])
+        self.assertEqual(['vi'], d['conflicts'])
+        self.assertEqual(['xxd'], d['provides'])
+        self.assertEqual(['gvim'], d['replaces'])
         self.assertEqual('explicit', d['install_reason'])
         self.assertFalse(d['orphan'])  # something requires it
 
@@ -1723,6 +1728,7 @@ class DependencySummaryTest(unittest.TestCase):
         self._pkg(name='libfoo', ptype='arch_repo', repository='extra', installed=True)
         with patch('atlas.gems.arch.pacman.map_updates_data', return_value={}), \
              patch('atlas.gems.arch.pacman.map_optional_deps', return_value={}), \
+             patch('atlas.gems.arch.pacman.map_conflicts_with', return_value={}), \
              patch('atlas.gems.arch.pacman.map_required_by', return_value={'libfoo': set()}), \
              patch('atlas.gems.arch.pacman.get_install_reason', return_value='dependency'):
             d = self.api.get_dependency_summary('arch_repo:libfoo')['data']
@@ -1733,6 +1739,7 @@ class DependencySummaryTest(unittest.TestCase):
         self._pkg(name='vim', ptype='arch_repo', repository='extra', installed=False)
         with patch('atlas.gems.arch.pacman.map_updates_data', return_value={'vim': {'d': {'glibc'}}}), \
              patch('atlas.gems.arch.pacman.map_optional_deps', return_value={}), \
+             patch('atlas.gems.arch.pacman.map_conflicts_with', return_value={}), \
              patch('atlas.gems.arch.pacman.map_required_by') as mrb:
             d = self.api.get_dependency_summary('arch_repo:vim')['data']
         mrb.assert_not_called()  # reverse deps only queried for installed packages
@@ -1742,12 +1749,19 @@ class DependencySummaryTest(unittest.TestCase):
         self._pkg(name='yay', ptype='aur', repository='aur', installed=False)
         arch_man = Mock()
         arch_man.aur_client.get_info.return_value = [{
-            'Depends': ['go', 'git'], 'OptDepends': ['sudo: privilege escalation', 'bash']}]
+            'Depends': ['go', 'git'], 'OptDepends': ['sudo: privilege escalation', 'bash'],
+            'MakeDepends': ['gcc'], 'CheckDepends': ['perl'],
+            'Conflicts': ['paru'], 'Replaces': ['yay-git'], 'Provides': ['aur-helper']}]
         self.api._manager_by_gem = Mock(return_value=arch_man)
         d = self.api.get_dependency_summary('aur:yay')['data']
         self.assertEqual(['git', 'go'], d['direct'])
         self.assertEqual([{'name': 'sudo', 'detail': 'privilege escalation'},
                           {'name': 'bash', 'detail': ''}], d['optional'])
+        self.assertEqual(['gcc'], d['makedepends'])
+        self.assertEqual(['perl'], d['checkdepends'])
+        self.assertEqual(['paru'], d['conflicts'])
+        self.assertEqual(['yay-git'], d['replaces'])
+        self.assertEqual(['aur-helper'], d['provides'])
 
     def test_flatpak_returns_note_no_deps(self):
         self._pkg(name='Dropbox', ptype='flatpak')
@@ -1759,14 +1773,29 @@ class DependencySummaryTest(unittest.TestCase):
         self._pkg(name='vim', ptype='arch_repo', repository='extra', installed=True)
         with patch('atlas.gems.arch.pacman.map_updates_data', side_effect=RuntimeError('boom')), \
              patch('atlas.gems.arch.pacman.map_optional_deps', side_effect=RuntimeError('boom')), \
+             patch('atlas.gems.arch.pacman.map_conflicts_with', side_effect=RuntimeError('boom')), \
              patch('atlas.gems.arch.pacman.map_required_by', side_effect=RuntimeError('boom')):
             res = self.api.get_dependency_summary('arch_repo:vim')
         self.assertEqual('ok', res['status'])  # never blocks the modal
         self.assertEqual([], res['data']['direct'])
+        self.assertEqual([], res['data']['conflicts'])
+        self.assertEqual([], res['data']['replaces'])
 
     def test_unknown_pkg_id_errors(self):
         self.api._get_pkg = Mock(return_value=None)
         self.assertEqual('error', self.api.get_dependency_summary('nope:nope')['status'])
+
+    def test_get_subdeps_returns_direct(self):
+        with patch('atlas.gems.arch.pacman.map_updates_data',
+                   return_value={'glibc': {'d': {'linux-api-headers', 'tzdata'}}}):
+            d = self.api.get_subdeps('glibc')['data']
+        self.assertEqual(['linux-api-headers', 'tzdata'], d['direct'])
+
+    def test_get_subdeps_fails_open(self):
+        with patch('atlas.gems.arch.pacman.map_updates_data', side_effect=RuntimeError('boom')):
+            res = self.api.get_subdeps('glibc')
+        self.assertEqual('ok', res['status'])
+        self.assertEqual([], res['data']['direct'])
 
     def test_install_payload_carries_action(self):
         pkg = self._pkg(name='vim', ptype='arch_repo', repository='extra')

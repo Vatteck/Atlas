@@ -908,7 +908,7 @@ async function testWhySourceHint() {
 
 async function testBuildDependencySummaryHTML() {
   const { hooks } = loadMainJs({});
-  const { buildDependencySummaryHTML } = hooks;
+  const { buildDependencySummaryHTML, buildDepNodesHTML } = hooks;
   // empty + no note → nothing
   assert.strictEqual(buildDependencySummaryHTML({ direct: [], optional: [], required_by: [], note: '' }), '', 'empty → no HTML');
   // a flatpak-style note alone still renders
@@ -923,9 +923,27 @@ async function testBuildDependencySummaryHTML() {
   assert.ok(html.includes('Optional') && html.includes('python'), 'optional chip');
   assert.ok(html.includes('Required by') && html.includes('neovim'), 'required-by chip');
   assert.ok(html.includes('title="scripting"'), 'optdep detail in title');
+  // requires renders as drill-down tree nodes (not flat chips)
+  assert.ok(html.includes('class="dep-node" data-dep="glibc"'), 'requires are tree nodes');
   // missing groups are omitted (no "Required by" when empty)
   const partial = buildDependencySummaryHTML({ direct: ['glibc'], optional: [], required_by: [] });
   assert.ok(partial.includes('Requires') && !partial.includes('Required by'), 'empty groups omitted');
+
+  // new relationship groups: build / provides / conflicts / replaces
+  const rich = buildDependencySummaryHTML({
+    direct: [], makedepends: ['gcc'], checkdepends: ['perl'],
+    provides: ['aur-helper'], conflicts: ['paru'], replaces: ['yay-git'],
+  });
+  assert.ok(rich.includes('Build') && rich.includes('gcc') && rich.includes('perl'), 'build group (make+check)');
+  assert.ok(rich.includes('Provides') && rich.includes('aur-helper'), 'provides group');
+  assert.ok(rich.includes('Conflicts') && rich.includes('paru'), 'conflicts group');
+  assert.ok(rich.includes('Replaces') && rich.includes('yay-git'), 'replaces group');
+
+  // dep nodes: data-dep strips version constraints to the bare name
+  const nodes = buildDepNodesHTML(['glibc>=2.38', 'gpm']);
+  assert.ok(nodes.includes('data-dep="glibc"'), 'version constraint stripped for resolution');
+  assert.ok(nodes.includes('glibc&gt;=2.38'), 'full constraint shown as label (escaped)');
+  assert.strictEqual(buildDepNodesHTML([]), '', 'no names → empty');
 
   // "why is this installed?" reason line
   assert.ok(buildDependencySummaryHTML({ install_reason: 'explicit' }).includes('installed this explicitly'), 'explicit reason');
