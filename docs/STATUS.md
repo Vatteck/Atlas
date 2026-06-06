@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-05 (Better detail pages: "why this source?" hint + dependency summary + "why is this installed?"/orphan; 506 tests + 37 JS green)
+**Last updated:** 2026-06-05 (PKGBUILD viewer — first-class AUR build-recipe reader, increment 1; 516 tests + 38 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -78,6 +78,27 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **PKGBUILD viewer — first-class AUR build-recipe reader, increment 1 (2026-06-05).** The BACKLOG
+  "PKGBUILD viewer as a first-class UI" item — Atlas's potential signature AUR feature. The advisory
+  scanner (`pkgbuild_audit`) was build-time-only and undiscoverable; now any **AUR** package's detail
+  page has a **"Build recipe" → View PKGBUILD** button (AUR-only; repo pkgs are built+signed by Arch,
+  Flatpak/AppImage have none) opening a dedicated `#pkgbuild-modal`: a **sticky risk summary**
+  (scan counts + the never-a-safety-check disclaimer), a **metadata panel** (maintainer/contributors/
+  pkgver/upstream + source URLs + checksum status incl. ⚠ SKIP), **line-linked findings** (click →
+  scroll+flash the line), and the **full syntax-highlighted, line-numbered PKGBUILD** (a light pure
+  regex bash highlighter — comments/strings/keywords/vars; no external lib, WebKitGTK/offline).
+  Backend: pure `pkgbuild.parse_metadata(text)`; `arch` controller `fetch_pkgbuild(base, commit=None)`
+  (extracted from `_fetch_pkgbuild_at_commit`, HEAD when no commit) so the cgit URL lives in the gem;
+  `AtlasApi.get_pkgbuild(pkg_id)` resolves the package **base** via `aur_client.get_info` →
+  `PackageBase`, fetches the current published PKGBUILD, scans + parses, and **fails open** (any
+  failure → `{}`; advisory, never a gate). Frontend builders all pure + Node-VM-tested
+  (`highlightBashLine`, `buildPkgbuildRiskHTML/MetaHTML/FindingsHTML/CodeHTML`). Tests:
+  `test_pkgbuild_meta.py` (6), `test_api.py::PkgbuildViewTest` (4), `main_js_contracts`
+  (`testPkgbuildViewerBuilders`). Suite **516** + JS **38**. **Needs a GUI eyeball** (open an AUR
+  pkg → View PKGBUILD; risk banner tone, metadata, click a finding → scroll, highlighting; verify a
+  non-AUR pkg shows no button; offline → friendly empty state). **Deferred to increment 2:** `.install`
+  scriptlet tab, anchored "changed since last build" diff, copy-raw button. Plan:
+  [plans/2026-06-05-pkgbuild-viewer.md](plans/2026-06-05-pkgbuild-viewer.md).
 - **"Why is this installed?" — install reason + orphan status (2026-06-05).** Folded into the
   dependency summary (its natural home — required-by was already there). For an **installed** package,
   `get_dependency_summary` now also returns `install_reason` (`explicit`/`dependency`/`None`) + a

@@ -1333,6 +1333,152 @@ function buildDependencySummaryHTML(data) {
     return reasonHTML + groups + note;
 }
 
+// ---- PKGBUILD viewer (first-class AUR build-recipe reader) ----------------------------------
+// All builders below are pure (escape their own input) and Node-VM contract-tested.
+
+// Lightweight, regex-based bash highlighter for one PKGBUILD line. Returns HTML (input escaped).
+// Deliberately simple — WebKitGTK, offline, no external lib. Order matters: comments & strings win.
+const PKGB_KEYWORDS = new Set(['if','then','else','elif','fi','for','while','do','done','case','esac',
+    'in','function','return','local','export','cd','echo','exit','break','continue','set','unset']);
+
+function highlightBashLine(line) {
+    line = String(line == null ? '' : line);
+    // Full-line comment.
+    const lead = line.match(/^(\s*)#/);
+    if (lead) return `<span class="tok-comment">${escapeHtml(line)}</span>`;
+
+    let out = '';
+    let i = 0;
+    const n = line.length;
+    const flush = (s) => {
+        // Highlight bare words (keywords) + $variables inside a plain run.
+        return escapeHtml(s)
+            .replace(/\$\{?[A-Za-z_][A-Za-z0-9_]*\}?/g, m => `<span class="tok-var">${m}</span>`)
+            .replace(/\b([a-z_]+)\b/g, (m, w) => PKGB_KEYWORDS.has(w) ? `<span class="tok-kw">${m}</span>` : m);
+    };
+    while (i < n) {
+        const ch = line[i];
+        if (ch === '#' && (i === 0 || /\s/.test(line[i - 1]))) {  // trailing comment
+            out += `<span class="tok-comment">${escapeHtml(line.slice(i))}</span>`;
+            i = n;
+            break;
+        }
+        if (ch === '"' || ch === "'") {
+            // consume the run before the quote
+            let j = i + 1;
+            while (j < n && line[j] !== ch) j++;
+            const str = line.slice(i, Math.min(j + 1, n));
+            // variables inside double-quoted strings still read as vars
+            const inner = ch === '"'
+                ? escapeHtml(str).replace(/\$\{?[A-Za-z_][A-Za-z0-9_]*\}?/g, m => `<span class="tok-var">${m}</span>`)
+                : escapeHtml(str);
+            out += `<span class="tok-str">${inner}</span>`;
+            i = j + 1;
+            continue;
+        }
+        // plain run until next quote or a comment '#' (one preceded by whitespace/start)
+        let j = i;
+        while (j < n) {
+            const c = line[j];
+            if (c === '"' || c === "'") break;
+            if (c === '#' && (j === 0 || /\s/.test(line[j - 1]))) break;
+            j++;
+        }
+        if (j === i) j++;  // guarantee progress
+        out += flush(line.slice(i, j));
+        i = j;
+    }
+    return out;
+}
+
+// Sticky risk banner from the scan summary.
+function buildPkgbuildRiskHTML(summary, disclaimer) {
+    const s = summary || {};
+    const warn = s.warn || 0, info = s.info || 0;
+    const level = warn ? 'warn' : (info ? 'info' : 'safe');
+    const headline = (warn || info)
+        ? `${warn} line${warn === 1 ? '' : 's'} worth a look${info ? ` · ${info} minor` : ''}`
+        : 'Nothing flagged by the heuristic scan';
+    const icon = warn ? '⚠️' : (info ? 'ℹ️' : '✓');
+    const note = escapeHtml(disclaimer || 'Heuristic hints only — NOT a safety check. Read the PKGBUILD.');
+    return `<div class="pkgbuild-risk-banner risk-${level}">` +
+        `<span class="pkgbuild-risk-icon">${icon}</span>` +
+        `<div><div class="pkgbuild-risk-headline">${escapeHtml(headline)}</div>` +
+        `<div class="pkgbuild-risk-note">${note}</div></div></div>`;
+}
+
+// Maintainer / upstream / sources / checksums summary.
+function buildPkgbuildMetaHTML(meta) {
+    meta = meta || {};
+    const rows = [];
+    const row = (label, value) => rows.push(
+        `<div class="pkgb-meta-row"><span class="pkgb-meta-label">${escapeHtml(label)}</span>` +
+        `<span class="pkgb-meta-value">${value}</span></div>`);
+
+    if (meta.maintainer) row('Maintainer', escapeHtml(meta.maintainer));
+    if ((meta.contributors || []).length)
+        row('Contributors', escapeHtml(meta.contributors.join(', ')));
+    if (meta.pkgver) row('pkgver', escapeHtml(meta.pkgver));
+    if (meta.url) {
+        const u = escapeHtml(meta.url);
+        row('Upstream', `<a href="#" class="pkgb-link" data-url="${u}">${u} ↗</a>`);
+    }
+    const sources = meta.sources || [];
+    if (sources.length) {
+        const items = sources.map(s => {
+            const u = escapeHtml(s);
+            return /^(https?|ftp|git)/.test(s)
+                ? `<a href="#" class="pkgb-link" data-url="${u}">${u} ↗</a>`
+                : u;
+        }).join('<br>');
+        row(`Sources (${sources.length})`, items);
+    }
+    const sums = meta.checksums || [];
+    if (sums.length) {
+        const skipped = sums.filter(c => c.skip).length;
+        const algos = Array.from(new Set(sums.map(c => c.algo))).join(', ');
+        const txt = skipped
+            ? `${sums.length} (${algos}) — ⚠ ${skipped} marked SKIP (not verified)`
+            : `${sums.length} present (${algos})`;
+        row('Checksums', escapeHtml(txt));
+    }
+    if (!rows.length) return '';
+    return `<div class="pkgb-meta-grid">${rows.join('')}</div>`;
+}
+
+// Clickable findings list — each links to its line in the code panel.
+function buildPkgbuildFindingsHTML(findings) {
+    findings = findings || [];
+    if (!findings.length) return '';
+    const items = findings.map(f => `
+        <li class="pkgb-finding sev-${escapeHtml(f.severity || 'info')}">
+            <a href="#" class="pkgb-finding-link" data-line="${f.line_no}">
+                <span class="pkgb-finding-loc">L${f.line_no}</span>
+                <span class="pkgb-finding-why">${escapeHtml(f.why || '')}</span>
+            </a>
+        </li>`).join('');
+    return `<h4 class="pkgb-findings-h">Lines worth a look</h4><ul class="pkgb-findings-list">${items}</ul>`;
+}
+
+// Line-numbered, syntax-highlighted code. Flagged lines get a severity class + an id to scroll to.
+function buildPkgbuildCodeHTML(text, findings) {
+    const lines = String(text == null ? '' : text).split('\n');
+    // Worst severity per line number (warn beats info).
+    const sev = {};
+    (findings || []).forEach(f => {
+        const cur = sev[f.line_no];
+        if (!cur || (cur === 'info' && f.severity === 'warn')) sev[f.line_no] = f.severity;
+    });
+    const rows = lines.map((ln, idx) => {
+        const no = idx + 1;
+        const cls = sev[no] ? ` flagged sev-${escapeHtml(sev[no])}` : '';
+        return `<div class="pkgb-line${cls}" id="pkgb-line-${no}">` +
+            `<span class="pkgb-ln">${no}</span>` +
+            `<span class="pkgb-code">${highlightBashLine(ln)}</span></div>`;
+    }).join('');
+    return rows;
+}
+
 // Inner HTML of a card for the given active source — re-rendered on source switch.
 function cardInnerHTML(group, activeIdx) {
     const pkg = group.sources[activeIdx];
@@ -1649,6 +1795,75 @@ async function renderDependencySummary(pkg, stillCurrent = () => true) {
     if (!html) return;  // nothing to show (e.g. a Flatpak with no note)
     body.innerHTML = html;
     section.classList.remove('hidden');
+}
+
+// Show/hide the "Build recipe" affordance — AUR only (repo packages are built+signed by Arch;
+// Flatpak/AppImage have no PKGBUILD).
+function renderPkgbuildAffordance(pkg) {
+    const section = document.getElementById('detail-pkgbuild-section');
+    if (!section) return;
+    if (normalizeType(pkg.type) === 'aur') {
+        section.classList.remove('hidden');
+        const btn = document.getElementById('detail-pkgbuild-btn');
+        if (btn) btn.onclick = () => openPkgbuildViewer(pkg);
+    } else {
+        section.classList.add('hidden');
+    }
+}
+
+const pkgbuildModal = document.getElementById('pkgbuild-modal');
+
+function closePkgbuildViewer() {
+    if (pkgbuildModal) pkgbuildModal.classList.add('hidden');
+}
+
+// Open the first-class PKGBUILD viewer for an AUR package (lazy fetch + scan + render).
+async function openPkgbuildViewer(pkg) {
+    if (!pkgbuildModal) return;
+    const viewerPkgId = String(pkg.id || '');
+    pkgbuildModal.dataset.pkgId = viewerPkgId;
+    const stillCurrent = () => pkgbuildModal.dataset.pkgId === viewerPkgId;
+
+    document.getElementById('pkgbuild-name').textContent = pkg.name || '';
+    document.getElementById('pkgbuild-risk').innerHTML = '';
+    document.getElementById('pkgbuild-meta').innerHTML = '';
+    document.getElementById('pkgbuild-findings').innerHTML = '';
+    document.getElementById('pkgbuild-code').innerHTML =
+        '<div class="pkgbuild-loading">Fetching PKGBUILD…</div>';
+    const link = document.getElementById('pkgbuild-link');
+    link.classList.add('hidden');
+    pkgbuildModal.classList.remove('hidden');
+    if (pkgbuildModal.focus) setTimeout(() => pkgbuildModal.focus(), 50);
+
+    const data = await pyApiCall('get_pkgbuild', pkg.id);
+    if (!stillCurrent()) return;
+
+    if (!data || !data.text) {
+        document.getElementById('pkgbuild-code').innerHTML = emptyStateHTML({
+            icon: '📄',
+            title: 'Couldn’t load the PKGBUILD',
+            hint: 'AUR may be unreachable, or this package has no published PKGBUILD. You can read it on the AUR.',
+        });
+        if (data && data.url) {
+            link.href = '#';
+            link.onclick = (e) => { e.preventDefault(); pyApiCall('open_url', data.url); };
+            link.classList.remove('hidden');
+        }
+        return;
+    }
+
+    document.getElementById('pkgbuild-risk').innerHTML =
+        buildPkgbuildRiskHTML(data.summary, data.disclaimer);
+    document.getElementById('pkgbuild-meta').innerHTML = buildPkgbuildMetaHTML(data.metadata);
+    document.getElementById('pkgbuild-findings').innerHTML = buildPkgbuildFindingsHTML(data.findings);
+    document.getElementById('pkgbuild-code').innerHTML =
+        buildPkgbuildCodeHTML(data.text, data.findings);
+
+    if (data.url) {
+        link.href = '#';
+        link.onclick = (e) => { e.preventDefault(); pyApiCall('open_url', data.url); };
+        link.classList.remove('hidden');
+    }
 }
 
 // Version-history table in the detail modal; the installed version's row is highlighted.
@@ -2149,6 +2364,9 @@ function openDetailModal(pkg, group) {
     // Dependency summary (lazy, stale-guarded). Section stays hidden until there's something to show.
     renderDependencySummary(pkg, stillCurrentDetail);
 
+    // "Build recipe" — first-class PKGBUILD viewer affordance (AUR only).
+    renderPkgbuildAffordance(pkg);
+
     // Link to the package's web page (AUR / official Arch). Routed through open_url so it
     // opens in the system browser rather than navigating the app window.
     const linkEl = document.getElementById('detail-link');
@@ -2484,6 +2702,35 @@ function openDetailModal(pkg, group) {
 
 modalClose.addEventListener('click', () => detailModal.classList.add('hidden'));
 modalBackdrop.addEventListener('click', () => detailModal.classList.add('hidden'));
+
+// PKGBUILD viewer interactions: close, backdrop, escape, finding→line scroll, in-text links.
+if (pkgbuildModal) {
+    document.getElementById('pkgbuild-close').addEventListener('click', closePkgbuildViewer);
+    const pkgbBackdrop = pkgbuildModal.querySelector('.modal-backdrop');
+    if (pkgbBackdrop) pkgbBackdrop.addEventListener('click', closePkgbuildViewer);
+    pkgbuildModal.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closePkgbuildViewer();
+    });
+    // Click a flagged finding → scroll its line into view and flash it.
+    document.getElementById('pkgbuild-findings').addEventListener('click', (e) => {
+        const a = e.target.closest('.pkgb-finding-link');
+        if (!a) return;
+        e.preventDefault();
+        const line = document.getElementById(`pkgb-line-${a.dataset.line}`);
+        if (line) {
+            line.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            line.classList.add('pkgb-line-flash');
+            setTimeout(() => line.classList.remove('pkgb-line-flash'), 1200);
+        }
+    });
+    // Open upstream/source URLs in the system browser.
+    pkgbuildModal.addEventListener('click', (e) => {
+        const a = e.target.closest('.pkgb-link');
+        if (!a) return;
+        e.preventDefault();
+        if (a.dataset.url) pyApiCall('open_url', a.dataset.url);
+    });
+}
 
 // Multi-Select and Batch Panel
 selectModeBtn.addEventListener('click', () => {
@@ -4995,6 +5242,11 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildSourceCompareHTML,
         whySourceHint,
         buildDependencySummaryHTML,
+        highlightBashLine,
+        buildPkgbuildRiskHTML,
+        buildPkgbuildMetaHTML,
+        buildPkgbuildFindingsHTML,
+        buildPkgbuildCodeHTML,
         summarizeFailure,
         pickActivityText,
         stripProgressBar,

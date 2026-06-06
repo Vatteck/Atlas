@@ -1702,6 +1702,51 @@ class AtlasApi:
             self.logger.error(f"get_aur_meta failed: {e}")
             return {'status': 'ok', 'data': {}}
 
+    def get_pkgbuild(self, pkg_id: str) -> dict:
+        """On-demand PKGBUILD for the first-class viewer (AUR only). Fetches the current published
+        PKGBUILD from AUR's cgit, runs the advisory heuristic scan, and parses metadata. Shape:
+        ``{text, findings, summary, metadata, base, url, disclaimer}``. Non-AUR → ``{}`` + note.
+        Fails open (any failure → ``{}``); never raises into the UI — it's advisory, not a gate."""
+        try:
+            pkg = self._get_pkg(pkg_id)
+            if pkg is None or getattr(pkg, 'repository', None) != 'aur':
+                return {'status': 'ok', 'data': {}}
+            from atlas.gems.arch import pkgbuild, pkgbuild_audit
+            arch_man = self._manager_by_gem('arch')
+            if arch_man is None or not hasattr(arch_man, 'fetch_pkgbuild'):
+                return {'status': 'ok', 'data': {}}
+
+            # The PKGBUILD lives under the package *base*, not the package name (split packages share
+            # one). Resolve it cheaply; fall back to the package name.
+            base = getattr(pkg, 'base', None) or pkg.name
+            aur_client = getattr(arch_man, 'aur_client', None)
+            if aur_client is not None:
+                try:
+                    infos = aur_client.get_info((pkg.name,))
+                    info = (infos[0] if infos else {}) or {}
+                    base = info.get('PackageBase') or base
+                except Exception as e:
+                    self.logger.debug(f"get_pkgbuild: base lookup failed for {pkg.name}: {e}")
+
+            text = arch_man.fetch_pkgbuild(base)
+            if not text:
+                return {'status': 'ok', 'data': {}}
+
+            findings = list(pkgbuild_audit.scan(text))
+            url = f'https://aur.archlinux.org/cgit/aur.git/tree/PKGBUILD?h={base}'
+            return {'status': 'ok', 'data': {
+                'text': text,
+                'findings': findings,
+                'summary': pkgbuild_audit.summarize(findings),
+                'metadata': pkgbuild.parse_metadata(text),
+                'base': base,
+                'url': url,
+                'disclaimer': pkgbuild_audit.DISCLAIMER,
+            }}
+        except Exception as e:
+            self.logger.error(f"get_pkgbuild failed: {e}")
+            return {'status': 'ok', 'data': {}}
+
     # ---- Transaction preview (pre-flight) ------------------------------------------------
     # A "here's what will happen — proceed?" summary shown before an install. Increment 1 of the
     # universal transaction preview (see docs/plans/2026-06-04-transaction-preview.md). Shows only

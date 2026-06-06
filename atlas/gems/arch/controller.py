@@ -2174,15 +2174,22 @@ class ArchManager(SoftwareManager, SettingsController):
     def _fetch_pkgbuild_at_commit(self, base: str, commit: str) -> Optional[str]:
         """Fetch a PKGBUILD at a specific commit from AUR's cgit (for the diff-since-last-build).
         Best-effort: returns None on any failure."""
+        return self.fetch_pkgbuild(base, commit)
+
+    def fetch_pkgbuild(self, base: str, commit: Optional[str] = None) -> Optional[str]:
+        """Fetch a PKGBUILD from AUR's cgit — at ``commit`` if given, else the branch HEAD (the
+        current published revision, used by the PKGBUILD viewer). Best-effort: None on any failure."""
         try:
             import urllib.parse
             url = (f'https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD'
-                   f'?h={urllib.parse.quote(base)}&id={urllib.parse.quote(commit)}')
+                   f'?h={urllib.parse.quote(base)}')
+            if commit:
+                url += f'&id={urllib.parse.quote(commit)}'
             res = self.http_client.get(url, single_call=True)
             if res is not None and res.status_code < 300 and res.text:
                 return res.text
         except Exception as e:
-            self.logger.debug(f"could not fetch old PKGBUILD ({base}@{commit}) for diff: {e}")
+            self.logger.debug(f"could not fetch PKGBUILD ({base}@{commit or 'HEAD'}): {e}")
         return None
 
     def _aur_maintainer_change(self, context: TransactionContext) -> Optional[dict]:

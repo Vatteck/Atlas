@@ -113,9 +113,12 @@ first:
   deps.
 - **Dependency tree view** — direct/optional/build deps + required-by + conflict/replaces/provides,
   as an accordion tree (not node spaghetti).
-- **PKGBUILD viewer as a first-class UI** — syntax-highlighted PKGBUILD, sticky risk summary, line-
-  linked findings, anchored diff, maintainer/source/checksums, `.install` tab. Could become Atlas's
-  signature AUR feature (the scanner/diff backend already exists).
+- **PKGBUILD viewer as a first-class UI** — 🟡 **increment 1 SHIPPED 2026-06-05** (needs a GUI
+  eyeball): AUR detail page → "Build recipe → View PKGBUILD" opens a dedicated viewer with a sticky
+  risk summary, maintainer/source/checksums panel, line-linked findings, and the full syntax-
+  highlighted, line-numbered PKGBUILD. *Remaining (increment 2):* `.install` scriptlet tab, anchored
+  "changed since last build" diff, copy-raw button. See
+  [plans/2026-06-05-pkgbuild-viewer.md](plans/2026-06-05-pkgbuild-viewer.md).
 - **Copy exact command** — "copy equivalent install/update/Flatpak-override/reflector command." GUI
   stays primary, nothing feels hidden.
 

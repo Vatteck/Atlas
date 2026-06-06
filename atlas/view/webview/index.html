@@ -224,6 +224,11 @@
                     <h3>Dependencies</h3>
                     <div id="detail-deps"></div>
                 </div>
+                <div id="detail-pkgbuild-section" class="detail-section hidden">
+                    <h3>Build recipe</h3>
+                    <p class="detail-section-hint">This package builds from a community PKGBUILD. Read exactly what it runs before installing.</p>
+                    <button class="btn btn-secondary" id="detail-pkgbuild-btn">📄 View PKGBUILD</button>
+                </div>
                 <div id="detail-perms-action"></div>
                 <div class="detail-section">
                     <h3>Details</h3>
@@ -235,6 +240,28 @@
                 </div>
             </div>
             <div class="modal-footer" id="modal-footer"></div>
+        </div>
+    </div>
+
+    <!-- PKGBUILD viewer (AUR build recipe) -->
+    <div id="pkgbuild-modal" class="modal hidden" role="dialog" aria-modal="true" tabindex="-1">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content pkgbuild-modal-content">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <div class="modal-title-row">
+                        <h2>PKGBUILD — <span id="pkgbuild-name"></span></h2>
+                    </div>
+                    <a id="pkgbuild-link" class="detail-link hidden" href="#" rel="noopener">View on AUR ↗</a>
+                </div>
+                <button class="modal-close" id="pkgbuild-close" aria-label="Close">✕</button>
+            </div>
+            <div id="pkgbuild-risk" class="pkgbuild-risk"></div>
+            <div class="modal-body pkgbuild-body">
+                <div id="pkgbuild-meta" class="pkgbuild-meta"></div>
+                <div id="pkgbuild-findings" class="pkgbuild-findings"></div>
+                <div id="pkgbuild-code" class="pkgbuild-code"></div>
+            </div>
         </div>
     </div>
 

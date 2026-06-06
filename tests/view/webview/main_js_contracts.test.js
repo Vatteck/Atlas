@@ -936,6 +936,44 @@ async function testBuildDependencySummaryHTML() {
   assert.notStrictEqual(buildDependencySummaryHTML({ install_reason: 'explicit' }), '', 'reason-only renders');
 }
 
+async function testPkgbuildViewerBuilders() {
+  const { hooks } = loadMainJs({});
+  const { highlightBashLine, buildPkgbuildRiskHTML, buildPkgbuildMetaHTML,
+          buildPkgbuildFindingsHTML, buildPkgbuildCodeHTML } = hooks;
+
+  // highlightBashLine: escapes HTML, colors comments/strings/keywords/vars, never stalls.
+  assert.ok(highlightBashLine('# a comment').includes('tok-comment'), 'full-line comment');
+  assert.ok(!highlightBashLine('echo "<script>"').includes('<script>'), 'HTML escaped');
+  assert.ok(highlightBashLine('echo "$pkgver"').includes('tok-str'), 'string token');
+  assert.ok(highlightBashLine('if true; then').includes('tok-kw'), 'keyword token');
+  assert.ok(highlightBashLine('foo=$bar').includes('tok-var'), 'variable token');
+  assert.strictEqual(highlightBashLine('${pkgname#x}').replace(/<[^>]+>/g, '').includes('${pkgname#x}'), true, 'param-expansion # not a comment / no stall');
+
+  // risk banner reflects severity
+  assert.ok(buildPkgbuildRiskHTML({ warn: 2, info: 1 }, 'D').includes('risk-warn'), 'warn tone');
+  assert.ok(buildPkgbuildRiskHTML({ warn: 0, info: 0 }, 'D').includes('risk-safe'), 'safe tone when clean');
+  assert.ok(buildPkgbuildRiskHTML({ warn: 0, info: 0 }, 'My disclaimer').includes('My disclaimer'), 'disclaimer shown');
+
+  // metadata panel
+  const meta = buildPkgbuildMetaHTML({ maintainer: 'Jane', pkgver: '1.0', url: 'https://x.example',
+    sources: ['https://s.example/a.tar.gz'], checksums: [{ algo: 'sha256', value: 'ab', skip: false }, { algo: 'sha256', value: 'SKIP', skip: true }] });
+  assert.ok(meta.includes('Jane') && meta.includes('1.0'), 'maintainer + pkgver');
+  assert.ok(meta.includes('data-url="https://x.example"'), 'upstream link');
+  assert.ok(/SKIP/.test(meta), 'flags SKIP checksums');
+  assert.strictEqual(buildPkgbuildMetaHTML({}), '', 'empty meta → no panel');
+
+  // findings link to their line numbers
+  const findings = [{ line_no: 8, severity: 'warn', why: 'pipes to shell' }];
+  const fh = buildPkgbuildFindingsHTML(findings);
+  assert.ok(fh.includes('data-line="8"') && fh.includes('pipes to shell'), 'finding links to line');
+  assert.strictEqual(buildPkgbuildFindingsHTML([]), '', 'no findings → empty');
+
+  // code: line ids + flagged class on the right line
+  const code = buildPkgbuildCodeHTML('a\nb\nc', [{ line_no: 2, severity: 'warn', why: 'x' }]);
+  assert.ok(code.includes('id="pkgb-line-1"') && code.includes('id="pkgb-line-3"'), 'every line gets an id');
+  assert.ok(code.includes('class="pkgb-line flagged sev-warn" id="pkgb-line-2"'), 'flagged line carries severity class');
+}
+
 async function testStripProgressBarAndPercent() {
   const { hooks } = loadMainJs({});
   // Flatpak-style textual progress bar (block glyphs) is stripped; the meaningful text stays.
@@ -1102,6 +1140,7 @@ async function testShowTransactionPreviewUsesActionCopy() {
     testBuildSourceCompareHTML,
     testWhySourceHint,
     testBuildDependencySummaryHTML,
+    testPkgbuildViewerBuilders,
     testSummarizeFailureCategories,
     testPickActivityText,
     testStripProgressBarAndPercent,
