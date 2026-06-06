@@ -31,10 +31,84 @@ Atlas is a community fork of [bauh](https://github.com/vinifmor/bauh), rebuilt a
   suggestions, notifications, and more.
 - **Desktop notifications** when long operations finish.
 - **Package web links** — jump to a package's AUR, archlinux.org, or Flathub page.
-- **Reclaim disk space** — the Disk view shows what's using space and cleans it up in one
-  place: orphan packages, the pacman cache, and unused Flatpak runtimes.
 - **Safe by default** — optional [Timeshift](https://github.com/teejee2008/timeshift)
   snapshot before changes; per-package update pinning.
+
+---
+
+## What's new in 0.12.0 — the polish-and-trust release
+
+### Dashboard & discovery
+
+- **Attention Center** — the dashboard answers *"what needs my attention today?"* with
+  lazy, fail-open cards: Updates, System safety, Reclaim space, Recent activity, AUR safety.
+- **Command palette** (`Ctrl+K` / `Ctrl+P`) — fuzzy-filtered launcher to navigate pages
+  and run actions, with shortcut badges.
+- **Browse 2.0** — richer category cards with icons and descriptions, breadcrumbs, a
+  "resume last category" chip, and loading skeletons.
+- **AUR discovery buckets** — Popular / Recently-updated / VCS (`-git`) / Binary (`-bin`),
+  precomputed daily in `atlas-files`.
+
+### Operation confidence
+
+- **Universal transaction preview** before install, update, uninstall, and downgrade — an
+  Update-All aggregate shows per-source split, total download size, and `.pacnew`/news
+  warnings. Fail-open, never blocking.
+- **Terminal polish** — current-activity line, collapsible/copyable raw log, friendly
+  failure summaries (auth / PGP / download / conflict / dependency / build), outcome-colored
+  progress bar, and an amber "completed with warnings" state.
+- **History / rollback center** — filters, date grouping, Downgrade/Reinstall affordances,
+  pacman-log links, log clear/export.
+- **Copy exact command** — copy the equivalent `pacman`/`makepkg`/`flatpak`/`reflector`
+  command in the preview, the detail page, and on each Permissions edit.
+
+### Better detail pages
+
+- **"Why this source?"** trust hint and **"Why is this installed?"** install-reason banner.
+- **Dependency tree view** with lazy drill-down (Requires / Build / Optional / Provides /
+  Conflicts / Replaces / Required-by).
+- **PKGBUILD viewer** — syntax-highlighted build recipe with risk summary, `.install`
+  scriptlet tab, line-linked findings, and a "changed since your build" diff.
+- **Source-comparison panel** for apps available from multiple sources.
+
+### Arch maintenance cockpit
+
+- **System Health page** — 8+ checks (DB-sync age, mirrorlist, pacman lock, `.pacnew`,
+  orphans, cache, unused runtimes, keyring freshness, AUR-index age), each with a status
+  card and one safe action.
+- **`.pacnew` center** — per-file risk badges, read-only diff, copy-path, pacdiff launch.
+- **Mirror manager** — active-mirror summary and the exact `reflector` regeneration command.
+- **Reclaim disk space** — orphan packages, pacman cache, and unused Flatpak runtimes.
+
+### AUR safety
+
+- Heuristic **PKGBUILD scanner** — advisory only, never blocks.
+- **Pre-build advisory gate** with diff-since-last-build on updates.
+- **Maintainer-changed-hands advisory** for installed AUR packages.
+- Opt-in **clean-chroot builds** via `devtools` (`makechrootpkg -I`).
+
+### Flatpak transparency & control
+
+- Detail-modal **badges** — Open Source/Proprietary, Verified/Unverified, downloads, OARS
+  age rating — each clickable to an explainer.
+- **Permissions list + advisory safety tier** (Safe / Moderate / Potentially unsafe).
+- Full **Flatseal-grade Permissions page** (Share / Socket / Device / Features / Filesystem
+  / Bus / Environment), via `flatpak override --user`.
+
+### GUI quality
+
+- Display **density modes** (Comfortable / Compact / Dense).
+- **Contextual topbar**, unified **empty/error states**, stale-render guards.
+- **Grid/list toggle**, **sort dropdown**, keyboard shortcuts, bulk-selection toolbar.
+- Rich detail pages with **screenshot lightbox** and **version history**.
+- **Non-Qt AppIndicator/SNI tray** — show/hide, update badge, close-to-tray.
+
+### Security
+
+- HTML helpers HTML-escape output before reaching webview-rendered HTML.
+- `open_url` validates scheme/host; external links only render for safe HTTP(S) URLs.
+
+---
 
 ## Screenshots
 
@@ -127,16 +201,14 @@ Working on Atlas? Start with **[AGENTS.md](AGENTS.md)** (the operating manual) a
 The big transitions are done: Qt5 → pywebview UI, and back to a clean **pure-Python**
 engine after the Rust hot-paths experiment was measured and dropped. The major product
 themes have also shipped: rich details/screenshots, Browse, system tray, AUR safety,
-clean-chroot AUR builds, Flatpak transparency, and Flatseal-grade permission controls.
+clean-chroot AUR builds, Flatpak transparency, Flatseal-grade permission controls,
+the Attention Center dashboard, universal transaction preview, the Arch maintenance
+cockpit (System Health + `.pacnew` center + mirrors), the PKGBUILD viewer, command palette,
+history/rollback center, copy-exact-command, and the security pass.
 
-Current work is mostly polish and verification. See [`docs/STATUS.md`](docs/STATUS.md)
-for the live handoff baton and [`docs/BACKLOG.md`](docs/BACKLOG.md) for the longer-horizon
-menu. Recent follow-ups include:
-
-- Browse polish: sort-within-category and possible AUR/Flatpak category sources.
-- Installed-app icon resolution beyond hicolor/pixmaps into active theme directories.
-- Live GUI verification passes for flows that cannot be fully tested headless, such as
-  downgrade, screenshot lightbox, and Browse.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full release history,
+[`docs/STATUS.md`](docs/STATUS.md) for the live handoff baton, and
+[`docs/BACKLOG.md`](docs/BACKLOG.md) for the longer-horizon menu.
 
 ## Credits & license
 
