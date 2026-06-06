@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-05 (Copy exact command — equivalent CLI command in the transaction preview; 536 tests + 38 JS green)
+**Last updated:** 2026-06-05 (Copy exact command increments 1+2 — preview + detail page + reflector copy; 536 tests + 38 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -93,6 +93,13 @@ re-add a native extension without a measured win. Details in the historical
   toast). **Deferred:** copy on the detail page; `flatpak override` copy on the Permissions page;
   `reflector` copy in Mirrors (already previews the command). Plan:
   [plans/2026-06-05-copy-exact-command.md](plans/2026-06-05-copy-exact-command.md).
+  **Increment 2 (2026-06-05):** added the two other surfaces — (a) a left-aligned **"Copy command"**
+  button in the **detail-modal footer** (arch/aur/flatpak), copying the command for the *primary
+  action* (install/update/uninstall) via the same `copyEquivalentCommand`; (b) a **"Copy command"**
+  button in **Settings → Mirrors** beside Regenerate that copies the already-previewed reflector
+  command (`get_mirror_status().command`). No backend change (reuses `get_command`/`get_mirror_status`).
+  Suite **536** + JS 38. **Needs a GUI eyeball.** Only **`flatpak override` copy on the Permissions
+  page** remains deferred (per-edit command shape; lower value).
 - **Dependency tree view (2026-06-05).** Completed the detail-page Dependencies section into a full
   relationship picture + a drill-down tree (the BACKLOG "Dependency tree view" item). **Backend:**
   `get_dependency_summary` now additionally returns `makedepends`/`checkdepends` (AUR only — binary

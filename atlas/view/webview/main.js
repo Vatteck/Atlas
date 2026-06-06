@@ -2849,6 +2849,20 @@ function openDetailModal(pkg, group) {
         };
     }
     
+    // "Copy command" — the equivalent terminal command for the primary action (left-aligned, so it
+    // reads as a utility, not a commit button). Sources with a clean one-liner only.
+    const cmdType = normalizeType(pkg.type);
+    if (['arch_repo', 'arch', 'aur', 'flatpak'].includes(cmdType)) {
+        const cmdAction = !pkg.installed ? 'install' : (pkg.update_available ? 'update' : 'uninstall');
+        const copyCmdBtn = document.createElement('button');
+        copyCmdBtn.className = 'btn btn-outline';
+        copyCmdBtn.style.marginRight = 'auto';   // push the rest (Close / action) to the right
+        copyCmdBtn.textContent = '⧉ Copy command';
+        copyCmdBtn.title = 'Copy the equivalent terminal command';
+        copyCmdBtn.onclick = () => copyEquivalentCommand(pkg.id, cmdAction, copyCmdBtn);
+        footer.appendChild(copyCmdBtn);
+    }
+
     footer.appendChild(closeBtn);
 
     // Roll back to a previous version (gem decides the target / may prompt).
@@ -4515,6 +4529,7 @@ async function renderSettings() {
             ${mirrorCmd}
             <div class="settings-actions">
                 <button id="settings-regen-mirrors-btn" class="btn btn-outline" ${arch.mirror_tool ? '' : 'disabled'}>Regenerate mirror list</button>
+                ${mirror.command ? '<button id="settings-copy-mirror-cmd-btn" class="btn btn-outline">⧉ Copy command</button>' : ''}
             </div>
         </section>` : '';
 
@@ -4553,6 +4568,17 @@ async function renderSettings() {
     if (regenMirrorsBtn) regenMirrorsBtn.addEventListener('click', async () => {
         await regenerateMirrors(regenMirrorsBtn);
         if (currentView === 'settings') renderSettings();  // refresh the mirror summary
+    });
+    const copyMirrorCmdBtn = document.getElementById('settings-copy-mirror-cmd-btn');
+    if (copyMirrorCmdBtn && mirror.command) copyMirrorCmdBtn.addEventListener('click', () => {
+        const done = () => {
+            copyMirrorCmdBtn.textContent = '✓ Copied';
+            setTimeout(() => { copyMirrorCmdBtn.textContent = '⧉ Copy command'; }, 1500);
+            showToast('Copied command', mirror.command, 'success');
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(mirror.command).then(done).catch(() => {});
+        } else { done(); }
     });
     // Density is a localStorage display pref — apply it instantly (no Save needed).
     const densitySel = document.getElementById('settings-density');

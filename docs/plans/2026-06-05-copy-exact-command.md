@@ -34,8 +34,15 @@ button. `shlex.quote`d; never raises.
 - `test_api.py::CommandTest` — repo/AUR/Flatpak × install/update/uninstall, helper note, empty for
   unsupported action, unknown-id error.
 
+## Increment 2 (shipped 2026-06-05) — detail page + reflector copy
+- **Detail-page "Copy command"** — a left-aligned button in the detail-modal footer (reads as a
+  utility, not a commit button), shown for arch/aur/flatpak. Copies the command for the **primary
+  action** (not-installed → install, installed+update → update, else uninstall), reusing
+  `get_command` + `copyEquivalentCommand`. Browse-and-copy without committing.
+- **Reflector copy in Mirrors** — Settings → Mirrors already *previewed* the regen command
+  (`get_mirror_status().command`); added a **"Copy command"** button beside Regenerate that copies it
+  (+ "✓ Copied" / toast). No backend change.
+
 ## Deferred to a later increment
-- **Copy on the detail page** (browse-and-copy, without opening the install gate).
-- **`flatpak override` command** on the Permissions page (copy the equivalent of a permission edit).
-- **`reflector` command** — the Mirrors settings already *previews* the regen command; a copy button
-  there would round it out.
+- **`flatpak override` command** on the Permissions page (copy the equivalent of a permission edit) —
+  genuinely different shape (per-edit command construction); lower value than the transaction copies.

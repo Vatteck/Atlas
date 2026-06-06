@@ -123,10 +123,10 @@ first:
   **`.install` scriptlet tab**, a **copy** button, and a **"changed since your build" diff tab** (for
   installed AUR pkgs whose built commit we cached). See
   [plans/2026-06-05-pkgbuild-viewer.md](plans/2026-06-05-pkgbuild-viewer.md).
-- 🟡 **Copy exact command** — **increment 1 SHIPPED 2026-06-05** (needs a GUI eyeball): a "Copy
-  command" button in the transaction preview copies the equivalent pacman/makepkg/flatpak command for
-  the install/update/uninstall. *Remaining:* copy on the detail page; `flatpak override` copy on the
-  Permissions page; `reflector` copy in Mirrors (already previews it). See
+- 🟡 **Copy exact command** — **increments 1+2 SHIPPED 2026-06-05** (needs a GUI eyeball): a "Copy
+  command" button copies the equivalent pacman/makepkg/flatpak command in the **transaction preview**
+  *and* the **detail page**, plus a **reflector** copy button in Settings → Mirrors. *Remaining:*
+  `flatpak override` copy on the Permissions page (per-edit command; lower value). See
   [plans/2026-06-05-copy-exact-command.md](plans/2026-06-05-copy-exact-command.md).
 
 ---
