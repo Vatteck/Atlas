@@ -47,10 +47,12 @@ first:
   activity**, **AUR safety** (chroot/devtools status), **Flatpak permissions** (risky-app count →
   Permissions page). Most backends already exist; mainly a compact `AtlasApi.get_dashboard_summary`
   + UI.
-- **Browse 2.0 (Arch polish).** Richer category cards (icon + count + short description),
-  breadcrumbs, persist last-opened category, better category-page skeletons. *(Sort-within-category
-  and Flatpak-in-bucket already shipped; Flatpak landed merged into buckets via `collapseByName`,
-  not as Arch/Flatpak/All tabs — tabs are still an option if the merge proves confusing.)*
+- ~~**Browse 2.0 (Arch polish).**~~ ✅ **SHIPPED 2026-06-05** (needs a GUI eyeball): richer category
+  cards (icon + short **description**; no count — repo-only counts mislead), **breadcrumbs**
+  (`Browse / <Category>`), **persist last-opened category** (resume chip on the landing), and
+  **skeletons** on category pages. *(Sort-within-category + Flatpak-in-bucket already shipped via
+  `collapseByName`; Arch/Flatpak/All tabs remain a possible follow-up if the merge proves confusing.)*
+  See [plans/2026-06-05-browse-2.0-polish.md](plans/2026-06-05-browse-2.0-polish.md).
 - ~~**AUR discovery buckets (not categories).**~~ ✅ **SHIPPED 2026-06-05** — Popular / Recently
   updated / VCS (`-git`) / Binary (`-bin`) buckets in Browse. Data-source decision resolved:
   **precomputed in atlas-files** (a daily GH Action turns `packages-meta-ext-v1.json.gz` into a small

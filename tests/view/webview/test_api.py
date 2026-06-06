@@ -1505,6 +1505,9 @@ class BrowseCategoryTest(unittest.TestCase):
         self.assertEqual(1, by_key['development']['count'])   # python-foo
         self.assertEqual(1, by_key['system']['count'])        # alsa-lib (System)
         self.assertEqual('Games', by_key['games']['label'])
+        # richer cards carry a short description
+        self.assertTrue(by_key['games']['description'])
+        self.assertIn('emulator', by_key['games']['description'].lower())
         # empty buckets are dropped
         self.assertNotIn('office', by_key)
 

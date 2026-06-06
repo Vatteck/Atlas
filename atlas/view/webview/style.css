@@ -2005,6 +2005,22 @@ body {
 .browse-chip-text { display: flex; flex-direction: column; gap: 2px; }
 .browse-chip-label { font-size: 14px; font-weight: 600; color: var(--text-primary); }
 .browse-chip-count { font-size: 12px; color: var(--text-secondary); }
+/* Rich category card — a touch larger, with room for the description line. */
+.browse-chip-rich { align-items: flex-start; min-width: 220px; max-width: 280px; padding: 14px 18px; }
+.browse-chip-rich .browse-chip-icon { font-size: 26px; margin-top: 1px; }
+.browse-chip-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.35; }
+
+/* "Resume your last category" convenience chip on the landing. */
+.browse-resume { margin-bottom: 16px; }
+.browse-resume-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; font-size: 13px; cursor: pointer;
+    background: var(--accent-glass); color: var(--accent-color);
+    border: 1px solid var(--accent-border-hover); border-radius: 999px;
+    transition: background 0.15s ease;
+}
+.browse-resume-btn:hover { background: var(--accent-glass); border-color: var(--accent-color); }
+.browse-resume-btn strong { color: var(--text-primary); font-weight: 600; }
 
 /* AUR variant — community-maintained accent. */
 .browse-chip-aur { border-color: rgba(217, 119, 6, 0.30); }
@@ -2033,26 +2049,15 @@ body {
     margin-bottom: 4px;
 }
 
-.browse-back {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    color: var(--text-primary);
-    padding: 6px 12px;
-    font-size: 13px;
-    cursor: pointer;
-    transition: border-color 0.15s ease;
+/* Breadcrumb above a category's package grid (Browse / <Category>). */
+.browse-breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.breadcrumb-crumb {
+    background: none; border: none; padding: 0; cursor: pointer;
+    color: var(--accent-color); font-size: 14px;
 }
-
-.browse-back:hover {
-    border-color: var(--accent-border-hover);
-}
-
-.browse-cat-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text-primary);
-}
+.breadcrumb-crumb:hover { text-decoration: underline; }
+.breadcrumb-sep { color: var(--text-secondary); }
+.breadcrumb-current { font-weight: 600; color: var(--text-primary); }
 
 /* .pacnew / .pacsave config-file notice (Updates view) */
 .config-notice {

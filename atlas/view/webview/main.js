@@ -4040,6 +4040,37 @@ async function renderNews() {
 
 // Browse-by-category: a store-like discovery view. Top level shows category cards; clicking
 // one lists that category's repo packages (reusing the normal package grid).
+// Pure: a richer Browse category card — icon + label + short description (no count; the repo-only
+// count understates a bucket that also lists Flathub apps). Node-VM contract-tested.
+function buildCategoryCardHTML(c) {
+    c = c || {};
+    const desc = c.description
+        ? `<span class="browse-chip-desc">${escapeHtml(c.description)}</span>` : '';
+    return `<button class="browse-chip browse-chip-rich" data-cat-key="${escapeHtml(c.key)}" data-cat-label="${escapeHtml(c.label)}">
+        <span class="browse-chip-icon">${escapeHtml(c.icon || '📦')}</span>
+        <span class="browse-chip-text">
+            <span class="browse-chip-label">${escapeHtml(c.label)}</span>
+            ${desc}
+        </span>
+    </button>`;
+}
+
+// Pure: the "jump back to your last category" resume chip on the Browse landing. '' when there's no
+// stored category. Node-VM contract-tested.
+function buildResumeBrowseHTML(last) {
+    if (!last || !last.key || !last.label) return '';
+    return `<div class="browse-resume"><button class="browse-resume-btn" type="button">↩ Resume <strong>${escapeHtml(last.label)}</strong></button></div>`;
+}
+
+// Persist the last-opened category so the landing can offer a resume chip (a convenience, not
+// auto-navigation). Stored as {key, label, api}. Best-effort — localStorage may be unavailable.
+function setLastBrowseCategory(cat) {
+    try { localStorage.setItem('atlas_last_browse_cat', JSON.stringify(cat)); } catch (e) { /* ignore */ }
+}
+function getLastBrowseCategory() {
+    try { return JSON.parse(localStorage.getItem('atlas_last_browse_cat') || 'null'); } catch (e) { return null; }
+}
+
 async function renderBrowse() {
     activeBrowseCategory = null;
     applyTopbarContext();  // landing = category grid → hide package-list controls
@@ -4073,13 +4104,11 @@ async function renderBrowse() {
     // also lists Flathub apps, so the number would understate what you actually see. (Counting
     // Flatpak per bucket would mean a network call per category on every Browse open.) The AUR
     // buckets below keep their count — those are exactly the curated top-N we show.
-    const cards = data.map(c => `
-        <button class="browse-chip" data-cat-key="${escapeHtml(c.key)}" data-cat-label="${escapeHtml(c.label)}">
-            <span class="browse-chip-icon">${escapeHtml(c.icon || '📦')}</span>
-            <span class="browse-chip-text">
-                <span class="browse-chip-label">${escapeHtml(c.label)}</span>
-            </span>
-        </button>`).join('');
+    const cards = data.map(buildCategoryCardHTML).join('');
+
+    // "Jump back to your last category" — a convenience at the top of the landing (not auto-nav).
+    const lastCat = getLastBrowseCategory();
+    const resumeSection = buildResumeBrowseHTML(lastCat);
 
     const hasSuggestions = Array.isArray(suggestions) && suggestions.length > 0;
     const suggestedSection = hasSuggestions
@@ -4101,9 +4130,11 @@ async function renderBrowse() {
         ? `<div class="browse-header browse-header-spaced">Discover on the AUR <span class="browse-header-note browse-header-note-aur">community-maintained</span></div><div class="browse-chip-row">${aurCards}</div>`
         : '';
 
-    // Categories first (the primary purpose of Browse), then AUR discovery, then the suggested row.
+    // Resume chip (if any), then categories (the primary purpose of Browse), then AUR discovery,
+    // then the suggested row.
     packagesGrid.innerHTML =
         `<div class="browse-view">` +
+        `${resumeSection}` +
         `<div class="browse-header">Browse by category <span class="browse-header-note">official repos & Flatpak</span></div><div class="browse-chip-row">${cards}</div>` +
         `${aurSection}${suggestedSection}</div>`;
 
@@ -4127,22 +4158,37 @@ async function renderBrowse() {
         btn.addEventListener('click', () => renderCategoryPackages(btn.dataset.aurKey, btn.dataset.aurLabel,
                                                                    { api: 'get_aur_bucket_packages' }));
     });
+    const resumeBtn = packagesGrid.querySelector('.browse-resume-btn');
+    if (resumeBtn && lastCat) resumeBtn.addEventListener('click', () =>
+        renderCategoryPackages(lastCat.key, lastCat.label,
+                               lastCat.api ? { api: lastCat.api } : undefined));
 }
 
 function browseCategoryHeader(category) {
     const header = document.createElement('div');
     header.className = 'browse-subheader';
-    header.innerHTML = `<button class="browse-back" type="button">← Categories</button><span class="browse-cat-title">${escapeHtml(category.label)}</span>`;
-    header.querySelector('.browse-back').addEventListener('click', renderBrowse);
+    // Breadcrumb: Browse / <Category> — the "Browse" crumb returns to the landing.
+    header.innerHTML = `<nav class="browse-breadcrumb" aria-label="Breadcrumb">` +
+        `<button class="breadcrumb-crumb" type="button">Browse</button>` +
+        `<span class="breadcrumb-sep">/</span>` +
+        `<span class="breadcrumb-current">${escapeHtml(category.label)}</span></nav>`;
+    header.querySelector('.breadcrumb-crumb').addEventListener('click', renderBrowse);
     return header;
 }
 
 async function renderCategoryPackages(key, label, opts) {
     const api = (opts && opts.api) || 'get_category_packages';
     activeBrowseCategory = { key, label };
+    setLastBrowseCategory({ key, label, api });  // remember for the landing's resume chip
     applyTopbarContext();  // open category = package list → show the controls
     packagesGrid.style.display = 'block';
-    packagesGrid.innerHTML = `<div class="state-container"><div class="spinner"></div><p>Loading ${escapeHtml(label)}…</p></div>`;
+    // Breadcrumb + skeleton grid while loading (not a bare spinner).
+    packagesGrid.innerHTML = '';
+    packagesGrid.appendChild(browseCategoryHeader({ key, label }));
+    const skel = document.createElement('div');
+    skel.className = 'packages-grid';
+    skel.innerHTML = getSkeletonGridHTML();
+    packagesGrid.appendChild(skel);
 
     const data = await pyApiCall(api, key);  // unwrapped list, or null on error
     if (!activeBrowseCategory || activeBrowseCategory.key !== key) return;
@@ -5459,6 +5505,8 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildUpdateAllPreviewData,
         buildSourceCompareHTML,
         whySourceHint,
+        buildCategoryCardHTML,
+        buildResumeBrowseHTML,
         buildDependencySummaryHTML,
         buildDepNodesHTML,
         highlightBashLine,

@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-05 (Copy exact command increments 1+2 — preview + detail page + reflector copy; 536 tests + 38 JS green)
+**Last updated:** 2026-06-05 (Browse 2.0 polish — rich category cards + breadcrumbs + resume + skeletons; 536 tests + 39 JS green)
 **Version:** 0.11.0 (first cohesive Atlas release; was 0.10.7 — the bauh fork point, never bumped)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -78,6 +78,21 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Browse 2.0 polish (2026-06-05).** Frontend-heavy polish of the Browse landing + category pages
+  (the BACKLOG "Browse 2.0" item). (1) **Richer category cards** — pure `buildCategoryCardHTML` adds
+  an **icon + short description** (descriptions added as a 6th element of `CATEGORY_BUCKETS`, surfaced
+  by `get_categories`); **no count** (deliberate — the repo-only count understates a bucket that also
+  lists Flathub apps; AUR buckets keep their truthful count). (2) **Breadcrumbs** — `browseCategoryHeader`
+  now renders `Browse / <Category>` (the Browse crumb returns to the landing), replacing the bare
+  "← Categories" button. (3) **Persist last-opened category** — `setLastBrowseCategory`/
+  `getLastBrowseCategory` (localStorage `atlas_last_browse_cat`); the landing shows a pure
+  `buildResumeBrowseHTML` "↩ Resume <label>" chip that reopens it (convenience, not auto-nav). (4)
+  **Better category-page skeletons** — `renderCategoryPackages` shows the breadcrumb + `getSkeletonGridHTML()`
+  while loading instead of a bare spinner. Tests: `BrowseCategoryTest` (description assertion) +
+  `main_js_contracts::testBrowseLandingBuilders` (card icon/label/description/no-count, resume chip).
+  Suite **536** + JS **39**. **Needs a GUI eyeball** (landing cards w/ descriptions; open a category →
+  breadcrumb + skeleton; return → resume chip reopens it). Plan:
+  [plans/2026-06-05-browse-2.0-polish.md](plans/2026-06-05-browse-2.0-polish.md).
 - **Copy exact command — increment 1 (2026-06-05).** The pre-flight transaction preview now has a
   **"⧉ Copy command"** button that copies the equivalent terminal command for that exact transaction
   (Atlas's "honest enough for Arch people" angle — nothing hidden from CLI users; the BACKLOG "Copy

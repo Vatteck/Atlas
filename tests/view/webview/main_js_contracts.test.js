@@ -954,6 +954,29 @@ async function testBuildDependencySummaryHTML() {
   assert.notStrictEqual(buildDependencySummaryHTML({ install_reason: 'explicit' }), '', 'reason-only renders');
 }
 
+async function testBrowseLandingBuilders() {
+  const { hooks } = loadMainJs({});
+  const { buildCategoryCardHTML, buildResumeBrowseHTML } = hooks;
+
+  // category card: icon + label + description, escaped, no count
+  const card = buildCategoryCardHTML({ key: 'games', label: 'Games', icon: '🎮',
+    description: 'Games & <emulators>', count: 99 });
+  assert.ok(card.includes('data-cat-key="games"') && card.includes('data-cat-label="Games"'), 'card carries key+label');
+  assert.ok(card.includes('🎮') && card.includes('Games'), 'icon + label shown');
+  assert.ok(card.includes('Games &amp; &lt;emulators&gt;'), 'description shown + escaped');
+  assert.ok(!card.includes('99'), 'no misleading count on category cards');
+  // missing icon falls back; no description → no desc span
+  const bare = buildCategoryCardHTML({ key: 'x', label: 'X' });
+  assert.ok(bare.includes('📦'), 'icon fallback');
+  assert.ok(!bare.includes('browse-chip-desc'), 'no desc span when absent');
+
+  // resume chip: present when a last category is stored, '' otherwise
+  assert.strictEqual(buildResumeBrowseHTML(null), '', 'no last → no chip');
+  assert.strictEqual(buildResumeBrowseHTML({ key: 'x' }), '', 'incomplete last → no chip');
+  const resume = buildResumeBrowseHTML({ key: 'games', label: 'Games' });
+  assert.ok(resume.includes('browse-resume-btn') && resume.includes('Games'), 'resume chip shows the label');
+}
+
 async function testPkgbuildViewerBuilders() {
   const { hooks } = loadMainJs({});
   const { highlightBashLine, buildPkgbuildRiskHTML, buildPkgbuildMetaHTML,
@@ -1186,6 +1209,7 @@ async function testShowTransactionPreviewUsesActionCopy() {
     testBuildSourceCompareHTML,
     testWhySourceHint,
     testBuildDependencySummaryHTML,
+    testBrowseLandingBuilders,
     testPkgbuildViewerBuilders,
     testSummarizeFailureCategories,
     testPickActivityText,

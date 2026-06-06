@@ -74,20 +74,29 @@ class AtlasApi:
     # set of raw categories.txt labels that fall in the bucket (Arch repo index); the 5th is the
     # matching Flathub top-level category (None if the bucket has no Flatpak equivalent). AUR has
     # no category source — the RPC carries no categories — so Browse stays Arch-repo + Flatpak.
+    # (key, label, icon, raw-category-tuple, flathub-category, short-description)
     CATEGORY_BUCKETS = (
-        ('games',       'Games',         '🎮', ('Game', 'Emulator'), 'Game'),
-        ('internet',    'Internet',      '🌐', ('Network', 'Browser', 'browser', 'Torrent', 'P2P', 'IRC'), 'Network'),
-        ('multimedia',  'Audio & Video', '🎵', ('Audio', 'Video', 'AudioVideo'), 'AudioVideo'),
-        ('graphics',    'Graphics',      '🎨', ('Graphics', 'GTK'), 'Graphics'),
+        ('games',       'Games',         '🎮', ('Game', 'Emulator'), 'Game',
+         'Games, emulators & launchers'),
+        ('internet',    'Internet',      '🌐', ('Network', 'Browser', 'browser', 'Torrent', 'P2P', 'IRC'), 'Network',
+         'Browsers, chat, torrents & network tools'),
+        ('multimedia',  'Audio & Video', '🎵', ('Audio', 'Video', 'AudioVideo'), 'AudioVideo',
+         'Players, editors & audio tools'),
+        ('graphics',    'Graphics',      '🎨', ('Graphics', 'GTK'), 'Graphics',
+         'Image editors, viewers & design'),
         # 💻 (color-default) replaces ⌨, and the gear carries an explicit emoji variation selector
         # (⚙️ = U+2699 U+FE0F) — without it ⌨/⚙ are text-presentation glyphs that render as faint
         # monochrome outlines on the dark theme (the other six icons are color-emoji by default).
-        ('development', 'Development',   '💻', ('Development', 'Python', 'Javascript'), 'Development'),
-        ('office',      'Office',         '📄', ('Office',), 'Office'),
-        ('utilities',   'Utilities',     '🧰', ('Utility',), 'Utility'),
+        ('development', 'Development',   '💻', ('Development', 'Python', 'Javascript'), 'Development',
+         'Editors, languages & dev tools'),
+        ('office',      'Office',         '📄', ('Office',), 'Office',
+         'Documents, spreadsheets & productivity'),
+        ('utilities',   'Utilities',     '🧰', ('Utility',), 'Utility',
+         'Handy small tools & accessories'),
         ('system',      'System',        '⚙️',  ('System', 'Settings', 'Security', 'Kernel',
                                                 'Printing', 'Bluetooth', 'Qt', 'KDE', 'Gnome',
-                                                'Xfce', 'XFCE', 'Manjaro'), 'System'),
+                                                'Xfce', 'XFCE', 'Manjaro'), 'System',
+         'System, settings & desktop integration'),
     )
 
     # AUR discovery buckets — the feasible alternative to (impossible) AUR categories. The data is
@@ -658,10 +667,11 @@ class AtlasApi:
         try:
             self.logger.info("get_categories called")
             buckets = []
-            for key, label, icon, raw, _flathub_cat in self.CATEGORY_BUCKETS:
+            for key, label, icon, raw, _flathub_cat, description in self.CATEGORY_BUCKETS:
                 count = len(self._category_names(raw))
                 if count:
-                    buckets.append({'key': key, 'label': label, 'icon': icon, 'count': count})
+                    buckets.append({'key': key, 'label': label, 'icon': icon, 'count': count,
+                                    'description': description})
             return {'status': 'ok', 'data': buckets}
         except Exception as e:
             self.logger.error(f"Error listing categories: {e}")
