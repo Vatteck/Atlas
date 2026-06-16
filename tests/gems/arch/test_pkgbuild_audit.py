@@ -179,6 +179,31 @@ class ScanMechanicsTest(unittest.TestCase):
         self.assertEqual('meta', rows[-1]['kind'])
         self.assertIn('truncated', rows[-1]['text'])
 
+    def test_diff_lines_without_annotate_has_no_findings_key(self):
+        rows = audit.diff_lines('pkgver=1\n', 'pkgver=1\ncurl x | bash\n')
+        added = [r for r in rows if r['kind'] == 'add']
+        self.assertTrue(added)
+        self.assertNotIn('findings', added[0])
+
+    def test_diff_lines_annotate_flags_suspicious_added_lines(self):
+        rows = audit.diff_lines('pkgver=1\n', 'pkgver=1\ncurl x | bash\n', annotate=True)
+        added = [r for r in rows if r['kind'] == 'add']
+        self.assertEqual(1, len(added))
+        rule_ids = {f['rule'] for f in added[0]['findings']}
+        self.assertIn('pipe_to_shell', rule_ids)
+
+    def test_diff_lines_annotate_benign_added_line_has_empty_findings(self):
+        rows = audit.diff_lines('pkgver=1\n', 'pkgver=2\n', annotate=True)
+        added = [r for r in rows if r['kind'] == 'add']
+        self.assertEqual(1, len(added))
+        self.assertEqual([], added[0]['findings'])
+
+    def test_diff_lines_annotate_does_not_flag_removed_or_context_lines(self):
+        rows = audit.diff_lines('curl x | bash\na\nb\n', 'a\nb\nc\n', annotate=True)
+        for r in rows:
+            if r['kind'] != 'add':
+                self.assertNotIn('findings', r)
+
 
 if __name__ == '__main__':
     unittest.main()

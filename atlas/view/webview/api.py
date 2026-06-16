@@ -1814,9 +1814,10 @@ class AtlasApi:
 
     def get_aur_meta(self, pkg_id: str) -> dict:
         """On-demand AUR detail-view metadata: current maintainer, whether the maintainer changed
-        since install (advisory supply-chain signal), the latest AUR version, and whether an update
-        is available (compared with `vercmp`). data: {maintainer, changed:{old,new}|None,
-        latest_version, update_available}. Empty for non-AUR. One best-effort RPC; never raises."""
+        since install (advisory supply-chain signal), the latest AUR version, whether an update
+        is available (compared with `vercmp`), and a composite reputation score. data:
+        {maintainer, changed:{old,new}|None, latest_version, update_available, risk}.
+        Empty for non-AUR. One best-effort RPC; never raises."""
         try:
             pkg = self._get_pkg(pkg_id)
             if pkg is None or getattr(pkg, 'repository', None) != 'aur':
@@ -1843,11 +1844,61 @@ class AtlasApi:
                 except (ValueError, AttributeError):
                     update_available = False
 
+            risk = None
+            try:
+                from atlas.gems.arch.aur_risk import calculate_aur_risk_score
+                risk = calculate_aur_risk_score(pkg, maintainer_changed=changed is not None)
+            except Exception as e:
+                self.logger.debug(f"get_aur_meta: risk scoring failed: {e}")
+
             return {'status': 'ok', 'data': {'maintainer': current, 'changed': changed,
-                                             'latest_version': latest, 'update_available': update_available}}
+                                             'latest_version': latest, 'update_available': update_available,
+                                             'risk': risk}}
         except Exception as e:
             self.logger.error(f"get_aur_meta failed: {e}")
             return {'status': 'ok', 'data': {}}
+
+    def get_update_risk_tiers(self, pkg_ids: List[str]) -> dict:
+        """One batched AUR RPC call to score every pending AUR update for the Update-All preview.
+        Non-AUR packages are tier 'safe' by source type (official repo / Flatpak aren't scored).
+        Fails open: any RPC error puts every AUR package in 'caution' (never silently 'safe').
+        data: {tiers: {pkg_id: {tier, score}}, counts: {safe, caution, risk}}."""
+        try:
+            from atlas.gems.arch.aur_risk import calculate_aur_risk_score, TRUSTED
+            pkgs = [p for p in (self._get_pkg(pid) for pid in (pkg_ids or [])) if p]
+            aur_pkgs = [p for p in pkgs if (getattr(p, 'repository', None) or '') == 'aur']
+
+            results = {}
+            for p in pkgs:
+                if (getattr(p, 'repository', None) or '') != 'aur':
+                    results[p.id] = {'tier': 'safe', 'score': None}
+
+            if aur_pkgs:
+                arch_man = self._manager_by_gem('arch')
+                aur_client = getattr(arch_man, 'aur_client', None)
+                try:
+                    infos = aur_client.get_info([p.name for p in aur_pkgs]) if aur_client else []
+                    current_by_name = {i['Name']: i.get('Maintainer') for i in (infos or [])}
+                    for p in aur_pkgs:
+                        baseline = getattr(p, 'maintainer', None)
+                        current = current_by_name.get(p.name)
+                        changed = bool(baseline and current and current != baseline)
+                        risk = calculate_aur_risk_score(p, maintainer_changed=changed)
+                        tier = 'safe' if risk['tier'] == TRUSTED else risk['tier']
+                        results[p.id] = {'tier': tier, 'score': risk['score']}
+                except Exception as e:
+                    self.logger.debug(f"get_update_risk_tiers: batch RPC failed: {e}")
+                    for p in aur_pkgs:
+                        results.setdefault(p.id, {'tier': 'caution', 'score': None})
+
+            counts = {'safe': 0, 'caution': 0, 'risk': 0}
+            for r in results.values():
+                tier = r['tier'] if r['tier'] in counts else 'caution'
+                counts[tier] += 1
+            return {'status': 'ok', 'data': {'tiers': results, 'counts': counts}}
+        except Exception as e:
+            self.logger.error(f"get_update_risk_tiers failed: {e}")
+            return {'status': 'ok', 'data': {'tiers': {}, 'counts': {'safe': 0, 'caution': 0, 'risk': 0}}}
 
     def get_pkgbuild(self, pkg_id: str) -> dict:
         """On-demand PKGBUILD for the first-class viewer (AUR only). Fetches the current published
@@ -1907,7 +1958,7 @@ class AtlasApi:
                 try:
                     old_text = arch_man.fetch_aur_file(base, 'PKGBUILD', commit)
                     if old_text and old_text != text:
-                        diff = pkgbuild_audit.diff_lines(old_text, text)
+                        diff = pkgbuild_audit.diff_lines(old_text, text, annotate=True)
                 except Exception as e:
                     self.logger.debug(f"get_pkgbuild: diff vs commit {commit} failed: {e}")
 
@@ -2078,10 +2129,11 @@ class AtlasApi:
 
         maintainer = info.get('Maintainer')
         baseline = getattr(pkg, 'maintainer', None)
+        maintainer_changed = bool(getattr(pkg, 'installed', False) and baseline and maintainer and maintainer != baseline)
         if aur_client is not None and maintainer is None:
             data['warnings'].append({'level': 'warn', 'title': 'Orphaned package',
                                      'detail': 'This AUR package currently has no maintainer.'})
-        if getattr(pkg, 'installed', False) and baseline and maintainer and maintainer != baseline:
+        if maintainer_changed:
             data['warnings'].append({'level': 'warn', 'title': 'Maintainer changed',
                                      'detail': f'Maintainer changed since you installed: {baseline} → {maintainer}.'})
         if info.get('OutOfDate'):
@@ -2089,6 +2141,12 @@ class AtlasApi:
                                      'detail': 'The AUR community has flagged this package out of date.'})
         data['warnings'].append({'level': 'info', 'title': 'Community-maintained (AUR)',
                                  'detail': 'AUR packages are user-submitted and not vetted by Arch. Atlas scans the PKGBUILD before building.'})
+
+        try:
+            from atlas.gems.arch.aur_risk import calculate_aur_risk_score
+            data['aur_risk'] = calculate_aur_risk_score(pkg, maintainer_changed=maintainer_changed)
+        except Exception as e:
+            self.logger.debug(f"preview: AUR risk scoring failed for {pkg.name}: {e}")
 
     def _preview_flatpak(self, pkg, data: dict) -> None:
         app_id = getattr(pkg, 'id', None)

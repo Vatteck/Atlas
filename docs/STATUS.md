@@ -5,7 +5,8 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-06 (released **0.12.0** — the polish-and-trust release; tag `v0.12.0` + AUR published; 559 tests + 45 JS green)
+**Last updated:** 2026-06-16 (AUR reputation scoring + diff security annotation + batch update
+risk tiers shipped — see Done log; 573 tests + 45 JS green)
 **Version:** 0.12.0 (the polish-and-trust release; 0.11.0 was the first cohesive Atlas release)
 **Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
 
@@ -78,6 +79,26 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **AUR reputation scoring + diff security annotation + batch update risk tiers (2026-06-16).**
+  Three security-trust features on top of the existing PKGBUILD-audit/maintainer-change
+  infrastructure (no new network calls — pure computation on AUR RPC data Atlas already fetches).
+  **(1) Composite AUR reputation score** — new `atlas/gems/arch/aur_risk.py`
+  (`calculate_aur_risk_score(pkg, maintainer_changed) -> {score 0-100, tier, factors}`, weighted
+  votes/age/orphan/maintainer-stability/popularity); surfaced via `get_aur_meta()` and
+  `_preview_aur()` in `api.py`, a "Reputation" badge on the AUR detail page, and a score indicator
+  in the install/update preview modal. **(2) Diff security annotation** — `pkgbuild_audit.diff_lines()`
+  gained `annotate=True` (attaches `scan()` findings to each added diff line); `get_pkgbuild()`'s
+  "changed since your build" diff now passes it through, and the PKGBUILD viewer's diff tab shows
+  an inline `⚠ rule_id` badge on suspicious added lines. **(3) Batch update risk tiers** — new
+  `get_update_risk_tiers(pkg_ids)` makes **one** batched AUR RPC (`aur_client.get_info`) to score
+  every pending AUR update at once (avoids an N+1 RPC regression in the otherwise-zero-server-calls
+  Update-All preview); `updateAllBtn` calls it alongside the existing news/.pacnew checks and
+  `buildUpdateAllPreviewData` adds a safe/caution/risk breakdown note + names any high-risk packages
+  in the warnings list. Fails open throughout (RPC error → 'caution', never silently 'safe'); never
+  gates — Update All still updates everything in one shot. 573 tests + 45 JS green. New tests:
+  `tests/gems/arch/test_aur_risk.py` (6), `pkgbuild_audit` diff-annotation cases,
+  `testBuildUpdateAllPreviewData` tier cases. Plan:
+  [plans/2026-06-16-aur-reputation-and-risk-tiers.md](plans/2026-06-16-aur-reputation-and-risk-tiers.md).
 - **Release 0.12.0 — the polish-and-trust release (2026-06-06).** Bumped `__version__`
   0.11.0 → **0.12.0** (`atlas/__init__.py`, README status line, PKGBUILD `pkgver`), wrote a themed
   `CHANGELOG.md` 0.12.0 section (everything since the `v0.11.0` tag — Attention Center, command
