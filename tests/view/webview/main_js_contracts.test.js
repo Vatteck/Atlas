@@ -302,6 +302,8 @@ function loadMainJs(apiOverrides = {}) {
     get_aur_meta: async () => ({}),
     get_screenshots: async () => [],
     get_history: async () => ({ history: [] }),
+    get_package_activity: async () => [],
+    get_dependency_summary: async () => ({}),
     get_pkg_icon: async () => '',
     open_url: async () => ({ status: 'ok' }),
   };
@@ -1075,6 +1077,39 @@ async function testBuildDependencySummaryHTML() {
   assert.notStrictEqual(buildDependencySummaryHTML({ install_reason: 'explicit' }), '', 'reason-only renders');
 }
 
+async function testPackageActivitySectionClearsForNonInstalledPackages() {
+  const { document, hooks } = loadMainJs({
+    get_package_activity: async () => ([
+      { action: 'install', pkg_type: 'arch_repo', success: true, timestamp: '2026-06-16T00:00:00' },
+    ]),
+  });
+  const section = document.getElementById('detail-activity-section');
+  const body = document.getElementById('detail-activity');
+
+  hooks.openDetailModal(makePkg('arch:installed', 'Installed', 'arch_repo', { installed: true }));
+  await flushPromises();
+  assert.ok(!section.classList.contains('hidden'), 'installed package with activity shows package history');
+  assert.ok(body.innerHTML.includes('INSTALL'), 'activity body populated');
+
+  hooks.openDetailModal(makePkg('arch:new', 'New', 'arch_repo', { installed: false }));
+  assert.ok(section.classList.contains('hidden'), 'non-installed package clears stale package history');
+  assert.strictEqual(body.innerHTML, '', 'non-installed package clears stale package history body');
+}
+
+async function testBuildPackageActivityHTML() {
+  const { hooks } = loadMainJs({});
+  const { buildPackageActivityHTML } = hooks;
+  assert.strictEqual(buildPackageActivityHTML([]), '', 'empty package activity hidden');
+  const html = buildPackageActivityHTML([
+    { action: 'install', pkg_type: 'arch_repo', success: true, timestamp: '2026-06-16T00:00:00' },
+    { action: 'update', pkg_type: '<img>', success: false, error: '<boom>', timestamp: '2026-06-16T01:00:00' },
+  ]);
+  assert.ok(html.includes('INSTALL') && html.includes('UPDATE'), 'renders actions');
+  assert.ok(html.includes('Open full Activity history'), 'renders activity jump');
+  assert.ok(!html.includes('<img>') && html.includes('&lt;img&gt;'), 'escapes source type');
+  assert.ok(html.includes('&lt;boom&gt;'), 'escapes errors');
+}
+
 async function testBrowseLandingBuilders() {
   const { hooks } = loadMainJs({});
   const { buildCategoryCardHTML, buildResumeBrowseHTML } = hooks;
@@ -1388,6 +1423,8 @@ function testPermsListEnsuresIconObserver() {
     testBuildSourceCompareHTML,
     testWhySourceHint,
     testBuildDependencySummaryHTML,
+    testPackageActivitySectionClearsForNonInstalledPackages,
+    testBuildPackageActivityHTML,
     testBrowseLandingBuilders,
     testPkgbuildViewerBuilders,
     testPkgbuildMetaOnlyLinksSafeHttpUrls,

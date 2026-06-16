@@ -2770,6 +2770,31 @@ class AtlasApi:
             self.logger.error(f"Error fetching activity log: {e}")
             return {'status': 'error', 'message': str(e)}
 
+    def get_package_activity(self, pkg_id: str) -> dict:
+        """Recent Atlas activity for one package, used by the detail modal. This is the
+        local Atlas JSONL feed (not pacman.log) and fails open so package details stay fast."""
+        try:
+            pkg = self._get_pkg(pkg_id)
+            if not pkg:
+                return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
+            name = (getattr(pkg, 'name', '') or '').lower()
+            raw_type = pkg.get_type() if hasattr(pkg, 'get_type') else None
+            ptype = (raw_type or getattr(pkg, 'gem_name', '') or '').lower()
+            entries = []
+            for entry in get_activity_log(limit=500):
+                if (entry.get('pkg_name') or '').lower() != name:
+                    continue
+                etype = (entry.get('pkg_type') or '').lower()
+                if ptype and etype and etype != ptype and not {ptype, etype} <= {'arch', 'arch_repo'}:
+                    continue
+                entries.append(entry)
+                if len(entries) >= 8:
+                    break
+            return {'status': 'ok', 'data': entries}
+        except Exception as e:
+            self.logger.error(f"Error fetching package activity: {e}")
+            return {'status': 'ok', 'data': []}
+
     def clear_activity(self) -> dict:
         """Clear the History page's activity log (the local JSONL). Only Atlas's own activity feed —
         never touches pacman's log. Returns ok/error so the frontend can confirm."""

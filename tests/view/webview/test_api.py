@@ -1910,6 +1910,18 @@ class DependencySummaryTest(unittest.TestCase):
         self.api._get_pkg = Mock(return_value=None)
         self.assertEqual('error', self.api.get_dependency_summary('nope:nope')['status'])
 
+    def test_package_activity_filters_by_package(self):
+        self._pkg(name='vim', ptype='arch_repo', repository='extra', installed=True)
+        rows = [
+            {'pkg_name': 'vim', 'pkg_type': 'arch_repo', 'action': 'install', 'success': True},
+            {'pkg_name': 'vim', 'pkg_type': 'flatpak', 'action': 'install', 'success': True},
+            {'pkg_name': 'nano', 'pkg_type': 'arch_repo', 'action': 'install', 'success': True},
+        ]
+        with patch('atlas.view.webview.api.get_activity_log', return_value=rows):
+            d = self.api.get_package_activity('arch_repo:vim')['data']
+        self.assertEqual(1, len(d))
+        self.assertEqual('vim', d[0]['pkg_name'])
+
     def test_get_subdeps_returns_direct(self):
         with patch('atlas.gems.arch.pacman.map_updates_data',
                    return_value={'glibc': {'d': {'linux-api-headers', 'tzdata'}}}):

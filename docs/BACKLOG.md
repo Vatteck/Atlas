@@ -5,8 +5,8 @@
 > (what's *in progress* / *just shipped*); this is the forward map. Move an item to a
 > `docs/plans/` doc when it gets picked up, and note the outcome in STATUS.md when it ships.
 
-**Last updated:** 2026-06-04 (folded the polish/QoL roadmap in — vision + open work + non-goals;
-the former `hroadmap.md` was absorbed here and deleted. Its P0 had already shipped.)
+**Last updated:** 2026-06-16 (reconciled shipped items with STATUS; remaining menu is GUI
+verification, "Why is this installed?", mirror options, and measurement work.)
 
 ---
 
@@ -35,18 +35,19 @@ hiding the danger.** Every system-mutating action should feel controlled and exp
 ## Open work (the forward menu)
 
 Folded from the polish/QoL roadmap. Its **P0 ("finish what shipped") is already done** — Browse
-correctness, stale-render guards, the GUI-verification pass, the icon-theme resolver, and Flatpak
-Browse all shipped in sprints 1–2 (see Shipped / CHANGELOG). What remains, roughly highest-value
-first:
+correctness, stale-render guards, the icon-theme resolver, Flatpak Browse, Attention Center,
+transaction previews, Health/`.pacnew`, command palette, and the 0.12 polish/trust work have all
+shipped (see Shipped / CHANGELOG / STATUS). What remains, roughly highest-value first:
 
 ### Store-quality discovery
-- **Dashboard "Attention Center."** Make the dashboard answer *"what needs my attention today?"*
-  Lazy/best-effort cards (fail-open, skeletons OK, never block startup): **Updates** (count +
-  Arch/AUR/Flatpak split + "news before upgrade?"), **System safety** (`.pacnew` count, DB-sync
-  age, pacman lock), **Reclaim space** (orphans, cache estimate, unused runtimes), **Recent
-  activity**, **AUR safety** (chroot/devtools status), **Flatpak permissions** (risky-app count →
-  Permissions page). Most backends already exist; mainly a compact `AtlasApi.get_dashboard_summary`
-  + UI.
+- **GUI verification sweep.** Run `atlas --logs` on a real desktop and verify the newest shipped
+  surfaces that headless tests cannot fully prove: Browse/AUR buckets, transaction previews,
+  PKGBUILD diff annotations, dependency trees, Permissions icons + copyable override toasts,
+  Activity export/clear, System Health actions, and mirror command flows. Keep findings in
+  `docs/STATUS.md` and move any defects into a focused plan.
+- ~~**Dashboard "Attention Center."**~~ ✅ **SHIPPED + GUI-VERIFIED 2026-06-04** — answers "what
+  needs my attention today?" with Updates, System safety, Reclaim space, Recent activity, AUR
+  safety, and Flatpak permission cards. See [plans/2026-06-04-dashboard-attention-center.md](plans/2026-06-04-dashboard-attention-center.md).
 - ~~**Browse 2.0 (Arch polish).**~~ ✅ **SHIPPED 2026-06-05** (needs a GUI eyeball): richer category
   cards (icon + short **description**; no count — repo-only counts mislead), **breadcrumbs**
   (`Browse / <Category>`), **persist last-opened category** (resume chip on the landing), and
@@ -58,30 +59,27 @@ first:
   **precomputed in atlas-files** (a daily GH Action turns `packages-meta-ext-v1.json.gz` into a small
   `arch/aur_discovery.json`; Atlas fetches it, like suggestions/categories). See
   [plans/2026-06-05-aur-discovery-buckets.md](plans/2026-06-05-aur-discovery-buckets.md). Easy to add
-  more buckets later (just the generator). *Remaining:* push the atlas-files commit + enable the Action.
-- **Better app detail pages.** A **source-comparison panel** (Arch vs AUR vs Flatpak vs AppImage:
-  version, size, maintainer/publisher, trust badges, update availability), **"why this source?"**
-  hints (vetted repo / community AUR build / verified vs community Flatpak), a **dependency summary**
-  (direct / optional / required-by counts), and a **"what will change?"** preview. High value
-  because Atlas is multi-source and most GUIs explain source tradeoffs badly.
+  more buckets later (just the generator). Atlas-side work is done; data is pushed and serving from
+  atlas-files. *Remaining:* GUI eyeball.
+- ~~**Better app detail pages.**~~ ✅ **SHIPPED 2026-06-05** — source-comparison panel, "why this
+  source?" hints, dependency summary, and "what will change?" preview shipped as part of the detail
+  page / transaction preview work. See [plans/2026-06-05-better-detail-pages.md](plans/2026-06-05-better-detail-pages.md).
 
 ### Operation confidence (the trust layer)
-- **Universal transaction preview** before install/update/remove/downgrade — cards/badges/
-  accordions, *not* a wall of text. Installs: pkgs/source/version/new-deps/optdeps/estimate/AUR
-  warnings/Flatpak-perms. Updates: current→new, source split, AUR maintainer change?, PKGBUILD diff?,
-  Arch news newer than sync?, `.pacnew` present? Uninstall: will-remove + reverse-dep warnings +
-  orphan candidates.
+- ~~**Universal transaction preview**~~ ✅ **SHIPPED 2026-06-04** — install/update/remove/downgrade,
+  Update-All aggregate, and source-comparison/detail-page preview surfaces are implemented. Still needs
+  a GUI eyeball for the latest risk-tier and AUR reputation additions.
 - ~~**Transaction timeline polish.**~~ ✅ **SHIPPED 2026-06-05** — current-activity line (spinner +
   latest message), collapse/expand raw output, copy-full-log, and a friendly failure summary (auth /
   PGP-keyring / download-404 / conflict / dependency / build). Raw log stays. *(A discrete step
   timeline was dropped — gems don't emit clean phase events.)*
   See [plans/2026-06-05-transaction-timeline.md](plans/2026-06-05-transaction-timeline.md).
-- 🟡 **History / rollback center** — **increments 1–3 SHIPPED** (needs a GUI eyeball): a real
+- ~~**History / rollback center**~~ ✅ **COMPLETE 2026-06-16** (needs a GUI eyeball): a real
   History/Activity page with filters (action/source/name), date grouping, Downgrade/Reinstall
-  rollback affordances, pacman-log links (inc. 1–2, 2026-06-05), and **log clear + export** (inc. 3,
-  2026-06-06). *Remaining:* a per-package History tab on the page (the detail modal already shows
-  version history) + an automatic log-size cap. See
-  [plans/2026-06-05-history-rollback-center.md](plans/2026-06-05-history-rollback-center.md).
+  rollback affordances, pacman-log links, log clear/export, an automatic Atlas activity-log cap, and
+  a per-package activity panel in installed package detail modals. See
+  [plans/2026-06-05-history-rollback-center.md](plans/2026-06-05-history-rollback-center.md) and
+  [plans/2026-06-16-history-polish.md](plans/2026-06-16-history-polish.md).
 
 ### Arch utility cockpit (package-maintenance health only — *not* a YaST)
 - ~~**System Health page.**~~ ✅ **shipped 2026-06-04** — Health page with 8 checks (DB-sync age,

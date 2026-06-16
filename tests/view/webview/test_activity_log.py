@@ -66,3 +66,29 @@ class ActivityLogClearExportTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class ActivityLogCapTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.log_path = os.path.join(self.tmp.name, 'activity.jsonl')
+        self._patches = [
+            patch.object(activity_log, 'LOG_FILE', self.log_path),
+            patch.object(activity_log, 'MAX_ACTIVITY_ENTRIES', 3),
+            patch.object(activity_log, 'COMPACT_EVERY_WRITES', 1),
+        ]
+        for p in self._patches:
+            p.start()
+        activity_log._write_count = 0
+
+    def tearDown(self):
+        for p in self._patches:
+            p.stop()
+        self.tmp.cleanup()
+
+    def test_record_activity_caps_newest_entries(self):
+        for i in range(5):
+            activity_log.record_activity('install', f'p{i}', 'arch_repo', True)
+        entries = activity_log.get_activity_log(limit=10)
+        self.assertEqual(['p4', 'p3', 'p2'], [e['pkg_name'] for e in entries])
+        with open(self.log_path, encoding='utf-8') as f:
+            self.assertEqual(3, len([ln for ln in f if ln.strip()]))
