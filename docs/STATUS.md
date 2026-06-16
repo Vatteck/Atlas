@@ -5,9 +5,9 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-16 (History/Activity completion shipped;
-planning-doc reconciliation + GUI verification queue captured; AUR reputation scoring + diff security
-annotation + batch update risk tiers shipped — see Done log; tests noted below)
+**Last updated:** 2026-06-16 (History/Activity PR review follow-up: stale detail history reset;
+History/Activity completion shipped; planning-doc reconciliation + GUI verification queue captured;
+AUR reputation scoring + diff security annotation + batch update risk tiers shipped — see Done log)
 **Version:** 0.12.0 (the polish-and-trust release; 0.11.0 was the first cohesive Atlas release)
 **Working branch:** `work` in this checkout; app work normally lands on `master` (run `git branch`
 before acting — branch names in docs go stale)
@@ -92,8 +92,10 @@ re-add a native extension without a measured win. Details in the historical
   items: `activity_log.py` now automatically compacts the local JSONL feed to the newest 1000 valid
   entries (checked every 25 writes), and installed package detail modals show a compact per-package
   Atlas activity panel with recent actions, failures, timestamps, plus a jump to the full Activity
-  page filtered by that package. This reuses the existing local activity feed and fails open so the
-  detail modal never blocks. Plan: [plans/2026-06-16-history-polish.md](plans/2026-06-16-history-polish.md).
+  page filtered by that package. PR review follow-up: opening a non-installed package now clears any
+  stale package-history section left by the previous modal, and the mock frontend API includes the
+  package-activity endpoint for dev/test fallback. This reuses the existing local activity feed and
+  fails open so the detail modal never blocks. Plan: [plans/2026-06-16-history-polish.md](plans/2026-06-16-history-polish.md).
 
 - **AUR reputation scoring + diff security annotation + batch update risk tiers (2026-06-16).**
   Three security-trust features on top of the existing PKGBUILD-audit/maintainer-change

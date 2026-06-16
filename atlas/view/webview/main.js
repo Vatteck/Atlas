@@ -1513,9 +1513,10 @@ function buildPackageActivityHTML(entries) {
 async function renderPackageActivity(pkg, stillCurrent = () => true) {
     const section = document.getElementById('detail-activity-section');
     const body = document.getElementById('detail-activity');
-    if (!section || !body || !pkg || !pkg.installed) return;
+    if (!section || !body) return;
     section.classList.add('hidden');
     body.innerHTML = '';
+    if (!pkg || !pkg.installed) return;
     const entries = await pyApiCall('get_package_activity', pkg.id);
     if (!stillCurrent()) return;
     const html = buildPackageActivityHTML(entries);
@@ -5175,6 +5176,7 @@ const mockApi = {
     get_activity: async () => [
         { timestamp: new Date().toISOString(), action: 'install', pkg_name: 'Firefox', pkg_type: 'Flatpak', success: true }
     ],
+    get_package_activity: async () => [],
     get_info: async (id) => {
         return {
             'Package ID': id,
