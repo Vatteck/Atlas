@@ -68,6 +68,28 @@ _RULES = [
     ('rm_rf', WARN,
      'Recursive delete targeting $HOME or an absolute system path (not the build dir).',
      re.compile(r'\brm\s+-\w*[rR]\w*\s+["\']?(?:~|/|\$HOME|\$\{HOME)').search),
+
+    # Atomic Arch (June 2026) campaign-specific patterns:
+    ('npm_install_unknown', WARN,
+     'npm/bun/pnpm/yarn install in build or install hook — the Atomic Arch (June 2026) '
+     'supply-chain attack vector. Legitimate in build() for Node.js projects; highly suspicious '
+     'in .install hooks or when installing packages not declared as build dependencies.',
+     re.compile(r'\b(?:npm|bun|pnpm|yarn)\s+(?:install|i\b|add)\b', re.I).search),
+
+    ('skip_checksum', INFO,
+     'Checksum array contains SKIP — that source file is not cryptographically verified. '
+     'Normal for VCS sources (git+, svn+, hg+); suspicious for binary or archive downloads.',
+     re.compile(r"""['"]\s*SKIP\s*['"]""").search),
+
+    ('temp_upload_service', INFO,
+     'Reference to a temporary file-upload service — a known data-exfiltration channel '
+     '(used by the Atomic Arch payload to send stolen credentials via temp.sh).',
+     re.compile(r'\b(?:temp\.sh|transfer\.sh|0x0\.st|termbin\.com|pasteboard\.co)\b', re.I).search),
+
+    ('systemd_service_install', INFO,
+     'Enables or starts a systemd service. Normal for packages that ship daemons; '
+     'review the bundled unit file for unexpected network access or persistence.',
+     re.compile(r'\bsystemctl\s+(?:enable|start|daemon-reload)\b', re.I).search),
 ]
 
 
