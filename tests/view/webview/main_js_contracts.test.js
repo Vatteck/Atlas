@@ -1075,6 +1075,20 @@ async function testBuildDependencySummaryHTML() {
   assert.notStrictEqual(buildDependencySummaryHTML({ install_reason: 'explicit' }), '', 'reason-only renders');
 }
 
+async function testBuildPackageActivityHTML() {
+  const { hooks } = loadMainJs({});
+  const { buildPackageActivityHTML } = hooks;
+  assert.strictEqual(buildPackageActivityHTML([]), '', 'empty package activity hidden');
+  const html = buildPackageActivityHTML([
+    { action: 'install', pkg_type: 'arch_repo', success: true, timestamp: '2026-06-16T00:00:00' },
+    { action: 'update', pkg_type: '<img>', success: false, error: '<boom>', timestamp: '2026-06-16T01:00:00' },
+  ]);
+  assert.ok(html.includes('INSTALL') && html.includes('UPDATE'), 'renders actions');
+  assert.ok(html.includes('Open full Activity history'), 'renders activity jump');
+  assert.ok(!html.includes('<img>') && html.includes('&lt;img&gt;'), 'escapes source type');
+  assert.ok(html.includes('&lt;boom&gt;'), 'escapes errors');
+}
+
 async function testBrowseLandingBuilders() {
   const { hooks } = loadMainJs({});
   const { buildCategoryCardHTML, buildResumeBrowseHTML } = hooks;
@@ -1388,6 +1402,7 @@ function testPermsListEnsuresIconObserver() {
     testBuildSourceCompareHTML,
     testWhySourceHint,
     testBuildDependencySummaryHTML,
+    testBuildPackageActivityHTML,
     testBrowseLandingBuilders,
     testPkgbuildViewerBuilders,
     testPkgbuildMetaOnlyLinksSafeHttpUrls,

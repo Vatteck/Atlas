@@ -5,7 +5,31 @@ import threading
 from typing import List
 
 LOG_FILE = os.path.expanduser('~/.cache/atlaspm/activity.jsonl')
+MAX_ACTIVITY_ENTRIES = 1000
+COMPACT_EVERY_WRITES = 25
+_write_count = 0
 _log_lock = threading.Lock()
+
+def _compact_activity_log(max_entries: int = MAX_ACTIVITY_ENTRIES):
+    """Keep only the newest valid JSONL entries. Caller must hold ``_log_lock``."""
+    if max_entries <= 0 or not os.path.exists(LOG_FILE):
+        return
+    entries = []
+    with open(LOG_FILE, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                json.loads(line)
+                entries.append(line)
+            except Exception:
+                pass
+    if len(entries) <= max_entries:
+        return
+    with open(LOG_FILE, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(entries[-max_entries:]) + '\n')
+
 
 def record_activity(action: str, pkg_name: str, pkg_type: str, success: bool, error: str = None):
     """
@@ -20,11 +44,16 @@ def record_activity(action: str, pkg_name: str, pkg_type: str, success: bool, er
         'error': error
     }
     
+    global _write_count
     with _log_lock:
         try:
             os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
             with open(LOG_FILE, 'a', encoding='utf-8') as f:
                 f.write(json.dumps(entry) + '\n')
+            _write_count += 1
+            if _write_count >= COMPACT_EVERY_WRITES:
+                _compact_activity_log(MAX_ACTIVITY_ENTRIES)
+                _write_count = 0
         except Exception as e:
             # We don't want activity logging to crash the app, but log it to stdout/stderr
             print(f"[activity_log] Error recording activity: {e}")

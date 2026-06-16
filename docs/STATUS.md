@@ -5,10 +5,12 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-16 (AUR reputation scoring + diff security annotation + batch update
-risk tiers shipped — see Done log; 573 tests + 45 JS green)
+**Last updated:** 2026-06-16 (History/Activity completion shipped;
+planning-doc reconciliation + GUI verification queue captured; AUR reputation scoring + diff security
+annotation + batch update risk tiers shipped — see Done log; tests noted below)
 **Version:** 0.12.0 (the polish-and-trust release; 0.11.0 was the first cohesive Atlas release)
-**Working branch:** `master` (sprint 2 fast-forward merged + pushed; run `git branch` before acting)
+**Working branch:** `work` in this checkout; app work normally lands on `master` (run `git branch`
+before acting — branch names in docs go stale)
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)** — the longer-horizon menu we pull
 > from. This file stays the live baton (in-progress / just-shipped).
@@ -17,51 +19,58 @@ risk tiers shipped — see Done log; 573 tests + 45 JS green)
 
 ## Current focus
 
-**Polish / QoL tail (2026-06-03).** The big transitions and every planned theme are shipped; Atlas
-is an Arch-focused, **pure-Python** pywebview app on the AUR with green CI (442 tests). Completed
-themes: the **AUR-safety theme** (heuristic PKGBUILD scanner → advisory pre-build gate →
-diff-since-last-build → rich rendered review modal → **maintainer-changed-hands advisory** →
-opt-in **clean-chroot builds** with `-I` dep injection, GUI-verified); the **Flatpak transparency &
-control theme** (Open-Source/Proprietary + Verified + downloads badges → permissions list + advisory
-safety tier → in-modal override editing → full **Flatseal-grade Permissions page**: Share/Socket/
-Device/Features/Filesystem/Bus/Environment, tabbed); plus maintenance hub, downgrade/rollback,
-News + `.pacnew`, Update-All news gate, Browse, sort, non-Qt tray, icons, keyboard shortcuts,
-screenshot lightbox. **No big-ticket item is open** — remaining work is small follow-ups (see Next).
-Sprint 1 fixed Browse category state/sort/filter correctness and stale async guards
-(see [plans/2026-06-03-webview-polish-sprint-1.md](plans/2026-06-03-webview-polish-sprint-1.md)).
-**Sprint 2 (2026-06-04)** worked the polish tail: Browse now lists Flatpak (Flathub) apps per category
-(AUR has no category source — excluded), and installed-app icon resolution now searches the active icon
-theme + its inherits chain (thread-safe, no `Gtk.IconTheme`). 451 tests green; both new features need a
-GUI eyeball. Plan: [plans/2026-06-04-polish-tail.md](plans/2026-06-04-polish-tail.md).
+**Post-0.12 planning cleanup + GUI verification queue (2026-06-16).** The major transitions and
+planned polish/trust themes are shipped: Atlas is an Arch-focused, **pure-Python** pywebview app
+with the AUR-safety, Flatpak transparency/control, maintenance, rollback, Arch news/`.pacnew`,
+Browse, tray, icon, shortcut, transaction-preview, History, System Health, PKGBUILD-review, and
+AUR-reputation work in place. The active work is now (1) keeping the planning docs honest and
+(2) running a real pywebview GUI eyeball pass for the newest surfaces that unit tests cannot fully
+cover. No Rust/Qt revival; no new big architectural migration without a measured reason.
 
 ## Next
 
-The small follow-up tail is done and GUI-verified (Flatpak-in-Browse + theme-aware icons both
-eyeballed 2026-06-04; thread-pool deferred with no measured reason). The forward menu now lives in
-**[BACKLOG.md](BACKLOG.md)**, which absorbed the polish/QoL roadmap (vision + open work + non-goals;
-the old `hroadmap.md` was folded in and deleted). Highest-value open items there, roughly in order:
+The forward menu now lives in **[BACKLOG.md](BACKLOG.md)**, which is the canonical longer-horizon
+feature list. Highest-value next moves, in order:
 
-- ~~**Dashboard "Attention Center"**~~ ✅ **shipped + GUI-verified 2026-06-04** (see Done).
-- ~~**AUR discovery buckets**~~ ✅ **shipped + live 2026-06-05** (Popular / Recently-updated / VCS /
-  Binary). Data precomputed in atlas-files (daily GH Action → small JSON, **pushed + serving**). Cards
-  now show correct Install/Uninstall/Update state via a cheap `pacman -Q`. **Needs a GUI eyeball.**
-- ~~**Universal transaction preview**~~ ✅ **COMPLETE 2026-06-04** — install, uninstall, downgrade,
-  update, Update-All aggregate, **and the source-comparison panel** on detail pages all shipped (each
-  needs a GUI eyeball; see Done).
-- **System Health page / `.pacnew` center / mirror polish** — the "Arch cockpit" (backends largely
-  exist from the safety-net + maintenance-hub work).
-- **GUI sugar:** command palette (`Ctrl+K`), density modes, contextual topbar, finish empty/error
-  states. Frontend-only, high perceived polish.
+1. **GUI verification sweep** — run `atlas --logs` on a real desktop and eyeball the queued surfaces
+   below. Headless tests are green, but pywebview modals, clipboard, icons, and desktop actions need
+   a real session.
+2. **"Why is this installed?"** — detail-page power-user sugar for explicit-vs-dependency reason,
+   required-by/reverse-dep list, and orphan status. Start with a `docs/plans/` note before backend
+   work.
+3. **Mirror regenerate options** — country/protocol options in Settings → Mirrors, kept within the
+   package-maintenance boundary.
+4. **Launch-time baseline** — manually measure time-to-window and time-to-first-view before any
+   further startup/concurrency changes.
+
+### GUI verification queue
+
+Run these on a real WebKitGTK/pywebview desktop; this environment may not have a display server:
+
+- Browse landing/category polish: category descriptions, breadcrumbs, skeletons, resume chip, and
+  AUR discovery buckets with correct Install/Uninstall/Update states.
+- Universal transaction preview: install/update/uninstall/downgrade, Update-All aggregate, source
+  comparison, AUR reputation score, and batch risk-tier warning text.
+- PKGBUILD viewer: detail-page and preview entry points, `.install` tab, copy button, changed-since-
+  build diff, and inline suspicious-added-line annotations.
+- Dependency tree: accordion groups and lazy Requires/Build expansion.
+- Permissions page: opening directly from the dashboard resolves real icons; Flatpak permission edits
+  show a copyable `flatpak override --user ...` toast.
+- Activity/History: filter/date grouping, export path/count toast, inline two-click clear, rollback
+  affordances, and pacman-log links.
+- System Health: keyring and AUR-index cards, Details disclosures, Refresh index, and stale-lock
+  removal refusal while pacman is running.
+- Settings → Mirrors: active-mirror summary, reflector command preview/copy, regenerate flow, and
+  refresh after regenerate.
 
 See BACKLOG's **Non-goals** for what we've decided *against* (AI recs, YaST-style control center,
 auto-`.pacnew`-merge, Rust/Qt, fake AUR categories).
 
-> **Handoff note (next agent):** sprints 1 + 2 are fast-forward merged into `master` and pushed;
-> **released 0.11.0** (tag `v0.11.0` pushed; `CHANGELOG.md` written). 451 tests pass. **AUR is
-> current** — `publish-aur.sh --dry-run` (2026-06-04) reports nothing to push; the published
-> `atlas-pm-git` PKGBUILD is byte-identical to ours (it's a `-git` pkg, so only PKGBUILD/.SRCINFO
-> *content* changes need a re-publish — `pkgver` is computed at build time). Re-run the script
-> whenever the PKGBUILD changes.
+> **Handoff note (next agent):** this checkout is on branch `work`; confirm the target branch before
+> committing or pushing. Release **0.12.0** is tagged and published; `linux_dist/arch/publish-aur.sh`
+> was run during the release to sync `atlas-pm-git`. The published `atlas-pm-git` PKGBUILD is
+> byte-identical to ours (it's a `-git` pkg, so only PKGBUILD/.SRCINFO *content* changes need a
+> re-publish — `pkgver` is computed at build time). Re-run the script whenever the PKGBUILD changes.
 > Known external (not Atlas): the AUR `antigravity` 2.0.11 update fails to build — upstream source
 > URL 404s (Google pulled the tarball). The maintainer-change advisory can't flag `antigravity`
 > (installed before maintainer-caching → no baseline); it works for packages installed since.
@@ -78,6 +87,13 @@ re-add a native extension without a measured win. Details in the historical
 ---
 
 ## Done
+
+- **History/Activity completion (2026-06-16).** Finished the remaining History/Activity backlog
+  items: `activity_log.py` now automatically compacts the local JSONL feed to the newest 1000 valid
+  entries (checked every 25 writes), and installed package detail modals show a compact per-package
+  Atlas activity panel with recent actions, failures, timestamps, plus a jump to the full Activity
+  page filtered by that package. This reuses the existing local activity feed and fails open so the
+  detail modal never blocks. Plan: [plans/2026-06-16-history-polish.md](plans/2026-06-16-history-polish.md).
 
 - **AUR reputation scoring + diff security annotation + batch update risk tiers (2026-06-16).**
   Three security-trust features on top of the existing PKGBUILD-audit/maintainer-change

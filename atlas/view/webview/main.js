@@ -1492,6 +1492,44 @@ function buildDependencySummaryHTML(data) {
     return reasonHTML + groups + note;
 }
 
+// Pure: compact per-package Atlas activity for the detail modal. This complements the version
+// history table and links to the full Activity page for filtering/export/pacman-log disclosure.
+function buildPackageActivityHTML(entries) {
+    entries = entries || [];
+    if (!entries.length) return '';
+    const rows = entries.slice(0, 5).map(e => {
+        const ok = e.success ? 'success' : 'error';
+        const when = e.timestamp ? new Date(e.timestamp).toLocaleString() : '';
+        const err = !e.success && e.error ? `<span class="detail-activity-error"> — ${escapeHtml(cleanActivityError(e.error))}</span>` : '';
+        return `<div class="detail-activity-row ${ok}">` +
+            `<span class="detail-activity-status">${e.success ? '✓' : '✗'}</span>` +
+            `<span class="activity-action ${escapeHtml(e.action || '')}">${escapeHtml(String(e.action || '').replace(/_/g, ' ').toUpperCase())}</span>` +
+            `<span class="detail-activity-type">${escapeHtml(e.pkg_type || '')}</span>` +
+            `<span class="detail-activity-time">${escapeHtml(when)}</span>${err}</div>`;
+    }).join('');
+    return rows + `<button class="btn btn-outline btn-sm detail-activity-open">Open full Activity history</button>`;
+}
+
+async function renderPackageActivity(pkg, stillCurrent = () => true) {
+    const section = document.getElementById('detail-activity-section');
+    const body = document.getElementById('detail-activity');
+    if (!section || !body || !pkg || !pkg.installed) return;
+    section.classList.add('hidden');
+    body.innerHTML = '';
+    const entries = await pyApiCall('get_package_activity', pkg.id);
+    if (!stillCurrent()) return;
+    const html = buildPackageActivityHTML(entries);
+    if (!html) return;
+    body.innerHTML = html;
+    const open = body.querySelector('.detail-activity-open');
+    if (open) open.addEventListener('click', () => {
+        detailModal.classList.add('hidden');
+        activityFilter = { action: 'all', type: 'all', query: pkg.name || '' };
+        activateView('activity');
+    });
+    section.classList.remove('hidden');
+}
+
 // ---- PKGBUILD viewer (first-class AUR build-recipe reader) ----------------------------------
 // All builders below are pure (escape their own input) and Node-VM contract-tested.
 
@@ -2866,6 +2904,7 @@ function openDetailModal(pkg, group) {
     // Rich detail extras (read-only): screenshots for Flatpak/AppImage and version history.
     renderDetailScreenshots(pkg, stillCurrentDetail);
     renderDetailHistory(pkg, stillCurrentDetail);
+    renderPackageActivity(pkg, stillCurrentDetail);
 
     // Fetch key-value info from python
     pyApiCall('get_info', pkg.id).then(info => {
@@ -5709,6 +5748,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildResumeBrowseHTML,
         buildDependencySummaryHTML,
         buildDepNodesHTML,
+        buildPackageActivityHTML,
         highlightBashLine,
         buildPkgbuildRiskHTML,
         buildPkgbuildMetaHTML,
