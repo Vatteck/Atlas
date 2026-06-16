@@ -1019,6 +1019,14 @@ function buildTransactionPreviewHTML(data) {
         html += `</div>`;
     }
 
+    if (data.aur_risk && data.aur_risk.score !== undefined) {
+        const tierLabel = { trusted: 'Trusted', caution: 'Caution', risk: 'Risk' }[data.aur_risk.tier] || data.aur_risk.tier;
+        html += `<div class="txp-risk-indicator risk-${escapeHtml(data.aur_risk.tier)}" title="Composite AUR trust score — heuristic only, not a safety check">
+            <span class="material-symbols-outlined">shield</span>
+            <span class="txp-risk-text">Reputation: ${data.aur_risk.score}/100 · ${escapeHtml(tierLabel)}</span>
+        </div>`;
+    }
+
     if (warnings.length) {
         const order = { danger: 0, warn: 1, info: 2 };
         const sorted = warnings.slice().sort((a, b) => (order[a.level] ?? 3) - (order[b.level] ?? 3));
@@ -1214,6 +1222,23 @@ function buildUpdateAllPreviewData(updates, extras) {
     if (pacnewCount > 0) {
         data.warnings.push({ level: 'info', title: `${pacnewCount} config file${pacnewCount === 1 ? '' : 's'} to review`,
             detail: '.pacnew/.pacsave files from a previous upgrade are still pending in the Updates view.' });
+    }
+
+    // AUR reputation tiers (from a single batched get_update_risk_tiers call) — categorize, don't
+    // gate: Update All still updates everything in one shot, this only surfaces what to look at.
+    const tiers = extras.tiers;
+    if (tiers && tiers.counts) {
+        const c = tiers.counts;
+        data.notes.push(`${c.safe || 0} safe to update · ${c.caution || 0} worth a review · ${c.risk || 0} high risk`);
+        if (c.risk > 0 && tiers.tiers) {
+            const riskyNames = updates
+                .filter(p => (tiers.tiers[p.id] || {}).tier === 'risk')
+                .map(p => p.name);
+            if (riskyNames.length) {
+                data.warnings.push({ level: 'warn', title: `${riskyNames.length} package${riskyNames.length === 1 ? '' : 's'} with a low reputation score`,
+                    detail: `${riskyNames.join(', ')} — low AUR votes/age, orphaned, or a recent maintainer change. Worth a look before updating.` });
+            }
+        }
     }
     return data;
 }
@@ -2015,11 +2040,19 @@ function buildPkgbuildTabsHTML(views, activeIdx) {
     }).join('');
 }
 
-// Pure: a colored unified diff (reuses the build-time review's .diff-line markup).
+// Pure: a colored unified diff (reuses the build-time review's .diff-line markup). Added lines
+// carrying `findings` (from diff_lines(..., annotate=True)) get an inline warning badge so the
+// reader's eye stops on the suspicious additions, not just "something changed".
 function buildPkgbuildDiffHTML(diff) {
     diff = diff || [];
     if (!diff.length) return '';
-    const rows = diff.map(d => `<div class="diff-line diff-${escapeHtml(d.kind)}">${escapeHtml(d.text)}</div>`).join('');
+    const rows = diff.map(d => {
+        const findings = d.findings || [];
+        const badges = findings.map(f =>
+            `<span class="diff-finding-badge sev-${escapeHtml(f.severity)}" title="${escapeHtml(f.why || '')}">⚠ ${escapeHtml(f.rule)}</span>`
+        ).join('');
+        return `<div class="diff-line diff-${escapeHtml(d.kind)}"><span class="diff-line-text">${escapeHtml(d.text)}</span>${badges}</div>`;
+    }).join('');
     return `<div class="review-diff pkgb-diff">${rows}</div>`;
 }
 
@@ -2795,6 +2828,14 @@ function openDetailModal(pkg, group) {
                     <span class="rich-badge-title">Maintainer ⓘ</span>
                 </div>`);
             }
+            if (info.risk && info.risk.score !== undefined) {
+                const tierLabel = { trusted: 'Trusted', caution: 'Caution', risk: 'Risk' }[info.risk.tier] || info.risk.tier;
+                parts.push(`<div class="rich-badge-tile risk-${escapeHtml(info.risk.tier)}" title="Composite AUR trust score — heuristic only, not a safety check">
+                    <div class="rich-badge-icon-container"><div class="rich-badge-icon"><span class="material-symbols-outlined">shield</span></div></div>
+                    <span class="rich-badge-value">${info.risk.score} · ${escapeHtml(tierLabel)}</span>
+                    <span class="rich-badge-title">Reputation</span>
+                </div>`);
+            }
             badgesEl.insertAdjacentHTML('beforeend', parts.join(''));
             const mb = badgesEl.querySelector('[data-popup="maint"]');
             if (mb) mb.addEventListener('click', () => showInfoPopup('Maintainer changed', maintainerChangePopupHtml(info.changed)));
@@ -3130,17 +3171,20 @@ batchCancelBtn.addEventListener('click', () => {
 updateAllBtn.addEventListener('click', async () => {
     if (operationInProgress) { showToast('Busy', 'Another operation is already running', 'warning'); return; }
 
-    // Cheap pre-flight signals (news since last sync + pending .pacnew). Fail-open — a null result
-    // just means that signal is omitted; the upgrade is never blocked by a check failing.
+    // Cheap pre-flight signals (news since last sync + pending .pacnew + one batched AUR
+    // reputation-tier call). Fail-open — a null result just means that signal is omitted; the
+    // upgrade is never blocked by a check failing.
+    const updates = (currentPackages || []).filter(p => p && p.update_available);
     const news = await pyApiCall('check_upgrade_news');
     const pacnew = await pyApiCall('get_pacnew_files');
+    const riskTiers = await pyApiCall('get_update_risk_tiers', updates.map(p => p.id));
 
     // Aggregate preview: how many packages, the source split, total download size, and the above
     // signals — built from the already-loaded updates list (no extra read_installed).
-    const updates = (currentPackages || []).filter(p => p && p.update_available);
     const previewData = buildUpdateAllPreviewData(updates, {
         news_count: news ? news.new_count : 0,
         pacnew_count: pacnew ? pacnew.count : 0,
+        tiers: riskTiers,
     });
     const proceed = await openTransactionPreview(previewData);
     if (!proceed) { showToast('Upgrade cancelled', 'Nothing was changed', 'info'); return; }

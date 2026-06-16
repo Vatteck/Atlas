@@ -1094,7 +1094,11 @@ body {
 .review-banner.warn { background: rgba(217, 119, 6, 0.14); border: 1px solid rgba(217, 119, 6, 0.4); color: #b45309; }
 .review-banner.info { background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.35); }
 .review-diff { max-height: 260px; overflow: auto; border: 1px solid var(--border-color); border-radius: var(--radius-md, 8px); background: var(--bg-base, #0e0e12); font-family: ui-monospace, "Cascadia Code", Menlo, monospace; font-size: 12px; line-height: 1.5; }
-.diff-line { padding: 0 10px; white-space: pre-wrap; word-break: break-all; }
+.diff-line { padding: 0 10px; white-space: pre-wrap; word-break: break-all; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.diff-line-text { white-space: pre-wrap; word-break: break-all; }
+.diff-finding-badge { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 999px; white-space: nowrap; }
+.diff-finding-badge.sev-warn { background: rgba(217, 119, 6, 0.25); color: #fbbf24; }
+.diff-finding-badge.sev-info { background: rgba(99, 102, 241, 0.25); color: #a5b4fc; }
 .diff-add { background: rgba(22, 163, 74, 0.18); color: #34d399; }
 .diff-del { background: rgba(220, 38, 38, 0.18); color: #f87171; }
 .diff-hunk { color: var(--accent-color, #6366f1); background: rgba(99, 102, 241, 0.08); }
@@ -2216,6 +2220,15 @@ body {
 .rich-badge-tile.verified-false .rich-badge-value { color: #f59e0b; }
 .rich-badge-tile.verified-false .rich-badge-icon { color: #f59e0b; background-color: rgba(245, 158, 11, 0.15); }
 
+.rich-badge-tile.risk-trusted .rich-badge-value { color: #10b981; }
+.rich-badge-tile.risk-trusted .rich-badge-icon { color: #10b981; background-color: rgba(16, 185, 129, 0.15); }
+
+.rich-badge-tile.risk-caution .rich-badge-value { color: #f59e0b; }
+.rich-badge-tile.risk-caution .rich-badge-icon { color: #f59e0b; background-color: rgba(245, 158, 11, 0.15); }
+
+.rich-badge-tile.risk-risk .rich-badge-value { color: #ef4444; }
+.rich-badge-tile.risk-risk .rich-badge-icon { color: #ef4444; background-color: rgba(239, 68, 68, 0.15); }
+
 /* Custom coloring for multiple permission icons */
 .perm-icon-danger { color: #ef4444 !important; background-color: rgba(239, 68, 68, 0.15) !important; }
 .perm-icon-warn { color: #f59e0b !important; background-color: rgba(245, 158, 11, 0.15) !important; }
@@ -2880,6 +2893,11 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
 .txp-size { font-size: 14px; font-weight: 600; color: var(--text-primary); }
 .txp-size-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
     color: var(--text-secondary); margin-right: 4px; }
+.txp-risk-indicator { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    border-radius: var(--radius-md); background: var(--bg-surface); font-size: 13px; font-weight: 600; }
+.txp-risk-indicator.risk-trusted { color: #10b981; }
+.txp-risk-indicator.risk-caution { color: #f59e0b; }
+.txp-risk-indicator.risk-risk { color: #ef4444; }
 .txp-warnings { display: flex; flex-direction: column; gap: 8px; }
 .txp-warn { display: flex; flex-direction: row; align-items: center; gap: 12px;
     padding: 10px 12px; border-radius: var(--radius-md); background: var(--bg-surface); }

@@ -937,6 +937,27 @@ async function testBuildUpdateAllPreviewData() {
   const empty = hooks.buildUpdateAllPreviewData([], {});
   assert.strictEqual(empty.sizes, null);
   assert.strictEqual(empty.name, '0 packages');
+
+  // AUR reputation tiers (single batched call): breakdown note always shown when tiers present,
+  // a named warning only when at least one package is 'risk' tier.
+  const aurUpdates = [
+    { id: 'aur:safe-pkg', type: 'aur', name: 'safe-pkg' },
+    { id: 'aur:risky-pkg', type: 'aur', name: 'risky-pkg' },
+  ];
+  const tiered = hooks.buildUpdateAllPreviewData(aurUpdates, {
+    tiers: { tiers: { 'aur:safe-pkg': { tier: 'safe', score: 90 }, 'aur:risky-pkg': { tier: 'risk', score: 10 } },
+             counts: { safe: 1, caution: 0, risk: 1 } },
+  });
+  assert.ok(tiered.notes.some(n => n.includes('1 safe to update') && n.includes('1 high risk')), 'tier breakdown note');
+  assert.ok(tiered.warnings.some(w => w.title.includes('1 package') && w.detail.includes('risky-pkg')), 'risky package named in warnings');
+
+  // no risk-tier packages → breakdown note shown, no extra warning
+  const allSafe = hooks.buildUpdateAllPreviewData(aurUpdates, {
+    tiers: { tiers: { 'aur:safe-pkg': { tier: 'safe', score: 90 }, 'aur:risky-pkg': { tier: 'safe', score: 80 } },
+             counts: { safe: 2, caution: 0, risk: 0 } },
+  });
+  assert.ok(allSafe.notes.some(n => n.includes('2 safe to update')), 'all-safe breakdown note');
+  assert.ok(!allSafe.warnings.some(w => w.title.includes('low reputation')), 'no risk warning when nothing is risky');
 }
 
 async function testBuildSourceCompareHTML() {

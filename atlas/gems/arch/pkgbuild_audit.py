@@ -68,6 +68,28 @@ _RULES = [
     ('rm_rf', WARN,
      'Recursive delete targeting $HOME or an absolute system path (not the build dir).',
      re.compile(r'\brm\s+-\w*[rR]\w*\s+["\']?(?:~|/|\$HOME|\$\{HOME)').search),
+
+    # Atomic Arch (June 2026) campaign-specific patterns:
+    ('npm_install_unknown', WARN,
+     'npm/bun/pnpm/yarn install in build or install hook — the Atomic Arch (June 2026) '
+     'supply-chain attack vector. Legitimate in build() for Node.js projects; highly suspicious '
+     'in .install hooks or when installing packages not declared as build dependencies.',
+     re.compile(r'\b(?:npm|bun|pnpm|yarn)\s+(?:install|i\b|add)\b', re.I).search),
+
+    ('skip_checksum', INFO,
+     'Checksum array contains SKIP — that source file is not cryptographically verified. '
+     'Normal for VCS sources (git+, svn+, hg+); suspicious for binary or archive downloads.',
+     re.compile(r"""['"]\s*SKIP\s*['"]""").search),
+
+    ('temp_upload_service', INFO,
+     'Reference to a temporary file-upload service — a known data-exfiltration channel '
+     '(used by the Atomic Arch payload to send stolen credentials via temp.sh).',
+     re.compile(r'\b(?:temp\.sh|transfer\.sh|0x0\.st|termbin\.com|pasteboard\.co)\b', re.I).search),
+
+    ('systemd_service_install', INFO,
+     'Enables or starts a systemd service. Normal for packages that ship daemons; '
+     'review the bundled unit file for unexpected network access or persistence.',
+     re.compile(r'\bsystemctl\s+(?:enable|start|daemon-reload)\b', re.I).search),
 ]
 
 
@@ -110,10 +132,14 @@ def diff(old_text: str, new_text: str, max_lines: int = 240) -> str:
     return '\n'.join(lines)
 
 
-def diff_lines(old_text: str, new_text: str, max_lines: int = 240) -> List[Dict]:
+def diff_lines(old_text: str, new_text: str, max_lines: int = 240, annotate: bool = False) -> List[Dict]:
     """Structured unified diff for rich rendering: a list of {kind, text} where kind is
     'meta' (---/+++ file headers), 'hunk' (@@ … @@), 'add' (+), 'del' (-) or 'ctx' (unchanged).
-    Empty list if identical. Truncated to keep the modal manageable."""
+    Empty list if identical. Truncated to keep the modal manageable.
+
+    With `annotate=True`, each 'add' entry also carries `findings`: the `scan()` results (if
+    any) for that exact line content — so the diff view can flag which *newly added* lines are
+    the suspicious ones."""
     import difflib
     old = (old_text or '').splitlines()
     new = (new_text or '').splitlines()
@@ -121,6 +147,12 @@ def diff_lines(old_text: str, new_text: str, max_lines: int = 240) -> List[Dict]
                                     tofile='PKGBUILD (new)', lineterm=''))
     if not raw:
         return []
+
+    findings_by_line: Dict[str, List[Dict]] = {}
+    if annotate:
+        for finding in scan(new_text):
+            findings_by_line.setdefault(finding['line'], []).append(finding)
+
     truncated = len(raw) - max_lines if len(raw) > max_lines else 0
     out: List[Dict] = []
     for ln in raw[:max_lines]:
@@ -134,7 +166,10 @@ def diff_lines(old_text: str, new_text: str, max_lines: int = 240) -> List[Dict]
             kind = 'del'
         else:
             kind = 'ctx'
-        out.append({'kind': kind, 'text': ln})
+        row = {'kind': kind, 'text': ln}
+        if annotate and kind == 'add':
+            row['findings'] = findings_by_line.get(ln[1:].strip(), [])
+        out.append(row)
     if truncated:
         out.append({'kind': 'meta', 'text': f'… (diff truncated — {truncated} more lines)'})
     return out
