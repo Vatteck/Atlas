@@ -37,9 +37,10 @@ cover. No Rust/Qt revival; no new big architectural migration without a measured
 ## Next
 
 **Competitive-research Theme 5 is planned, not built; Theme 6 is half-built.**
-[Theme 5: package queue across views](plans/2026-06-16-theme5-package-queue.md) (medium–large; reuses
-`batch_install`) is fully planned, not built. [Theme 6: fuzzy search](plans/2026-06-16-theme6-fuzzy-search.md)
-is **complete** (parts 1 + 2). Theme 5 is the only remaining competitive-research item.
+The competitive-research themes are **done**: Theme 1 (audit rules), 2 (AUR comments), 4 (throttle),
+5 (install queue v1), 6 (fuzzy search) shipped; 3 (auth-readiness) N/A. Remaining queue follow-ups
+(aggregate preview, auto-remove on install, uninstall basket) are optional. Next moves now come from
+**[BACKLOG.md](BACKLOG.md)**.
 
 The forward menu now lives in **[BACKLOG.md](BACKLOG.md)**, which is the canonical longer-horizon
 feature list. Highest-value next moves, in order:
@@ -98,6 +99,18 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Cross-view install queue — competitive-research Theme 5 v1 (2026-06-16).** A persistent basket for
+  collecting packages to install together while browsing, instead of the per-view Select mode that
+  reset on navigation. Persistent `installQueue` of pkg snapshots in `localStorage`
+  (`atlas_install_queue`), loaded on boot (pure `pkgSnapshot`/`queueUpsert` + stateful
+  `queueAdd/Remove/Has/Clear`/`updateQueueBadge`). Entry points: a "＋ Queue / ✓ Queued" toggle on every
+  not-installed card (allowed even mid-install) and in the detail-modal footer. A topbar **Queue (N)**
+  button (hidden when empty) opens a review modal with per-row **Remove**, **Clear**, and **Install
+  all** — which routes the queued ids through the existing `batch_install` and clears on success.
+  Install-only basket. Tests: `main_js_contracts::testInstallQueueHelpers`. Suite **622** + JS **55**.
+  **Needs a GUI eyeball.** Deferred follow-ups: aggregate queue preview, auto-remove on individual
+  install, uninstall basket. **Theme 5 completes the competitive-research themes (1,2,4,5,6 done; 3
+  N/A).** Plan: [plans/2026-06-16-theme5-package-queue.md](plans/2026-06-16-theme5-package-queue.md).
 - **Fuzzy search local filter + fallback — competitive-research Theme 6 part 2 (2026-06-16).** Searching
   from the **Installed**/**Updates** views now **filters that view's own list** (pure
   `filterLocalPackages`: exact name/description substring first, relevance-ordered; else, for queries

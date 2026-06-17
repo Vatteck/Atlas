@@ -1,8 +1,22 @@
 # Theme 5: Package queue across views
 
 **Date:** 2026-06-16
-**Status:** Plan (not started) — dedicated plan for competitive-research Theme 5 (Pacsea's persistent
-queue). Parent: [2026-06-16-competitive-research-improvements.md](2026-06-16-competitive-research-improvements.md).
+**Status:** ✅ v1 shipped 2026-06-16 (needs a GUI eyeball). Dedicated plan for competitive-research
+Theme 5 (Pacsea's persistent queue).
+Parent: [2026-06-16-competitive-research-improvements.md](2026-06-16-competitive-research-improvements.md).
+
+> **Shipped (v1):** persistent `installQueue` of pkg snapshots in `localStorage`
+> (`atlas_install_queue`), loaded on boot. Pure helpers `pkgSnapshot`, `queueUpsert` (dedupe by id,
+> non-mutating), `buildQueueReviewHTML`; stateful `queueAdd/Remove/Has/Clear` + `updateQueueBadge`.
+> **Entry points:** a "＋ Queue / ✓ Queued" toggle on every not-installed card (`data-action="queue"`,
+> allowed even while an install runs) and in the detail-modal footer. **Topbar "Queue (N)"** button
+> (hidden when empty) opens a review modal (`#queue-modal`) listing items with per-row Remove, plus
+> **Clear** and **Install all** → routes the queued ids through the existing `batch_install` and clears
+> on success. Install-only basket, as planned. Tests: `main_js_contracts::testInstallQueueHelpers`.
+> Suite 622 + JS 55. **Needs a GUI eyeball.**
+>
+> **Deferred (follow-ups):** aggregate "queue preview" (v1 reuses `batch_install`'s per-install flow);
+> auto-removing an item from the queue when it's installed individually; uninstall basket.
 
 ## Goal
 

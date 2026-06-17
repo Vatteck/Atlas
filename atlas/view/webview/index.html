@@ -104,6 +104,7 @@
                         Cleanup Orphans
                     </button>
                     <button id="select-mode-btn" class="btn btn-secondary">Select</button>
+                    <button id="queue-btn" class="btn btn-secondary hidden" title="Review your install queue">Queue (0)</button>
 
                     <select id="type-filter" class="styled-select">
                         <option value="all">All Types</option>
@@ -297,6 +298,25 @@
     </div>
 
     <!-- Batch Operations Floating Action Bar -->
+    <!-- Install queue review modal -->
+    <div id="queue-modal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-backdrop" data-queue-close></div>
+        <div class="modal-content modal-narrow">
+            <div class="modal-header">
+                <h2>Install queue</h2>
+                <button class="modal-close" id="queue-modal-close" aria-label="Close" data-queue-close>✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="settings-help">Packages you’ve collected to install together. They install in one batch through the normal confirmation flow.</p>
+                <div id="queue-modal-body"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" id="queue-clear-btn">Clear</button>
+                <button class="btn btn-primary" id="queue-install-all-btn">Install all</button>
+            </div>
+        </div>
+    </div>
+
     <div id="batch-bar" class="batch-bar hidden">
         <span id="batch-count">0 selected</span>
         <div class="batch-actions">

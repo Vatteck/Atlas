@@ -163,6 +163,11 @@ let selectMode = false;
 let selectedPackages = new Set();
 let operationInProgress = false;
 
+// Cross-view install queue (Theme 5): a persistent basket of not-installed packages collected while
+// browsing, reviewed + installed together. Snapshots (not live pkg refs) so it survives view changes.
+const QUEUE_STORAGE_KEY = 'atlas_install_queue';
+let installQueue = [];
+
 let packageCache = {};
 let updatesInFlight = null;
 
@@ -1843,6 +1848,11 @@ function cardInnerHTML(group, activeIdx) {
             `<button class="btn btn-danger action-btn" data-action="uninstall" data-id="${escapeHtml(pkg.id)}">Uninstall</button>`) :
         `<button class="btn btn-primary action-btn" data-action="install" data-id="${escapeHtml(pkg.id)}">Install</button>`;
 
+    // Add-to-queue toggle — only for not-installed packages (the queue is an install basket).
+    const queued = !pkg.installed && queueHas(pkg.id);
+    const queueButton = !pkg.installed ?
+        `<button class="btn btn-outline action-btn queue-toggle${queued ? ' queued' : ''}" data-action="queue" data-id="${escapeHtml(pkg.id)}" title="${queued ? 'Remove from install queue' : 'Add to install queue'}">${queued ? '✓ Queued' : '＋ Queue'}</button>` : '';
+
     const pinButton = (pkg.installed && pkg.supports_pinning) ?
         `<button class="btn btn-pin ${pkg.update_ignored ? 'pinned' : ''} action-btn"
             data-action="${pkg.update_ignored ? 'unpin' : 'pin'}"
@@ -1876,6 +1886,7 @@ function cardInnerHTML(group, activeIdx) {
                 <div class="package-tags">${sourceBadges(group, activeIdx)}</div>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     ${pinButton}
+                    ${queueButton}
                     ${actionButton}
                 </div>
             </div>
@@ -3256,6 +3267,23 @@ function openDetailModal(pkg, group) {
         footer.appendChild(downgradeBtn);
     }
 
+    // Add-to-queue toggle (not-installed only) — collect for a batch install without leaving the page.
+    if (!pkg.installed) {
+        const qBtn = document.createElement('button');
+        const setQLabel = () => {
+            const q = queueHas(pkg.id);
+            qBtn.className = `btn btn-outline${q ? ' queued' : ''}`;
+            qBtn.textContent = q ? '✓ Queued' : '＋ Queue';
+            qBtn.title = q ? 'Remove from install queue' : 'Add to install queue';
+        };
+        setQLabel();
+        qBtn.onclick = () => {
+            if (queueHas(pkg.id)) queueRemove(pkg.id); else queueAdd(pkg);
+            setQLabel();
+        };
+        footer.appendChild(qBtn);
+    }
+
     if (actionBtn) {
         footer.appendChild(actionBtn);
     }
@@ -3423,6 +3451,36 @@ batchUninstallBtn.addEventListener('click', async () => {
 batchCancelBtn.addEventListener('click', () => {
     toggleSelectMode(false);
 });
+
+// ---- Install-queue wiring (Theme 5) ----
+loadQueue();
+updateQueueBadge();
+const queueBtn = document.getElementById('queue-btn');
+if (queueBtn) queueBtn.addEventListener('click', openQueueModal);
+const queueModal = document.getElementById('queue-modal');
+if (queueModal) {
+    queueModal.addEventListener('click', (e) => {
+        if (e.target.closest('[data-queue-close]')) { queueModal.classList.add('hidden'); return; }
+        const remove = e.target.closest('[data-queue-remove]');
+        if (remove) {
+            queueRemove(remove.getAttribute('data-queue-remove'));
+            // Re-render the list; reflect the removal on any visible card toggle for this package too.
+            openQueueModal();
+            document.querySelectorAll(`.queue-toggle[data-id="${CSS.escape(remove.getAttribute('data-queue-remove'))}"]`)
+                .forEach(b => { b.classList.remove('queued'); b.textContent = '＋ Queue'; b.title = 'Add to install queue'; });
+        }
+    });
+}
+const queueClearBtn = document.getElementById('queue-clear-btn');
+if (queueClearBtn) queueClearBtn.addEventListener('click', () => {
+    queueClear();
+    openQueueModal();
+    document.querySelectorAll('.queue-toggle.queued').forEach(b => {
+        b.classList.remove('queued'); b.textContent = '＋ Queue'; b.title = 'Add to install queue';
+    });
+});
+const queueInstallAllBtn = document.getElementById('queue-install-all-btn');
+if (queueInstallAllBtn) queueInstallAllBtn.addEventListener('click', installQueuedPackages);
 
 updateAllBtn.addEventListener('click', async () => {
     if (operationInProgress) { showToast('Busy', 'Another operation is already running', 'warning'); return; }
@@ -5370,7 +5428,13 @@ packagesGrid.addEventListener('click', async (e) => {
         e.stopPropagation();
         const action = actionBtn.dataset.action;
         const pid = actionBtn.dataset.id;
-        
+
+        // Queue toggle is a cheap local op — allowed even while an install/update is running.
+        if (action === 'queue') {
+            toggleQueueFor(pid, actionBtn);
+            return;
+        }
+
         if (operationInProgress) {
             showToast('Busy', 'Another operation is already running', 'warning');
             return;
@@ -6006,6 +6070,125 @@ function filterLocalPackages(list, query) {
         .map(s => s.p);
 }
 
+// ---- Install queue (Theme 5) ----------------------------------------------------------------
+// A persistent, cross-view basket of packages to install together. Items are minimal snapshots so
+// they survive view changes (no dependence on the current view's `currentPackages`).
+
+// Pure: the minimal fields we keep for a queued package.
+function pkgSnapshot(pkg) {
+    return {
+        id: pkg.id,
+        name: pkg.name || pkg.id,
+        type: normalizeType(pkg.type),
+        icon_url: pkg.icon_url || '',
+        version: pkg.version || '',
+    };
+}
+
+// Pure: add a snapshot to a queue array, de-duped by id (returns a new array). Ignores bad input.
+function queueUpsert(list, pkg) {
+    const arr = Array.isArray(list) ? list.slice() : [];
+    if (!pkg || !pkg.id || arr.some(q => q.id === pkg.id)) return arr;
+    arr.push(pkgSnapshot(pkg));
+    return arr;
+}
+
+function loadQueue() {
+    try {
+        const raw = JSON.parse(localStorage.getItem(QUEUE_STORAGE_KEY));
+        installQueue = Array.isArray(raw) ? raw.filter(q => q && q.id) : [];
+    } catch (e) { installQueue = []; }
+}
+function persistQueue() {
+    try { localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(installQueue)); } catch (e) { /* ignore */ }
+}
+
+function queueHas(id) { return installQueue.some(q => q.id === id); }
+function queueAdd(pkg) {
+    const before = installQueue.length;
+    installQueue = queueUpsert(installQueue, pkg);
+    if (installQueue.length !== before) { persistQueue(); updateQueueBadge(); }
+}
+function queueRemove(id) {
+    const before = installQueue.length;
+    installQueue = installQueue.filter(q => q.id !== id);
+    if (installQueue.length !== before) { persistQueue(); updateQueueBadge(); }
+}
+function queueClear() { installQueue = []; persistQueue(); updateQueueBadge(); }
+
+// Reflect the queue count on the topbar "Queue (N)" button (hidden when empty).
+function updateQueueBadge() {
+    const btn = document.getElementById('queue-btn');
+    if (!btn) return;
+    const n = installQueue.length;
+    btn.textContent = `Queue (${n})`;
+    btn.classList.toggle('hidden', n === 0);
+}
+
+// Toggle a package's queue membership from a card/detail button, updating the button in place.
+function toggleQueueFor(pid, btn) {
+    if (queueHas(pid)) {
+        queueRemove(pid);
+    } else {
+        const pkg = currentPackages.find(p => p.id === pid);
+        if (!pkg) { showToast('Queue', 'Could not queue this package.', 'warning'); return; }
+        queueAdd(pkg);
+    }
+    if (btn) {
+        const q = queueHas(pid);
+        btn.classList.toggle('queued', q);
+        btn.textContent = q ? '✓ Queued' : '＋ Queue';
+        btn.title = q ? 'Remove from install queue' : 'Add to install queue';
+    }
+}
+
+// Open the queue review modal, (re)rendering the current list + wiring per-row Remove.
+function openQueueModal() {
+    const modal = document.getElementById('queue-modal');
+    const body = document.getElementById('queue-modal-body');
+    if (!modal || !body) return;
+    body.innerHTML = buildQueueReviewHTML(installQueue);
+    const installAll = document.getElementById('queue-install-all-btn');
+    if (installAll) installAll.disabled = installQueue.length === 0;
+    const clearBtn = document.getElementById('queue-clear-btn');
+    if (clearBtn) clearBtn.disabled = installQueue.length === 0;
+    modal.classList.remove('hidden');
+}
+
+async function installQueuedPackages() {
+    const ids = installQueue.map(q => q.id);
+    if (!ids.length) return;
+    if (operationInProgress) { showToast('Busy', 'Another operation is already running', 'warning'); return; }
+    document.getElementById('queue-modal').classList.add('hidden');
+    showToast('Installing queue', `Installing ${ids.length} package(s)…`, 'info');
+    operationInProgress = true;
+    const result = await pyApiCall('batch_install', ids);
+    operationInProgress = false;
+    if (result && result.success) {
+        packageCache = {};                 // installs changed state — drop cached lists
+        queueClear();
+        showToast('Queue installed', 'All queued packages were installed.', 'success');
+        fetchPackages();
+    } else {
+        showToast('Error', result ? result.error : 'Queue install failed', 'error');
+    }
+}
+
+// Pure: the review-modal list of queued items (icon + name + source chip + Remove). '' when empty.
+function buildQueueReviewHTML(items) {
+    items = items || [];
+    if (!items.length) return '<p class="queue-empty">Your install queue is empty. Add packages with “＋ Queue” while you browse.</p>';
+    return items.map(it => `
+        <div class="queue-row" data-id="${escapeHtml(it.id)}">
+            <img class="queue-row-icon" src="${(it.icon_url && it.icon_url.startsWith('data:')) ? it.icon_url : letterAvatar(it)}" alt="" loading="lazy">
+            <div class="queue-row-info">
+                <span class="queue-row-name">${escapeHtml(it.name || it.id)}</span>
+                <span class="queue-row-meta">${escapeHtml(sourceLabel(it.type))}${it.version ? ' • v' + escapeHtml(it.version) : ''}</span>
+            </div>
+            <button type="button" class="btn btn-outline btn-sm queue-row-remove" data-queue-remove="${escapeHtml(it.id)}">Remove</button>
+        </div>`).join('');
+}
+
 function renderCommandResults(query) {
     const list = document.getElementById('command-results');
     if (!list) return;
@@ -6117,6 +6300,9 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         reputationPopupHtml,
         rerankByFuzzy,
         filterLocalPackages,
+        pkgSnapshot,
+        queueUpsert,
+        buildQueueReviewHTML,
         highlightBashLine,
         buildPkgbuildRiskHTML,
         buildPkgbuildMetaHTML,

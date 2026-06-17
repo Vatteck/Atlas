@@ -2996,6 +2996,18 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
 .why-source-warn { background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.25); }
 .why-source-info { background: rgba(99, 102, 241, 0.07); border-color: rgba(99, 102, 241, 0.22); }
 
+/* Install queue (Theme 5) */
+.modal-narrow { width: 520px; max-width: 92vw; }
+.queue-toggle.queued, .btn.queued { color: var(--accent-color); border-color: var(--accent-color); }
+.queue-empty { color: var(--text-secondary); font-size: 13px; padding: 18px 4px; text-align: center; }
+.queue-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border-color); }
+.queue-row:last-of-type { border-bottom: none; }
+.queue-row-icon { width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0; object-fit: cover; }
+.queue-row-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.queue-row-name { font-size: 14px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.queue-row-meta { font-size: 12px; color: var(--text-secondary); }
+.queue-row-remove { flex-shrink: 0; }
+
 /* Collapsible detail section (AUR comments in the Details tab) */
 .collapsible-toggle { cursor: pointer; display: flex; align-items: center; gap: 6px; user-select: none; }
 .collapsible-caret { display: inline-block; transition: transform 0.15s ease; font-size: 11px; }

@@ -1265,6 +1265,38 @@ function testFilterLocalPackages() {
   assert.strictEqual(filterLocalPackages(null, 'x').length, 0, 'null list → []');
 }
 
+function testInstallQueueHelpers() {
+  const { hooks } = loadMainJs({});
+  const { pkgSnapshot, queueUpsert, buildQueueReviewHTML } = hooks;
+
+  // snapshot keeps only the minimal fields, normalizes type
+  const snap = pkgSnapshot({ id: 'vlc', name: 'VLC', type: 'arch_repo', version: '3.0', extra: 'drop me' });
+  assert.strictEqual(snap.id, 'vlc');
+  assert.strictEqual(snap.extra, undefined, 'extra fields dropped');
+  assert.strictEqual(snap.name, 'VLC');
+
+  // upsert is pure (new array), de-dupes by id, ignores bad input
+  let q = queueUpsert([], { id: 'a', name: 'A', type: 'aur' });
+  q = queueUpsert(q, { id: 'b', name: 'B', type: 'aur' });
+  q = queueUpsert(q, { id: 'a', name: 'A again', type: 'aur' });   // dupe ignored
+  assert.strictEqual(q.map(x => x.id).join(','), 'a,b', 'dedupes by id');
+  assert.strictEqual(queueUpsert(q, null).length, 2, 'null pkg ignored');
+  assert.strictEqual(queueUpsert(q, { name: 'no id' }).length, 2, 'pkg without id ignored');
+  const orig = [{ id: 'x', name: 'X', type: 'aur' }];
+  queueUpsert(orig, { id: 'y', name: 'Y', type: 'aur' });
+  assert.strictEqual(orig.length, 1, 'input array not mutated');
+
+  // review HTML: a row per item, escaped; empty-state message when empty
+  assert.ok(buildQueueReviewHTML([]).includes('empty'), 'empty queue → message');
+  const html = buildQueueReviewHTML([
+    { id: 'a', name: '<b>A</b>', type: 'aur', version: '1.0' },
+    { id: 'b', name: 'B', type: 'flatpak', version: '' },
+  ]);
+  assert.ok(html.includes('data-queue-remove="a"') && html.includes('data-queue-remove="b"'), 'remove buttons per row');
+  assert.ok(!html.includes('<b>A</b>') && html.includes('&lt;b&gt;A'), 'escapes names');
+  assert.ok(html.includes('v1.0') && !html.includes('v•'), 'shows version, omits when blank');
+}
+
 async function testBrowseLandingBuilders() {
   const { hooks } = loadMainJs({});
   const { buildCategoryCardHTML, buildResumeBrowseHTML } = hooks;
@@ -1615,6 +1647,7 @@ function testPermsListEnsuresIconObserver() {
     testReputationPopupHtml,
     testRerankByFuzzy,
     testFilterLocalPackages,
+    testInstallQueueHelpers,
     testBrowseLandingBuilders,
     testBuildMirrorOptionsHTML,
     testPkgbuildViewerBuilders,
