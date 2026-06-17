@@ -1,8 +1,9 @@
 # PKGBUILD audit: structural / semantic checks
 
 **Date:** 2026-06-17
-**Status:** ✅ Step 1 shipped 2026-06-17 (network-in-`package()` + unchecksummed remote source; suite
-638 + JS 55). Steps 3 (host-mismatch, may drop) and 4 (`.SRCINFO` divergence, needs plumbing) remain.
+**Status:** ✅ Step 1 shipped 2026-06-17 (network-in-`package()` + unchecksummed remote source).
+✅ Step 4 shipped 2026-06-17 (`.SRCINFO`↔PKGBUILD source-host divergence, wired through
+`get_pkgbuild`; suite 647). Only step 3 (source-host ≠ url-host, high-FP) remains — may be dropped.
 Parent: [2026-06-16-audit-rule-maintenance.md](2026-06-16-audit-rule-maintenance.md) (discovery #4).
 
 ## Why
@@ -62,6 +63,24 @@ go in the regression corpus.
 - New corpus files: a benign split-package/VCS PKGBUILD (must stay WARN-free) and a malicious one with
   a `curl … | sh` inside `package()` + an https tarball SKIP (must WARN).
 - Metadata guard counts updated.
+
+## Step 4 design (shipped 2026-06-17)
+
+`scan_divergence(pkgbuild_text, srcinfo_text)` — a separate entry point (two inputs, so not a
+`_STRUCTURAL` analyzer). `api.get_pkgbuild` now best-effort fetches `.SRCINFO`
+(`fetch_aur_file(base, '.SRCINFO')`) and folds the findings into the PKGBUILD file's list before the
+summary; a missing/404 `.SRCINFO` skips the check (fails open).
+
+**Comparison is host-set based**, the key decision: `.SRCINFO` is the *expanded* form of the PKGBUILD,
+so line/URL diffing is noisy (paths carry `$pkgver`/`$pkgname`). **Hosts are normally literal** even
+when the path has variables, so we compare the *set of source hosts*. A host present in the PKGBUILD's
+`source=()` arrays but **absent from `.SRCINFO`** is flagged WARN (`srcinfo_source_divergence`) — that's
+the hidden-download-origin attack (reviewers read `.SRCINFO`; makepkg builds the PKGBUILD). Conservative
+guards: strip `name::` and VCS (`git+`…) prefixes before taking the host; **skip any host still
+containing `$`** (unexpandable → can't compare → don't false-positive); local-file/relative sources
+(no host) are ignored. Only the PKGBUILD→`.SRCINFO` direction is flagged (an extra host only in
+`.SRCINFO` is the benign-stale direction). `all_rule_ids()` now unifies per-line + structural + the
+divergence rule as the single source of truth for the metadata guard tests.
 
 ## Non-goals (this change)
 - Checks #3 and #4 (host-mismatch, `.SRCINFO` divergence).

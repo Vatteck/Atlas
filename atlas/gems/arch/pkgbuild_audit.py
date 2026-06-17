@@ -239,6 +239,9 @@ _RULE_META: Dict[str, Dict] = {
     # Structural / semantic checks (whole-file), 2026-06-17.
     'network_in_package': {'kind': EVERGREEN, 'added': '2026-06-17', 'source': _STRUCTURAL_SOURCE},
     'unchecksummed_remote_source': {'kind': EVERGREEN, 'added': '2026-06-17', 'source': _STRUCTURAL_SOURCE},
+
+    # Cross-file (.SRCINFO↔PKGBUILD) divergence, 2026-06-17.
+    'srcinfo_source_divergence': {'kind': EVERGREEN, 'added': '2026-06-17', 'source': _STRUCTURAL_SOURCE},
 }
 
 
@@ -402,6 +405,89 @@ _STRUCTURAL = [
      'by commit) this tarball can be swapped at the host with no integrity check.',
      _unchecksummed_remote_source),
 ]
+
+
+# --- .SRCINFO divergence (cross-file: needs both PKGBUILD and .SRCINFO) -------------------------
+# .SRCINFO is what the AUR web page and most reviewers read; makepkg builds from the PKGBUILD. If a
+# source host in the PKGBUILD isn't declared in .SRCINFO, the published metadata *hides where the
+# build actually downloads from* — a real way to slip a malicious mirror past a reviewer. Host-level
+# comparison is robust to the variable expansion that makes line-by-line source diffing noisy
+# (paths carry $pkgver etc.; hosts are normally literal). See the structural-checks plan, step 3/4.
+SRCINFO_DIVERGENCE_RULE = 'srcinfo_source_divergence'
+_SRCINFO_DIVERGENCE_WHY = (
+    "A source host in the PKGBUILD is not declared in .SRCINFO — .SRCINFO (what the AUR page and "
+    "reviewers read) hides where this build actually downloads from. makepkg uses the PKGBUILD.")
+
+
+def _host_of(entry: str):
+    """The lowercased host of a source URL, or None for a local file / relative path. Strips a
+    ``name::`` prefix and a VCS scheme prefix (git+/svn+/hg+/bzr+) so ``git+https://h/r`` → ``h``."""
+    e = entry.split('::', 1)[1] if '::' in entry else entry
+    e = re.sub(r'^(?:git|svn|hg|bzr)\+', '', e, flags=re.I)
+    m = re.match(r'^[a-z][a-z0-9+.\-]*://(?:[^/@\s]*@)?([^/:\s\'"]+)', e, re.I)
+    return m.group(1).lower() if m else None
+
+
+def _pkgbuild_source_hosts(text: str):
+    """Source hosts declared in the PKGBUILD, as a list of (host, line_no, line_text). Covers every
+    ``source`` / ``source_<arch>`` array; skips hosts that still contain a ``$`` (unexpandable here)."""
+    lines = text.splitlines()
+    out = []
+    seen = set()
+    i, n = 0, len(lines)
+    while i < n:
+        m = re.match(r'^\s*source(?:_\w+)?\s*=\s*\((.*)', lines[i])
+        if m:
+            body, j = _collect_array(lines, i, m.group(1))
+            for entry in _split_array(body):
+                host = _host_of(entry)
+                if host and '$' not in host and host not in seen:
+                    seen.add(host)
+                    out.append((host, i + 1, lines[i].strip()))
+            i = j + 1
+            continue
+        i += 1
+    return out
+
+
+def _srcinfo_source_hosts(text: str):
+    """Set of source hosts declared in a .SRCINFO (one ``source[_arch] = …`` per line, expanded)."""
+    hosts = set()
+    for line in text.splitlines():
+        m = re.match(r'^\s*source(?:_\w+)?\s*=\s*(.+?)\s*$', line)
+        if m:
+            host = _host_of(m.group(1).strip())
+            if host:
+                hosts.add(host)
+    return hosts
+
+
+def scan_divergence(pkgbuild_text: str, srcinfo_text: str) -> List[Dict]:
+    """Advisory findings for PKGBUILD↔.SRCINFO divergence. Empty list if either input is missing
+    (we can only compare when both are present). Pure; never raises — it's advisory, not a gate."""
+    if not pkgbuild_text or not srcinfo_text:
+        return []
+    try:
+        declared = _srcinfo_source_hosts(srcinfo_text)
+        if not declared:
+            return []  # no parseable sources in .SRCINFO → nothing to compare against
+        out: List[Dict] = []
+        for host, line_no, line_text in _pkgbuild_source_hosts(pkgbuild_text):
+            if host not in declared:
+                out.append({'line_no': line_no, 'line': line_text,
+                            'rule': SRCINFO_DIVERGENCE_RULE, 'severity': WARN,
+                            'why': _SRCINFO_DIVERGENCE_WHY})
+        return out
+    except Exception:
+        return []
+
+
+def all_rule_ids() -> set:
+    """Every rule id the scanner can emit — per-line, structural, and the cross-file divergence rule.
+    Single source of truth for the metadata guard tests."""
+    return ({rule_id for rule_id, *_ in _RULES}
+            | {rule_id for rule_id, *_ in _STRUCTURAL}
+            | {SRCINFO_DIVERGENCE_RULE})
 
 
 def scan(text: str) -> List[Dict]:

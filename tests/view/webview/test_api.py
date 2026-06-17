@@ -1,7 +1,7 @@
 import unittest
 import json
 from datetime import datetime, date, timezone
-from unittest.mock import Mock, patch, mock_open
+from unittest.mock import Mock, patch, mock_open, DEFAULT
 from atlas.view.webview.api import AtlasApi, _json_safe, parse_pacman_log
 
 
@@ -198,13 +198,17 @@ class PkgbuildViewTest(unittest.TestCase):
     )
 
     def _setup(self, repository='aur', text=SAMPLE, has_man=True, base='demo', install_text=None,
-               installed=False, commit=None):
+               installed=False, commit=None, srcinfo_text=None):
         pkg = Mock(name='pkg'); pkg.name = 'demo'; pkg.repository = repository; pkg.base = base
         pkg.installed = installed; pkg.commit = commit
         self.api._get_pkg = Mock(return_value=pkg)
         arch_man = Mock()
         arch_man.fetch_pkgbuild.return_value = text
+        # The .SRCINFO divergence check fetches '.SRCINFO'; route it to srcinfo_text and let every
+        # other path fall through to .return_value (so the scriptlet/diff tests keep working).
         arch_man.fetch_aur_file.return_value = install_text
+        arch_man.fetch_aur_file.side_effect = (
+            lambda _base, path, commit=None: srcinfo_text if path == '.SRCINFO' else DEFAULT)
         arch_man.aur_client.get_info.return_value = [{'PackageBase': base}]
         self.api._manager_by_gem = Mock(return_value=arch_man if has_man else None)
         return arch_man
@@ -248,7 +252,7 @@ class PkgbuildViewTest(unittest.TestCase):
         data = self.api.get_pkgbuild('demo')['data']
         names = [f['name'] for f in data['files']]
         self.assertEqual(['PKGBUILD', 'demo.install'], names)
-        arch_man.fetch_aur_file.assert_called_once_with('demo', 'demo.install')
+        arch_man.fetch_aur_file.assert_any_call('demo', 'demo.install')
         # combined summary counts findings from the scriptlet too
         self.assertGreaterEqual(data['summary']['warn'], 1)
 
@@ -265,13 +269,31 @@ class PkgbuildViewTest(unittest.TestCase):
         data = self.api.get_pkgbuild('demo')['data']
         self.assertTrue(data['diff'])  # structured diff_lines, non-empty
         self.assertTrue(any(d['kind'] == 'add' for d in data['diff']))
-        arch_man.fetch_aur_file.assert_called_once_with('demo', 'PKGBUILD', 'oldsha')
+        arch_man.fetch_aur_file.assert_any_call('demo', 'PKGBUILD', 'oldsha')
 
     def test_no_diff_when_unchanged(self):
         same = "pkgname=demo\npkgver=1\n"
         arch_man = self._setup(text=same, installed=True, commit='oldsha')
         arch_man.fetch_aur_file.return_value = same
         self.assertEqual([], self.api.get_pkgbuild('demo')['data']['diff'])
+
+    def test_srcinfo_divergence_surfaces_a_finding(self):
+        # PKGBUILD downloads from evil.example, but .SRCINFO (what reviewers read) only lists github.
+        pkgbuild = ("pkgname=demo\npkgver=1\n"
+                    "source=(\"https://evil.example/demo.tar.gz\")\nsha256sums=('abc')\n")
+        srcinfo = "\tsource = https://github.com/foo/demo/archive/v1.tar.gz\n"
+        self._setup(text=pkgbuild, srcinfo_text=srcinfo)
+        data = self.api.get_pkgbuild('demo')['data']
+        self.assertTrue(any(f['rule'] == 'srcinfo_source_divergence' for f in data['findings']))
+        self.assertGreaterEqual(data['summary']['warn'], 1)
+
+    def test_no_srcinfo_skips_divergence(self):
+        # Same PKGBUILD, but no .SRCINFO available → the check is skipped, not a false positive.
+        pkgbuild = ("pkgname=demo\npkgver=1\n"
+                    "source=(\"https://evil.example/demo.tar.gz\")\nsha256sums=('abc')\n")
+        self._setup(text=pkgbuild, srcinfo_text=None)
+        data = self.api.get_pkgbuild('demo')['data']
+        self.assertFalse(any(f['rule'] == 'srcinfo_source_divergence' for f in data['findings']))
 
 
 class CommandTest(unittest.TestCase):

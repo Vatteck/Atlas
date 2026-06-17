@@ -5,9 +5,10 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-17 (PKGBUILD audit: first structural/semantic checks — network-in-package()
-and unchecksummed-remote-source [whole-file, lower-FP than regex]; plus the earlier rule-provenance
-side map and CI regression corpus — see Done log and plans/2026-06-17-audit-structural-checks.md +
+**Last updated:** 2026-06-17 (PKGBUILD audit structural/semantic checks: network-in-package(),
+unchecksummed-remote-source, and .SRCINFO↔PKGBUILD source-host divergence [wired through get_pkgbuild]
+— whole-file, lower-FP than regex; plus the earlier rule-provenance side map and CI regression corpus
+— see Done log and plans/2026-06-17-audit-structural-checks.md +
 plans/2026-06-16-audit-rule-maintenance.md. Prior: History/Activity PR review follow-up: stale detail history reset;
 History/Activity completion shipped; planning-doc reconciliation + GUI verification queue captured;
 AUR reputation scoring + diff security annotation + batch update risk tiers shipped; reconciled the
@@ -102,6 +103,20 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **PKGBUILD audit: .SRCINFO↔PKGBUILD divergence — structural step 4 (2026-06-17).** The cross-file
+  check (`srcinfo_source_divergence`, WARN): a source **host** declared in the PKGBUILD's `source=()`
+  arrays but **absent from `.SRCINFO`** — `.SRCINFO` is what the AUR page and reviewers read while
+  makepkg builds the PKGBUILD, so a hidden host means the published metadata conceals where the build
+  actually downloads from. `api.get_pkgbuild` now best-effort fetches `.SRCINFO` (`fetch_aur_file(base,
+  '.SRCINFO')`) and folds the findings into the PKGBUILD list before the summary; missing/404 `.SRCINFO`
+  skips the check (fails open). **Host-set comparison** (not URL diffing) is the key call — `.SRCINFO`
+  is the *expanded* PKGBUILD so paths carry `$pkgver`, but hosts are literal; guards strip `name::`/VCS
+  prefixes and **skip any `$`-bearing host** (unexpandable → don't false-positive). New
+  `scan_divergence(pkgbuild, srcinfo)` (pure, fails open) + `all_rule_ids()` as the single rule-id
+  source of truth for the metadata guards. Tests: `SrcinfoDivergenceTest` (7) + api
+  `test_srcinfo_divergence_surfaces`/`test_no_srcinfo_skips`. Suite **647**. Only structural step 3
+  (source-host ≠ url-host, high-FP) remains — may be dropped. Plan:
+  [plans/2026-06-17-audit-structural-checks.md](plans/2026-06-17-audit-structural-checks.md).
 - **PKGBUILD audit: structural / semantic checks — step 1 (2026-06-17).** First non-regex detection
   (discovery #4 from the maintenance plan): whole-file checks that read field *relationships*, harder
   to evade and lower-FP than surface patterns. Added a `_STRUCTURAL` pass alongside `_RULES` (analyzer

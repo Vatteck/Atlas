@@ -2051,6 +2051,18 @@ class AtlasApi:
                 return {'status': 'ok', 'data': {}}
 
             findings = list(pkgbuild_audit.scan(text))
+
+            # Cross-file check: compare against the published .SRCINFO (what the AUR page/reviewers
+            # read). A source host in the PKGBUILD but absent from .SRCINFO hides where the build
+            # actually downloads from. Best-effort: a missing/404 .SRCINFO just skips the check.
+            try:
+                srcinfo_text = arch_man.fetch_aur_file(base, '.SRCINFO')
+                if srcinfo_text:
+                    findings.extend(pkgbuild_audit.scan_divergence(text, srcinfo_text))
+                    findings.sort(key=lambda f: f['line_no'])
+            except Exception as e:
+                self.logger.debug(f"get_pkgbuild: .SRCINFO divergence check failed for {base}: {e}")
+
             url = f'https://aur.archlinux.org/cgit/aur.git/tree/PKGBUILD?h={base}'
 
             # The PKGBUILD is the primary file; .install scriptlets (which run as root on install/

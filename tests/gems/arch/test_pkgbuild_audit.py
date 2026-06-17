@@ -311,12 +311,58 @@ class StructuralCheckTest(unittest.TestCase):
         self.assertIn('unchecksummed_remote_source', rules_for(text))
 
 
+class SrcinfoDivergenceTest(unittest.TestCase):
+    """Cross-file PKGBUILD↔.SRCINFO source-host divergence
+    (docs/plans/2026-06-17-audit-structural-checks.md)."""
+
+    def _rules(self, pkgbuild, srcinfo):
+        return {f['rule'] for f in audit.scan_divergence(pkgbuild, srcinfo)}
+
+    def test_hidden_host_in_pkgbuild_fires(self):
+        pkgbuild = 'source=("https://evil.example/app.tar.gz")\nsha256sums=(\'abc\')\n'
+        srcinfo = '\tsource = https://github.com/foo/app/archive/v1.tar.gz\n'
+        self.assertIn('srcinfo_source_divergence', self._rules(pkgbuild, srcinfo))
+
+    def test_matching_hosts_are_clean(self):
+        pkgbuild = 'source=("https://github.com/foo/app/archive/v$pkgver.tar.gz")\n'
+        srcinfo = '\tsource = https://github.com/foo/app/archive/v1.0.tar.gz\n'
+        self.assertEqual(set(), self._rules(pkgbuild, srcinfo))
+
+    def test_variable_expansion_in_path_does_not_cause_false_positive(self):
+        # The host is literal in both; only the path carries $pkgver. Must not flag.
+        pkgbuild = ('pkgver=2.3\n'
+                    'source=("$pkgname-$pkgver.tar.gz::https://downloads.example.com/v$pkgver.tgz")\n')
+        srcinfo = '\tsource = app-2.3.tar.gz::https://downloads.example.com/v2.3.tgz\n'
+        self.assertEqual(set(), self._rules(pkgbuild, srcinfo))
+
+    def test_vcs_host_divergence_is_caught(self):
+        pkgbuild = 'source=("git+https://evil.example/app.git")\n'
+        srcinfo = '\tsource = git+https://gitlab.com/foo/app.git\n'
+        self.assertIn('srcinfo_source_divergence', self._rules(pkgbuild, srcinfo))
+
+    def test_host_with_unexpandable_variable_is_skipped(self):
+        # A $-bearing host can't be compared literally — skip rather than false-positive.
+        pkgbuild = 'source=("https://$_mirror/app.tar.gz")\n'
+        srcinfo = '\tsource = https://cdn.example.com/app.tar.gz\n'
+        self.assertEqual(set(), self._rules(pkgbuild, srcinfo))
+
+    def test_missing_srcinfo_returns_empty(self):
+        pkgbuild = 'source=("https://evil.example/app.tar.gz")\n'
+        self.assertEqual([], audit.scan_divergence(pkgbuild, ''))
+        self.assertEqual([], audit.scan_divergence(pkgbuild, None))
+
+    def test_local_file_sources_are_ignored(self):
+        # A bare local file (no host) in either file is not a divergence.
+        pkgbuild = 'source=("app.desktop" "https://github.com/foo/app.tar.gz")\n'
+        srcinfo = '\tsource = app.desktop\n\tsource = https://github.com/foo/app.tar.gz\n'
+        self.assertEqual(set(), self._rules(pkgbuild, srcinfo))
+
+
 class RuleMetadataTest(unittest.TestCase):
     """Provenance side map (docs/plans/2026-06-16-audit-rule-maintenance.md, step a)."""
 
     def _rule_ids(self):
-        return ({rule_id for rule_id, *_ in audit._RULES}
-                | {rule_id for rule_id, *_ in audit._STRUCTURAL})
+        return audit.all_rule_ids()
 
     def test_every_meta_key_is_a_real_rule(self):
         rule_ids = self._rule_ids()
@@ -348,12 +394,12 @@ class RuleMetadataTest(unittest.TestCase):
         self.assertTrue(derived['source'])
 
     def test_counts_add_up(self):
-        # 2 campaign rules; 17 ks-aur-scanner evergreen + 2 structural evergreen = 19 evergreen.
+        # 2 campaign rules; 17 ks-aur-scanner + 2 structural + 1 divergence = 20 evergreen.
         campaign = [r for r, m in audit._RULE_META.items() if m['kind'] == audit.CAMPAIGN]
         evergreen_recorded = [r for r, m in audit._RULE_META.items() if m['kind'] == audit.EVERGREEN]
         self.assertEqual(len(campaign), 2)
-        self.assertEqual(len(evergreen_recorded), 19)
-        self.assertEqual(len(audit._RULE_META), 21)
+        self.assertEqual(len(evergreen_recorded), 20)
+        self.assertEqual(len(audit._RULE_META), 22)
 
 
 class ScanMechanicsTest(unittest.TestCase):
