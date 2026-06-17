@@ -25,8 +25,9 @@ fixed (was computed from an unpopulated pkg object) + made legible with a clicka
 votes/popularity badges (from GUI eyeballs); competitive-research Theme 4 (AUR request throttle) shipped,
 Theme 3 (auth-readiness) dropped as N/A to Atlas's root model — see Done log)
 **Version:** 0.12.0 (the polish-and-trust release; 0.11.0 was the first cohesive Atlas release)
-**Working branch:** `work` in this checkout; app work normally lands on `master` (run `git branch`
-before acting — branch names in docs go stale)
+**Working branch:** `master` in this checkout (all 2026-06-17 audit work landed + pushed to
+`origin/master`); app work normally lands on `master` (run `git branch` before acting — branch names
+in docs go stale)
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)** — the longer-horizon menu we pull
 > from. This file stays the live baton (in-progress / just-shipped).
@@ -35,24 +36,19 @@ before acting — branch names in docs go stale)
 
 ## Current focus
 
-**Post-0.12 planning cleanup + GUI verification queue (2026-06-16).** The major transitions and
-planned polish/trust themes are shipped: Atlas is an Arch-focused, **pure-Python** pywebview app
-with the AUR-safety, Flatpak transparency/control, maintenance, rollback, Arch news/`.pacnew`,
-Browse, tray, icon, shortcut, transaction-preview, History, System Health, PKGBUILD-review, and
-AUR-reputation work in place. The active work is now (1) keeping the planning docs honest and
-(2) running a real pywebview GUI eyeball pass for the newest surfaces that unit tests cannot fully
-cover. No Rust/Qt revival; no new big architectural migration without a measured reason.
+**PKGBUILD-audit hardening track complete (2026-06-17); back to the BACKLOG menu.** This session built
+out the audit subsystem end to end (see the Done log): rule provenance + regression corpus, structural/
+semantic checks (network-in-`package()`, unchecksummed-remote-source, `.SRCINFO`↔PKGBUILD divergence),
+provenance surfaced in the viewer UI (GUI-verified), the `atlas-cli audit-scan` rule-health tool, and a
+local fail-closed external rules-pack loader. Two open questions were resolved *with decisions* (decision
+log): structural rule #3 dropped on measured FP evidence; remote signed packs designed-and-deferred
+(permanent-maintenance cost not worth it for a solo-dev side project). Tree is green — **673 Python +
+55 JS**. No Rust/Qt revival; no new big architectural migration without a measured reason.
 
 ## Next
 
-**Competitive-research Theme 5 is planned, not built; Theme 6 is half-built.**
-The competitive-research themes are **done**: Theme 1 (audit rules), 2 (AUR comments), 4 (throttle),
-5 (install queue v1), 6 (fuzzy search) shipped; 3 (auth-readiness) N/A. Remaining queue follow-ups
-(aggregate preview, auto-remove on install, uninstall basket) are optional. Next moves now come from
-**[BACKLOG.md](BACKLOG.md)**.
-
-The forward menu now lives in **[BACKLOG.md](BACKLOG.md)**, which is the canonical longer-horizon
-feature list. Highest-value next moves, in order:
+The audit track is at a clean, fully-documented stopping point — nothing half-built. Forward moves come
+from **[BACKLOG.md](BACKLOG.md)**. Highest-value next moves, in order:
 
 1. **GUI verification sweep** — run `atlas --logs` on a real desktop and eyeball the queued surfaces
    below. Headless tests are green, but pywebview modals, clipboard, icons, and desktop actions need
