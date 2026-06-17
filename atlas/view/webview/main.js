@@ -2875,6 +2875,8 @@ function openDetailModal(pkg, group) {
     // Reset tabs for the new package: Overview active, files + comments cleared.
     const refreshTabs = () => { if (stillCurrentDetail()) updateDetailTabs(); };
     activateDetailTab('overview');
+    const detailBody = detailModal.querySelector('.modal-body');
+    if (detailBody) detailBody.scrollTop = 0;  // start at top; don't inherit the last package's scroll
     const filesSection = document.getElementById('detail-files-section');
     if (filesSection) { filesSection.classList.add('hidden'); document.getElementById('detail-files').innerHTML = ''; }
     const commentsSection = document.getElementById('detail-comments-section');
@@ -5545,6 +5547,11 @@ document.getElementById('detail-tabs').addEventListener('click', (e) => {
     const tab = e.target.closest('.detail-tab');
     if (!tab || tab.classList.contains('hidden')) return;
     activateDetailTab(tab.dataset.tab);
+    // Reset the body scroll on switch: panels differ in height, so a tab switched from a long,
+    // scrolled panel (e.g. collapsed AUR comments) would otherwise leave the new (shorter) panel
+    // scrolled past its content — a blank body with the sticky tab bar scrolled out of view.
+    const body = detailModal.querySelector('.modal-body');
+    if (body) body.scrollTop = 0;
 });
 
 // AUR comments (Details tab) collapse/expand toggle.

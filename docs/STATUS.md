@@ -119,6 +119,19 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Fix: blank detail body after collapsing comments then switching tabs (2026-06-17).** From a GUI
+  bug report (google-chrome AUR): collapse the AUR-comments block on the Details tab, switch back to
+  Overview → the whole modal body (including the sticky tab bar) went blank. Root cause was **stranded
+  scroll**, not the toggle: `.modal-body` is the scroll container and the detail tabs are
+  `position: sticky` inside it; switching from a tall, scrolled-down panel to a shorter one left
+  `scrollTop` past the new panel's content, so you were looking at empty space with the sticky tab bar
+  scrolled out of its (now short) containing block. Fix: reset `detailModal .modal-body` `scrollTop = 0`
+  on tab switch and on modal open (so a reopened package also starts at the top). Frontend-only; JS
+  contract tests still parse + pass (the scroll behaviour itself is DOM-only, not unit-testable in the
+  vm harness). Suite **690**. **Needs a GUI re-eyeball** (collapse comments → Overview is intact; also
+  unblocks the pending **Details comments collapse** check). Note: comments living on the **Details**
+  tab is *intended* (the 2026-06-16 detail-pane-tabs decision moved comments → Details and put the
+  **Review PKGBUILD** button on Overview instead).
 - **AUR caution banner above the badge grid (2026-06-17, GUI-verified).** From a GUI eyeball: the
   "From the AUR — community-submitted… review the PKGBUILD" trust banner read better directly under the
   title, *above* the Reputation/Votes/Popularity badges, instead of beneath them. Pure markup reorder —
