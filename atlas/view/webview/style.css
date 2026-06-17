@@ -3086,10 +3086,24 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
 .detail-activity-open { margin-top: 10px; }
 
 /* AUR comments (detail view, Theme 2) */
-.aur-comment { padding: 9px 0; border-bottom: 1px solid var(--border-color); }
-.aur-comment:last-of-type { border-bottom: none; }
-.aur-comment-head { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; }
+/* Each comment is a discrete card so a long thread doesn't read as one wall of text. */
+.aur-comment { padding: 10px 12px; margin-bottom: 8px; background: var(--bg-surface);
+    border: 1px solid var(--border-color); border-radius: var(--radius-sm); }
+.aur-comment:last-of-type { margin-bottom: 0; }
+.aur-comment-head { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.aur-comment-avatar { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 11px;
+    font-weight: 700; color: var(--text-primary); background: var(--bg-surface-hover);
+    border: 1px solid var(--border-color); }
 .aur-comment-author { font-weight: 600; font-size: 13px; color: var(--text-primary); }
-.aur-comment-date { font-size: 12px; color: var(--text-secondary); }
-.aur-comment-body { font-size: 13px; color: var(--text-secondary); line-height: 1.5; word-break: break-word; }
+.aur-comment-date { font-size: 12px; color: var(--text-secondary); margin-left: auto; }
+.aur-comment-body { font-size: 13px; color: var(--text-secondary); line-height: 1.55; word-break: break-word; }
+.aur-comment-text { margin: 0 0 8px; }
+.aur-comment-text:last-child { margin-bottom: 0; }
 .aur-comment-body a { color: var(--accent-color); }
+/* Pasted shell commands render as a monospace block instead of wrapped prose. */
+.aur-comment-code { margin: 0 0 8px; padding: 8px 10px; background: var(--bg-base);
+    border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+    font-family: var(--font-mono, monospace); font-size: 12px; line-height: 1.45;
+    color: var(--text-primary); white-space: pre; overflow-x: auto; }
+.aur-comment-code:last-child { margin-bottom: 0; }

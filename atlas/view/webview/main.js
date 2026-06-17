@@ -1584,21 +1584,55 @@ function linkifyComment(text) {
     });
 }
 
+// Pure: format a scraped comment body into HTML. Runs of shell-prompt lines (starting with `$ ` or
+// `# `, including backslash line-continuations) become a monospace code block; everything else is
+// linkified prose. AUR comments routinely paste build/version commands, which otherwise read as an
+// undifferentiated wall of text. Node-VM contract-tested.
+function formatCommentBodyHTML(text) {
+    const lines = String(text == null ? '' : text).split('\n');
+    const isPrompt = (l) => /^\s*[$#]\s/.test(l);
+    const parts = [];
+    let prose = [];
+    const flushProse = () => {
+        while (prose.length && prose[0].trim() === '') prose.shift();
+        while (prose.length && prose[prose.length - 1].trim() === '') prose.pop();
+        if (prose.length) parts.push(`<p class="aur-comment-text">${prose.map(linkifyComment).join('<br>')}</p>`);
+        prose = [];
+    };
+    for (let i = 0; i < lines.length; i++) {
+        if (isPrompt(lines[i])) {
+            flushProse();
+            const block = [lines[i]];
+            // keep pulling continuation lines while the last one ends with a backslash
+            while (/\\\s*$/.test(block[block.length - 1]) && i + 1 < lines.length) {
+                i++; block.push(lines[i]);
+            }
+            parts.push(`<pre class="aur-comment-code">${escapeHtml(block.join('\n'))}</pre>`);
+        } else {
+            prose.push(lines[i]);
+        }
+    }
+    flushProse();
+    return parts.join('');
+}
+
 // AUR detail comments (Theme 2). Pure: renders scraped plain-text comments (author/date/body).
 // Returns '' for no comments so the section stays hidden. URLs in bodies are linkified safely.
 function buildAurCommentsHTML(comments) {
     comments = comments || [];
     if (!comments.length) return '';
     const rows = comments.map(c => {
+        const author = c.author || 'anonymous';
         const when = c.date ? (new Date(c.date).toString() !== 'Invalid Date'
             ? new Date(c.date).toLocaleString() : c.date) : '';
-        const body = linkifyComment(c.body || '').replace(/\n/g, '<br>');
+        const initial = escapeHtml(author.trim().charAt(0).toUpperCase() || '?');
         return `<div class="aur-comment">
             <div class="aur-comment-head">
-                <span class="aur-comment-author">${escapeHtml(c.author || 'anonymous')}</span>
+                <span class="aur-comment-avatar" aria-hidden="true">${initial}</span>
+                <span class="aur-comment-author">${escapeHtml(author)}</span>
                 ${when ? `<span class="aur-comment-date">${escapeHtml(when)}</span>` : ''}
             </div>
-            <div class="aur-comment-body">${body}</div>
+            <div class="aur-comment-body">${formatCommentBodyHTML(c.body || '')}</div>
         </div>`;
     }).join('');
     return rows;
@@ -6340,6 +6374,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildDepNodesHTML,
         buildPackageActivityHTML,
         buildAurCommentsHTML,
+        formatCommentBodyHTML,
         linkifyComment,
         buildInstalledFilesHTML,
         computeDetailTabs,

@@ -1125,7 +1125,7 @@ async function testBuildPackageActivityHTML() {
 
 async function testBuildAurCommentsHTML() {
   const { hooks } = loadMainJs({});
-  const { buildAurCommentsHTML, linkifyComment } = hooks;
+  const { buildAurCommentsHTML, linkifyComment, formatCommentBodyHTML } = hooks;
 
   assert.strictEqual(buildAurCommentsHTML([]), '', 'no comments → empty (section hidden)');
   assert.strictEqual(buildAurCommentsHTML(null), '', 'null → empty');
@@ -1135,6 +1135,8 @@ async function testBuildAurCommentsHTML() {
     { author: '<script>', date: '', body: 'line1\nline2 <b>bold</b>' },
   ]);
   assert.ok(html.includes('alice'), 'renders author');
+  assert.ok(html.includes('aur-comment-avatar'), 'renders an author avatar');
+  assert.ok(html.includes('>A<'), 'avatar shows the author initial');
   assert.ok(html.includes('<a href="#" data-url="https://wiki.archlinux.org/x"'), 'linkifies safe URL');
   // untrusted author/body are escaped, never injected as live HTML
   assert.ok(!html.includes('<script>') && html.includes('&lt;script&gt;'), 'escapes author');
@@ -1143,6 +1145,21 @@ async function testBuildAurCommentsHTML() {
 
   // linkify refuses non-http(s) schemes
   assert.ok(!linkifyComment('javascript:alert(1)').includes('<a '), 'no link for javascript: scheme');
+
+  // formatCommentBodyHTML: shell-prompt blocks (incl. backslash continuations) become code blocks
+  const cmd = formatCommentBodyHTML(
+    'To get the version:\n$ curl -sSf https://example.com/x | \\\ngrep Version | \\\nawk \'{print $2}\'\nDone.');
+  assert.ok(cmd.includes('<pre class="aur-comment-code">'), 'shell prompt → code block');
+  assert.ok(cmd.includes('grep Version') && cmd.includes('awk'), 'continuation lines stay in the block');
+  assert.ok(cmd.includes('<p class="aur-comment-text">To get the version:</p>'), 'prose before the block');
+  assert.ok(cmd.includes('<p class="aur-comment-text">Done.</p>'), 'prose after the block');
+  // code is escaped, not linkified into live HTML
+  assert.ok(cmd.includes('https://example.com/x') && !cmd.split('<pre')[1].includes('<a '),
+    'URLs inside a code block are not turned into anchors');
+  // plain prose stays a single paragraph with <br>
+  const plain = formatCommentBodyHTML('one\ntwo');
+  assert.ok(plain.includes('<p class="aur-comment-text">one<br>two</p>'), 'plain prose → one paragraph');
+  assert.ok(!plain.includes('<pre'), 'no code block for plain prose');
 }
 
 async function testBuildInstalledFilesHTML() {

@@ -119,6 +119,19 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **AUR comments styling — cards + code blocks (2026-06-17).** From a GUI eyeball: the comment thread
+  read as an undifferentiated wall of text (author/body run together, separated only by a hairline; and
+  pasted shell commands rendered as wrapped prose). Two changes: **(1) card per comment** — each
+  `.aur-comment` is now a surface card (bg + border + radius + spacing) with a small **letter-avatar**
+  for the author and the date right-aligned, so a long thread visually chunks. **(2) code blocks** —
+  new pure `formatCommentBodyHTML(text)` detects runs of **shell-prompt lines** (`$ `/`# `, including
+  backslash line-continuations) and renders them as a monospace `<pre class="aur-comment-code">`
+  instead of prose; the rest stays linkified prose (`<p class="aur-comment-text">`). Security unchanged
+  — bodies are still escaped first, code is escaped (never linkified into live anchors), prose URLs go
+  through the existing `linkifyComment`/`safeExternalUrl` path. Tests: extended
+  `testBuildAurCommentsHTML` (avatar + initial) + new `formatCommentBodyHTML` cases (prompt→code,
+  continuations, prose-around-block, URLs-in-code-not-anchored, plain prose). Suite **690** + JS **55**.
+  **Needs a GUI eyeball.**
 - **AUR comments moved from Details → Overview tab (2026-06-17).** Reverses part of the 2026-06-16
   detail-pane-tabs decision on a GUI eyeball: Overview was too sparse (banner + badges + one-line
   description) while Details carried the table, installed-files, *and* comments. Moved the
