@@ -321,6 +321,14 @@ def get_app_commits(app_ref: str, origin: str, installation: str, handler: Proce
         raise NoInternetException()
 
 
+def parse_commit_date(raw: str) -> datetime:
+    """Parse a `flatpak remote-info --log` Date line — always UTC ('+0000') — and convert it to
+    the local timezone, returned as a *naive* local wall-clock. Naive-local keeps the displayed
+    string clean (no `+00:00` offset suffix once ISO-formatted) while showing the user their own
+    time instead of UTC, which not everyone recognises."""
+    return datetime.strptime(raw, '%Y-%m-%d %H:%M:%S %z').astimezone().replace(tzinfo=None)
+
+
 def get_app_commits_data(app_ref: str, origin: str, installation: str, full_str: bool = True) -> List[dict]:
     log = run_cmd(f'flatpak remote-info --log {origin} {app_ref} --{installation}')
 
@@ -341,7 +349,10 @@ def get_app_commits_data(app_ref: str, origin: str, installation: str, full_str:
             commit[attr] = commit[attr] if full_str else commit[attr][0:8]
 
         if attr == 'date':
-            commit[attr] = datetime.strptime(commit[attr], '%Y-%m-%d %H:%M:%S +0000')
+            try:
+                commit[attr] = parse_commit_date(commit[attr])
+            except ValueError:
+                pass  # unexpected date format → leave the raw string rather than break history
 
         if (idx + 1) % 3 == 0:
             commits.append(commit)

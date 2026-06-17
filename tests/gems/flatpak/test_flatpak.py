@@ -1,8 +1,24 @@
+from datetime import datetime, timezone
 from unittest import TestCase
 from unittest.mock import patch, Mock
 
 from atlas import __app_name__
 from atlas.gems.flatpak import flatpak, VERSION_1_2
+
+
+class ParseCommitDateTest(TestCase):
+
+    def test_converts_utc_log_date_to_local_naive(self):
+        # `flatpak remote-info --log` emits UTC ('+0000'); we display the user's local time.
+        result = flatpak.parse_commit_date('2026-06-09 10:37:20 +0000')
+        self.assertIsNone(result.tzinfo, 'returned datetime is naive (clean display, no offset)')
+        # tz-independent: the naive local value, re-localized, must equal the original UTC instant
+        as_utc = result.astimezone().astimezone(timezone.utc)
+        self.assertEqual(as_utc, datetime(2026, 6, 9, 10, 37, 20, tzinfo=timezone.utc))
+
+    def test_rejects_bad_format(self):
+        with self.assertRaises(ValueError):
+            flatpak.parse_commit_date('not a date')
 
 
 class FlatpakTest(TestCase):

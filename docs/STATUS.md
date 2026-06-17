@@ -119,6 +119,16 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Flatpak History dates → local time (2026-06-17).** From a GUI eyeball: the History tab showed
+  `flatpak remote-info --log` commit dates in **UTC** (the log always emits `+0000`), which the old
+  parser matched-then-discarded into a naive datetime — so the displayed time was UTC with no label.
+  New pure `flatpak.parse_commit_date(raw)` parses the offset (`%z` → aware UTC), converts to the
+  system local zone, and returns a **naive local** datetime — local wall-clock so `_json_safe`'s ISO
+  string stays clean (`2026-06-09 06:37`, no `+00:00` suffix) but now in the user's own time. Parse
+  failure falls back to the raw string (history never breaks over one odd line). `date` is display-only
+  (the controller reads only `['commit']`), so no behaviour change beyond the shown time. Tests:
+  `ParseCommitDateTest` (tz-independent: naive + re-localizes to the original UTC instant; bad-format
+  raises). Suite **692**. **Needs a GUI eyeball** (History dates now match your local clock).
 - **AUR comments styling — cards + code blocks (2026-06-17).** From a GUI eyeball: the comment thread
   read as an undifferentiated wall of text (author/body run together, separated only by a hairline; and
   pasted shell commands rendered as wrapped prose). Two changes: **(1) card per comment** — each
