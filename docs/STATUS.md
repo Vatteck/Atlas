@@ -5,8 +5,10 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-17 (PKGBUILD audit: new `atlas-cli audit-scan` rule-health re-scan [samples
-live AUR PKGBUILDs, reports per-rule fire rates / FP drift]; rule provenance surfaced in the viewer —
+**Last updated:** 2026-06-17 (PKGBUILD audit: external rules-pack loader [optional local
+`$CONFIG/arch/audit_rules.json`, additive + fail-closed; signing/remote gated]; `atlas-cli audit-scan`
+rule-health re-scan [samples live AUR PKGBUILDs, reports per-rule fire rates / FP drift]; structural
+rule #3 dropped on measured FP evidence; rule provenance surfaced in the viewer —
 rule-id chip + campaign pill + tooltip per finding [GUI-verified]; plus structural/semantic checks:
 network-in-package(), unchecksummed-remote-source, and .SRCINFO↔PKGBUILD source-host divergence [wired
 through get_pkgbuild] — whole-file, lower-FP than regex; plus the rule-provenance side map and CI
@@ -107,6 +109,22 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **PKGBUILD audit: external rules-pack loader — maintenance step (d), step 1 (2026-06-17).** An
+  optional local JSON file (`$CONFIG/arch/audit_rules.json`) can add *regex* rules without an app
+  release. **Strictly additive + fail-closed:** a pack never edits/removes a bundled rule, can't shadow
+  a bundled id, and any problem (missing file, bad JSON, invalid rule) degrades to *fewer* external
+  rules — never a broken scan; a pack also can't disable/suppress a bundled rule. `load_rule_pack(obj)`
+  (pure validator → `(rules, meta)`), `register_rule_pack`/`reset_rule_packs`, `load_rule_pack_file`
+  (fails closed). Strict per-rule validation: id charset/length + no bundled-collision, `severity ∈
+  {warn,info}`, pattern compiles + length-capped, `flags ⊆ {i,m,s}`, `kind ∈ {evergreen,campaign}`.
+  `scan()` runs external rules in the same comment-skipping, try/except-guarded loop; `all_rule_ids()`,
+  `rule_metadata()`, and `audit-scan`'s universe all include pack rules (so the viewer's rule-id chip +
+  kind tooltip surface them for free). `AtlasApi` loads the file once at init (best-effort; no file =
+  no change). Only **regex** rules — structural/function checks stay in code. Tests:
+  `ExternalRulePackTest` (9). Suite **673**. **Steps 2–3 gated on sign-off:** signing (bundle a
+  pubkey, verify-or-ignore) + `atlas-files` remote distribution + ReDoS-hardening for untrusted
+  patterns — a remote rule feed is a supply-chain surface. Plan:
+  [plans/2026-06-17-audit-rules-pack.md](plans/2026-06-17-audit-rules-pack.md).
 - **PKGBUILD audit: corpus re-scan CLI — maintenance step (c) (2026-06-17).** `atlas-cli audit-scan
   [-n N] [--fp-threshold F] [-f text|json]` samples N random live AUR PKGBUILDs, scans each, and
   reports per-rule fire rates plus two buckets: **FP drift** (rules firing on ≥F of the sample → review

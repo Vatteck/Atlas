@@ -12,6 +12,9 @@ URL_CATEGORIES_FILE = f'https://raw.githubusercontent.com/Vatteck/{__app_name__}
 URL_GPG_SERVERS = f'https://raw.githubusercontent.com/Vatteck/{__app_name__}-files/main/arch/gpgservers.txt'
 ARCH_CONFIG_DIR = f'{CONFIG_DIR}/arch'
 CUSTOM_MAKEPKG_FILE = f'{ARCH_CONFIG_DIR}/makepkg.conf'
+# Optional local rules-pack of extra PKGBUILD-audit regex rules (advisory). See
+# docs/plans/2026-06-17-audit-rules-pack.md — loaded fail-closed; absent file = no change.
+AUDIT_RULES_FILE = f'{ARCH_CONFIG_DIR}/audit_rules.json'
 AUR_INDEX_FILE = f'{ARCH_CACHE_DIR}/aur/index.txt'
 AUR_INDEX_TS_FILE = f'{ARCH_CACHE_DIR}/aur/index.ts'
 CONFIG_FILE = f'{CONFIG_DIR}/arch.yml'

@@ -147,6 +147,16 @@ class AtlasApi:
         self._confirm_selections = None  # per-component selections from the modal
         self._message_event = threading.Event()
 
+        # Optional local rules-pack of extra PKGBUILD-audit regex rules (advisory). Best-effort and
+        # fail-closed: a missing/invalid file changes nothing. See
+        # docs/plans/2026-06-17-audit-rules-pack.md.
+        try:
+            from atlas.gems.arch import AUDIT_RULES_FILE
+            from atlas.gems.arch import pkgbuild_audit
+            pkgbuild_audit.load_rule_pack_file(AUDIT_RULES_FILE, self.logger)
+        except Exception as e:
+            self.logger.debug(f"Could not load audit rules-pack: {e}")
+
         # Prepare the managers in a background thread to prevent GUI lockup using ThreadPoolExecutor
         self._executor = ThreadPoolExecutor(max_workers=5)
         self._prepare_future = self._executor.submit(self._prepare_manager)

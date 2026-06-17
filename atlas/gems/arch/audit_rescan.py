@@ -13,9 +13,10 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from atlas.gems.arch import pkgbuild_audit as audit
 
-# The divergence rule needs a .SRCINFO (cross-file); this tool scans PKGBUILDs only, so it can never
-# fire here. Exclude it from the universe so it isn't mis-reported as a "never fired / stale" rule.
-_SINGLE_FILE_RULES = sorted(audit.all_rule_ids() - {audit.SRCINFO_DIVERGENCE_RULE})
+def _single_file_rules():
+    """Rules that a PKGBUILD-only scan can emit — every rule id minus the cross-file divergence rule
+    (which needs a .SRCINFO). Computed per call so a rules-pack registered after import is included."""
+    return sorted(audit.all_rule_ids() - {audit.SRCINFO_DIVERGENCE_RULE})
 
 
 def aggregate_fire_counts(samples: Iterable[Tuple[str, Optional[str]]]) -> Tuple[Dict[str, int], int]:
@@ -39,7 +40,7 @@ def build_report(counts: Dict[str, int], total: int, fp_threshold: float = 0.5) 
     """Per-rule fire rates + two flagged buckets. Rule universe is every single-file rule (so a rule
     that matched nothing still appears with count 0). `pct` is 0 when nothing was scanned."""
     per_rule: List[Dict] = []
-    for rule in _SINGLE_FILE_RULES:
+    for rule in _single_file_rules():
         count = counts.get(rule, 0)
         pct = (count / total) if total else 0.0
         per_rule.append({'rule': rule, 'count': count, 'pct': pct,

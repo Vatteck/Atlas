@@ -249,7 +249,7 @@ def rule_metadata(rule_id: str) -> Dict:
     """Provenance for a rule id: {kind, added, source}. Rules with no recorded origin default to
     the pre-metadata baseline — evergreen, no known date/source — so every rule has metadata even
     though only the documented additions carry an `added`/`source`."""
-    meta = _RULE_META.get(rule_id)
+    meta = _RULE_META.get(rule_id) or _EXTERNAL_META.get(rule_id)
     if meta is None:
         return {'kind': EVERGREEN, 'added': None, 'source': None}
     return {'kind': meta['kind'], 'added': meta.get('added'), 'source': meta.get('source')}
@@ -484,11 +484,132 @@ def scan_divergence(pkgbuild_text: str, srcinfo_text: str) -> List[Dict]:
 
 
 def all_rule_ids() -> set:
-    """Every rule id the scanner can emit — per-line, structural, and the cross-file divergence rule.
-    Single source of truth for the metadata guard tests."""
+    """Every rule id the scanner can emit — per-line, structural, the cross-file divergence rule, and
+    any registered external pack rules. Single source of truth for the metadata guard tests."""
+    return ({rule_id for rule_id, *_ in _RULES}
+            | {rule_id for rule_id, *_ in _STRUCTURAL}
+            | {SRCINFO_DIVERGENCE_RULE}
+            | {rule_id for rule_id, *_ in _EXTERNAL_RULES})
+
+
+# --- External rules-pack (local, validated, fail-closed) ----------------------------------------
+# An optional local JSON file can add *regex* rules without an app release. Strictly additive: a pack
+# never edits/removes a bundled rule, and any problem degrades to fewer external rules (never a broken
+# scan). Local-only/no-signing in this step; a remote pack would require signature verification.
+# See docs/plans/2026-06-17-audit-rules-pack.md.
+_EXTERNAL_RULES: List = []          # list of (rule_id, severity, why, matcher)
+_EXTERNAL_META: Dict[str, Dict] = {}  # rule_id -> {kind, added, source}
+
+_RULE_ID_RE = re.compile(r'^[a-z][a-z0-9_]*$')
+_FLAG_MAP = {'i': re.IGNORECASE, 'm': re.MULTILINE, 's': re.DOTALL}
+_MAX_PATTERN_LEN = 2000
+_MAX_WHY_LEN = 500
+
+
+def _bundled_rule_ids() -> set:
+    """Rule ids defined in code (bundled) — a pack rule may not shadow any of these."""
     return ({rule_id for rule_id, *_ in _RULES}
             | {rule_id for rule_id, *_ in _STRUCTURAL}
             | {SRCINFO_DIVERGENCE_RULE})
+
+
+def _validate_rule(raw, bundled: set, seen: set):
+    """Validate one pack rule dict → (rule_tuple, meta) or None if it fails any check. Never raises."""
+    try:
+        if not isinstance(raw, dict):
+            return None
+        rid = raw.get('id')
+        if not isinstance(rid, str) or not _RULE_ID_RE.match(rid) or len(rid) > 64:
+            return None
+        if rid in bundled or rid in seen:  # no shadowing a bundled rule, no in-pack dupes
+            return None
+        severity = raw.get('severity')
+        if severity not in (WARN, INFO):
+            return None
+        why = raw.get('why')
+        if not isinstance(why, str) or not why.strip() or len(why) > _MAX_WHY_LEN:
+            return None
+        pattern = raw.get('pattern')
+        if not isinstance(pattern, str) or not pattern or len(pattern) > _MAX_PATTERN_LEN:
+            return None
+        flags = 0
+        raw_flags = raw.get('flags', [])
+        if not isinstance(raw_flags, list):
+            return None
+        for fl in raw_flags:
+            if fl not in _FLAG_MAP:
+                return None
+            flags |= _FLAG_MAP[fl]
+        matcher = re.compile(pattern, flags).search  # may raise re.error → caught below
+        kind = raw.get('kind', EVERGREEN)
+        if kind not in (EVERGREEN, CAMPAIGN):
+            return None
+        added = raw.get('added')
+        source = raw.get('source')
+        if added is not None and (not isinstance(added, str) or len(added) > 32):
+            return None
+        if source is not None and (not isinstance(source, str) or len(source) > 200):
+            return None
+        meta = {'kind': kind, 'added': added, 'source': source}
+        return (rid, severity, why, matcher), meta
+    except (re.error, TypeError, ValueError):
+        return None
+
+
+def load_rule_pack(obj) -> tuple:
+    """Validate a parsed rules-pack object → (rules, meta). Pure; never raises. A bad top-level shape
+    yields ([], {}); individual invalid rules are skipped (the valid ones still load)."""
+    if not isinstance(obj, dict):
+        return [], {}
+    raw_rules = obj.get('rules')
+    if not isinstance(raw_rules, list):
+        return [], {}
+    bundled = _bundled_rule_ids()
+    seen: set = set()
+    rules: List = []
+    meta: Dict[str, Dict] = {}
+    for raw in raw_rules:
+        result = _validate_rule(raw, bundled, seen)
+        if result is None:
+            continue
+        rule_tuple, rule_meta = result
+        seen.add(rule_tuple[0])
+        rules.append(rule_tuple)
+        meta[rule_tuple[0]] = rule_meta
+    return rules, meta
+
+
+def register_rule_pack(obj) -> int:
+    """Validate and register a pack's rules (additive). Returns the number of rules loaded."""
+    rules, meta = load_rule_pack(obj)
+    _EXTERNAL_RULES.extend(rules)
+    _EXTERNAL_META.update(meta)
+    return len(rules)
+
+
+def reset_rule_packs() -> None:
+    """Clear all registered external rules (back to the bundled-only set)."""
+    _EXTERNAL_RULES.clear()
+    _EXTERNAL_META.clear()
+
+
+def load_rule_pack_file(path: str, logger=None) -> int:
+    """Read, parse and register a local rules-pack JSON file. Fails closed: any error (missing file,
+    bad JSON, …) registers nothing and returns 0. Never raises into the caller."""
+    import json
+    try:
+        with open(path, encoding='utf-8') as fh:
+            obj = json.load(fh)
+    except FileNotFoundError:
+        return 0
+    except Exception as e:
+        if logger is not None:
+            logger.warning(f"Ignoring audit rules-pack at {path}: {e}")
+        return 0
+    count = register_rule_pack(obj)
+    if logger is not None and count:
+        logger.info(f"Loaded {count} external PKGBUILD-audit rule(s) from {path}")
+    return count
 
 
 def scan(text: str) -> List[Dict]:
@@ -514,6 +635,15 @@ def scan(text: str) -> List[Dict]:
                                      'meta': rule_metadata(rule_id)})
             except Exception:
                 continue  # a bad rule must never break the scan
+
+        for rule_id, severity, why, matcher in _EXTERNAL_RULES:
+            try:
+                if matcher(raw):
+                    findings.append({'line_no': idx, 'line': stripped,
+                                     'rule': rule_id, 'severity': severity, 'why': why,
+                                     'meta': rule_metadata(rule_id)})
+            except Exception:
+                continue  # an external rule must never break the scan
 
     for rule_id, severity, why, analyzer in _STRUCTURAL:
         try:

