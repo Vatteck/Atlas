@@ -131,7 +131,8 @@ re-add a native extension without a measured win. Details in the historical
   through the existing `linkifyComment`/`safeExternalUrl` path. Tests: extended
   `testBuildAurCommentsHTML` (avatar + initial) + new `formatCommentBodyHTML` cases (prompt→code,
   continuations, prose-around-block, URLs-in-code-not-anchored, plain prose). Suite **690** + JS **55**.
-  **Needs a GUI eyeball.**
+  **GUI-verified 2026-06-17** (google-chrome thread: comments render as avatar cards and the
+  `curl | grep | awk` block shows as a monospace code box).
 - **AUR comments moved from Details → Overview tab (2026-06-17).** Reverses part of the 2026-06-16
   detail-pane-tabs decision on a GUI eyeball: Overview was too sparse (banner + badges + one-line
   description) while Details carried the table, installed-files, *and* comments. Moved the
@@ -139,7 +140,7 @@ re-add a native extension without a measured win. Details in the historical
   toggled by `id` and the tab-visibility logic only inspects the deps/history panels, so the relocation
   is safe — no JS logic change (just a stale code-comment touch-up). Comments still start **expanded**
   each open; flagged for review since a heavily-commented AUR pkg will lengthen Overview. Suite **690**.
-  **Needs a GUI eyeball.**
+  **GUI-verified 2026-06-17** (comments now sit at the bottom of Overview; location looks good).
 - **Fix: blank detail body after collapsing comments then switching tabs (2026-06-17).** From a GUI
   bug report (google-chrome AUR): collapse the AUR-comments block on the Details tab, switch back to
   Overview → the whole modal body (including the sticky tab bar) went blank. Root cause was **stranded
