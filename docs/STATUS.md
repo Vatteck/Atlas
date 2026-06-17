@@ -33,9 +33,9 @@ fixed (was computed from an unpopulated pkg object) + made legible with a clicka
 votes/popularity badges (from GUI eyeballs); competitive-research Theme 4 (AUR request throttle) shipped,
 Theme 3 (auth-readiness) dropped as N/A to Atlas's root model — see Done log)
 **Version:** 0.12.0 (the polish-and-trust release; 0.11.0 was the first cohesive Atlas release)
-**Working branch:** `master` in this checkout (all 2026-06-17 audit work landed + pushed to
-`origin/master`); app work normally lands on `master` (run `git branch` before acting — branch names
-in docs go stale)
+**Working branch:** `master` in this checkout (all 2026-06-17 work — audit track, "why installed",
+`utcnow()` cleanup, CI 3.14 — landed + pushed to `origin/master`; CI green across Python 3.10–3.14);
+app work normally lands on `master` (run `git branch` before acting — branch names in docs go stale)
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)** — the longer-horizon menu we pull
 > from. This file stays the live baton (in-progress / just-shipped).
@@ -96,8 +96,9 @@ Run these on a real WebKitGTK/pywebview desktop; this environment may not have a
 See BACKLOG's **Non-goals** for what we've decided *against* (AI recs, YaST-style control center,
 auto-`.pacnew`-merge, Rust/Qt, fake AUR categories).
 
-> **Handoff note (next agent):** this checkout is on branch `work`; confirm the target branch before
-> committing or pushing. Release **0.12.0** is tagged and published; `linux_dist/arch/publish-aur.sh`
+> **Handoff note (next agent):** this checkout is on branch `master` (all work pushed to
+> `origin/master`); still run `git branch` before committing/pushing rather than trusting this line.
+> Release **0.12.0** is tagged and published; `linux_dist/arch/publish-aur.sh`
 > was run during the release to sync `atlas-pm-git`. The published `atlas-pm-git` PKGBUILD is
 > byte-identical to ours (it's a `-git` pkg, so only PKGBUILD/.SRCINFO *content* changes need a
 > re-publish — `pkgver` is computed at build time). Re-run the script whenever the PKGBUILD changes.
@@ -133,7 +134,7 @@ re-add a native extension without a measured win. Details in the historical
   (only an external GLib/PyGObject one remains). No GUI surface. Also **added `3.14` to the CI matrix**
   (`.github/workflows/ci.yml`) — Arch now ships Python **3.14** as the system interpreter, so it's what
   Atlas users actually run; CI previously stopped at 3.13, which is why this deprecation was invisible
-  there.
+  there. Pushed to `origin/master`; **CI green across all five legs (3.10–3.14)**.
 - **"Why is this installed?" — dependency attribution (2026-06-17).** Finished the BACKLOG item: a
   pulled-in dependency now names the **explicit package(s)** that dragged it in ("Installed as a
   dependency of **gimp**." instead of the generic "…of other packages."). Backend
