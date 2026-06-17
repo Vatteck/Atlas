@@ -7,7 +7,8 @@
 
 **Last updated:** 2026-06-16 (History/Activity PR review follow-up: stale detail history reset;
 History/Activity completion shipped; planning-doc reconciliation + GUI verification queue captured;
-AUR reputation scoring + diff security annotation + batch update risk tiers shipped — see Done log)
+AUR reputation scoring + diff security annotation + batch update risk tiers shipped; reconciled the
+stashed mirror regen options — country/protocol/sort in Settings → Mirrors — see Done log)
 **Version:** 0.12.0 (the polish-and-trust release; 0.11.0 was the first cohesive Atlas release)
 **Working branch:** `work` in this checkout; app work normally lands on `master` (run `git branch`
 before acting — branch names in docs go stale)
@@ -38,9 +39,7 @@ feature list. Highest-value next moves, in order:
 2. **"Why is this installed?"** — detail-page power-user sugar for explicit-vs-dependency reason,
    required-by/reverse-dep list, and orphan status. Start with a `docs/plans/` note before backend
    work.
-3. **Mirror regenerate options** — country/protocol options in Settings → Mirrors, kept within the
-   package-maintenance boundary.
-4. **Launch-time baseline** — manually measure time-to-window and time-to-first-view before any
+3. **Launch-time baseline** — manually measure time-to-window and time-to-first-view before any
    further startup/concurrency changes.
 
 ### GUI verification queue
@@ -117,6 +116,30 @@ re-add a native extension without a measured win. Details in the historical
   `tests/gems/arch/test_aur_risk.py` (6), `pkgbuild_audit` diff-annotation cases,
   `testBuildUpdateAllPreviewData` tier cases. Plan:
   [plans/2026-06-16-aur-reputation-and-risk-tiers.md](plans/2026-06-16-aur-reputation-and-risk-tiers.md).
+- **Mirror regenerate options — country / protocol / sort (2026-06-07).** Settings → Mirrors no longer
+  regenerates `/etc/pacman.d/mirrorlist` with a fixed reflector command — the user can now pick a
+  **country**, one or more **protocols** (https/http/rsync), and a **sort** order, with the previewed
+  command updating live (nothing hidden). **Reflector-only** (rate-mirrors doesn't take the same flags
+  → keeps its fixed command and shows no controls). Backend: a curated static `_MIRROR_COUNTRIES` list
+  (~43 ISO codes, no network), `_sanitize_mirror_options` (whitelists country/protocols/sort, clamps
+  `latest` to [5,50] — these flow into a *root* argv so nothing outside the known sets is accepted),
+  `_mirror_regen_cmd(options)`, a cheap `preview_mirror_command(options)` (no file read, for the live
+  preview), and `get_mirror_status(options)` / `regenerate_mirrorlist(options)` threading options
+  through; `get_mirror_status` exposes `countries`/`protocols`/`sorts`/`options` only when reflector is
+  the tool. Frontend: pure `buildMirrorOptionsHTML(mirror)` (country/sort selects + protocol
+  checkboxes; `''` for rate-mirrors), `readMirrorOptionsFromDOM`, options persisted to localStorage
+  (`atlas_mirror_opts`) + seeded into the initial status call; change handlers recompute the previewed
+  `<code>` via `preview_mirror_command`, and regen/copy use the live selection. Tests:
+  `test_api.py::ArchSafetyNetTest` mirror-options block (+11: sanitize defaults/whitelist/clamp/keep,
+  argv reflects options, status exposes/omits per tool, preview builds + fails open, regen passes
+  flags) + `main_js_contracts::testBuildMirrorOptionsHTML`. Suite **570** + JS **46**;
+  `git diff --check` clean. **Needs a GUI eyeball** (Settings → Mirrors: pick a country/sort/protocol →
+  command preview updates live; Regenerate uses it; rate-mirrors-only systems show the plain button).
+  Plan: [plans/2026-06-07-mirror-regen-options.md](plans/2026-06-07-mirror-regen-options.md).
+- **GUI eyeballs confirmed (2026-06-07).** The two pending verifications from the 0.12.0 deferred-tail
+  both look good: Permissions-page icons (open straight from the dashboard → real icons, not letter
+  avatars) and the deferred-tail (Flatpak override copy command + Activity Export/Clear). Marked
+  GUI-verified in their Done entries.
 - **Release 0.12.0 — the polish-and-trust release (2026-06-06).** Bumped `__version__`
   0.11.0 → **0.12.0** (`atlas/__init__.py`, README status line, PKGBUILD `pkgver`), wrote a themed
   `CHANGELOG.md` 0.12.0 section (everything since the `v0.11.0` tag — Attention Center, command
@@ -141,7 +164,7 @@ re-add a native extension without a measured win. Details in the historical
   Fix: extracted observer creation into `ensureIconObserver()` (idempotent, on `window`), called by both
   `deferredIconLoad` and the perms list; the perms list now also sets `data-pkgicon` as a backend
   fallback for apps with no embedded/remote icon. Test:
-  `main_js_contracts::testPermsListEnsuresIconObserver`. JS **45**. **GUI eyeball pending** (open
+  `main_js_contracts::testPermsListEnsuresIconObserver`. JS **45**. **GUI-verified 2026-06-07** (open
   Permissions straight from the dashboard → real icons, not letters).
 - **Deferred-tail: flatpak-override copy + History log clear/export (2026-06-06).** Cleared the two
   explicitly-deferred small items. **(1) `flatpak override` copy completes "Copy exact command"** —
@@ -159,7 +182,7 @@ re-add a native extension without a measured win. Details in the historical
   Atlas's feed only, never `/var/log/pacman.log`). Tests: `test_permissions.py::test_override_command`,
   `test_api.py::FlatpakOverrideCommandTest` (5) + `ActivityLogTest` (4), `test_activity_log.py` (4),
   `main_js_contracts::testPermissionUpdatedToastSurfacesCopyableCommand`. Suite **559** + JS **44**;
-  `git diff --check` clean. **Needs a GUI eyeball** (toggle a Flatpak permission → copyable override
+  `git diff --check` clean. **GUI-verified 2026-06-07** (toggle a Flatpak permission → copyable override
   command; Activity → Export writes the file; Clear → re-click confirms → list empties). Plans:
   [plans/2026-06-05-copy-exact-command.md](plans/2026-06-05-copy-exact-command.md) (inc. 3),
   [plans/2026-06-05-history-rollback-center.md](plans/2026-06-05-history-rollback-center.md) (inc. 3).

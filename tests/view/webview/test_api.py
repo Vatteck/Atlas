@@ -1458,6 +1458,94 @@ class ArchSafetyNetTest(unittest.TestCase):
         self.assertEqual('error', res['status'])
         self.assertIn('no mirrors', res['message'])
 
+    # --- mirror regen options (country / protocol / sort, reflector only) --- #
+    def _reflector(self):
+        """Patch shutil.which so reflector is the active tool."""
+        return patch('atlas.view.webview.api.shutil.which',
+                     side_effect=lambda b: '/usr/bin/reflector' if b == 'reflector' else None)
+
+    def test_sanitize_mirror_options_defaults(self):
+        o = self.api._sanitize_mirror_options(None)
+        self.assertEqual({'country': '', 'protocols': ['https'], 'sort': 'rate', 'latest': 20}, o)
+
+    def test_sanitize_mirror_options_whitelists(self):
+        o = self.api._sanitize_mirror_options(
+            {'country': 'XX', 'protocols': ['ftp', 'rsync', 'https'], 'sort': 'evil', 'latest': 999})
+        self.assertEqual('', o['country'])                     # unknown code dropped
+        self.assertEqual(['https', 'rsync'], o['protocols'])   # whitelist + canonical order, ftp gone
+        self.assertEqual('rate', o['sort'])                    # unknown sort → default
+        self.assertEqual(50, o['latest'])                      # clamped to [5, 50]
+
+    def test_sanitize_mirror_options_keeps_valid(self):
+        o = self.api._sanitize_mirror_options(
+            {'country': 'DE', 'protocols': ['http'], 'sort': 'age', 'latest': 10})
+        self.assertEqual({'country': 'DE', 'protocols': ['http'], 'sort': 'age', 'latest': 10}, o)
+
+    def test_sanitize_mirror_options_empty_protocols_default_https(self):
+        o = self.api._sanitize_mirror_options({'protocols': []})
+        self.assertEqual(['https'], o['protocols'])
+
+    def test_mirror_regen_cmd_reflects_options(self):
+        with self._reflector():
+            cmd = self.api._mirror_regen_cmd(
+                {'country': 'DE', 'protocols': ['https', 'rsync'], 'sort': 'age', 'latest': 15})
+        self.assertEqual('reflector', cmd[0])
+        self.assertIn('--country', cmd)
+        self.assertEqual('DE', cmd[cmd.index('--country') + 1])
+        self.assertEqual('https,rsync', cmd[cmd.index('--protocol') + 1])
+        self.assertEqual('age', cmd[cmd.index('--sort') + 1])
+        self.assertEqual('15', cmd[cmd.index('--latest') + 1])
+        self.assertEqual('/etc/pacman.d/mirrorlist', cmd[-1])
+
+    def test_mirror_regen_cmd_no_country_flag_for_auto(self):
+        with self._reflector():
+            cmd = self.api._mirror_regen_cmd(None)
+        self.assertNotIn('--country', cmd)
+
+    def test_get_mirror_status_exposes_options_for_reflector(self):
+        with self._reflector(), patch('os.path.isfile', return_value=False):
+            data = self.api.get_mirror_status({'country': 'FR'})['data']
+        self.assertEqual('reflector', data['tool'])
+        self.assertEqual('FR', data['options']['country'])
+        self.assertTrue(any(c['code'] == 'FR' for c in data['countries']))
+        self.assertIn('rate', data['sorts'])
+        self.assertIn('https', data['protocols'])
+
+    def test_get_mirror_status_omits_options_for_rate_mirrors(self):
+        with patch('atlas.view.webview.api.shutil.which',
+                   side_effect=lambda b: '/usr/bin/rate-mirrors' if b == 'rate-mirrors' else None), \
+             patch('os.path.isfile', return_value=False):
+            data = self.api.get_mirror_status({'country': 'FR'})['data']
+        self.assertEqual('rate-mirrors', data['tool'])
+        self.assertNotIn('options', data)
+        self.assertNotIn('countries', data)
+
+    def test_preview_mirror_command_builds_for_options(self):
+        with self._reflector():
+            res = self.api.preview_mirror_command({'country': 'JP', 'sort': 'score'})
+        self.assertEqual('ok', res['status'])
+        self.assertIn('--country JP', res['command'])
+        self.assertIn('--sort score', res['command'])
+
+    def test_preview_mirror_command_none_without_tool(self):
+        with patch('atlas.view.webview.api.shutil.which', return_value=None):
+            res = self.api.preview_mirror_command(None)
+        self.assertEqual('ok', res['status'])
+        self.assertIsNone(res['command'])
+
+    def test_regen_mirrorlist_passes_options_into_argv(self):
+        with self._reflector(), \
+             patch.object(self.api, 'ensure_root_password', return_value='pw'), \
+             patch('atlas.view.webview.api.new_root_subprocess') as mock_proc, \
+             patch.object(self.api, '_notify'):
+            mock_proc.return_value.communicate.return_value = (b'', b'')
+            mock_proc.return_value.returncode = 0
+            res = self.api.regenerate_mirrorlist({'country': 'SE', 'protocols': ['https', 'http']})
+        self.assertEqual('ok', res['status'])
+        argv = mock_proc.call_args[0][0]
+        self.assertEqual('SE', argv[argv.index('--country') + 1])
+        self.assertEqual('https,http', argv[argv.index('--protocol') + 1])
+
 
 class RichDetailTest(unittest.TestCase):
     """Detail-modal extras: get_screenshots (Flatpak/AppImage) and get_history."""

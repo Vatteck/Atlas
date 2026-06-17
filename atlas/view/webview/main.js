@@ -4455,12 +4455,62 @@ async function renderCategoryPackages(key, label, opts) {
     }
 }
 
+// Reflector regen controls (Settings → Mirrors). Pure: renders country/sort/protocol pickers from
+// the mirror-status payload. Returns '' for rate-mirrors / no tool (no reflector options to offer).
+function buildMirrorOptionsHTML(mirror) {
+    if (!mirror || !mirror.options) return '';
+    const o = mirror.options;
+    const countryOpts = ['<option value="">Auto (all countries)</option>']
+        .concat((mirror.countries || []).map(c =>
+            `<option value="${escapeHtml(c.code)}"${c.code === o.country ? ' selected' : ''}>${escapeHtml(c.name)}</option>`))
+        .join('');
+    const sortOpts = (mirror.sorts || []).map(s =>
+        `<option value="${escapeHtml(s)}"${s === o.sort ? ' selected' : ''}>${escapeHtml(s)}</option>`).join('');
+    const protoBoxes = (mirror.protocols || []).map(p =>
+        `<label class="mirror-proto"><input type="checkbox" data-mirror-proto="${escapeHtml(p)}"${(o.protocols || []).includes(p) ? ' checked' : ''}> ${escapeHtml(p)}</label>`).join('');
+    return `
+        <div class="mirror-options">
+            <label class="mirror-opt">Country
+                <select id="mirror-country" class="styled-select">${countryOpts}</select>
+            </label>
+            <label class="mirror-opt">Sort by
+                <select id="mirror-sort" class="styled-select">${sortOpts}</select>
+            </label>
+            <div class="mirror-opt">Protocols
+                <div class="mirror-protos">${protoBoxes}</div>
+            </div>
+        </div>`;
+}
+
+// Gather the current reflector option selection from the rendered controls.
+function readMirrorOptionsFromDOM() {
+    const countryEl = document.getElementById('mirror-country');
+    const sortEl = document.getElementById('mirror-sort');
+    const protocols = Array.from(document.querySelectorAll('[data-mirror-proto]'))
+        .filter(el => el.checked).map(el => el.getAttribute('data-mirror-proto'));
+    return {
+        country: countryEl ? countryEl.value : '',
+        sort: sortEl ? sortEl.value : 'rate',
+        protocols,
+        latest: 20,
+    };
+}
+
+function getSavedMirrorOptions() {
+    try { return JSON.parse(localStorage.getItem('atlas_mirror_opts')) || null; }
+    catch (e) { return null; }
+}
+function setSavedMirrorOptions(opts) {
+    try { localStorage.setItem('atlas_mirror_opts', JSON.stringify(opts)); } catch (e) { /* ignore */ }
+}
+
 // Regenerate /etc/pacman.d/mirrorlist (reflector/rate-mirrors via the root broker). Shared by the
-// .pacnew mirrorlist caution and the Settings → Mirrors button.
-async function regenerateMirrors(btnEl) {
+// .pacnew mirrorlist caution and the Settings → Mirrors button. `options` (reflector only) chooses
+// country/protocols/sort; omitted callers keep the default command.
+async function regenerateMirrors(btnEl, options) {
     if (btnEl) btnEl.classList.add('loading');
     showToast('Mirrors', 'Regenerating the mirror list — this can take up to a minute…', 'info');
-    const r = await pyApiCall('regenerate_mirrorlist');  // null on error (toast already shown)
+    const r = await pyApiCall('regenerate_mirrorlist', options);  // null on error (toast already shown)
     if (btnEl) btnEl.classList.remove('loading');
     if (r && r.status === 'ok') {
         showToast('Mirrors', `Mirror list regenerated via ${r.tool || 'reflector'} — run a sync to refresh`, 'success');
@@ -4800,7 +4850,8 @@ async function renderSettings() {
                 : 'Install the <code>devtools</code> package to enable this (provides <code>makechrootpkg</code>).'}</p>
         </section>` : '';
 
-    const mirror = arch.available ? (await pyApiCall('get_mirror_status') || {}) : {};
+    const savedMirrorOpts = getSavedMirrorOptions();
+    const mirror = arch.available ? (await pyApiCall('get_mirror_status', savedMirrorOpts) || {}) : {};
     if (epoch !== navEpoch) return;  // user navigated away during the mirror fetch
     const mirrorWhen = mirror.last_modified_iso ? new Date(mirror.last_modified_iso).toLocaleString() : null;
     const mirrorSummary = (mirror.count)
@@ -4809,12 +4860,14 @@ async function renderSettings() {
                ${(mirror.servers && mirror.servers.length) ? `<div class="mirror-hosts">${mirror.servers.map(h => `<span class="attn-chip">${escapeHtml(h)}</span>`).join('')}</div>` : ''}
            </div>`
         : '';
-    const mirrorCmd = mirror.command ? `<p class="settings-help">Runs: <code>${escapeHtml(mirror.command)}</code></p>` : '';
+    const mirrorCmd = mirror.command
+        ? `<p class="settings-help">Runs: <code id="mirror-cmd-preview">${escapeHtml(mirror.command)}</code></p>` : '';
     const mirrorsSection = arch.available ? `
         <section class="settings-section">
             <h3>Mirrors</h3>
             ${mirrorSummary}
             <p class="settings-help">Rebuild <code>/etc/pacman.d/mirrorlist</code> with the fastest mirrors${arch.mirror_tool ? ` (via <code>${escapeHtml(arch.mirror_tool)}</code>)` : ''}. Takes up to a minute. ${arch.mirror_tool ? '' : '<strong>Install <code>reflector</code> to enable this.</strong>'}</p>
+            ${buildMirrorOptionsHTML(mirror)}
             ${mirrorCmd}
             <div class="settings-actions">
                 <button id="settings-regen-mirrors-btn" class="btn btn-outline" ${arch.mirror_tool ? '' : 'disabled'}>Regenerate mirror list</button>
@@ -4853,20 +4906,43 @@ async function renderSettings() {
     document.getElementById('settings-save-btn').addEventListener('click', saveSettings);
     document.getElementById('settings-export-btn').addEventListener('click', exportPackages);
     document.getElementById('settings-import-btn').addEventListener('click', importPackages);
+    // Track the live command (changes as the user edits the reflector options) for the copy button.
+    let currentMirrorCommand = mirror.command || null;
+    const mirrorCmdPreviewEl = document.getElementById('mirror-cmd-preview');
+    // When a reflector option changes: persist the selection, recompute the previewed command.
+    const onMirrorOptionChange = async () => {
+        const opts = readMirrorOptionsFromDOM();
+        setSavedMirrorOptions(opts);
+        const r = await pyApiCall('preview_mirror_command', opts);
+        if (r && r.command) {
+            currentMirrorCommand = r.command;
+            if (mirrorCmdPreviewEl) mirrorCmdPreviewEl.textContent = r.command;
+        }
+    };
+    if (mirror.options) {
+        ['mirror-country', 'mirror-sort'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('change', onMirrorOptionChange);
+        });
+        document.querySelectorAll('[data-mirror-proto]').forEach(el =>
+            el.addEventListener('change', onMirrorOptionChange));
+    }
     const regenMirrorsBtn = document.getElementById('settings-regen-mirrors-btn');
     if (regenMirrorsBtn) regenMirrorsBtn.addEventListener('click', async () => {
-        await regenerateMirrors(regenMirrorsBtn);
+        await regenerateMirrors(regenMirrorsBtn, mirror.options ? readMirrorOptionsFromDOM() : undefined);
         if (currentView === 'settings') renderSettings();  // refresh the mirror summary
     });
     const copyMirrorCmdBtn = document.getElementById('settings-copy-mirror-cmd-btn');
-    if (copyMirrorCmdBtn && mirror.command) copyMirrorCmdBtn.addEventListener('click', () => {
+    if (copyMirrorCmdBtn) copyMirrorCmdBtn.addEventListener('click', () => {
+        const cmd = currentMirrorCommand;
+        if (!cmd) return;
         const done = () => {
             copyMirrorCmdBtn.textContent = '✓ Copied';
             setTimeout(() => { copyMirrorCmdBtn.textContent = '⧉ Copy command'; }, 1500);
-            showToast('Copied command', mirror.command, 'success');
+            showToast('Copied command', cmd, 'success');
         };
         if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(mirror.command).then(done).catch(() => {});
+            navigator.clipboard.writeText(cmd).then(done).catch(() => {});
         } else { done(); }
     });
     // Density is a localStorage display pref — apply it instantly (no Save needed).
@@ -5748,6 +5824,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         whySourceHint,
         buildCategoryCardHTML,
         buildResumeBrowseHTML,
+        buildMirrorOptionsHTML,
         buildDependencySummaryHTML,
         buildDepNodesHTML,
         buildPackageActivityHTML,

@@ -93,7 +93,9 @@ shipped (see Shipped / CHANGELOG / STATUS). What remains, roughly highest-value 
   [plans/2026-06-04-pacnew-center-mirror-polish.md](plans/2026-06-04-pacnew-center-mirror-polish.md).
 - ~~**Mirror manager polish.**~~ ✅ **shipped 2026-06-04** — Settings → Mirrors shows active-mirror
   summary (count + top hosts + last-modified) + command preview; refreshes after regen (same plan).
-  *Possible follow-ups:* country/protocol regenerate options.
+  ~~*Follow-up:* country/protocol regenerate options~~ ✅ **shipped 2026-06-07** (needs a GUI eyeball):
+  reflector country/protocol(s)/sort pickers with a live command preview, persisted; rate-mirrors keeps
+  its fixed command. See [plans/2026-06-07-mirror-regen-options.md](plans/2026-06-07-mirror-regen-options.md).
 
 ### GUI polish (low backend, high perceived quality)
 - ~~**Command palette** (`Ctrl+K`/`Ctrl+P`)~~ ✅ **shipped + GUI-verified 2026-06-04** — fuzzy-filtered

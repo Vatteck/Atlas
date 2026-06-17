@@ -1133,6 +1133,35 @@ async function testBrowseLandingBuilders() {
   assert.ok(resume.includes('browse-resume-btn') && resume.includes('Games'), 'resume chip shows the label');
 }
 
+async function testBuildMirrorOptionsHTML() {
+  const { hooks } = loadMainJs({});
+  const { buildMirrorOptionsHTML } = hooks;
+
+  // reflector payload → country select (Auto + list, current selected), sort select, protocol boxes
+  const mirror = {
+    options: { country: 'DE', protocols: ['https', 'rsync'], sort: 'age', latest: 20 },
+    countries: [{ code: 'US', name: 'United States' }, { code: 'DE', name: 'Germany' }],
+    protocols: ['https', 'http', 'rsync'],
+    sorts: ['rate', 'age', 'score'],
+  };
+  const html = buildMirrorOptionsHTML(mirror);
+  assert.ok(html.includes('id="mirror-country"'), 'country select rendered');
+  assert.ok(html.includes('Auto (all countries)'), 'Auto option present');
+  assert.ok(html.includes('value="DE" selected'), 'current country selected');
+  assert.ok(html.includes('id="mirror-sort"'), 'sort select rendered');
+  assert.ok(html.includes('value="age" selected'), 'current sort selected');
+  // protocol checkboxes: current ones checked, others not
+  assert.ok(html.includes('data-mirror-proto="https"') && html.includes('data-mirror-proto="rsync"'), 'protocol boxes rendered');
+  const httpBox = html.match(/data-mirror-proto="http"[^>]*/)[0];
+  assert.ok(!httpBox.includes('checked'), 'unselected protocol not checked');
+  const httpsBox = html.match(/data-mirror-proto="https"[^>]*/)[0];
+  assert.ok(httpsBox.includes('checked'), 'selected protocol checked');
+
+  // rate-mirrors / no tool: no options → empty string (plain button kept)
+  assert.strictEqual(buildMirrorOptionsHTML({ command: 'rate-mirrors ...' }), '', 'no options → empty');
+  assert.strictEqual(buildMirrorOptionsHTML(null), '', 'null mirror → empty');
+}
+
 async function testPkgbuildViewerBuilders() {
   const { hooks } = loadMainJs({});
   const { highlightBashLine, buildPkgbuildRiskHTML, buildPkgbuildMetaHTML,
@@ -1426,6 +1455,7 @@ function testPermsListEnsuresIconObserver() {
     testPackageActivitySectionClearsForNonInstalledPackages,
     testBuildPackageActivityHTML,
     testBrowseLandingBuilders,
+    testBuildMirrorOptionsHTML,
     testPkgbuildViewerBuilders,
     testPkgbuildMetaOnlyLinksSafeHttpUrls,
     testSummarizeFailureCategories,

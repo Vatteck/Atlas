@@ -1356,16 +1356,23 @@ class AtlasApi:
             self.logger.error(f"get_pacnew_diff failed: {e}")
             return {'status': 'error', 'message': str(e)}
 
-    def get_mirror_status(self) -> dict:
+    def get_mirror_status(self, options=None) -> dict:
         """Summary of the active pacman mirror list for Settings → Mirrors: number of enabled
         servers, the top few hosts, when the file was last written, the available regen tool, and
-        the exact command that would run. Read-only, best-effort."""
+        the exact command that would run (for the given options). Read-only, best-effort. When the
+        tool is reflector, also returns the option choices (countries/protocols/sorts) + the
+        normalized current selection so the UI can render the regen controls."""
         path = self.MIRRORLIST_PATH
         data = {'count': 0, 'servers': [], 'last_modified_iso': None, 'tool': None, 'command': None}
         try:
-            cmd = self._mirror_regen_cmd()
+            cmd = self._mirror_regen_cmd(options)
             data['tool'] = cmd[0] if cmd else None
             data['command'] = ' '.join(cmd) if cmd else None
+            if data['tool'] == 'reflector':
+                data['countries'] = [{'code': c, 'name': n} for c, n in self._MIRROR_COUNTRIES]
+                data['protocols'] = list(self._MIRROR_PROTOCOLS)
+                data['sorts'] = list(self._MIRROR_SORTS)
+                data['options'] = self._sanitize_mirror_options(options)
         except Exception:
             pass
         try:
@@ -1432,22 +1439,84 @@ class AtlasApi:
             self.logger.error(f"Could not launch pacdiff: {e}")
             return {'status': 'error', 'message': str(e)}
 
-    def _mirror_regen_cmd(self):
+    # Curated ISO-3166 country codes reflector accepts via --country. A static list (no slow
+    # `reflector --list-countries` network call) — the common Arch mirror countries.
+    _MIRROR_COUNTRIES = (
+        ('US', 'United States'), ('GB', 'United Kingdom'), ('DE', 'Germany'), ('FR', 'France'),
+        ('NL', 'Netherlands'), ('SE', 'Sweden'), ('FI', 'Finland'), ('NO', 'Norway'),
+        ('DK', 'Denmark'), ('IT', 'Italy'), ('ES', 'Spain'), ('PT', 'Portugal'),
+        ('CH', 'Switzerland'), ('AT', 'Austria'), ('BE', 'Belgium'), ('IE', 'Ireland'),
+        ('PL', 'Poland'), ('CZ', 'Czechia'), ('SK', 'Slovakia'), ('HU', 'Hungary'),
+        ('RO', 'Romania'), ('BG', 'Bulgaria'), ('GR', 'Greece'), ('RU', 'Russia'),
+        ('UA', 'Ukraine'), ('TR', 'Turkey'), ('CA', 'Canada'), ('BR', 'Brazil'),
+        ('CL', 'Chile'), ('AU', 'Australia'), ('NZ', 'New Zealand'), ('JP', 'Japan'),
+        ('KR', 'South Korea'), ('CN', 'China'), ('TW', 'Taiwan'), ('HK', 'Hong Kong'),
+        ('SG', 'Singapore'), ('IN', 'India'), ('ID', 'Indonesia'), ('ZA', 'South Africa'),
+        ('IL', 'Israel'), ('VN', 'Vietnam'), ('TH', 'Thailand'),
+    )
+    _MIRROR_PROTOCOLS = ('https', 'http', 'rsync')
+    _MIRROR_SORTS = ('rate', 'age', 'score', 'delay', 'country')
+
+    def _sanitize_mirror_options(self, options) -> dict:
+        """Normalize + whitelist user-supplied reflector options. These flow into a *root* argv, so
+        accept nothing outside the known sets. Returns {country, protocols, sort, latest}; the
+        defaults reproduce the historical fixed command (https / latest 20 / sort rate)."""
+        opts = options if isinstance(options, dict) else {}
+        codes = {c for c, _ in self._MIRROR_COUNTRIES}
+        country = opts.get('country') or ''
+        if country not in codes:
+            country = ''
+        raw_protocols = opts.get('protocols') or []
+        if not isinstance(raw_protocols, (list, tuple)):
+            raw_protocols = []
+        protocols = [p for p in self._MIRROR_PROTOCOLS if p in raw_protocols]  # whitelist + dedupe + order
+        if not protocols:
+            protocols = ['https']
+        sort = opts.get('sort')
+        if sort not in self._MIRROR_SORTS:
+            sort = 'rate'
+        try:
+            latest = int(opts.get('latest', 20))
+        except (TypeError, ValueError):
+            latest = 20
+        latest = max(5, min(50, latest))
+        return {'country': country, 'protocols': protocols, 'sort': sort, 'latest': latest}
+
+    def _mirror_regen_cmd(self, options=None):
         """argv to regenerate /etc/pacman.d/mirrorlist with an installed Arch mirror tool, or None.
         reflector (the Arch standard, writes the file via --save) is preferred; rate-mirrors is a
-        fallback. NOT cachyos-rate-mirrors — that targets the CachyOS mirrorlist, not this file."""
+        fallback. NOT cachyos-rate-mirrors — that targets the CachyOS mirrorlist, not this file.
+        `options` (country/protocols/sort/latest) only applies to reflector; rate-mirrors keeps its
+        fixed command (it doesn't take the same flags)."""
         if shutil.which('reflector'):
-            return ['reflector', '--protocol', 'https', '--latest', '20', '--sort', 'rate',
+            o = self._sanitize_mirror_options(options)
+            cmd = ['reflector']
+            if o['country']:
+                cmd += ['--country', o['country']]
+            cmd += ['--protocol', ','.join(o['protocols']),
+                    '--latest', str(o['latest']), '--sort', o['sort'],
                     '--download-timeout', '5', '--save', '/etc/pacman.d/mirrorlist']
+            return cmd
         if shutil.which('rate-mirrors'):
             return ['rate-mirrors', '--allow-root', '--save=/etc/pacman.d/mirrorlist', 'arch']
         return None
 
-    def regenerate_mirrorlist(self) -> dict:
+    def preview_mirror_command(self, options=None) -> dict:
+        """Cheap (no file read) preview of the exact regen command for the given options — drives the
+        live command preview as the user changes selectors. Fails open (no tool → command None)."""
+        try:
+            cmd = self._mirror_regen_cmd(options)
+        except Exception as e:
+            self.logger.debug(f"preview_mirror_command failed: {e}")
+            cmd = None
+        return {'status': 'ok', 'command': ' '.join(cmd) if cmd else None}
+
+    def regenerate_mirrorlist(self, options=None) -> dict:
         """Regenerate the Arch mirror list (/etc/pacman.d/mirrorlist) with reflector/rate-mirrors.
         Needs root. The safe alternative to merging a mirrorlist.pacnew (which wipes your servers).
-        Can take up to a minute (it speed-tests mirrors)."""
-        cmd = self._mirror_regen_cmd()
+        Can take up to a minute (it speed-tests mirrors). `options` (reflector only) chooses
+        country/protocols/sort."""
+        cmd = self._mirror_regen_cmd(options)
         if not cmd:
             return {'status': 'error', 'message': 'No mirror tool found — install "reflector" (or rate-mirrors).'}
         pwd = self.ensure_root_password()
