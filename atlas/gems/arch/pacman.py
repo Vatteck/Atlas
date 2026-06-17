@@ -1015,6 +1015,45 @@ def list_installed_names() -> Set[str]:
     return {name.strip() for name in output.split('\n') if name} if output else set()
 
 
+def list_explicit_names() -> Set[str]:
+    """Packages the user installed explicitly (``pacman -Qeq``) — the roots a dependency was pulled in
+    for. Empty set on any failure."""
+    output = run_cmd('pacman -Qeq', print_error=False)
+    return {name.strip() for name in output.split('\n') if name} if output else set()
+
+
+def find_explicit_roots(name: str, required_by_fn=None, explicit: Optional[Set[str]] = None,
+                        max_visited: int = 200) -> List[str]:
+    """The explicitly-installed package(s) that (transitively) pulled in ``name`` — answering
+    "installed as a dependency of *what*?". Walks reverse-deps (``Required By``) *upward*, stopping a
+    branch at the first explicit package it reaches. Bounded by ``max_visited`` and fails open to
+    ``[]`` (advisory only). ``required_by_fn``/``explicit`` are injectable for testing."""
+    if not name:
+        return []
+    try:
+        rb_fn = required_by_fn or (lambda names: map_required_by(names))
+        explicit_set = explicit if explicit is not None else list_explicit_names()
+        roots: Set[str] = set()
+        visited: Set[str] = {name}
+        frontier: Set[str] = {name}
+        while frontier and len(visited) <= max_visited:
+            rb = rb_fn(sorted(frontier)) or {}
+            nxt: Set[str] = set()
+            for node in frontier:
+                for parent in (rb.get(node) or set()):
+                    if parent in visited:
+                        continue
+                    visited.add(parent)
+                    if parent in explicit_set:
+                        roots.add(parent)  # the satisfying answer — stop this branch here
+                    else:
+                        nxt.add(parent)
+            frontier = nxt
+        return sorted(roots)
+    except Exception:
+        return []
+
+
 def list_available_mirrors() -> List[str]:
     _, output = system.run(['pacman-mirrors', '--status', '--no-color'])
 

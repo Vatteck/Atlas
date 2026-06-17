@@ -1721,7 +1721,7 @@ class AtlasApi:
         if not pkg:
             return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
         data = {'direct': [], 'optional': [], 'required_by': [], 'note': '',
-                'install_reason': None, 'orphan': False,
+                'install_reason': None, 'orphan': False, 'installed_because': [],
                 'makedepends': [], 'checkdepends': [], 'conflicts': [], 'replaces': [], 'provides': []}
         try:
             ptype = self._preview_ptype(pkg)
@@ -1787,6 +1787,13 @@ class AtlasApi:
                     self.logger.debug(f"dep summary: install reason failed for {name}: {e}")
                 # An orphan candidate: pulled in as a dependency, but now nothing requires it.
                 data['orphan'] = data['install_reason'] == 'dependency' and not data['required_by']
+                # "Dependency of what?" — attribute a pulled-in dependency to the explicit package(s)
+                # that dragged it in. Only for a non-orphan dependency (an orphan has no roots).
+                if data['install_reason'] == 'dependency' and data['required_by']:
+                    try:
+                        data['installed_because'] = pacman.find_explicit_roots(name)
+                    except Exception as e:
+                        self.logger.debug(f"dep summary: explicit-roots walk failed for {name}: {e}")
             return {'status': 'ok', 'data': data}
         except Exception as e:
             self.logger.error(f"get_dependency_summary failed for {pkg_id}: {e}")

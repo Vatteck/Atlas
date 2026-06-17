@@ -53,12 +53,9 @@ from **[BACKLOG.md](BACKLOG.md)**. Highest-value next moves, in order:
 1. **GUI verification sweep** — run `atlas --logs` on a real desktop and eyeball the queued surfaces
    below. Headless tests are green, but pywebview modals, clipboard, icons, and desktop actions need
    a real session.
-2. **"Why is this installed?"** — **picked for next session; plan drafted**
-   ([plans/2026-06-17-why-installed.md](plans/2026-06-17-why-installed.md)). The core (explicit-vs-
-   dependency reason, orphan status, required-by) already shipped in `get_dependency_summary` /
-   `buildDependencySummaryHTML` (2026-06-05); the remaining delta is attributing a pulled-in dependency
-   to the **explicit package(s)** that dragged it in, via a bounded pure-pacman reverse walk (+ optional
-   Overview mirror line + a GUI eyeball). ~half a session, low risk, local-only.
+2. ~~**"Why is this installed?"**~~ ✅ **SHIPPED 2026-06-17** (needs a GUI eyeball) — dependency
+   attribution (`installed_because`) names the explicit root package(s). See the Done log +
+   [plans/2026-06-17-why-installed.md](plans/2026-06-17-why-installed.md).
 3. **Launch-time baseline** — manually measure time-to-window and time-to-first-view before any
    further startup/concurrency changes.
 
@@ -108,6 +105,18 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **"Why is this installed?" — dependency attribution (2026-06-17).** Finished the BACKLOG item: a
+  pulled-in dependency now names the **explicit package(s)** that dragged it in ("Installed as a
+  dependency of **gimp**." instead of the generic "…of other packages."). Backend
+  `pacman.find_explicit_roots(name)` — a bounded, fail-open, **pure-pacman** reverse walk over
+  `map_required_by` (Required By) upward to the explicitly-installed set (`pacman -Qeq`), stopping each
+  branch at the first explicit root; capped by `max_visited` (cycle-safe), injectable for tests. Wired
+  into `get_dependency_summary` (`installed_because`, only for a non-orphan dependency); frontend
+  `buildDependencySummaryHTML` renders the names (cap 4 + "+N more"), falling back to the generic line
+  when unresolved. The rest of the item (explicit/dependency/orphan reason + required-by) shipped
+  2026-06-05. No new system dep (no `pactree`/`pacman-contrib`). Tests: `FindExplicitRootsTest` (8) +
+  api `installed_because`/orphan-skip + a JS contract. Suite **683** + JS **55**. **Needs a GUI
+  eyeball.** Plan: [plans/2026-06-17-why-installed.md](plans/2026-06-17-why-installed.md).
 - **PKGBUILD audit: external rules-pack loader — maintenance step (d), step 1 (2026-06-17).** An
   optional local JSON file (`$CONFIG/arch/audit_rules.json`) can add *regex* rules without an app
   release. **Strictly additive + fail-closed:** a pack never edits/removes a bundled rule, can't shadow

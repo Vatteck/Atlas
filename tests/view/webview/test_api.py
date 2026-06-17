@@ -2042,6 +2042,33 @@ class DependencySummaryTest(unittest.TestCase):
         self.assertEqual('dependency', d['install_reason'])
         self.assertTrue(d['orphan'])  # installed as a dep, now required by nothing
 
+    def test_installed_because_names_explicit_roots(self):
+        self._pkg(name='libfoo', ptype='arch_repo', repository='extra', installed=True)
+        with patch('atlas.gems.arch.pacman.map_updates_data', return_value={}), \
+             patch('atlas.gems.arch.pacman.map_optional_deps', return_value={}), \
+             patch('atlas.gems.arch.pacman.map_conflicts_with', return_value={}), \
+             patch('atlas.gems.arch.pacman.map_required_by', return_value={'libfoo': {'app'}}), \
+             patch('atlas.gems.arch.pacman.get_install_reason', return_value='dependency'), \
+             patch('atlas.gems.arch.pacman.find_explicit_roots', return_value=['app']) as fer:
+            d = self.api.get_dependency_summary('arch_repo:libfoo')['data']
+        self.assertEqual('dependency', d['install_reason'])
+        self.assertFalse(d['orphan'])
+        self.assertEqual(['app'], d['installed_because'])
+        fer.assert_called_once_with('libfoo')
+
+    def test_installed_because_skipped_for_orphan(self):
+        self._pkg(name='libfoo', ptype='arch_repo', repository='extra', installed=True)
+        with patch('atlas.gems.arch.pacman.map_updates_data', return_value={}), \
+             patch('atlas.gems.arch.pacman.map_optional_deps', return_value={}), \
+             patch('atlas.gems.arch.pacman.map_conflicts_with', return_value={}), \
+             patch('atlas.gems.arch.pacman.map_required_by', return_value={'libfoo': set()}), \
+             patch('atlas.gems.arch.pacman.get_install_reason', return_value='dependency'), \
+             patch('atlas.gems.arch.pacman.find_explicit_roots') as fer:
+            d = self.api.get_dependency_summary('arch_repo:libfoo')['data']
+        self.assertTrue(d['orphan'])
+        self.assertEqual([], d['installed_because'])
+        fer.assert_not_called()  # no required_by → no roots walk
+
     def test_not_installed_skips_required_by(self):
         self._pkg(name='vim', ptype='arch_repo', repository='extra', installed=False)
         with patch('atlas.gems.arch.pacman.map_updates_data', return_value={'vim': {'d': {'glibc'}}}), \

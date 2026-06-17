@@ -1490,9 +1490,19 @@ function buildDependencySummaryHTML(data) {
     if (data.install_reason === 'explicit') {
         reasonHTML = `<p class="dep-reason dep-reason-explicit">✓ You installed this explicitly.</p>`;
     } else if (data.install_reason === 'dependency') {
-        reasonHTML = data.orphan
-            ? `<p class="dep-reason dep-reason-orphan">⚠ Installed as a dependency, but nothing requires it now — an orphan you can likely remove.</p>`
-            : `<p class="dep-reason">Installed as a dependency of other packages.</p>`;
+        if (data.orphan) {
+            reasonHTML = `<p class="dep-reason dep-reason-orphan">⚠ Installed as a dependency, but nothing requires it now — an orphan you can likely remove.</p>`;
+        } else {
+            // Name the explicit package(s) that pulled it in, when we resolved them; else stay generic.
+            const roots = data.installed_because || [];
+            if (roots.length) {
+                const shown = roots.slice(0, 4).map(r => `<strong>${escapeHtml(r)}</strong>`).join(', ');
+                const extra = roots.length > 4 ? ` +${roots.length - 4} more` : '';
+                reasonHTML = `<p class="dep-reason">Installed as a dependency of ${shown}${extra}.</p>`;
+            } else {
+                reasonHTML = `<p class="dep-reason">Installed as a dependency of other packages.</p>`;
+            }
+        }
     }
 
     const chip = s => `<span class="dep-chip">${escapeHtml(s)}</span>`;

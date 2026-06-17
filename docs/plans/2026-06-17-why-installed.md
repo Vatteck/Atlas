@@ -1,8 +1,10 @@
 # "Why is this installed?" — finish the attribution
 
 **Date:** 2026-06-17 (drafted for a future session)
-**Status:** Planning. BACKLOG item "Why is this installed?". **Most of it already shipped** — read
-"What already exists" before writing code (verify, don't assume).
+**Status:** ✅ Attribution shipped 2026-06-17 (`installed_because` explicit-root walk; suite 683 + JS
+55). **Needs a GUI eyeball.** BACKLOG item "Why is this installed?" — the rest already shipped 2026-06-05.
+Optional follow-up not done: the Overview-mirror line (§2) — left out; the reason line stays in the
+Dependencies section (revisit on the eyeball if it feels buried).
 
 ## What already exists (grounded — don't rebuild)
 

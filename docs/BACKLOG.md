@@ -115,11 +115,10 @@ shipped (see Shipped / CHANGELOG / STATUS). What remains, roughly highest-value 
   Health/pacnew): last-clicked wins and rapid switching no longer flashes intermediate pages.
 
 ### Power-user sugar (make it beautiful)
-- **"Why is this installed?"** — **mostly ✅ shipped 2026-06-05** as part of the dependency summary:
-  explicit-vs-dependency install reason, orphan status, and the required-by list already render on the
-  detail page (`get_dependency_summary` + `buildDependencySummaryHTML`). **Remaining delta:** attribute
-  a pulled-in dependency to the **explicit package(s)** that dragged it in ("dependency of *X*"), via a
-  bounded pure-pacman reverse walk. See [plans/2026-06-17-why-installed.md](plans/2026-06-17-why-installed.md).
+- ~~**"Why is this installed?"**~~ ✅ **COMPLETE** — explicit-vs-dependency reason, orphan status, and
+  required-by shipped 2026-06-05; **dependency attribution** ("dependency of *X*", via a bounded
+  pure-pacman reverse walk to the explicit roots) shipped **2026-06-17** (needs a GUI eyeball). See
+  [plans/2026-06-17-why-installed.md](plans/2026-06-17-why-installed.md).
 - ~~**Dependency tree view**~~ ✅ **SHIPPED 2026-06-05** (needs a GUI eyeball): the detail-page
   Dependencies section now shows Requires / Optional / Build / Provides / Conflicts / Replaces /
   Required-by as accordion groups, with **Requires + Build as drill-down trees** (expand a dep → its

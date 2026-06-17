@@ -1072,7 +1072,14 @@ async function testBuildDependencySummaryHTML() {
   assert.ok(buildDependencySummaryHTML({ install_reason: 'explicit' }).includes('installed this explicitly'), 'explicit reason');
   const orphan = buildDependencySummaryHTML({ install_reason: 'dependency', orphan: true });
   assert.ok(orphan.includes('orphan'), 'orphan reason');
-  assert.ok(buildDependencySummaryHTML({ install_reason: 'dependency', orphan: false }).includes('dependency of other packages'), 'plain dependency reason');
+  assert.ok(buildDependencySummaryHTML({ install_reason: 'dependency', orphan: false }).includes('dependency of other packages'), 'plain dependency reason (no roots)');
+  // dependency attributed to the explicit package(s) that pulled it in
+  const attributed = buildDependencySummaryHTML({ install_reason: 'dependency', orphan: false, installed_because: ['gimp'] });
+  assert.ok(attributed.includes('dependency of') && attributed.includes('gimp') && !attributed.includes('other packages'), 'names the explicit root');
+  const manyRoots = buildDependencySummaryHTML({ install_reason: 'dependency', orphan: false, installed_because: ['a', 'b', 'c', 'd', 'e'] });
+  assert.ok(manyRoots.includes('+1 more'), 'caps the root list with +N more');
+  // orphan takes precedence over roots; explicit unaffected
+  assert.ok(buildDependencySummaryHTML({ install_reason: 'dependency', orphan: true, installed_because: ['x'] }).includes('orphan'), 'orphan wins over roots');
   // reason alone (no deps) still renders
   assert.notStrictEqual(buildDependencySummaryHTML({ install_reason: 'explicit' }), '', 'reason-only renders');
 }

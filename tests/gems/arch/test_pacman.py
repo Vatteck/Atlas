@@ -140,3 +140,52 @@ Download Size   : 16.10 MiB
     @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value="")
     def test_map_update_sizes__empty_output(self, run_cmd: Mock):
         self.assertEqual({}, pacman.map_update_sizes(['gutenprint']))
+
+
+class FindExplicitRootsTest(TestCase):
+    """find_explicit_roots: attribute a pulled-in dependency to the explicit package(s) that
+    dragged it in (the "Why is this installed?" backend walk). Pure via injected deps."""
+
+    @staticmethod
+    def _rb(adj):
+        # required_by_fn: given a list of names, return {name: reverse-dep set} from the adjacency.
+        return lambda names: {n: set(adj.get(n, set())) for n in names}
+
+    def test_single_explicit_root(self):
+        adj = {'libfoo': {'libbar'}, 'libbar': {'app'}}
+        roots = pacman.find_explicit_roots('libfoo', self._rb(adj), explicit={'app'})
+        self.assertEqual(['app'], roots)
+
+    def test_multiple_roots_sorted(self):
+        adj = {'libfoo': {'a', 'b'}, 'b': {'c'}}
+        roots = pacman.find_explicit_roots('libfoo', self._rb(adj), explicit={'a', 'c'})
+        self.assertEqual(['a', 'c'], roots)
+
+    def test_stops_at_first_explicit(self):
+        # mid is explicit; the walk must not climb past it to 'higher'.
+        adj = {'libfoo': {'mid'}, 'mid': {'higher'}}
+        roots = pacman.find_explicit_roots('libfoo', self._rb(adj), explicit={'mid', 'higher'})
+        self.assertEqual(['mid'], roots)
+
+    def test_no_parents_returns_empty(self):
+        roots = pacman.find_explicit_roots('libfoo', self._rb({'libfoo': set()}), explicit={'app'})
+        self.assertEqual([], roots)
+
+    def test_cycle_terminates(self):
+        adj = {'libfoo': {'x'}, 'x': {'libfoo'}}  # nothing explicit, mutual requirement
+        roots = pacman.find_explicit_roots('libfoo', self._rb(adj), explicit=set())
+        self.assertEqual([], roots)
+
+    def test_max_visited_bounds_the_walk(self):
+        # a long chain; cap visited so we never run away
+        adj = {f'n{i}': {f'n{i+1}'} for i in range(100)}
+        roots = pacman.find_explicit_roots('n0', self._rb(adj), explicit={'n99'}, max_visited=5)
+        self.assertEqual([], roots)  # 'n99' is beyond the cap → not reached
+
+    def test_fail_open_on_error(self):
+        def boom(_names):
+            raise RuntimeError('pacman exploded')
+        self.assertEqual([], pacman.find_explicit_roots('libfoo', boom, explicit={'app'}))
+
+    def test_empty_name(self):
+        self.assertEqual([], pacman.find_explicit_roots('', self._rb({}), explicit={'app'}))
