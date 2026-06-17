@@ -121,10 +121,11 @@ re-add a native extension without a measured win. Details in the historical
   `rule_metadata()`, and `audit-scan`'s universe all include pack rules (so the viewer's rule-id chip +
   kind tooltip surface them for free). `AtlasApi` loads the file once at init (best-effort; no file =
   no change). Only **regex** rules — structural/function checks stay in code. Tests:
-  `ExternalRulePackTest` (9). Suite **673**. **Steps 2–3 gated on sign-off:** signing (bundle a
-  pubkey, verify-or-ignore) + `atlas-files` remote distribution + ReDoS-hardening for untrusted
-  patterns — a remote rule feed is a supply-chain surface. Plan:
-  [plans/2026-06-17-audit-rules-pack.md](plans/2026-06-17-audit-rules-pack.md).
+  `ExternalRulePackTest` (9). Suite **673**. **Remote signed packs (steps 2–3) are designed but
+  deliberately deferred** — see the decision log + plans/2026-06-17-audit-rules-pack-signing.md (a
+  permanent supply-chain surface not worth it for an advisory scanner on a `-git`-distributed
+  side project). The local loader is the end state unless Atlas moves to slow-release distribution.
+  Plan: [plans/2026-06-17-audit-rules-pack.md](plans/2026-06-17-audit-rules-pack.md).
 - **PKGBUILD audit: corpus re-scan CLI — maintenance step (c) (2026-06-17).** `atlas-cli audit-scan
   [-n N] [--fp-threshold F] [-f text|json]` samples N random live AUR PKGBUILDs, scans each, and
   reports per-rule fire rates plus two buckets: **FP drift** (rules firing on ≥F of the sample → review
@@ -1656,6 +1657,14 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Decision log (append-only; newest first)
 
+- **2026-06-17** — **Deferred remote signed audit rules-packs indefinitely (designed, not built).** The
+  signing scheme is fully designed (plans/2026-06-17-audit-rules-pack-signing.md) but deliberately not
+  implemented: a remote rule feed is a permanent supply-chain surface to own (crypto dep, key rotation/
+  revocation, signing tooling + CI) and the value is marginal for an *advisory* scanner since Atlas
+  ships as a fast-updating `-git` AUR package — new bundled rules already reach users on a normal
+  update. The shipped local fail-closed loader (step 1) covers the real need. Revisit only if Atlas
+  moves to a slow-release channel; if so, PyNaCl behind a `verify_pack()` seam. Reflects the maintainer's
+  priority (solo dev, side project) to avoid standing maintenance burden.
 - **2026-06-17** — **Dropped PKGBUILD-audit structural rule #3 (source-host ≠ url-host) on measured
   evidence.** Before building it, measured its fire rate on a random live AUR sample (via the new
   `atlas-cli audit-scan` / `parse_metadata`): on the 49/70 sampled packages declaring both a `url=` and
