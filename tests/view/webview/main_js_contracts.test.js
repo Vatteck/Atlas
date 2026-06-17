@@ -1132,6 +1132,53 @@ async function testBuildAurCommentsHTML() {
   assert.ok(!linkifyComment('javascript:alert(1)').includes('<a '), 'no link for javascript: scheme');
 }
 
+async function testBuildInstalledFilesHTML() {
+  const { hooks } = loadMainJs({});
+  const { buildInstalledFilesHTML } = hooks;
+
+  assert.strictEqual(buildInstalledFilesHTML([]), '', 'no files → empty (section hidden)');
+  assert.strictEqual(buildInstalledFilesHTML(null), '', 'null → empty');
+
+  const html = buildInstalledFilesHTML(['/usr/bin/foo', '/usr/share/foo/<x>.png']);
+  assert.ok(html.includes('2 files'), 'header shows the count');
+  assert.ok(html.includes('if-filter'), 'renders a filter input');
+  assert.ok(html.includes('/usr/bin/foo'), 'renders a file row');
+  assert.ok(!html.includes('<x>') && html.includes('&lt;x&gt;'), 'escapes file paths');
+
+  assert.ok(buildInstalledFilesHTML(['/only/one']).includes('1 file<'), 'singular "file" for one entry');
+
+  // huge list is capped with a note (DOM-size guard)
+  const many = Array.from({ length: 2500 }, (_, i) => `/f/${i}`);
+  const big = buildInstalledFilesHTML(many);
+  assert.ok(big.includes('2,500 files'), 'count reflects the full list');
+  assert.ok(big.includes('Showing the first 2,000'), 'caps rendered rows with a note');
+  assert.ok((big.match(/if-row/g) || []).length === 2000, 'renders exactly the cap of rows');
+}
+
+function testComputeDetailTabs() {
+  const { hooks } = loadMainJs({});
+  const { computeDetailTabs } = hooks;
+
+  // overview + details always show; empty deps/history/build hidden
+  // (join to strings — hooks return VM-realm arrays, which deepStrictEqual rejects on prototype)
+  let r = computeDetailTabs({}, 'overview');
+  assert.strictEqual(r.visible.join(','), 'overview,details', 'only always-on tabs by default');
+  assert.strictEqual(r.active, 'overview', 'overview stays active');
+
+  // content present → tabs appear
+  r = computeDetailTabs({ deps: true, history: true, build: true }, 'overview');
+  assert.strictEqual(r.visible.join(','), 'overview,details,deps,history,build', 'all tabs when content present');
+
+  // active tab that becomes hidden falls back to the first visible tab
+  r = computeDetailTabs({ deps: false }, 'deps');
+  assert.strictEqual(r.active, 'overview', 'hidden active tab falls back');
+
+  // a still-visible active tab is preserved
+  r = computeDetailTabs({ history: true }, 'history');
+  assert.strictEqual(r.active, 'history', 'visible active tab preserved');
+  assert.ok(!r.visible.includes('build'), 'build hidden when not flagged (non-AUR / no content)');
+}
+
 async function testBrowseLandingBuilders() {
   const { hooks } = loadMainJs({});
   const { buildCategoryCardHTML, buildResumeBrowseHTML } = hooks;
@@ -1477,6 +1524,8 @@ function testPermsListEnsuresIconObserver() {
     testPackageActivitySectionClearsForNonInstalledPackages,
     testBuildPackageActivityHTML,
     testBuildAurCommentsHTML,
+    testBuildInstalledFilesHTML,
+    testComputeDetailTabs,
     testBrowseLandingBuilders,
     testBuildMirrorOptionsHTML,
     testPkgbuildViewerBuilders,

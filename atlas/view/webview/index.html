@@ -215,36 +215,62 @@
                 <button class="modal-close" id="modal-close" aria-label="Close">✕</button>
             </div>
             <div class="modal-body">
-                <div id="rich-badges-grid" class="rich-badges-grid"></div>
-                <div id="detail-why-source" class="why-source hidden"></div>
-                <div id="detail-screenshots" class="detail-screenshots hidden"></div>
-                <p id="detail-description" class="modal-description"></p>
-                <div id="detail-source-compare"></div>
-                <div id="detail-deps-section" class="detail-section hidden">
-                    <h3>Dependencies</h3>
-                    <div id="detail-deps"></div>
+                <div id="detail-tabs" class="detail-tabs" role="tablist">
+                    <button type="button" class="detail-tab active" data-tab="overview" role="tab">Overview</button>
+                    <button type="button" class="detail-tab" data-tab="details" role="tab">Details</button>
+                    <button type="button" class="detail-tab" data-tab="deps" role="tab">Dependencies</button>
+                    <button type="button" class="detail-tab" data-tab="history" role="tab">History</button>
+                    <button type="button" class="detail-tab" data-tab="build" role="tab">Build &amp; Trust</button>
                 </div>
-                <div id="detail-activity-section" class="detail-section hidden">
-                    <h3>Package history</h3>
-                    <div id="detail-activity"></div>
+
+                <div class="detail-panel active" data-panel="overview" role="tabpanel">
+                    <div id="rich-badges-grid" class="rich-badges-grid"></div>
+                    <div id="detail-why-source" class="why-source hidden"></div>
+                    <div id="detail-screenshots" class="detail-screenshots hidden"></div>
+                    <p id="detail-description" class="modal-description"></p>
+                    <div id="detail-source-compare"></div>
+                    <div id="detail-perms-action"></div>
                 </div>
-                <div id="detail-pkgbuild-section" class="detail-section hidden">
-                    <h3>Build recipe</h3>
-                    <p class="detail-section-hint">This package builds from a community PKGBUILD. Read exactly what it runs before installing.</p>
-                    <button class="btn btn-secondary" id="detail-pkgbuild-btn">📄 View PKGBUILD</button>
+
+                <div class="detail-panel" data-panel="details" role="tabpanel">
+                    <div class="detail-section">
+                        <h3>Details</h3>
+                        <table id="detail-table" class="detail-table"></table>
+                    </div>
+                    <div id="detail-files-section" class="detail-section hidden">
+                        <h3>Installed files</h3>
+                        <div id="detail-files"></div>
+                    </div>
                 </div>
-                <div id="detail-comments-section" class="detail-section hidden">
-                    <h3>AUR comments</h3>
-                    <div id="detail-comments"></div>
+
+                <div class="detail-panel" data-panel="deps" role="tabpanel">
+                    <div id="detail-deps-section" class="detail-section hidden">
+                        <h3>Dependencies</h3>
+                        <div id="detail-deps"></div>
+                    </div>
                 </div>
-                <div id="detail-perms-action"></div>
-                <div class="detail-section">
-                    <h3>Details</h3>
-                    <table id="detail-table" class="detail-table"></table>
+
+                <div class="detail-panel" data-panel="history" role="tabpanel">
+                    <div id="detail-activity-section" class="detail-section hidden">
+                        <h3>Package history</h3>
+                        <div id="detail-activity"></div>
+                    </div>
+                    <div id="detail-history-section" class="detail-section hidden">
+                        <h3>Version history</h3>
+                        <div id="detail-history"></div>
+                    </div>
                 </div>
-                <div id="detail-history-section" class="detail-section hidden">
-                    <h3>Version history</h3>
-                    <div id="detail-history"></div>
+
+                <div class="detail-panel" data-panel="build" role="tabpanel">
+                    <div id="detail-pkgbuild-section" class="detail-section hidden">
+                        <h3>Build recipe</h3>
+                        <p class="detail-section-hint">This package builds from a community PKGBUILD. Read exactly what it runs before installing.</p>
+                        <button class="btn btn-secondary" id="detail-pkgbuild-btn">📄 View PKGBUILD</button>
+                    </div>
+                    <div id="detail-comments-section" class="detail-section hidden">
+                        <h3>AUR comments</h3>
+                        <div id="detail-comments"></div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer" id="modal-footer"></div>

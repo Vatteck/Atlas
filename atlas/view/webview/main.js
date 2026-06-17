@@ -1585,6 +1585,98 @@ async function renderAurComments(pkg, stillCurrent = () => true) {
     section.classList.remove('hidden');
 }
 
+// ---- Detail modal tabs ----------------------------------------------------------------------
+// The detail modal groups its sections into tabs (Overview / Details / Dependencies / History /
+// Build & Trust). Panels keep their existing section IDs so every async render still works by id.
+
+const MAX_FILE_ROWS = 2000;  // cap rendered file rows so a 10k-file package can't freeze the DOM
+
+function activateDetailTab(name) {
+    document.querySelectorAll('#detail-tabs .detail-tab').forEach(b =>
+        b.classList.toggle('active', b.dataset.tab === name));
+    document.querySelectorAll('.modal-body .detail-panel').forEach(p =>
+        p.classList.toggle('active', p.dataset.panel === name));
+}
+
+// Pure: decide which tabs are visible and which should be active. Overview/Details always show;
+// deps/history show when their panel has content; build is AUR-only AND needs content. If the
+// current active tab ends up hidden, fall back to the first visible tab. (DOM-free → unit-tested.)
+const DETAIL_TAB_ORDER = ['overview', 'details', 'deps', 'history', 'build'];
+function computeDetailTabs(content, activeTab) {
+    content = content || {};
+    const visible = DETAIL_TAB_ORDER.filter(name => {
+        if (name === 'overview' || name === 'details') return true;
+        return !!content[name];
+    });
+    const active = visible.includes(activeTab) ? activeTab : (visible[0] || 'overview');
+    return { visible, active };
+}
+
+// Apply the tab decision to the DOM: read each panel's content state, then show/hide tabs + activate.
+function updateDetailTabs(isAur) {
+    const panelHas = (name) =>
+        hasVisibleContent(document.querySelector(`.modal-body .detail-panel[data-panel="${name}"]`));
+    const content = { deps: panelHas('deps'), history: panelHas('history'), build: !!isAur && panelHas('build') };
+    const activeBtn = document.querySelector('#detail-tabs .detail-tab.active');
+    const activeName = activeBtn && activeBtn.dataset ? activeBtn.dataset.tab : 'overview';
+    const { visible, active } = computeDetailTabs(content, activeName);
+    document.querySelectorAll('#detail-tabs .detail-tab').forEach(tab =>
+        tab.classList.toggle('hidden', !visible.includes(tab.dataset.tab)));
+    activateDetailTab(active);
+}
+
+function hasVisibleContent(panel) {
+    if (!panel) return false;
+    return Array.from(panel.children).some(el =>
+        !el.classList.contains('hidden') && (el.children.length > 0 || el.textContent.trim() !== ''));
+}
+
+// Pure: the collapsible Installed-files block (header count + filter + scroll list). '' when empty.
+function buildInstalledFilesHTML(files) {
+    files = (files || []).filter(f => typeof f === 'string' && f.trim() !== '');
+    if (!files.length) return '';
+    const shown = files.slice(0, MAX_FILE_ROWS);
+    const rows = shown.map(f => `<div class="if-row">${escapeHtml(f)}</div>`).join('');
+    const capped = files.length > MAX_FILE_ROWS
+        ? `<div class="if-note">Showing the first ${MAX_FILE_ROWS.toLocaleString()} of ${files.length.toLocaleString()} files — use the filter to narrow down.</div>`
+        : '';
+    return `
+        <div class="installed-files" data-count="${files.length}">
+            <div class="if-head">
+                <span class="if-count">${files.length.toLocaleString()} file${files.length === 1 ? '' : 's'}</span>
+                <input type="text" class="if-filter" placeholder="🔍 Filter files…" aria-label="Filter installed files">
+            </div>
+            ${capped}
+            <div class="if-list">${rows}</div>
+            <div class="if-empty hidden">No files match the filter.</div>
+        </div>`;
+}
+
+// Render the installed-files block into the Details panel and wire its filter. `files` is the raw
+// list from get_info; we render here (not as a table row) to contain the wall of text.
+function renderInstalledFiles(files) {
+    const section = document.getElementById('detail-files-section');
+    const body = document.getElementById('detail-files');
+    if (!section || !body) return;
+    const html = buildInstalledFilesHTML(files);
+    if (!html) { section.classList.add('hidden'); body.innerHTML = ''; return; }
+    body.innerHTML = html;
+    section.classList.remove('hidden');
+    const filter = body.querySelector('.if-filter');
+    const rows = Array.from(body.querySelectorAll('.if-row'));
+    const empty = body.querySelector('.if-empty');
+    if (filter) filter.addEventListener('input', () => {
+        const q = filter.value.trim().toLowerCase();
+        let any = false;
+        rows.forEach(r => {
+            const match = !q || r.textContent.toLowerCase().includes(q);
+            r.classList.toggle('hidden', !match);
+            if (match) any = true;
+        });
+        if (empty) empty.classList.toggle('hidden', any);
+    });
+}
+
 // ---- PKGBUILD viewer (first-class AUR build-recipe reader) ----------------------------------
 // All builders below are pure (escape their own input) and Node-VM contract-tested.
 
@@ -2700,6 +2792,14 @@ function openDetailModal(pkg, group) {
     detailModal.dataset.pkgId = detailPkgId;
     const stillCurrentDetail = () => detailModal.dataset.pkgId === detailPkgId;
 
+    // Reset tabs for the new package: Overview active, files block cleared, Build & Trust gated to AUR.
+    const isAur = normalizeType(pkg.type) === 'aur';
+    const refreshTabs = () => { if (stillCurrentDetail()) updateDetailTabs(isAur); };
+    activateDetailTab('overview');
+    const filesSection = document.getElementById('detail-files-section');
+    if (filesSection) { filesSection.classList.add('hidden'); document.getElementById('detail-files').innerHTML = ''; }
+    updateDetailTabs(isAur);
+
     const detailIcon = document.getElementById('detail-icon');
     detailIcon.src = getIconSrc(pkg.icon_url);
     const remoteUrl = getIconDataSrc(pkg.icon_url);
@@ -2738,10 +2838,10 @@ function openDetailModal(pkg, group) {
     if (compareEl) compareEl.innerHTML = buildSourceCompareHTML(group || findGroupForPkgId(pkg.id));
 
     // Dependency summary (lazy, stale-guarded). Section stays hidden until there's something to show.
-    renderDependencySummary(pkg, stillCurrentDetail);
+    Promise.resolve(renderDependencySummary(pkg, stillCurrentDetail)).finally(refreshTabs);
 
     // "Build recipe" — first-class PKGBUILD viewer affordance (AUR only).
-    renderPkgbuildAffordance(pkg);
+    Promise.resolve(renderPkgbuildAffordance(pkg)).finally(refreshTabs);
 
     // Link to the package's web page (AUR / official Arch). Routed through open_url so it
     // opens in the system browser rather than navigating the app window.
@@ -2957,10 +3057,11 @@ function openDetailModal(pkg, group) {
     }
 
     // Rich detail extras (read-only): screenshots for Flatpak/AppImage and version history.
-    renderDetailScreenshots(pkg, stillCurrentDetail);
-    renderDetailHistory(pkg, stillCurrentDetail);
-    renderPackageActivity(pkg, stillCurrentDetail);
-    renderAurComments(pkg, stillCurrentDetail);
+    // Re-evaluate which tabs to show once a section's content (or lack of it) settles.
+    Promise.resolve(renderDetailScreenshots(pkg, stillCurrentDetail)).finally(refreshTabs);
+    Promise.resolve(renderDetailHistory(pkg, stillCurrentDetail)).finally(refreshTabs);
+    Promise.resolve(renderPackageActivity(pkg, stillCurrentDetail)).finally(refreshTabs);
+    Promise.resolve(renderAurComments(pkg, stillCurrentDetail)).finally(refreshTabs);
 
     // Fetch key-value info from python
     pyApiCall('get_info', pkg.id).then(info => {
@@ -2996,6 +3097,13 @@ function openDetailModal(pkg, group) {
 
                 const label = prettifyInfoKey(key);
                 const labelKey = label.toLowerCase();
+                // The installed-files list (pacman -Qlq) can be thousands of entries — render it as a
+                // dedicated filterable/scrollable block instead of a giant table cell.
+                if (labelKey === 'installed files' && Array.isArray(val)) {
+                    renderInstalledFiles(val);
+                    refreshTabs();
+                    return;
+                }
                 // Drop rows that just repeat the header (name / version / description),
                 // and collapse duplicate labels (e.g. AUR's 00_url + 10_url) to the first.
                 if (SKIP_DETAIL_KEYS.has(labelKey) || seenLabels.has(labelKey)) {
@@ -5268,6 +5376,13 @@ packagesGrid.addEventListener('click', async (e) => {
     }
 });
 
+// Detail-modal tab bar: switch panels on click (ignores hidden tabs).
+document.getElementById('detail-tabs').addEventListener('click', (e) => {
+    const tab = e.target.closest('.detail-tab');
+    if (!tab || tab.classList.contains('hidden')) return;
+    activateDetailTab(tab.dataset.tab);
+});
+
 // Source-comparison panel: install from the chosen source (routes through the full preview).
 document.getElementById('detail-source-compare').addEventListener('click', (e) => {
     const btn = e.target.closest('.srccmp-install');
@@ -5885,6 +6000,8 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildPackageActivityHTML,
         buildAurCommentsHTML,
         linkifyComment,
+        buildInstalledFilesHTML,
+        computeDetailTabs,
         highlightBashLine,
         buildPkgbuildRiskHTML,
         buildPkgbuildMetaHTML,

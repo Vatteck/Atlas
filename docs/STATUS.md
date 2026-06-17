@@ -9,7 +9,8 @@
 History/Activity completion shipped; planning-doc reconciliation + GUI verification queue captured;
 AUR reputation scoring + diff security annotation + batch update risk tiers shipped; reconciled the
 stashed mirror regen options — country/protocol/sort in Settings → Mirrors; competitive-research
-Themes 1–2 shipped — PKGBUILD audit ruleset 14 → 31, and AUR comments in the detail view — see Done log)
+Themes 1–2 shipped — PKGBUILD audit ruleset 14 → 31, and AUR comments in the detail view; detail pane
+reorganized into tabs + installed-files containment (from a GUI eyeball) — see Done log)
 **Version:** 0.12.0 (the polish-and-trust release; 0.11.0 was the first cohesive Atlas release)
 **Working branch:** `work` in this checkout; app work normally lands on `master` (run `git branch`
 before acting — branch names in docs go stale)
@@ -88,6 +89,20 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Detail pane tabs + installed-files containment (2026-06-16).** From a GUI eyeball: the detail
+  modal's installed-files list (arch `pacman -Qlq`, often thousands of entries) ballooned into a giant
+  table cell, and the body had grown enough sections to warrant tabs. Reworked `.modal-body` into a
+  `#detail-tabs` tablist + five `.detail-panel`s — **Overview / Details / Dependencies / History /
+  Build & Trust** (the last AUR-only) — keeping every existing section ID so the async renders are
+  unchanged. Empty tabs auto-hide; the decision is a pure `computeDetailTabs(content, active)` (with
+  active-tab fallback), applied by `updateDetailTabs` on open + after each section settles. Installed
+  files now render as a collapsible **filterable, scrollable, counted** block (pure
+  `buildInstalledFilesHTML`, capped at 2000 rows with a note for huge packages) instead of a table
+  cell. Also fixed a latent `--accent-primary` → `--accent-color` CSS var typo from the AUR-comments
+  work. Pure frontend (no backend change). Tests: `main_js_contracts::testBuildInstalledFilesHTML` +
+  `testComputeDetailTabs`. Suite **614** + JS **51**. **Needs a GUI eyeball** (tabs switch + auto-hide
+  empties; Build & Trust only for AUR; files filter works; big packages stay contained). Plan:
+  [plans/2026-06-16-detail-pane-tabs.md](plans/2026-06-16-detail-pane-tabs.md).
 - **AUR comments in the detail view — competitive-research Theme 2 (2026-06-16).** AUR package
   comments (build-fix tips, security warnings, orphan/broken context) now show in a lazy "AUR comments"
   section of the detail modal. The AUR RPC has no comments endpoint, so the package page is scraped:
