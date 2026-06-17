@@ -1,8 +1,9 @@
 # Surface rule provenance in the PKGBUILD viewer
 
 **Date:** 2026-06-17
-**Status:** ✅ Shipped 2026-06-17 (backend `meta` on every finding + `findingProvenanceHTML` in the
-viewer; suite 649 + JS 55). **Needs a GUI eyeball.** Follow-up to
+**Status:** ✅ Shipped + GUI-verified 2026-06-17 (backend `meta` on every finding +
+`findingProvenanceHTML` in the viewer; suite 649 + JS 55). Eyeballed on `logseq-desktop-git`: rule-id
+chips + the orange CAMPAIGN pill on `npm_install_unknown` render correctly. Follow-up to
 [2026-06-16-audit-rule-maintenance.md](2026-06-16-audit-rule-maintenance.md) (step a left this as a
 non-goal) and [2026-06-17-audit-structural-checks.md](2026-06-17-audit-structural-checks.md).
 

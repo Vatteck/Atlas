@@ -114,7 +114,8 @@ re-add a native extension without a measured win. Details in the historical
   rules, with the full `Evergreen rule · added … · source: …` in a `title` tooltip; `''` when a finding
   carries no provenance (backward-compatible). Keeps the advisory "read-it-yourself" framing — no
   black-box badge. Tests: JS `findingProvenanceHTML` cases + Python `test_scan_findings_carry_meta`/
-  `test_divergence_finding_carries_meta`. Suite **649** + JS **55**. **Needs a GUI eyeball.** Follow-ups
+  `test_divergence_finding_carries_meta`. Suite **649** + JS **55**. **GUI-verified** on
+  `logseq-desktop-git` (rule-id chips + CAMPAIGN pill render correctly). Follow-ups
   still open: filter/hide-by-kind controls; provenance on diff badges. Plan:
   [plans/2026-06-17-audit-provenance-ui.md](plans/2026-06-17-audit-provenance-ui.md).
 - **PKGBUILD audit: .SRCINFO↔PKGBUILD divergence — structural step 4 (2026-06-17).** The cross-file
