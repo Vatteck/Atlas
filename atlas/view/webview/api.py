@@ -1721,7 +1721,7 @@ class AtlasApi:
         if not pkg:
             return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
         data = {'direct': [], 'optional': [], 'required_by': [], 'note': '',
-                'install_reason': None, 'orphan': False, 'installed_because': [],
+                'install_reason': None, 'orphan': False, 'installed_because': [], 'optional_for': [],
                 'makedepends': [], 'checkdepends': [], 'conflicts': [], 'replaces': [], 'provides': []}
         try:
             ptype = self._preview_ptype(pkg)
@@ -1794,6 +1794,7 @@ class AtlasApi:
                         opt_for = (pacman.map_optional_for([name]) or {}).get(name) or set()
                         if opt_for:
                             data['orphan'] = False
+                            data['optional_for'] = sorted(opt_for)  # name who optionally needs it
                     except Exception as e:
                         self.logger.debug(f"dep summary: optional-for check failed for {name}: {e}")
                 # "Dependency of what?" — attribute a pulled-in dependency to the explicit package(s)

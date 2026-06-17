@@ -72,6 +72,9 @@ installed package). New `pacman.map_optional_for` (shares a refactored `_map_qi_
 extra `-Qi` runs only for an orphan *candidate*. Fail-open (probe fails → prior behaviour). Verified
 live: `7zip`'s Optional For (`ark`, `yazi`) parses correctly; `python-build` (the eyeball case) stays
 a true orphan (empty Required By + Optional For). Tests: `OptionalForTest` (3) + api demotion case.
+**Closed the loop:** a package demoted from orphan now *names* what it's optional for — "Installed as a
+dependency; now only an optional dependency of **ark**, **yazi**." (reuses the `optional_for` set
+already fetched; hard-dep roots still take precedence). Tests: api `optional_for` + a JS contract.
 
 ## Non-goals
 - No `pactree`/`expac`/`pacman-contrib` dependency — pure `pacman -Q*` only (low maintenance).

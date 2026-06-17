@@ -2055,6 +2055,7 @@ class DependencySummaryTest(unittest.TestCase):
             d = self.api.get_dependency_summary('arch_repo:libfoo')['data']
         self.assertEqual('dependency', d['install_reason'])
         self.assertFalse(d['orphan'])  # optdepend of an installed package → not a removable orphan
+        self.assertEqual(['someapp'], d['optional_for'])  # named so the UI can say "optional dep of …"
 
     def test_installed_because_names_explicit_roots(self):
         self._pkg(name='libfoo', ptype='arch_repo', repository='extra', installed=True)

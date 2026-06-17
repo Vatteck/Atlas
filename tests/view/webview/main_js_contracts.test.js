@@ -1078,6 +1078,12 @@ async function testBuildDependencySummaryHTML() {
   assert.ok(attributed.includes('dependency of') && attributed.includes('gimp') && !attributed.includes('other packages'), 'names the explicit root');
   const manyRoots = buildDependencySummaryHTML({ install_reason: 'dependency', orphan: false, installed_because: ['a', 'b', 'c', 'd', 'e'] });
   assert.ok(manyRoots.includes('+1 more'), 'caps the root list with +N more');
+  // demoted-from-orphan: names what it's an optional dependency of
+  const optFor = buildDependencySummaryHTML({ install_reason: 'dependency', orphan: false, optional_for: ['ark', 'yazi'] });
+  assert.ok(optFor.includes('optional dependency of') && optFor.includes('ark') && optFor.includes('yazi'), 'names optional-for packages');
+  // hard-dep roots take precedence over optional_for
+  const both = buildDependencySummaryHTML({ install_reason: 'dependency', orphan: false, installed_because: ['app'], optional_for: ['x'] });
+  assert.ok(both.includes('dependency of <strong>app') && !both.includes('optional dependency'), 'hard roots win over optional_for');
   // orphan takes precedence over roots; explicit unaffected
   assert.ok(buildDependencySummaryHTML({ install_reason: 'dependency', orphan: true, installed_because: ['x'] }).includes('orphan'), 'orphan wins over roots');
   // reason alone (no deps) still renders
