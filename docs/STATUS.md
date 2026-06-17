@@ -119,6 +119,14 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **AUR comments moved from Details → Overview tab (2026-06-17).** Reverses part of the 2026-06-16
+  detail-pane-tabs decision on a GUI eyeball: Overview was too sparse (banner + badges + one-line
+  description) while Details carried the table, installed-files, *and* comments. Moved the
+  `#detail-comments-section` block to the bottom of the Overview panel (`index.html`); it's filled and
+  toggled by `id` and the tab-visibility logic only inspects the deps/history panels, so the relocation
+  is safe — no JS logic change (just a stale code-comment touch-up). Comments still start **expanded**
+  each open; flagged for review since a heavily-commented AUR pkg will lengthen Overview. Suite **690**.
+  **Needs a GUI eyeball.**
 - **Fix: blank detail body after collapsing comments then switching tabs (2026-06-17).** From a GUI
   bug report (google-chrome AUR): collapse the AUR-comments block on the Details tab, switch back to
   Overview → the whole modal body (including the sticky tab bar) went blank. Root cause was **stranded
@@ -339,9 +347,9 @@ re-add a native extension without a measured win. Details in the historical
   `main_js_contracts::testBuildInstalledFilesHTML` + `testComputeDetailTabs`. Suite **614** + JS **51**.
   **GUI-verified 2026-06-17:** tab bar renders, **tab switching works**, the Overview "Review PKGBUILD"
   button shows, and the **installed-files filter/containment** works on a thousands-of-files package.
-  Two sub-checks remain, both needing a package that triggers them: **empty-tab auto-hide** (open a
-  Flatpak/AppImage with no deps/history → the Dependencies/History tabs should be absent, not empty) and
-  **Details comments collapse** (an AUR pkg with comments). Plan:
+  **Comments collapse/expand confirmed working** (now on the Overview tab — see the move entry above).
+  One sub-check remains: **empty-tab auto-hide** — open a Flatpak/AppImage with no deps/history → the
+  Dependencies/History tabs should be absent, not empty. Plan:
   [plans/2026-06-16-detail-pane-tabs.md](plans/2026-06-16-detail-pane-tabs.md).
 - **AUR comments in the detail view — competitive-research Theme 2 (2026-06-16).** AUR package
   comments (build-fix tips, security warnings, orphan/broken context) now show in a lazy "AUR comments"

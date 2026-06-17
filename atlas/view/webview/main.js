@@ -5554,7 +5554,7 @@ document.getElementById('detail-tabs').addEventListener('click', (e) => {
     if (body) body.scrollTop = 0;
 });
 
-// AUR comments (Details tab) collapse/expand toggle.
+// AUR comments (Overview tab) collapse/expand toggle.
 const commentsToggle = document.getElementById('detail-comments-toggle');
 if (commentsToggle) {
     const toggleComments = () => {
