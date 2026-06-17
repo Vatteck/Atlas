@@ -1,0 +1,28 @@
+# Maintainer: Alex Kim <alex@example.net>
+pkgname=metricsd
+pkgver=1.4.0
+pkgrel=2
+pkgdesc="A lightweight system metrics collector daemon"
+arch=('x86_64')
+url="https://example.net/metricsd"
+license=('Apache')
+depends=('glibc' 'systemd-libs')
+makedepends=('go')
+backup=('etc/metricsd/config.toml')
+install=metricsd.install
+source=("https://example.net/dl/$pkgname-$pkgver.tar.gz"
+        "metricsd.service")
+sha512sums=('aa'
+            'bb')
+
+build() {
+  cd "$pkgname-$pkgver"
+  go build -o metricsd ./cmd/metricsd
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  install -Dm755 metricsd "$pkgdir/usr/bin/metricsd"
+  install -Dm644 config.toml "$pkgdir/etc/metricsd/config.toml"
+  install -Dm644 ../metricsd.service "$pkgdir/usr/lib/systemd/system/metricsd.service"
+}

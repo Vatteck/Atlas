@@ -1,0 +1,24 @@
+# Maintainer: Jane Doe <jane@example.com>
+pkgname=hello-cli
+pkgver=2.12
+pkgrel=1
+pkgdesc="A friendly command-line greeter"
+arch=('x86_64')
+url="https://example.com/hello-cli"
+license=('GPL3')
+depends=('glibc')
+makedepends=('gcc' 'make')
+source=("https://example.com/releases/$pkgname-$pkgver.tar.gz")
+sha256sums=('2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c')
+
+build() {
+  cd "$pkgname-$pkgver"
+  ./configure --prefix=/usr
+  make
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  make DESTDIR="$pkgdir" install
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

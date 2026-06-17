@@ -17,6 +17,14 @@ DISCLAIMER = ("Heuristic hints only — NOT a safety check. A clean result does 
 WARN = 'warn'
 INFO = 'info'
 
+# Rule provenance (see docs/plans/2026-06-16-audit-rule-maintenance.md).
+#   EVERGREEN — a durable technique (reverse shell, credential theft, persistence) that stays
+#               relevant regardless of any single incident.
+#   CAMPAIGN  — added to catch a specific real-world incident; a candidate for *retirement* once
+#               that campaign is dead, so it doesn't linger as low-signal noise.
+EVERGREEN = 'evergreen'
+CAMPAIGN = 'campaign'
+
 
 def _has_base64_literal(line: str) -> bool:
     """A long base64-looking blob (contains +, / or = so we don't flag lowercase-hex checksums)."""
@@ -192,6 +200,51 @@ _RULES = [
      'LD_PRELOAD / /etc/ld.so.preload — library injection used by rootkits and keyloggers.',
      re.compile(r'\bLD_PRELOAD=|/etc/ld\.so\.preload\b').search),
 ]
+
+
+# Provenance for rules we actually know the origin of, kept as a *side map* (keyed by rule id)
+# rather than threaded into the tuples above — this keeps the security-sensitive regex lines
+# untouched for a pure-bookkeeping change. Any rule absent here is the pre-metadata baseline: an
+# evergreen pattern with no recorded source (the original hand-written set). See `rule_metadata()`.
+#
+# Honesty rule: only record `added`/`source` we genuinely know.
+_KS_AUR_SOURCE = 'ks-aur-scanner rule categories (mapped to MITRE ATT&CK techniques), 2026-06-16'
+_ATOMIC_ARCH_SOURCE = 'Atomic Arch (June 2026) AUR supply-chain campaign'
+
+_RULE_META: Dict[str, Dict] = {
+    # Campaign rules — incident-specific, retire when the campaign is dead.
+    'npm_install_unknown': {'kind': CAMPAIGN, 'added': '2026-06', 'source': _ATOMIC_ARCH_SOURCE},
+    'temp_upload_service': {'kind': CAMPAIGN, 'added': '2026-06', 'source': _ATOMIC_ARCH_SOURCE},
+
+    # Evergreen techniques mined from ks-aur-scanner's categories (Theme 1, 2026-06-16).
+    'reverse_shell_bash': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
+    'reverse_shell_lang': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
+    'reverse_shell_listener': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
+    'credential_harvest': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
+    'ssh_key_exfil': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
+    'systemd_timer_create': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
+    'cron_persist': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
+    'rc_local': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
+    'shell_function_inject': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
+    'printf_assembly': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
+    'gzip_payload': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
+    'xxd_decode': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
+    'dep_confusion': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
+    'weak_checksum': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
+    'http_source': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
+    'suid_capability': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
+    'ld_preload': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
+}
+
+
+def rule_metadata(rule_id: str) -> Dict:
+    """Provenance for a rule id: {kind, added, source}. Rules with no recorded origin default to
+    the pre-metadata baseline — evergreen, no known date/source — so every rule has metadata even
+    though only the documented additions carry an `added`/`source`."""
+    meta = _RULE_META.get(rule_id)
+    if meta is None:
+        return {'kind': EVERGREEN, 'added': None, 'source': None}
+    return {'kind': meta['kind'], 'added': meta.get('added'), 'source': meta.get('source')}
 
 
 def scan(text: str) -> List[Dict]:

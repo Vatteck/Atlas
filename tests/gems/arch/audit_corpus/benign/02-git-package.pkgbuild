@@ -1,0 +1,28 @@
+# Maintainer: Sam Roe <sam@example.org>
+pkgname=widgetkit-git
+pkgver=r245.a1b2c3d
+pkgrel=1
+pkgdesc="A toolkit for building widgets (development version)"
+arch=('x86_64')
+url="https://git.example.org/widgetkit"
+license=('MIT')
+depends=('gtk3' 'glib2')
+makedepends=('git' 'meson' 'ninja')
+provides=('widgetkit')
+conflicts=('widgetkit')
+source=("git+https://git.example.org/widgetkit.git")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd widgetkit
+  printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  arch-meson widgetkit build
+  ninja -C build
+}
+
+package() {
+  DESTDIR="$pkgdir" ninja -C build install
+}

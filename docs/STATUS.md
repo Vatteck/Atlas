@@ -5,7 +5,9 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-16 (History/Activity PR review follow-up: stale detail history reset;
+**Last updated:** 2026-06-17 (PKGBUILD audit maintainability: rule provenance side map
+[evergreen/campaign + added/source] and a CI regression corpus [benign→no WARN, malicious→≥1 WARN] —
+see Done log and plans/2026-06-16-audit-rule-maintenance.md. Prior: History/Activity PR review follow-up: stale detail history reset;
 History/Activity completion shipped; planning-doc reconciliation + GUI verification queue captured;
 AUR reputation scoring + diff security annotation + batch update risk tiers shipped; reconciled the
 stashed mirror regen options — country/protocol/sort in Settings → Mirrors; competitive-research
@@ -99,6 +101,21 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **PKGBUILD audit: rule provenance + regression corpus (2026-06-17).** First implementation of the
+  audit-maintenance strategy (answering "how do we find more patterns and keep the ruleset fresh").
+  **(a) Rule metadata:** `EVERGREEN`/`CAMPAIGN` constants + a `_RULE_META` *side map* keyed by rule id
+  (`kind`/`added`/`source`) and a `rule_metadata(id)` accessor (defaults: evergreen, no source — the
+  pre-metadata baseline for the original hand-written rules). Kept as a side map so the
+  security-sensitive regex tuples stay untouched. Recorded only what we know: the 2 Atomic Arch
+  campaign rules (`npm_install_unknown`, `temp_upload_service`) and the 17 ks-aur-scanner-derived
+  evergreen rules (2026-06-16); the campaign split makes dead-campaign rules *retirable* so they don't
+  rot into low-signal noise. **(b) Regression corpus:** `tests/gems/arch/audit_corpus/{benign,malicious}/
+  *.pkgbuild` + `test_pkgbuild_audit_corpus.py` loader — benign realistic PKGBUILDs **must not raise a
+  WARN** (INFO allowed), malicious whole-file samples (reverse shell, credential exfil, persistence/
+  obfuscation) **must raise ≥1 WARN**. Grow by dropping a file in. Guard tests on the metadata map
+  (every key real, every campaign rule has a source, counts add up). Suite **630** + JS **55**. No GUI
+  surface yet (follow-up: show kind/source in the PKGBUILD viewer). Plan:
+  [plans/2026-06-16-audit-rule-maintenance.md](plans/2026-06-16-audit-rule-maintenance.md).
 - **Cross-view install queue — competitive-research Theme 5 v1 (2026-06-16).** A persistent basket for
   collecting packages to install together while browsing, instead of the per-view Select mode that
   reset on navigation. Persistent `installQueue` of pkg snapshots in `localStorage`

