@@ -5,7 +5,10 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-17 (late-session: **"Why is this installed?"** finished — dependency
+**Last updated:** 2026-06-17 (later: **`datetime.utcnow()` deprecation cleanup** — all 25 sites →
+new naive `commons.util.utc_now()` helper [behaviour-preserving; documents why it stays naive so the
+cache-timestamp round-trip isn't broken] + fixed an import-time default-arg bug in `datetime_as_milis`;
+suite 690, the utcnow DeprecationWarnings are gone. Earlier same day: **"Why is this installed?"** finished — dependency
 attribution names the explicit root(s) that pulled a package in, plus orphan detection tightened to
 `pacman -Qdt` semantics [demote when still optional-for an installed package] and the optional-for
 packages named; then a **code review** of the whole session's diff — fixed an
@@ -115,6 +118,19 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **`datetime.utcnow()` deprecation cleanup (2026-06-17).** Replaced all **25** `datetime.utcnow()`
+  call sites (deprecated, slated for removal — noisy under local Python 3.14; CI only runs 3.10–3.13 so
+  it was invisible there) with a single new helper `commons.util.utc_now()`. The helper is
+  **deliberately naive** (`datetime.now(timezone.utc).replace(tzinfo=None)`) and documents *why*:
+  Atlas's cache timestamps round-trip via `utc_now().timestamp()` → `datetime.fromtimestamp(...)`, both
+  in naive "UTC wall-clock" space, so an aware value would shift every stored timestamp by the local
+  UTC offset and misread existing cache files. **Strictly behaviour-preserving** — not a tz-correctness
+  change. Also fixed a latent import-time bug in `datetime_as_milis(date=datetime.utcnow())` (default
+  evaluated once at import) → `date=None` sentinel resolving to `utc_now()` at call time. Touched 13
+  files (gems arch/debian/web/appimage/flatpak workers+suggestions, `commons/category.py`,
+  `view/util/cache.py`). Tests: `UtcNowTest` (naive contract + call-time default) in
+  `tests/common/test_util.py`. Suite **690**; the two `datetime.utcnow()` DeprecationWarnings are gone
+  (only an external GLib/PyGObject one remains). No GUI surface.
 - **"Why is this installed?" — dependency attribution (2026-06-17).** Finished the BACKLOG item: a
   pulled-in dependency now names the **explicit package(s)** that dragged it in ("Installed as a
   dependency of **gimp**." instead of the generic "…of other packages."). Backend

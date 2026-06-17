@@ -9,7 +9,7 @@ import requests
 import yaml
 
 from atlas.api.http import HttpClient
-from atlas.commons.util import map_timestamp_file
+from atlas.commons.util import map_timestamp_file, utc_now
 from atlas.gems.web import WEB_CACHE_DIR
 from atlas.view.util.translation import I18n
 
@@ -73,7 +73,7 @@ class SuggestionsManager:
             self.logger.error(f"Could not parse the cached suggestions file timestamp: {timestamp_str}")
             return True
 
-        expired = sugs_timestamp + timedelta(days=exp) <= datetime.utcnow()
+        expired = sugs_timestamp + timedelta(days=exp) <= utc_now()
 
         if expired:
             self.logger.info("Cached suggestions file has expired.")

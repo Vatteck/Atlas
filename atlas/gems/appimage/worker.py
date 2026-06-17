@@ -6,6 +6,7 @@ import tarfile
 import time
 import traceback
 from datetime import datetime, timedelta
+from atlas.commons.util import utc_now
 from pathlib import Path
 from threading import Thread
 from typing import Optional, Generator
@@ -86,7 +87,7 @@ class DatabaseUpdater(Thread):
             traceback.print_exc()
             return True
 
-        update = dbs_timestamp + timedelta(minutes=db_exp) <= datetime.utcnow()
+        update = dbs_timestamp + timedelta(minutes=db_exp) <= utc_now()
         self.logger.info('Finished. Took {0:.2f} seconds'.format(time.time() - ti))
         return update
 
@@ -100,7 +101,7 @@ class DatabaseUpdater(Thread):
         self._update_task_progress(10, self.i18n['appimage.update_database.downloading'])
         self.logger.info('Retrieving AppImage databases')
 
-        database_timestamp = datetime.utcnow().timestamp()
+        database_timestamp = utc_now().timestamp()
         try:
             res = self.http_client.get(URL_COMPRESSED_DATABASES, session=False)
         except Exception as e:
@@ -364,7 +365,7 @@ class AppImageSuggestionsDownloader(Thread):
             traceback.print_exc()
             return True
 
-        update = suggestions_timestamp + timedelta(hours=exp_hours) <= datetime.utcnow()
+        update = suggestions_timestamp + timedelta(hours=exp_hours) <= utc_now()
         return update
 
     def read(self) -> Generator[str, None, None]:
@@ -374,7 +375,7 @@ class AppImageSuggestionsDownloader(Thread):
 
         self.logger.info("Checking if AppImage suggestions should be downloaded")
         if self.should_download(self.config):
-            suggestions_timestamp = datetime.utcnow().timestamp()
+            suggestions_timestamp = utc_now().timestamp()
             suggestions_str = self.download()
 
             Thread(target=self.cache_suggestions, args=(suggestions_str, suggestions_timestamp), daemon=True).start()
@@ -468,7 +469,7 @@ class AppImageSuggestionsDownloader(Thread):
 
             try:
                 if should_download:
-                    suggestions_timestamp = datetime.utcnow().timestamp()
+                    suggestions_timestamp = utc_now().timestamp()
                     suggestions_str = self.download()
                     self.taskman.update_progress(self.task_id, 70, None)
 

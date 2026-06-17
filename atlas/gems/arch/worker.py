@@ -7,6 +7,7 @@ import shutil
 import time
 import traceback
 from datetime import datetime, timedelta
+from atlas.commons.util import utc_now
 from pathlib import Path
 from threading import Thread
 from typing import Optional
@@ -72,7 +73,7 @@ class AURIndexUpdater(Thread):
 
         try:
             index_timestamp = datetime.fromtimestamp(float(timestamp_str))
-            return (index_timestamp + timedelta(hours=exp_hours)) <= datetime.utcnow()
+            return (index_timestamp + timedelta(hours=exp_hours)) <= utc_now()
         except Exception:
             traceback.print_exc()
             return True
@@ -81,7 +82,7 @@ class AURIndexUpdater(Thread):
         self.logger.info('Indexing AUR packages')
         self.taskman.update_progress(self.task_id, 5, self.i18n['arch.task.aur.index.substatus.download'])
         try:
-            index_ts = datetime.utcnow().timestamp()
+            index_ts = utc_now().timestamp()
             res = self.http_client.get(URL_INDEX)
             text = decode_index_response(res) if res else ''
 

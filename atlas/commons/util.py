@@ -1,7 +1,7 @@
 import logging
 import re
 from abc import ABC
-from datetime import datetime
+from datetime import datetime, timezone
 from logging import Logger
 from typing import Optional, Union
 
@@ -72,8 +72,21 @@ def size_to_byte(size: Union[float, int, str], unit: str, logger: Optional[Logge
         return final_size * (base ** 5)
 
 
-def datetime_as_milis(date: datetime = datetime.utcnow()) -> int:
-    return int(round(date.timestamp() * 1000))
+def utc_now() -> datetime:
+    """Return the current UTC time as a *naive* datetime (no tzinfo).
+
+    This is the deprecation-free replacement for ``datetime.utcnow()`` and is
+    deliberately naive. Atlas stores cache timestamps via ``utc_now().timestamp()``
+    and reads them back with ``datetime.fromtimestamp(...)``; both sides operate in
+    the same naive "UTC wall-clock" space, so switching to a timezone-aware value
+    here would shift every stored timestamp by the local UTC offset and misread
+    existing cache files. Keep it naive.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def datetime_as_milis(date: datetime = None) -> int:
+    return int(round((date if date is not None else utc_now()).timestamp() * 1000))
 
 
 def map_timestamp_file(file_path: str) -> str:

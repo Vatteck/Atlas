@@ -1,6 +1,28 @@
+from datetime import datetime, timezone
 from unittest import TestCase
 
-from atlas.commons.util import size_to_byte, sanitize_command_input, deep_update
+from atlas.commons.util import size_to_byte, sanitize_command_input, deep_update, \
+    utc_now, datetime_as_milis
+
+
+class UtcNowTest(TestCase):
+
+    def test_is_naive_utc(self):
+        # Must stay naive: cache timestamps round-trip via utc_now().timestamp() ->
+        # datetime.fromtimestamp(...), so making this tz-aware would shift every stored
+        # value by the local UTC offset and misread existing cache files.
+        now = utc_now()
+        self.assertIsNone(now.tzinfo)
+        # tracks real UTC wall-clock (within a generous skew)
+        reference = datetime.now(timezone.utc).replace(tzinfo=None).timestamp()
+        self.assertAlmostEqual(now.timestamp(), reference, delta=5)
+
+    def test_datetime_as_milis_default_evaluated_at_call_time(self):
+        # default arg must not be bound at import time (the old `=datetime.utcnow()` bug)
+        first = datetime_as_milis()
+        self.assertIsInstance(first, int)
+        explicit = datetime_as_milis(datetime(2020, 1, 1))
+        self.assertEqual(explicit, int(round(datetime(2020, 1, 1).timestamp() * 1000)))
 
 
 class DeepUpdateTest(TestCase):

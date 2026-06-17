@@ -1,4 +1,5 @@
 import datetime
+from atlas.commons.util import utc_now
 from threading import Lock
 from typing import Optional
 
@@ -27,7 +28,7 @@ class DefaultMemoryCache(MemoryCache):
 
     def _add(self, key: str, val: object):
         if key:
-            self._cache[key] = {'val': val, 'expires_at': datetime.datetime.utcnow() + datetime.timedelta(seconds=self.expiration_time) if self.expiration_time > 0 else None}
+            self._cache[key] = {'val': val, 'expires_at': utc_now() + datetime.timedelta(seconds=self.expiration_time) if self.expiration_time > 0 else None}
 
     def add_non_existing(self, key: str, val: object):
         if key and self. is_enabled():
@@ -46,7 +47,7 @@ class DefaultMemoryCache(MemoryCache):
             if val:
                 expiration = val.get('expires_at')
 
-                if expiration and expiration <= datetime.datetime.utcnow():
+                if expiration and expiration <= utc_now():
                     if lock:
                         self.lock.acquire()
 

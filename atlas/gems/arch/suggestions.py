@@ -1,6 +1,7 @@
 import os
 import traceback
 from datetime import datetime, timedelta
+from atlas.commons.util import utc_now
 from logging import Logger
 from pathlib import Path
 from threading import Thread
@@ -96,7 +97,7 @@ class RepositorySuggestionsDownloader(Thread):
             traceback.print_exc()
             return True
 
-        update = suggestions_timestamp + timedelta(hours=exp_hours) <= datetime.utcnow()
+        update = suggestions_timestamp + timedelta(hours=exp_hours) <= utc_now()
 
         if update:
             self._log.info("The cached suggestions file is no longer valid")
@@ -166,7 +167,7 @@ class RepositorySuggestionsDownloader(Thread):
             suggestions = parse(res.text, self._log, 'Arch')
 
             if suggestions:
-                self._save(text=res.text, timestamp=datetime.utcnow().timestamp())
+                self._save(text=res.text, timestamp=utc_now().timestamp())
             else:
                 self._log.warning(f"Could not parse any Arch suggestion from {self._file_suggestions_ts}")
         else:

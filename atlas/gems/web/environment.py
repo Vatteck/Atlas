@@ -5,6 +5,7 @@ import shutil
 import tarfile
 import traceback
 from datetime import datetime, timedelta
+from atlas.commons.util import utc_now
 from pathlib import Path
 from threading import Thread
 from typing import Dict, List, Optional
@@ -250,7 +251,7 @@ class EnvironmentUpdater:
             self.logger.error(f"Could not parse environment settings file timestamp: {env_ts_str}")
             return True
 
-        expired = env_timestamp + timedelta(hours=settings_exp) <= datetime.utcnow()
+        expired = env_timestamp + timedelta(hours=settings_exp) <= utc_now()
 
         if expired:
             self.logger.info("Environment settings file has expired. It should be re-downloaded")
@@ -314,7 +315,7 @@ class EnvironmentUpdater:
                 self._finish_task_download_settings()
                 return
 
-            cache_timestamp = datetime.utcnow().timestamp()
+            cache_timestamp = utc_now().timestamp()
             with open(ENVIRONMENT_SETTINGS_CACHED_FILE, 'w+') as f:
                 f.write(yaml.safe_dump(settings))
 

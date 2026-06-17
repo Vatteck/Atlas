@@ -2,6 +2,7 @@ import logging
 import time
 import traceback
 from datetime import datetime
+from atlas.commons.util import utc_now
 from threading import Thread
 from typing import Optional
 
@@ -53,7 +54,7 @@ class SuggestionsLoader(Thread):
                 self.suggestions = self.manager.read_cached(check_file=False)
             else:
                 try:
-                    timestamp = datetime.utcnow().timestamp()
+                    timestamp = utc_now().timestamp()
                     self.suggestions = self.manager.download()
 
                     if self.suggestions:

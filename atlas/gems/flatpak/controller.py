@@ -2,6 +2,7 @@ import os
 import re
 import traceback
 from datetime import datetime
+from atlas.commons.util import utc_now
 from operator import attrgetter
 from pathlib import Path
 from threading import Thread
@@ -68,7 +69,7 @@ class FlatpakManager(SoftwareManager, SettingsController):
         if app.runtime and app.latest_version is None:
             app.latest_version = app.version
 
-        expired_data = api_data and api_data.get('expires_at') and api_data['expires_at'] <= datetime.utcnow()
+        expired_data = api_data and api_data.get('expires_at') and api_data['expires_at'] <= utc_now()
 
         data_loader: Optional[FlatpakAsyncDataLoader] = None
 

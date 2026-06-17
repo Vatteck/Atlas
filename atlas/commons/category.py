@@ -12,7 +12,7 @@ import requests
 from atlas.api.abstract.controller import SoftwareManager
 from atlas.api.http import HttpClient
 from atlas.commons.internet import InternetChecker
-from atlas.commons.util import map_timestamp_file
+from atlas.commons.util import map_timestamp_file, utc_now
 
 
 class CategoriesDownloader(Thread):
@@ -93,7 +93,7 @@ class CategoriesDownloader(Thread):
         self.logger.info(self._msg('Downloading category definitions from {}'.format(self.url_categories_file)))
 
         try:
-            timestamp = datetime.utcnow().timestamp()
+            timestamp = utc_now().timestamp()
             res = self.http_client.get(self.url_categories_file)
         except requests.exceptions.ConnectionError:
             self.logger.error(self._msg('[{}] Could not download categories. The internet connection seems to be off.'.format(self.id_)))
@@ -145,7 +145,7 @@ class CategoriesDownloader(Thread):
             traceback.print_exc()
             return True
 
-        should_download = (categories_timestamp + timedelta(hours=self.expiration) <= datetime.utcnow())
+        should_download = (categories_timestamp + timedelta(hours=self.expiration) <= utc_now())
 
         if should_download:
             self.logger.info(self._msg("Cached categories file '{}' has expired. A new one should be downloaded.".format(self.categories_path)))

@@ -4,6 +4,7 @@ import re
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from atlas.commons.util import utc_now
 from json import JSONDecodeError
 from logging import Logger
 from pathlib import Path
@@ -59,7 +60,7 @@ class ApplicationIndexer:
             traceback.print_exc()
             return True
 
-        expired = timestamp + timedelta(minutes=exp_minutes) <= datetime.utcnow()
+        expired = timestamp + timedelta(minutes=exp_minutes) <= utc_now()
 
         if expired:
             self._log.info("Debian applications index has expired. A new one must be generated.")
@@ -122,7 +123,7 @@ class ApplicationIndexer:
             raise ApplicationIndexError()
 
         if update_timestamp:
-            index_timestamp = datetime.utcnow().timestamp()
+            index_timestamp = utc_now().timestamp()
             try:
                 with open(self._file_timestamp_path, 'w+') as f:
                     f.write(str(index_timestamp))

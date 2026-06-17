@@ -1,6 +1,7 @@
 import time
 import traceback
 from datetime import datetime, timedelta
+from atlas.commons.util import utc_now
 from logging import Logger
 from threading import Thread
 from typing import Optional, Set
@@ -156,7 +157,7 @@ class SynchronizePackages(Thread):
             traceback.print_exc()
             return True
 
-        expired = last_timestamp + timedelta(minutes=period) <= datetime.utcnow()
+        expired = last_timestamp + timedelta(minutes=period) <= utc_now()
 
         if expired:
             logger.info("Packages synchronization is outdated")
@@ -176,7 +177,7 @@ class SynchronizePackages(Thread):
         self._taskman.update_progress(self._id, 99, None)
 
         if updated:
-            index_timestamp = datetime.utcnow().timestamp()
+            index_timestamp = utc_now().timestamp()
             finish_msg = None
             try:
                 with open(PACKAGE_SYNC_TIMESTAMP_FILE, 'w+') as f:

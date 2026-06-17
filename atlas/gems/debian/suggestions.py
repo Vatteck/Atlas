@@ -1,6 +1,7 @@
 import os
 import traceback
 from datetime import datetime, timedelta
+from atlas.commons.util import utc_now
 from logging import Logger
 from pathlib import Path
 from threading import Thread
@@ -101,7 +102,7 @@ class DebianSuggestionsDownloader(Thread):
             traceback.print_exc()
             return True
 
-        update = suggestions_timestamp + timedelta(hours=exp_hours) <= datetime.utcnow()
+        update = suggestions_timestamp + timedelta(hours=exp_hours) <= utc_now()
         return update
 
     def _save(self, text: str, timestamp: float):
@@ -184,7 +185,7 @@ class DebianSuggestionsDownloader(Thread):
             suggestions = parse(res.text, self._log, 'Debian')
 
             if suggestions:
-                self._save(text=res.text, timestamp=datetime.utcnow().timestamp())
+                self._save(text=res.text, timestamp=utc_now().timestamp())
             else:
                 self._log.warning("No Debian suggestions to cache")
         else:
