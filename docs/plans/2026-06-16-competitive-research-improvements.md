@@ -1,8 +1,9 @@
 # Competitive research improvements
 
 **Date:** 2026-06-16
-**Status:** Themes 1–2 shipped 2026-06-16 (audit rules 14 → 31; AUR comments in the detail view).
-Themes 3–6 not started.
+**Status:** Themes 1, 2, 4 shipped 2026-06-16 (audit rules 14 → 31; AUR comments; AUR request
+throttle). **Theme 3 dropped as not-applicable** to Atlas's root model (see its section). Themes 5–6
+not started.
 **Sources reviewed:**
 [arch-toolkit](https://github.com/Firstp1ck/arch-toolkit) (Rust AUR library),
 [ks-aur-scanner](https://github.com/KiefStudioMA/ks-aur-scanner) (Rust PKGBUILD security scanner, 115+ rules),
@@ -151,10 +152,19 @@ surface comments.
 
 ---
 
-## Theme 3: Auth readiness check before long operations
+## Theme 3: Auth readiness check before long operations — ❌ not applicable (dropped 2026-06-16)
 
-**Why:** Pacsea implements "auth readiness checks" that evaluate whether the sudo credential
-cache will survive a long operation. A multi-package AUR chroot build can take 30+ minutes;
+> **Verdict:** doesn't apply to Atlas's architecture. The premise is that sudo's credential **cache**
+> times out mid-operation. Atlas doesn't depend on that cache: it holds the validated password in
+> `AtlasApi._root_password` and re-supplies it via `sudo -S` (stdin) on **every** privileged call
+> (`new_root_subprocess`); `validate_root_password` even runs `sudo -k` to *invalidate* the timestamp
+> so it always does a real check. So a long AUR build can't fail from a sudo timeout — the password is
+> always provided fresh. A `sudo -n true` / `timestamp_timeout` advisory would be misleading here.
+> (If we ever want a "this may take a while" heads-up for big multi-package AUR builds, that's a
+> separate, much smaller UX toast — not an auth-readiness check.)
+
+**Why (original, kept for context):** Pacsea implements "auth readiness checks" that evaluate whether
+the sudo credential cache will survive a long operation. A multi-package AUR chroot build can take 30+ minutes;
 if sudo times out mid-build, the operation fails partway through — a real pain point. Atlas
 currently just prompts for the root password upfront but doesn't warn about timeout risk.
 
@@ -173,7 +183,17 @@ currently just prompts for the root password upfront but doesn't warn about time
 
 ---
 
-## Theme 4: AUR client rate-limit delay
+## Theme 4: AUR client rate-limit delay — ✅ shipped 2026-06-16
+
+> **Shipped:** `AURClient` gained a `_throttle()` (min 150ms between consecutive AUR requests via
+> `time.monotonic`/`time.sleep`, `_MIN_REQUEST_INTERVAL`), called at the start of every network method
+> (`search`, `get_info`, `get_src_info` cache-miss branch, `download_names`). Scoped to the AUR client
+> so non-AUR `HttpClient` traffic is untouched (the design note below about HttpClient sharing is thus
+> resolved). The bulk `get_info` is already one batched call; this mainly smooths the sequential
+> per-package `.SRCINFO` fetches during dependency resolution. Kept simple (flat delay, no token
+> bucket) — the AUR RPC isn't high-throughput. Tests: `test_aur.py::ThrottleTest` (first request no
+> sleep; back-to-back sleeps the remainder; spaced-out no sleep; `get_info` throttles first). Existing
+> retry/backoff in `HttpClient` is unchanged.
 
 **Why:** arch-toolkit uses a 200ms minimum inter-request delay with exponential backoff for
 AUR RPC calls. Atlas has basic retry (2 attempts, 0.5s backoff) but no inter-request delay.
@@ -238,8 +258,8 @@ would improve discovery (typo tolerance, partial matches).
 |---|-------|--------|-------|------|
 | 1 | ✅ Expand PKGBUILD audit rules (14→31, shipped) | Medium | High — closes the biggest gap vs. ks-aur-scanner | Low (additive, advisory) |
 | 2 | ✅ AUR comments in detail view (shipped) | Medium | High — unique context for trust decisions | Low (fail-open, cached) |
-| 3 | Auth readiness check | Small | Medium — prevents a real pain point | Low (advisory only) |
-| 4 | AUR client rate-limit delay | Small | Medium — correctness/politeness | Low |
+| 3 | ❌ Auth readiness check (N/A — root model) | — | — | — |
+| 4 | ✅ AUR client rate-limit delay (shipped) | Small | Medium — correctness/politeness | Low |
 | 5 | Package queue (exploratory) | Large | Medium — convenience, not safety | Medium (UX complexity) |
 | 6 | Fuzzy search (exploratory) | Small | Low-medium — nice-to-have | Low |
 

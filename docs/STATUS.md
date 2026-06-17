@@ -13,7 +13,8 @@ Themes 1–2 shipped — PKGBUILD audit ruleset 14 → 31, and AUR comments in t
 reorganized into tabs (Overview/Details/Deps/History) + installed-files & raw-PKGBUILD containment,
 PKGBUILD surfaced on the Overview caution banner, comments moved into Details; AUR reputation score
 fixed (was computed from an unpopulated pkg object) + made legible with a clickable breakdown and
-votes/popularity badges (from GUI eyeballs) — see Done log)
+votes/popularity badges (from GUI eyeballs); competitive-research Theme 4 (AUR request throttle) shipped,
+Theme 3 (auth-readiness) dropped as N/A to Atlas's root model — see Done log)
 **Version:** 0.12.0 (the polish-and-trust release; 0.11.0 was the first cohesive Atlas release)
 **Working branch:** `work` in this checkout; app work normally lands on `master` (run `git branch`
 before acting — branch names in docs go stale)
@@ -92,6 +93,19 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **AUR request throttle — competitive-research Theme 4 (2026-06-16).** `AURClient` now enforces a
+  150ms minimum gap between consecutive AUR requests (`_throttle()` via `time.monotonic`/`time.sleep`,
+  `_MIN_REQUEST_INTERVAL`), called by every network method (`search`, `get_info`, `get_src_info`
+  cache-miss, `download_names`). aurweb asks clients not to burst the RPC; the bulk `get_info` is
+  already batched, so this mainly smooths the sequential per-package `.SRCINFO` fetches during
+  dependency resolution. Scoped to the AUR client so non-AUR `HttpClient` traffic is untouched. Flat
+  delay, no token bucket (the RPC isn't high-throughput). Tests: `test_aur.py::ThrottleTest`. Suite
+  **622**. **Theme 3 (auth-readiness check) was dropped as not-applicable:** Atlas doesn't rely on
+  sudo's credential cache — it holds the password in `_root_password` and re-supplies it via `sudo -S`
+  on every privileged call (`validate_root_password` runs `sudo -k`), so a long build can't fail from
+  a sudo timeout. Plan:
+  [plans/2026-06-16-competitive-research-improvements.md](plans/2026-06-16-competitive-research-improvements.md)
+  (Themes 1, 2, 4 done; 3 N/A; 5–6 exploratory).
 - **AUR reputation: correct score + legible breakdown + filled badge grid (2026-06-16).** A GUI
   eyeball showed android-studio (a hugely popular AUR pkg) as **15 · Risk** with no explanation. Root
   cause was a real bug: `calculate_aur_risk_score` read votes/popularity/age off the **pkg object**,

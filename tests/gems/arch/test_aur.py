@@ -298,3 +298,47 @@ class AURModuleTest(TestCase):
                 res[key].sort()
 
             self.assertEqual(val, res[key], "expected: {}. current: {}".format(val, res[key]))
+
+
+class ThrottleTest(TestCase):
+    """AURClient enforces a minimum gap between consecutive AUR requests (politeness / RPC limits)."""
+
+    def _client(self):
+        from unittest.mock import Mock
+        return aur.AURClient(http_client=Mock(), logger=Mock(), x86_64=True)
+
+    def test_first_request_does_not_sleep(self):
+        from unittest.mock import patch
+        client = self._client()
+        with patch('atlas.gems.arch.aur.time.monotonic', return_value=1000.0), \
+             patch('atlas.gems.arch.aur.time.sleep') as sleep:
+            client._throttle()
+        sleep.assert_not_called()
+
+    def test_back_to_back_request_sleeps_the_remaining_interval(self):
+        from unittest.mock import patch
+        client = self._client()
+        client._last_request_at = 1000.0
+        # only 0.05s elapsed since the last request → must sleep the remaining ~0.10s
+        with patch('atlas.gems.arch.aur.time.monotonic', return_value=1000.05), \
+             patch('atlas.gems.arch.aur.time.sleep') as sleep:
+            client._throttle()
+        sleep.assert_called_once()
+        self.assertAlmostEqual(client._MIN_REQUEST_INTERVAL - 0.05, sleep.call_args[0][0], places=6)
+
+    def test_spaced_out_request_does_not_sleep(self):
+        from unittest.mock import patch
+        client = self._client()
+        client._last_request_at = 1000.0
+        with patch('atlas.gems.arch.aur.time.monotonic', return_value=1005.0), \
+             patch('atlas.gems.arch.aur.time.sleep') as sleep:
+            client._throttle()
+        sleep.assert_not_called()
+
+    def test_get_info_throttles_before_requesting(self):
+        from unittest.mock import patch
+        client = self._client()
+        client.http_client.get_json.return_value = {'results': []}
+        with patch.object(client, '_throttle') as throttle:
+            client.get_info(('foo',))
+        throttle.assert_called_once()

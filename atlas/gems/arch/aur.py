@@ -2,6 +2,7 @@ import gzip
 import logging
 import os
 import re
+import time
 import urllib.parse
 import zlib
 from typing import Set, List, Iterable, Dict, Optional, Generator, Tuple
@@ -43,18 +44,36 @@ def decode_index_response(res) -> str:
 
 class AURClient:
 
+    # Minimum gap between consecutive AUR requests. aurweb asks clients not to burst the RPC; the
+    # bulk get_info path is already a single batched call, but sequential flows (per-package .SRCINFO
+    # fetches during dependency resolution) could otherwise hammer it. A flat delay is enough — the
+    # AUR RPC isn't high-throughput. Scoped to this client so non-AUR HttpClient traffic is untouched.
+    _MIN_REQUEST_INTERVAL = 0.15  # seconds
+
     def __init__(self, http_client: HttpClient, logger: logging.Logger, x86_64: bool):
         self.http_client = http_client
         self.logger = logger
         self.x86_64 = x86_64
         self.srcinfo_cache = {}
+        self._last_request_at = 0.0  # monotonic timestamp of the last AUR request
+
+    def _throttle(self):
+        """Block until at least `_MIN_REQUEST_INTERVAL` has passed since the previous AUR request."""
+        if self._MIN_REQUEST_INTERVAL <= 0:
+            return
+        wait = self._MIN_REQUEST_INTERVAL - (time.monotonic() - self._last_request_at)
+        if wait > 0:
+            time.sleep(wait)
+        self._last_request_at = time.monotonic()
 
     def search(self, words: str) -> dict:
+        self._throttle()
         return self.http_client.get_json(URL_SEARCH + words)
 
     def get_info(self, names: Iterable[str]) -> Optional[List[dict]]:
         if names:
             try:
+                self._throttle()
                 res = self.http_client.get_json(URL_INFO + self._map_names_as_queries(names))
             except requests.exceptions.ConnectionError:
                 self.logger.warning('Could not retrieve installed AUR packages API data. It seems the internet connection is off.')
@@ -123,6 +142,7 @@ class AURClient:
         if srcinfo:
             return srcinfo
 
+        self._throttle()
         res = self.http_client.get(URL_SRC_INFO + urllib.parse.quote(name))
 
         if res and res.text:
@@ -195,6 +215,7 @@ class AURClient:
     def download_names(self) -> Set[str]:
         self.logger.info('Downloading AUR index')
         try:
+            self._throttle()
             res = self.http_client.get(URL_INDEX)
             text = decode_index_response(res) if res else ''
 
