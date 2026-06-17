@@ -38,9 +38,8 @@ cover. No Rust/Qt revival; no new big architectural migration without a measured
 
 **Competitive-research Theme 5 is planned, not built; Theme 6 is half-built.**
 [Theme 5: package queue across views](plans/2026-06-16-theme5-package-queue.md) (medium–large; reuses
-`batch_install`) is fully planned. [Theme 6: fuzzy search](plans/2026-06-16-theme6-fuzzy-search.md) —
-**part 1 (re-rank results) shipped**; part 2 (thresholded fuzzy *fallback* for Installed/Updates) is
-the cheap remaining piece.
+`batch_install`) is fully planned, not built. [Theme 6: fuzzy search](plans/2026-06-16-theme6-fuzzy-search.md)
+is **complete** (parts 1 + 2). Theme 5 is the only remaining competitive-research item.
 
 The forward menu now lives in **[BACKLOG.md](BACKLOG.md)**, which is the canonical longer-horizon
 feature list. Highest-value next moves, in order:
@@ -99,6 +98,16 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Fuzzy search local filter + fallback — competitive-research Theme 6 part 2 (2026-06-16).** Searching
+  from the **Installed**/**Updates** views now **filters that view's own list** (pure
+  `filterLocalPackages`: exact name/description substring first, relevance-ordered; else, for queries
+  ≥3 chars, a thresholded fuzzy *name* fallback via `fuzzyScore ≥ 8` so `frfx` still finds `firefox`)
+  instead of running a global cross-source `search`. Uses the already-cached full list (`localListFor`)
+  — no extra backend call. **Intended behaviour change:** to find/install a *new* package, use
+  Browse/Dashboard search; the two finite views now self-filter. Client-only. Test:
+  `main_js_contracts::testFilterLocalPackages`. JS **54**. **Needs a GUI eyeball + user sign-off on the
+  behaviour change.** Theme 6 is now complete (parts 1 + 2). Plan:
+  [plans/2026-06-16-theme6-fuzzy-search.md](plans/2026-06-16-theme6-fuzzy-search.md).
 - **Fuzzy search re-rank — competitive-research Theme 6 part 1 (2026-06-16).** Search results from the
   backend (`pyApiCall('search', …)`, which matches name/description/keywords) are now **re-ranked
   client-side** so the closest *name* match is first — `widg` puts `widget` on top instead of buried.

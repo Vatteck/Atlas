@@ -1,7 +1,7 @@
 # Theme 6: Fuzzy package search
 
 **Date:** 2026-06-16
-**Status:** Part 1 (re-rank) ✅ shipped 2026-06-16; Part 2 (fuzzy fallback) not started. Dedicated
+**Status:** Parts 1 (re-rank) and 2 (local filter + fuzzy fallback) ✅ shipped 2026-06-16. Dedicated
 plan for competitive-research Theme 6 (Pacsea's fuzzy matching).
 Parent: [2026-06-16-competitive-research-improvements.md](2026-06-16-competitive-research-improvements.md).
 
@@ -34,11 +34,20 @@ Two scoped, low-risk improvements, both reusing `fuzzyScore`:
   `main_js_contracts::testRerankByFuzzy`. JS **53**. **Needs a GUI eyeball** (search a partial/typo'd
   name → the obvious package is at the top).
 
-### 2. Fuzzy fallback when there are zero exact hits (local lists)
+### 2. Fuzzy fallback when there are zero exact hits (local lists) — ✅ shipped 2026-06-16
 - For the finite local lists (Installed, Updates), add a **client-side fuzzy filter**: when the query
   has **no exact substring match** in the current list, fall back to `fuzzyScore`-ranked entries above
   a **threshold** (so `wodget` still finds `widget`). Exact matches always win and are shown first;
   fuzzy results are clearly secondary.
+- **Shipped:** pure `filterLocalPackages(list, query)` (exact name/description substring → relevance
+  order; else, query ≥3 chars → fuzzy *name* matches with `fuzzyScore ≥ 8`, ranked; empty query →
+  full list). `fetchPackages` now routes a query in Installed/Updates (`PACKAGE_LIST_VIEWS`) through it
+  against the cached full list (`localListFor`, reused from the no-query load — no extra backend call),
+  instead of the global `search`. Test: `main_js_contracts::testFilterLocalPackages`. JS **54**.
+- **Behaviour change (intended):** searching from the **Installed**/**Updates** view now filters
+  *that view's* packages rather than running a global cross-source search. (To find/install a *new*
+  package, use Browse/Dashboard search.) **Needs a GUI eyeball** + a user thumbs-up on this change.
+- Constants `LOCAL_FUZZY_MIN_SCORE = 8`, `LOCAL_FUZZY_MIN_QUERY_LEN = 3` are the tunable knobs.
 
 ### Threshold discipline (the main risk)
 Loose fuzzy feels random. Guardrails:

@@ -170,6 +170,15 @@ function getCacheKey(view, type, query) {
     return `${view}\0${type}\0${query}`;
 }
 
+// The full, unfiltered list backing a finite local view (Installed / Updates) — reused from the
+// session cache populated by the no-query load, so a search filters it without a fresh backend call.
+async function localListFor(view) {
+    const cached = packageCache[getCacheKey(view, 'all', '')];
+    if (cached !== undefined) return cached;
+    if (view === 'updates') return (await getUpdatesCached()) || [];
+    return (await pyApiCall('get_installed', 'all')) || [];
+}
+
 function getUpdatesCached() {
     const updatesKey = getCacheKey('updates', 'all', '');
     if (packageCache[updatesKey] !== undefined) {
@@ -4393,7 +4402,13 @@ async function fetchPackages() {
     }
 
     let results = [];
-    if (query) {
+    if (query && PACKAGE_LIST_VIEWS.has(currentView)) {
+        // Searching a finite local view filters that view's own list (with a fuzzy fallback), not a
+        // global cross-source search — searching Installed should find your installed apps.
+        const fullList = await localListFor(currentView);
+        if (!isCurrentPackageFetch(fetchEpoch, fetchView)) return;
+        results = filterLocalPackages(fullList, query);
+    } else if (query) {
         results = await pyApiCall('search', query, 'all');
         // Surface the closest name match first (the backend also matches description/keywords).
         results = rerankByFuzzy(results, query);
@@ -5967,6 +5982,30 @@ function rerankByFuzzy(results, query) {
         .map(s => s.pkg);
 }
 
+// Theme 6 part 2: search *within* a finite local view (Installed / Updates) by filtering that view's
+// own list, rather than a global cross-source search. Exact substring matches (name or description)
+// win and are relevance-ordered; when there are none and the query is long enough, fall back to
+// thresholded fuzzy *name* matches so a partial/subsequence query still finds the package (e.g.
+// "frfx" → firefox). Returns [] for no match, the full list for an empty query. Reuses fuzzyScore.
+const LOCAL_FUZZY_MIN_SCORE = 8;
+const LOCAL_FUZZY_MIN_QUERY_LEN = 3;
+function filterLocalPackages(list, query) {
+    const items = Array.isArray(list) ? list : [];
+    const raw = (query || '').trim();
+    if (!raw) return items;
+    const q = raw.toLowerCase();
+    const nameOf = (p) => (p && (p.name || p.display_name)) || '';
+    const exact = items.filter(p =>
+        nameOf(p).toLowerCase().includes(q) || ((p && p.description) || '').toLowerCase().includes(q));
+    if (exact.length) return rerankByFuzzy(exact, raw);              // exact hits, best name match first
+    if (raw.length < LOCAL_FUZZY_MIN_QUERY_LEN) return [];           // too short to fuzzy without noise
+    return items
+        .map((p, idx) => ({ p, idx, score: fuzzyScore(raw, nameOf(p)) }))
+        .filter(s => s.score >= LOCAL_FUZZY_MIN_SCORE)
+        .sort((a, b) => (b.score - a.score) || (a.idx - b.idx))
+        .map(s => s.p);
+}
+
 function renderCommandResults(query) {
     const list = document.getElementById('command-results');
     if (!list) return;
@@ -6077,6 +6116,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         computeDetailTabs,
         reputationPopupHtml,
         rerankByFuzzy,
+        filterLocalPackages,
         highlightBashLine,
         buildPkgbuildRiskHTML,
         buildPkgbuildMetaHTML,

@@ -1232,6 +1232,39 @@ function testRerankByFuzzy() {
   assert.strictEqual(ids(rerankByFuzzy([{ id: 'solo', name: 'solo' }], 'x')), 'solo', '<2 → unchanged');
 }
 
+function testFilterLocalPackages() {
+  const { hooks } = loadMainJs({});
+  const { filterLocalPackages } = hooks;
+  const ids = (list) => list.map(p => p.id).join(',');
+
+  const list = [
+    { id: 'ff', name: 'firefox', description: 'web browser' },
+    { id: 'gimp', name: 'gimp', description: 'image editor' },
+    { id: 'tb', name: 'thunderbird', description: 'mail client' },
+  ];
+
+  // exact substring on name
+  assert.strictEqual(ids(filterLocalPackages(list, 'fire')), 'ff', 'name substring matches');
+  // exact substring on description (no name hit)
+  assert.strictEqual(ids(filterLocalPackages(list, 'mail')), 'tb', 'description substring matches');
+  // empty query → full list unchanged
+  assert.strictEqual(ids(filterLocalPackages(list, '')), 'ff,gimp,tb', 'empty query → full list');
+
+  // fuzzy fallback only when there is NO exact hit: "frfx" isn't a substring of any, but is a
+  // subsequence of firefox → found via fallback
+  assert.strictEqual(ids(filterLocalPackages(list, 'frfx')), 'ff', 'fuzzy fallback finds subsequence match');
+
+  // a real exact hit must NOT be replaced by fuzzy noise
+  assert.strictEqual(ids(filterLocalPackages(list, 'gimp')), 'gimp', 'exact hit wins, no fuzzy noise');
+
+  // short queries (<3) never trigger fuzzy → no match when not an exact substring
+  assert.strictEqual(filterLocalPackages(list, 'zx').length, 0, 'short non-matching query → []');
+  // a nonsense long query below threshold → []
+  assert.strictEqual(filterLocalPackages(list, 'qqqqq').length, 0, 'no match → []');
+  // bad input
+  assert.strictEqual(filterLocalPackages(null, 'x').length, 0, 'null list → []');
+}
+
 async function testBrowseLandingBuilders() {
   const { hooks } = loadMainJs({});
   const { buildCategoryCardHTML, buildResumeBrowseHTML } = hooks;
@@ -1581,6 +1614,7 @@ function testPermsListEnsuresIconObserver() {
     testComputeDetailTabs,
     testReputationPopupHtml,
     testRerankByFuzzy,
+    testFilterLocalPackages,
     testBrowseLandingBuilders,
     testBuildMirrorOptionsHTML,
     testPkgbuildViewerBuilders,
