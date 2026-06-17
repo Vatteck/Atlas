@@ -5,10 +5,15 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-17 (PKGBUILD audit: external rules-pack loader [optional local
-`$CONFIG/arch/audit_rules.json`, additive + fail-closed; signing/remote gated]; `atlas-cli audit-scan`
-rule-health re-scan [samples live AUR PKGBUILDs, reports per-rule fire rates / FP drift]; structural
-rule #3 dropped on measured FP evidence; rule provenance surfaced in the viewer —
+**Last updated:** 2026-06-17 (late-session: **"Why is this installed?"** finished — dependency
+attribution names the explicit root(s) that pulled a package in, plus orphan detection tightened to
+`pacman -Qdt` semantics [demote when still optional-for an installed package] and the optional-for
+packages named; then a **code review** of the whole session's diff — fixed an
+`unchecksummed_remote_source` false positive [flag only on explicit SKIP] + documented the
+`_function_span` brace limitation. Earlier same day — PKGBUILD audit: external rules-pack loader
+[optional local `$CONFIG/arch/audit_rules.json`, additive + fail-closed; signing/remote gated];
+`atlas-cli audit-scan` rule-health re-scan [samples live AUR PKGBUILDs, reports per-rule fire rates /
+FP drift]; structural rule #3 dropped on measured FP evidence; rule provenance surfaced in the viewer —
 rule-id chip + campaign pill + tooltip per finding [GUI-verified]; plus structural/semantic checks:
 network-in-package(), unchecksummed-remote-source, and .SRCINFO↔PKGBUILD source-host divergence [wired
 through get_pkgbuild] — whole-file, lower-FP than regex; plus the rule-provenance side map and CI
@@ -36,19 +41,24 @@ in docs go stale)
 
 ## Current focus
 
-**PKGBUILD-audit hardening track complete (2026-06-17); back to the BACKLOG menu.** This session built
-out the audit subsystem end to end (see the Done log): rule provenance + regression corpus, structural/
-semantic checks (network-in-`package()`, unchecksummed-remote-source, `.SRCINFO`↔PKGBUILD divergence),
-provenance surfaced in the viewer UI (GUI-verified), the `atlas-cli audit-scan` rule-health tool, and a
-local fail-closed external rules-pack loader. Two open questions were resolved *with decisions* (decision
-log): structural rule #3 dropped on measured FP evidence; remote signed packs designed-and-deferred
-(permanent-maintenance cost not worth it for a solo-dev side project). Tree is green — **673 Python +
-55 JS**. No Rust/Qt revival; no new big architectural migration without a measured reason.
+**PKGBUILD-audit hardening track complete + "Why is this installed?" done (2026-06-17); back to the
+BACKLOG menu.** This session built out the audit subsystem end to end (see the Done log): rule
+provenance + regression corpus, structural/semantic checks (network-in-`package()`,
+unchecksummed-remote-source, `.SRCINFO`↔PKGBUILD divergence), provenance surfaced in the viewer UI
+(GUI-verified), the `atlas-cli audit-scan` rule-health tool, a local fail-closed external rules-pack
+loader, and a self-review pass (one FP fix). Also finished the **"Why is this installed?"** BACKLOG
+item — dependency attribution to explicit roots + orphan accuracy tightened to `pacman -Qdt`. Open
+questions were resolved *with decisions* (decision log): structural rule #3 dropped on measured FP
+evidence; remote signed packs designed-and-deferred (permanent-maintenance cost not worth it for a
+solo-dev side project). Tree is green — **688 Python + 55 JS**. No Rust/Qt revival; no new big
+architectural migration without a measured reason.
 
 ## Next
 
-The audit track is at a clean, fully-documented stopping point — nothing half-built. Forward moves come
-from **[BACKLOG.md](BACKLOG.md)**. Highest-value next moves, in order:
+Everything started this session is complete and documented — nothing half-built. Forward moves come
+from **[BACKLOG.md](BACKLOG.md)**, whose agent-actionable *feature* menu is now essentially drained
+(remaining items are user-driven: a GUI verification sweep, and a launch-time baseline to measure
+*before* any perf work). Highest-value next moves, in order:
 
 1. **GUI verification sweep** — run `atlas --logs` on a real desktop and eyeball the queued surfaces
    below. Headless tests are green, but pywebview modals, clipboard, icons, and desktop actions need
