@@ -300,6 +300,15 @@ class StructuralCheckTest(unittest.TestCase):
         )
         self.assertNotIn('unchecksummed_remote_source', rules_for(text))
 
+    def test_arch_suffixed_checksums_are_not_a_false_positive(self):
+        # plain source=() with an arch-suffixed sums array (our v1 parser skips arch sums) must NOT
+        # flag — a *missing* parsed checksum is inconclusive, only an explicit SKIP is unverified.
+        text = (
+            "source=(\"https://example.com/app-1.0.tar.gz\")\n"
+            "sha256sums_x86_64=('2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c')\n"
+        )
+        self.assertNotIn('unchecksummed_remote_source', rules_for(text))
+
     def test_unchecksummed_picks_the_right_index(self):
         # Second (remote) source is SKIP'd while the first is verified → flagged.
         text = (

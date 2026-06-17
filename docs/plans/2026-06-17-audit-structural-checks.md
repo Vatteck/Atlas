@@ -95,6 +95,17 @@ containing `$`** (unexpandable → can't compare → don't false-positive); loca
 `.SRCINFO` is the benign-stale direction). `all_rule_ids()` now unifies per-line + structural + the
 divergence rule as the single source of truth for the metadata guard tests.
 
+## Code-review follow-ups (2026-06-17)
+- **FP fix:** `_unchecksummed_remote_source` now flags only on an **explicit `SKIP`** at the aligned
+  index, not on a *missing* parsed checksum. A plain `source=()` paired with arch-suffixed sums
+  (`sha256sums_x86_64`, which the v1 parser skips) was being false-flagged as unverified; "no parsed
+  checksum" is now treated as inconclusive (makepkg requires a checksum per source). Test:
+  `test_arch_suffixed_checksums_are_not_a_false_positive`.
+- **Documented limitation:** `_function_span` counts braces raw, so a `}` in a string/comment can end
+  package() early (evades `network_in_package`). Accepted — advisory; the line still trips the
+  per-line `pipe_to_shell`/`network_cmd` rules, so only the in-package() *context* is lost. Caveat
+  comment added rather than building a bash-aware parser.
+
 ## Non-goals (this change)
 - Checks #3 and #4 (host-mismatch, `.SRCINFO` divergence).
 - Arch-suffixed source/sums alignment (`source_x86_64`) — v1 analyzes the default arrays only.

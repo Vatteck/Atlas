@@ -269,7 +269,12 @@ _NETWORK_FETCH_RE = re.compile(
 
 def _function_span(lines: List[str], name: str):
     """Return the (start, end) line indices (inclusive) spanning a bash function body, brace-matched.
-    Handles `name() {`, `name ()`, and `function name`. None if the function isn't found."""
+    Handles `name() {`, `name ()`, and `function name`. None if the function isn't found.
+
+    Caveat: braces are counted raw, so a `{`/`}` inside a string or comment (e.g. `echo "}"`) miscounts
+    the span — an evasion that can end package() early. Accepted: this is advisory, a full bash parser
+    is overkill, and a network call past the bad brace still trips the per-line pipe_to_shell/
+    network_cmd rules — only the `network_in_package` *context* is lost, not the flag."""
     header = re.compile(rf'^\s*(?:function\s+)?{re.escape(name)}\s*\(\s*\)\s*\{{?'
                         rf'|^\s*function\s+{re.escape(name)}\b')
     for i, line in enumerate(lines):
@@ -371,9 +376,15 @@ def _is_remote_binary_source(entry: str) -> bool:
 
 
 def _unchecksummed_remote_source(text: str):
-    """Hits for a remote http(s) source whose checksum is SKIP/absent in every *sums array — the
-    maintainer (or an attacker who can reach the host) can swap the tarball with no integrity check.
-    VCS and local-file sources are expected to SKIP and are never flagged."""
+    """Hits for a remote http(s) source whose checksum is explicitly SKIP — the maintainer (or an
+    attacker who can reach the host) can swap the tarball with no integrity check. VCS and local-file
+    sources are expected to SKIP and are never flagged.
+
+    We flag only on an *explicit* SKIP at the aligned index, never on a merely *missing* checksum:
+    makepkg requires a checksum per source, so 'no aligned value' means our v1 parser didn't see it
+    (e.g. an arch-suffixed `sha256sums_x86_64` array we skip) — inconclusive, not unverified. Flagging
+    on absence would false-positive a genuinely-checksummed source (a low-signal WARN that erodes
+    trust in the badge)."""
     source, source_line, sums = _ordered_arrays(text)
     if not source:
         return []
@@ -381,14 +392,19 @@ def _unchecksummed_remote_source(text: str):
     for i, entry in enumerate(source):
         if not _is_remote_binary_source(entry):
             continue
+        # Look at the aligned checksum(s): real value → verified; explicit SKIP → flag; none parsed →
+        # inconclusive (skip). If any *sums array verifies it, it's fine.
         verified = False
+        skipped = False
         for arr in sums:
             if i < len(arr):
                 val = arr[i].strip()
-                if val and val.upper() != 'SKIP':
+                if val.upper() == 'SKIP':
+                    skipped = True
+                elif val:
                     verified = True
                     break
-        if not verified:
+        if skipped and not verified:
             hits.append((source_line, entry))
     return hits
 
