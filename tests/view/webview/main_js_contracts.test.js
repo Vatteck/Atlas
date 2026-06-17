@@ -1367,6 +1367,10 @@ async function testPkgbuildViewerBuilders() {
   assert.ok(buildPkgbuildRiskHTML({ warn: 2, info: 1 }, 'D').includes('risk-warn'), 'warn tone');
   assert.ok(buildPkgbuildRiskHTML({ warn: 0, info: 0 }, 'D').includes('risk-safe'), 'safe tone when clean');
   assert.ok(buildPkgbuildRiskHTML({ warn: 0, info: 0 }, 'My disclaimer').includes('My disclaimer'), 'disclaimer shown');
+  // headline names each severity unambiguously (counts add up to the findings list)
+  assert.ok(buildPkgbuildRiskHTML({ warn: 2, info: 2 }, 'D').includes('2 warnings · 2 notes'), 'warn + info headline');
+  assert.ok(buildPkgbuildRiskHTML({ warn: 1, info: 0 }, 'D').includes('1 warning'), 'singular warning, no notes clause');
+  assert.ok(buildPkgbuildRiskHTML({ warn: 0, info: 1 }, 'D').includes('1 note'), 'info-only headline');
 
   // metadata panel
   const meta = buildPkgbuildMetaHTML({ maintainer: 'Jane', pkgver: '1.0', url: 'https://x.example',

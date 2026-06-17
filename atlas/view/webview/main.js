@@ -1762,8 +1762,10 @@ function buildPkgbuildRiskHTML(summary, disclaimer) {
     const s = summary || {};
     const warn = s.warn || 0, info = s.info || 0;
     const level = warn ? 'warn' : (info ? 'info' : 'safe');
+    // Name each severity so the count is unambiguous (the banner sits above a list of all findings).
     const headline = (warn || info)
-        ? `${warn} line${warn === 1 ? '' : 's'} worth a look${info ? ` · ${info} minor` : ''}`
+        ? [warn ? `${warn} warning${warn === 1 ? '' : 's'}` : null,
+           info ? `${info} note${info === 1 ? '' : 's'}` : null].filter(Boolean).join(' · ')
         : 'Nothing flagged by the heuristic scan';
     const icon = warn ? '⚠️' : (info ? 'ℹ️' : '✓');
     const note = escapeHtml(disclaimer || 'Heuristic hints only — NOT a safety check. Read the PKGBUILD.');
