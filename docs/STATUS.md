@@ -362,8 +362,11 @@ re-add a native extension without a measured win. Details in the historical
   **GUI-verified 2026-06-17:** tab bar renders, **tab switching works**, the Overview "Review PKGBUILD"
   button shows, and the **installed-files filter/containment** works on a thousands-of-files package.
   **Comments collapse/expand confirmed working** (now on the Overview tab — see the move entry above).
-  One sub-check remains: **empty-tab auto-hide** — open a Flatpak/AppImage with no deps/history → the
-  Dependencies/History tabs should be absent, not empty. Plan:
+  **Empty-tab auto-hide verified-as-designed 2026-06-17:** on a Flatpak (geforcenow) the Dependencies
+  and History tabs correctly *stay* because both panels have real content (Deps shows the "bundled in a
+  runtime" explainer; History shows the ostree commit log) — `computeDetailTabs` only hides a genuinely
+  empty deps/history panel, which is covered by its unit test. So nothing to fix; the queue item is
+  closed. Plan:
   [plans/2026-06-16-detail-pane-tabs.md](plans/2026-06-16-detail-pane-tabs.md).
 - **AUR comments in the detail view — competitive-research Theme 2 (2026-06-16).** AUR package
   comments (build-fix tips, security warnings, orphan/broken context) now show in a lazy "AUR comments"
