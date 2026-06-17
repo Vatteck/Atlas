@@ -115,7 +115,11 @@ re-add a native extension without a measured win. Details in the historical
   carries no provenance (backward-compatible). Keeps the advisory "read-it-yourself" framing — no
   black-box badge. Tests: JS `findingProvenanceHTML` cases + Python `test_scan_findings_carry_meta`/
   `test_divergence_finding_carries_meta`. Suite **649** + JS **55**. **GUI-verified** on
-  `logseq-desktop-git` (rule-id chips + CAMPAIGN pill render correctly). Follow-ups
+  `logseq-desktop-git` (rule-id chips + CAMPAIGN pill render correctly). Two follow-up fixes from the
+  eyeball, also verified: risk-banner wording now names severities (`N warnings · M notes`, was the
+  ambiguous `N lines worth a look · M minor`); and the viewer's code panel no longer clips — the body
+  needed `min-height:0` **and** `flex-shrink:0` on its children (the code panel's own `overflow:auto`
+  gave it ~0 min-content height, so flex was collapsing it to a sliver). Follow-ups
   still open: filter/hide-by-kind controls; provenance on diff badges. Plan:
   [plans/2026-06-17-audit-provenance-ui.md](plans/2026-06-17-audit-provenance-ui.md).
 - **PKGBUILD audit: .SRCINFO↔PKGBUILD divergence — structural step 4 (2026-06-17).** The cross-file
