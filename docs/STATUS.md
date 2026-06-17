@@ -1638,6 +1638,15 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Decision log (append-only; newest first)
 
+- **2026-06-17** — **Dropped PKGBUILD-audit structural rule #3 (source-host ≠ url-host) on measured
+  evidence.** Before building it, measured its fire rate on a random live AUR sample (via the new
+  `atlas-cli audit-scan` / `parse_metadata`): on the 49/70 sampled packages declaring both a `url=` and
+  a remote `source=()`, **45%** had no source host matching the url host (31% even at registrable-domain
+  level), and every example was legitimate (homepage vs source repo, `*.github.io`→`github.com`, npm
+  registry, vendor CDN, moved hosts). ~1-in-3 fire rate with ~all false positives = the alert-fatigue
+  failure mode the maintenance plan explicitly warns against ("more rules ≠ safer"). No code shipped;
+  recorded so it isn't rebuilt. This is also the first real payoff of the audit-scan tool: measure
+  before adding a rule. See plans/2026-06-17-audit-structural-checks.md ("Step 3 — DROPPED").
 - **2026-06-01** — Fixed severe scroll lag in the package grid. Root causes were (1) the sticky `.topbar` with `backdrop-filter: blur(16px)` overlapping the scrolling packages grid, forcing expensive repaints (fixed by promoting to a compositor layer via `transform: translateZ(0); will-change: transform, backdrop-filter`), (2) an invalid 4-value `contain-intrinsic-size` syntax on `.package-card` that caused older WebKitGTK versions to drop the rule and collapse `content-visibility` elements to 0px height, creating massive scrollbar thrashing (fixed by using the older, safer syntax `contain-intrinsic-size: 180px; contain-intrinsic-height: 180px`), and (3) a `fadeInUp` CSS animation applied globally to all `.package-card` elements, forcing WebKit to maintain active animation states for thousands of nodes at once (fixed by removing the animation).
 - **2026-05-30** — Converted the remaining `window.confirm`/`alert` watcher dialogs
   (`request_confirmation`/`request_reboot`/`show_message`) to blocking HTML modals, reusing

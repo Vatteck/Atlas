@@ -2,8 +2,9 @@
 
 **Date:** 2026-06-17
 **Status:** ✅ Step 1 shipped 2026-06-17 (network-in-`package()` + unchecksummed remote source).
-✅ Step 4 shipped 2026-06-17 (`.SRCINFO`↔PKGBUILD source-host divergence, wired through
-`get_pkgbuild`; suite 647). Only step 3 (source-host ≠ url-host, high-FP) remains — may be dropped.
+✅ Step 4 shipped 2026-06-17 (`.SRCINFO`↔PKGBUILD source-host divergence, wired through `get_pkgbuild`).
+❌ Step 3 (source-host ≠ url-host) **dropped 2026-06-17** after measuring a ~31–45% FP rate on live AUR
+packages (see "Step 3 — DROPPED" below). All structural work for this plan is now resolved.
 Parent: [2026-06-16-audit-rule-maintenance.md](2026-06-16-audit-rule-maintenance.md) (discovery #4).
 
 ## Why
@@ -32,11 +33,23 @@ offline, pattern/structure-based, advisory-only, no model/network/IOC feeds.
 |---|-------|----------|--------|---------|------|
 | 1 | **network in `package()`** | WARN | `package()` should only install built files; a curl/wget/pipe-to-shell/`/dev/tcp` there fetches+runs code at install-build time | low | **1** |
 | 2 | **unchecksummed remote source** | WARN | a remote **http(s)** non-VCS `source=()` whose checksum is `SKIP`/absent in every `*sums` array → maintainer can swap the tarball with zero integrity check | low–med | **1** |
-| 3 | source-host ≠ url-host | INFO | download host differs from project homepage | **high** (github-releases vs homepage, mirrors) | later / maybe drop |
-| 4 | `.SRCINFO` ↔ PKGBUILD divergence | WARN | published metadata disagrees with the build script | low, but needs `.SRCINFO` plumbing | 3 |
+| 3 | source-host ≠ url-host | INFO | download host differs from project homepage | **high** | **DROPPED** (measured) |
+| 4 | `.SRCINFO` ↔ PKGBUILD divergence | WARN | published metadata disagrees with the build script | low, but needs `.SRCINFO` plumbing | ✅ 4 (shipped) |
 
-Steps 3–4 are deliberately *not* in this change: #3 is high-FP (needs evidence it earns its noise),
-#4 needs the `.SRCINFO` passed through `get_pkgbuild`.
+### Step 3 — DROPPED, with data (2026-06-17)
+
+Before building #3 we measured its fire rate on a random live AUR sample (using the new `atlas-cli
+audit-scan` tooling / `parse_metadata`). On the 49/70 sampled packages that declare **both** a `url=`
+and a remote `source=()`:
+- **45%** had no source host matching the url host (exact-host);
+- **31%** still mismatched at the registrable-domain level.
+
+Every example was legitimate: project homepage vs source repo (`opencpn.org`→`github.com`), GitHub
+Pages vs GitHub (`*.github.io`→`github.com`), npm registry, vendor CDN
+(`developer.arm.com`→`armkeil.blob.core.windows.net`), a project that moved hosts, same author on a
+different TLD. A rule firing on ~1-in-3 packages with ~all false positives is precisely the
+alert-fatigue failure mode the maintenance plan warns against ("more rules ≠ safer"). **Verdict:
+dropped — it does not earn its noise.** Recorded so it isn't rebuilt.
 
 ## Step 1 design (this change)
 
