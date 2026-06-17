@@ -130,7 +130,10 @@ re-add a native extension without a measured win. Details in the historical
   files (gems arch/debian/web/appimage/flatpak workers+suggestions, `commons/category.py`,
   `view/util/cache.py`). Tests: `UtcNowTest` (naive contract + call-time default) in
   `tests/common/test_util.py`. Suite **690**; the two `datetime.utcnow()` DeprecationWarnings are gone
-  (only an external GLib/PyGObject one remains). No GUI surface.
+  (only an external GLib/PyGObject one remains). No GUI surface. Also **added `3.14` to the CI matrix**
+  (`.github/workflows/ci.yml`) — Arch now ships Python **3.14** as the system interpreter, so it's what
+  Atlas users actually run; CI previously stopped at 3.13, which is why this deprecation was invisible
+  there.
 - **"Why is this installed?" — dependency attribution (2026-06-17).** Finished the BACKLOG item: a
   pulled-in dependency now names the **explicit package(s)** that dragged it in ("Installed as a
   dependency of **gimp**." instead of the generic "…of other packages."). Backend
