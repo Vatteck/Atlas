@@ -27,6 +27,18 @@ def _has_base64_literal(line: str) -> bool:
     return False
 
 
+def _has_insecure_http_source(line: str) -> bool:
+    """A plain-http:// download (MITM risk). Skips git+http (git verifies via commit hash) and
+    loopback hosts. The literal `http://` never matches inside `https://`, so TLS URLs are safe."""
+    for m in re.finditer(r'(?P<git>git\+)?http://(?P<host>[^/\s"\'):]+)', line, re.I):
+        if m.group('git'):
+            continue
+        if m.group('host').lower() in ('localhost', '127.0.0.1', '0.0.0.0', '::1'):
+            continue
+        return True
+    return False
+
+
 # (rule_id, severity, why, matcher) — matcher(line) -> truthy on a hit.
 _RULES = [
     ('pipe_to_shell', WARN,
@@ -90,6 +102,95 @@ _RULES = [
      'Enables or starts a systemd service. Normal for packages that ship daemons; '
      'review the bundled unit file for unexpected network access or persistence.',
      re.compile(r'\bsystemctl\s+(?:enable|start|daemon-reload)\b', re.I).search),
+
+    # --- Reverse shells --- #
+    ('reverse_shell_bash', WARN,
+     'Bash-native reverse shell — a /dev/tcp (or /dev/udp) redirect, the classic '
+     '"bash -i >& /dev/tcp/host/port" backdoor.',
+     re.compile(r'>&\s*/dev/(?:tcp|udp)/|/dev/(?:tcp|udp)/[\w.-]+/\d+|bash\s+-i\b.*>&', re.I).search),
+
+    ('reverse_shell_lang', WARN,
+     'Language-level reverse-shell primitive (Python/Ruby/Perl/PHP socket call) — almost never '
+     'belongs in a PKGBUILD.',
+     re.compile(r'\bsocket\.connect\b|\bfsockopen\b|\bTCPSocket\b|\bIO\.popen\b|\bpty\.spawn\b', re.I).search),
+
+    ('reverse_shell_listener', WARN,
+     'Opens a listener (nc/ncat -l or socat LISTEN) — a bind shell / backdoor setup.',
+     re.compile(r'\b(?:nc|ncat)\s+-[a-z]*l|\bsocat\b[^\n]*\bLISTEN\b', re.I).search),
+
+    # --- Credential theft --- #
+    ('credential_harvest', WARN,
+     'Reads credential/keyring stores (shadow, GnuPG, keyrings, browser profiles, .netrc) — '
+     'these have no business in a package build.',
+     re.compile(r'/etc/shadow\b|\.gnupg\b|\bkwallet\b|gnome-keyring|login-keyring|\.netrc\b'
+                r'|\.mozilla\b|\.config/(?:chromium|google-chrome|google-chrome-beta)\b', re.I).search),
+
+    ('ssh_key_exfil', WARN,
+     'A private SSH key (id_rsa/id_ed25519/id_ecdsa) on a line with a network command, pipe or '
+     'redirect — reading a key is one thing, sending it is exfiltration.',
+     re.compile(r'id_(?:rsa|ed25519|ecdsa)\b[^\n]*(?:\b(?:curl|wget|nc|ncat|socat)\b|[>|])'
+                r'|\b(?:curl|wget|nc|ncat|socat)\b[^\n]*id_(?:rsa|ed25519|ecdsa)\b', re.I).search),
+
+    # --- Persistence --- #
+    ('systemd_timer_create', WARN,
+     'Installs a systemd .timer unit — a more covert persistence vector than a plain service '
+     '(a cron replacement that runs on a schedule).',
+     re.compile(r'systemd/(?:system|user)/[^\s"\']+\.timer\b').search),
+
+    ('cron_persist', WARN,
+     'Installs a cron job (crontab -, /etc/cron.d, /var/spool/cron) — a persistence mechanism.',
+     re.compile(r'\bcrontab\s+-|/etc/cron\.(?:d|hourly|daily|weekly)/|/var/spool/cron/').search),
+
+    ('rc_local', WARN,
+     'Writes /etc/rc.local or references rc-local.service — boot-time persistence.',
+     re.compile(r'/etc/rc\.local\b|\brc-local\.service\b').search),
+
+    ('shell_function_inject', WARN,
+     'Appends to a user shell config (.bashrc/.zshrc/.profile) — injects code that runs on every '
+     'shell start (distinct from merely reading these files).',
+     re.compile(r'>>\s*["\']?\S*\.(?:bashrc|zshrc|bash_profile|profile)\b').search),
+
+    # --- Obfuscation --- #
+    ('printf_assembly', WARN,
+     'Builds a string from octal/hex escapes via printf — a common way to hide a command before '
+     'eval/sh.',
+     re.compile(r'printf\s+["\']?(?:\\(?:x[0-9a-fA-F]{2}|[0-7]{2,3})){2,}', re.I).search),
+
+    ('gzip_payload', INFO,
+     'Decompresses (gzip -d/gunzip/zcat) straight into a shell — compressed-payload execution.',
+     re.compile(r'\b(?:gzip\s+-\w*d|gunzip|zcat)\b[^\n]*\|\s*(?:sudo\s+)?(?:ba|z|da|k)?sh\b', re.I).search),
+
+    ('xxd_decode', WARN,
+     'xxd -r reverses a hex dump — another decode-then-run obfuscation vector.',
+     re.compile(r'\bxxd\s+-\w*r\b', re.I).search),
+
+    # --- Dependency confusion --- #
+    ('dep_confusion', WARN,
+     'provides=/conflicts= lists a core system package — a takeover vector that can hijack or '
+     'block an essential package.',
+     re.compile(r'(?:provides|conflicts)\s*=\s*\([^)]*\b(?:glibc|coreutils|systemd|pacman|bash'
+                r'|filesystem|linux|gcc-libs|glib2|util-linux|shadow|sudo|openssl|ca-certificates)\b',
+                re.I).search),
+
+    # --- Weak integrity --- #
+    ('weak_checksum', INFO,
+     'Uses md5sums/sha1sums — MD5 and SHA1 are cryptographically broken; prefer sha256/sha512/b2.',
+     re.compile(r'\b(?:md5|sha1)sums\s*=').search),
+
+    ('http_source', INFO,
+     'A plain-http:// source download — vulnerable to MITM tampering; prefer https.',
+     _has_insecure_http_source),
+
+    # --- Privilege escalation --- #
+    ('suid_capability', WARN,
+     'setcap grants a dangerous file capability (cap_setuid, cap_sys_admin, cap_dac_override, …) '
+     '— capability-based privilege escalation, subtler than chmod +s.',
+     re.compile(r'\bsetcap\b[^\n]*\bcap_(?:setuid|setgid|net_raw|net_admin|sys_admin'
+                r'|dac_override|dac_read_search|sys_ptrace|sys_module)\b', re.I).search),
+
+    ('ld_preload', WARN,
+     'LD_PRELOAD / /etc/ld.so.preload — library injection used by rootkits and keyloggers.',
+     re.compile(r'\bLD_PRELOAD=|/etc/ld\.so\.preload\b').search),
 ]
 
 

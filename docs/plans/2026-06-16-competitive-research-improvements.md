@@ -1,7 +1,7 @@
 # Competitive research improvements
 
 **Date:** 2026-06-16
-**Status:** Plan (not started)
+**Status:** Theme 1 shipped 2026-06-16 (17 new audit rules, 14 → 31). Themes 2–6 not started.
 **Sources reviewed:**
 [arch-toolkit](https://github.com/Firstp1ck/arch-toolkit) (Rust AUR library),
 [ks-aur-scanner](https://github.com/KiefStudioMA/ks-aur-scanner) (Rust PKGBUILD security scanner, 115+ rules),
@@ -18,7 +18,16 @@ we should close.
 
 ---
 
-## Theme 1: Expand PKGBUILD audit rules (14 → ~40)
+## Theme 1: Expand PKGBUILD audit rules (14 → ~40) — ✅ shipped 2026-06-16
+
+> **Shipped:** 17 new rules added to `_RULES` in `pkgbuild_audit.py` (14 → **31** total), covering all
+> the categories enumerated below: reverse shells (3), credential theft (2), persistence (4),
+> obfuscation (3), dependency confusion (1), weak integrity (2), privilege escalation (2). Each has a
+> positive + false-positive-safe test in `test_pkgbuild_audit.py::CompetitiveResearchRuleTest`;
+> `CLEAN_PKGBUILD` stays at zero findings. New helper `_has_insecure_http_source` handles the
+> git+http / localhost exclusions. Suite **603** + JS **48** green. **Needs a GUI eyeball** (open a
+> PKGBUILD with one of the new patterns → the line is flagged in the viewer).
+
 
 **Why:** ks-aur-scanner implements 115+ detection codes. Atlas has 14. We don't need 115
 (many are Rust-specific deep analysis, IOC feeds, SARIF tooling — overkill for an advisory
@@ -212,7 +221,7 @@ would improve discovery (typo tolerance, partial matches).
 
 | # | Theme | Effort | Value | Risk |
 |---|-------|--------|-------|------|
-| 1 | Expand PKGBUILD audit rules (14→~40) | Medium | High — closes the biggest gap vs. ks-aur-scanner | Low (additive, advisory) |
+| 1 | ✅ Expand PKGBUILD audit rules (14→31, shipped) | Medium | High — closes the biggest gap vs. ks-aur-scanner | Low (additive, advisory) |
 | 2 | AUR comments in detail view | Medium | High — unique context for trust decisions | Low (fail-open, cached) |
 | 3 | Auth readiness check | Small | Medium — prevents a real pain point | Low (advisory only) |
 | 4 | AUR client rate-limit delay | Small | Medium — correctness/politeness | Low |

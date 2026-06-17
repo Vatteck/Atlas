@@ -8,7 +8,8 @@
 **Last updated:** 2026-06-16 (History/Activity PR review follow-up: stale detail history reset;
 History/Activity completion shipped; planning-doc reconciliation + GUI verification queue captured;
 AUR reputation scoring + diff security annotation + batch update risk tiers shipped; reconciled the
-stashed mirror regen options — country/protocol/sort in Settings → Mirrors — see Done log)
+stashed mirror regen options — country/protocol/sort in Settings → Mirrors; expanded the PKGBUILD
+audit ruleset 14 → 31 (competitive-research Theme 1) — see Done log)
 **Version:** 0.12.0 (the polish-and-trust release; 0.11.0 was the first cohesive Atlas release)
 **Working branch:** `work` in this checkout; app work normally lands on `master` (run `git branch`
 before acting — branch names in docs go stale)
@@ -87,6 +88,20 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **PKGBUILD audit ruleset expansion — competitive-research Theme 1 (2026-06-16).** Grew the advisory
+  PKGBUILD/.install scanner from **14 → 31 rules** (`pkgbuild_audit.py`), distilled from ks-aur-scanner's
+  detection categories — all pure pattern matchers, no external tools/network/ML, fail-open, advisory-only
+  (no "safe" verdict). New rules: reverse shells (`reverse_shell_bash`/`_lang`/`_listener`), credential
+  theft (`credential_harvest`, `ssh_key_exfil`), persistence (`systemd_timer_create`, `cron_persist`,
+  `rc_local`, `shell_function_inject`), obfuscation (`printf_assembly`, `gzip_payload`, `xxd_decode`),
+  `dep_confusion` (provides=/conflicts= a core package), weak integrity (`weak_checksum`, `http_source`),
+  privesc (`suid_capability`, `ld_preload`). New helper `_has_insecure_http_source` (skips git+http /
+  localhost). Each rule has a positive + false-positive-safe test in
+  `test_pkgbuild_audit.py::CompetitiveResearchRuleTest`; `CLEAN_PKGBUILD` stays at zero findings.
+  Suite **603** + JS **48** green. **Needs a GUI eyeball** (open a PKGBUILD containing one of the new
+  patterns → the flagged line shows in the viewer with its rule/why). Plan:
+  [plans/2026-06-16-competitive-research-improvements.md](plans/2026-06-16-competitive-research-improvements.md)
+  (Theme 1; Themes 2–6 remain).
 - **History/Activity completion (2026-06-16).** Finished the remaining History/Activity backlog
   items: `activity_log.py` now automatically compacts the local JSONL feed to the newest 1000 valid
   entries (checked every 25 writes), and installed package detail modals show a compact per-package

