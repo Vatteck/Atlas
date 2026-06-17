@@ -1174,6 +1174,10 @@ body {
 .pkgb-finding-link:hover { background: var(--bg-surface-hover); }
 .pkgb-finding-loc { flex-shrink: 0; min-width: 36px; font-family: ui-monospace, monospace; font-size: 12px; font-weight: 700; color: var(--text-secondary); }
 .pkgb-finding-why { font-size: 13px; }
+.pkgb-finding-prov { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 0 12px 8px 58px; }
+.pkgb-prov-rule { font-family: ui-monospace, monospace; font-size: 11px; color: var(--text-secondary); background: var(--bg-base); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 1px 6px; }
+.pkgb-prov-kind { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; border-radius: var(--radius-sm); padding: 1px 6px; }
+.pkgb-prov-kind.kind-campaign { color: #d97706; background: rgba(217, 119, 6, 0.12); border: 1px solid rgba(217, 119, 6, 0.4); }
 
 .pkgbuild-code { border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-base); font-family: ui-monospace, "Cascadia Code", Menlo, monospace; font-size: 12.5px; line-height: 1.6; overflow: auto; padding: 8px 0; }
 .pkgb-line { display: flex; padding: 0 12px; white-space: pre; }

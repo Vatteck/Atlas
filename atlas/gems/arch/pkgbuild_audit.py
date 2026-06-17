@@ -476,7 +476,8 @@ def scan_divergence(pkgbuild_text: str, srcinfo_text: str) -> List[Dict]:
             if host not in declared:
                 out.append({'line_no': line_no, 'line': line_text,
                             'rule': SRCINFO_DIVERGENCE_RULE, 'severity': WARN,
-                            'why': _SRCINFO_DIVERGENCE_WHY})
+                            'why': _SRCINFO_DIVERGENCE_WHY,
+                            'meta': rule_metadata(SRCINFO_DIVERGENCE_RULE)})
         return out
     except Exception:
         return []
@@ -509,7 +510,8 @@ def scan(text: str) -> List[Dict]:
             try:
                 if matcher(raw):
                     findings.append({'line_no': idx, 'line': stripped,
-                                     'rule': rule_id, 'severity': severity, 'why': why})
+                                     'rule': rule_id, 'severity': severity, 'why': why,
+                                     'meta': rule_metadata(rule_id)})
             except Exception:
                 continue  # a bad rule must never break the scan
 
@@ -517,7 +519,8 @@ def scan(text: str) -> List[Dict]:
         try:
             for line_no, line_text in analyzer(text):
                 findings.append({'line_no': line_no, 'line': line_text,
-                                 'rule': rule_id, 'severity': severity, 'why': why})
+                                 'rule': rule_id, 'severity': severity, 'why': why,
+                                 'meta': rule_metadata(rule_id)})
         except Exception:
             continue  # a bad structural check must never break the scan
 

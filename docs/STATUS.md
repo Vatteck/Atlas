@@ -5,11 +5,13 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-17 (PKGBUILD audit structural/semantic checks: network-in-package(),
-unchecksummed-remote-source, and .SRCINFO↔PKGBUILD source-host divergence [wired through get_pkgbuild]
-— whole-file, lower-FP than regex; plus the earlier rule-provenance side map and CI regression corpus
-— see Done log and plans/2026-06-17-audit-structural-checks.md +
-plans/2026-06-16-audit-rule-maintenance.md. Prior: History/Activity PR review follow-up: stale detail history reset;
+**Last updated:** 2026-06-17 (PKGBUILD audit: rule provenance now surfaced in the viewer — rule-id chip
++ campaign pill + tooltip per finding [needs a GUI eyeball]; plus structural/semantic checks:
+network-in-package(), unchecksummed-remote-source, and .SRCINFO↔PKGBUILD source-host divergence [wired
+through get_pkgbuild] — whole-file, lower-FP than regex; plus the rule-provenance side map and CI
+regression corpus — see Done log and plans/2026-06-17-audit-provenance-ui.md +
+plans/2026-06-17-audit-structural-checks.md + plans/2026-06-16-audit-rule-maintenance.md.
+Prior: History/Activity PR review follow-up: stale detail history reset;
 History/Activity completion shipped; planning-doc reconciliation + GUI verification queue captured;
 AUR reputation scoring + diff security annotation + batch update risk tiers shipped; reconciled the
 stashed mirror regen options — country/protocol/sort in Settings → Mirrors; competitive-research
@@ -67,7 +69,8 @@ Run these on a real WebKitGTK/pywebview desktop; this environment may not have a
 - Universal transaction preview: install/update/uninstall/downgrade, Update-All aggregate, source
   comparison, AUR reputation score, and batch risk-tier warning text.
 - PKGBUILD viewer: detail-page and preview entry points, `.install` tab, copy button, changed-since-
-  build diff, and inline suspicious-added-line annotations.
+  build diff, inline suspicious-added-line annotations, and per-finding **rule provenance** (rule-id
+  chip + "campaign" pill + kind/added/source tooltip).
 - Dependency tree: accordion groups and lazy Requires/Build expansion.
 - Permissions page: opening directly from the dashboard resolves real icons; Flatpak permission edits
   show a copyable `flatpak override --user ...` toast.
@@ -103,6 +106,17 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **PKGBUILD audit: rule provenance in the viewer UI (2026-06-17).** The kind/added/source we recorded
+  in `_RULE_META` is now visible per finding. Backend: `scan()` and `scan_divergence()` attach
+  `'meta': rule_metadata(rule_id)` to every finding (no existing keys changed). Frontend: pure
+  `findingProvenanceHTML(f)` renders, under each finding, the **rule id** as a mono chip (always —
+  makes the heuristic identifiable/reportable) and a **"campaign"** pill *only* for incident-specific
+  rules, with the full `Evergreen rule · added … · source: …` in a `title` tooltip; `''` when a finding
+  carries no provenance (backward-compatible). Keeps the advisory "read-it-yourself" framing — no
+  black-box badge. Tests: JS `findingProvenanceHTML` cases + Python `test_scan_findings_carry_meta`/
+  `test_divergence_finding_carries_meta`. Suite **649** + JS **55**. **Needs a GUI eyeball.** Follow-ups
+  still open: filter/hide-by-kind controls; provenance on diff badges. Plan:
+  [plans/2026-06-17-audit-provenance-ui.md](plans/2026-06-17-audit-provenance-ui.md).
 - **PKGBUILD audit: .SRCINFO↔PKGBUILD divergence — structural step 4 (2026-06-17).** The cross-file
   check (`srcinfo_source_divergence`, WARN): a source **host** declared in the PKGBUILD's `source=()`
   arrays but **absent from `.SRCINFO`** — `.SRCINFO` is what the AUR page and reviewers read while

@@ -1352,8 +1352,8 @@ async function testBuildMirrorOptionsHTML() {
 async function testPkgbuildViewerBuilders() {
   const { hooks } = loadMainJs({});
   const { highlightBashLine, buildPkgbuildRiskHTML, buildPkgbuildMetaHTML,
-          buildPkgbuildFindingsHTML, buildPkgbuildCodeHTML, buildPkgbuildTabsHTML,
-          buildPkgbuildViews, buildPkgbuildDiffHTML } = hooks;
+          buildPkgbuildFindingsHTML, findingProvenanceHTML, buildPkgbuildCodeHTML,
+          buildPkgbuildTabsHTML, buildPkgbuildViews, buildPkgbuildDiffHTML } = hooks;
 
   // highlightBashLine: escapes HTML, colors comments/strings/keywords/vars, never stalls.
   assert.ok(highlightBashLine('# a comment').includes('tok-comment'), 'full-line comment');
@@ -1381,6 +1381,19 @@ async function testPkgbuildViewerBuilders() {
   const fh = buildPkgbuildFindingsHTML(findings);
   assert.ok(fh.includes('data-line="8"') && fh.includes('pipes to shell'), 'finding links to line');
   assert.strictEqual(buildPkgbuildFindingsHTML([]), '', 'no findings → empty');
+
+  // provenance: rule id chip always, campaign pill only for campaign rules, tooltip carries detail
+  const prov = findingProvenanceHTML({ rule: 'npm_install_unknown',
+    meta: { kind: 'campaign', added: '2026-06', source: 'Atomic Arch' } });
+  assert.ok(prov.includes('npm_install_unknown'), 'rule id chip shown');
+  assert.ok(prov.includes('kind-campaign') && prov.includes('campaign'), 'campaign pill');
+  assert.ok(prov.includes('Atomic Arch') && prov.includes('added 2026-06'), 'tooltip detail');
+  const evergreen = findingProvenanceHTML({ rule: 'eval', meta: { kind: 'evergreen' } });
+  assert.ok(evergreen.includes('eval') && !evergreen.includes('kind-campaign'), 'evergreen: rule chip, no campaign pill');
+  assert.strictEqual(findingProvenanceHTML({ line_no: 1, severity: 'warn' }), '', 'no rule/meta → no provenance block');
+  // the findings list embeds provenance when a finding carries it
+  const fhMeta = buildPkgbuildFindingsHTML([{ line_no: 3, severity: 'warn', why: 'x', rule: 'sudo', meta: { kind: 'evergreen' } }]);
+  assert.ok(fhMeta.includes('pkgb-prov-rule') && fhMeta.includes('sudo'), 'list renders provenance');
 
   // code: line ids + flagged class on the right line
   const code = buildPkgbuildCodeHTML('a\nb\nc', [{ line_no: 2, severity: 'warn', why: 'x' }]);

@@ -384,6 +384,24 @@ class RuleMetadataTest(unittest.TestCase):
         meta = audit.rule_metadata('eval')
         self.assertEqual(meta, {'kind': audit.EVERGREEN, 'added': None, 'source': None})
 
+    def test_scan_findings_carry_meta(self):
+        # Every finding embeds provenance so the viewer can surface it.
+        findings = audit.scan('eval "$x"\nnpm install\n')
+        self.assertTrue(findings)
+        for f in findings:
+            self.assertIn('meta', f)
+            self.assertIn(f['meta']['kind'], (audit.EVERGREEN, audit.CAMPAIGN))
+        npm = next(f for f in findings if f['rule'] == 'npm_install_unknown')
+        self.assertEqual(npm['meta']['kind'], audit.CAMPAIGN)
+        self.assertTrue(npm['meta']['source'])
+
+    def test_divergence_finding_carries_meta(self):
+        out = audit.scan_divergence('source=("https://evil.example/x.tar.gz")\n',
+                                    '\tsource = https://github.com/foo/x.tar.gz\n')
+        self.assertTrue(out)
+        self.assertEqual(out[0]['meta']['kind'], audit.EVERGREEN)
+        self.assertTrue(out[0]['meta']['source'])
+
     def test_accessor_returns_recorded_provenance(self):
         meta = audit.rule_metadata('npm_install_unknown')
         self.assertEqual(meta['kind'], audit.CAMPAIGN)

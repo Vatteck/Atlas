@@ -1806,6 +1806,26 @@ function buildPkgbuildMetaHTML(meta) {
     return `<div class="pkgb-meta-grid">${rows.join('')}</div>`;
 }
 
+// Per-finding provenance: the stable rule id (so the heuristic is identifiable) + a "campaign" pill
+// for incident-specific rules, with the full kind/added/source in a tooltip. '' when no provenance
+// (findings predating the metadata, or fixtures without it). Keeps the advisory framing transparent.
+function findingProvenanceHTML(f) {
+    const meta = (f && f.meta) || {};
+    const rule = f && f.rule;
+    if (!rule && !meta.kind) return '';
+    const kind = meta.kind || '';
+    const tipParts = [];
+    if (kind) tipParts.push(kind.charAt(0).toUpperCase() + kind.slice(1) + ' rule');
+    if (meta.added) tipParts.push('added ' + meta.added);
+    if (meta.source) tipParts.push('source: ' + meta.source);
+    const tip = tipParts.join(' · ');
+    const ruleChip = rule ? `<span class="pkgb-prov-rule">${escapeHtml(rule)}</span>` : '';
+    const campaignPill = kind === 'campaign'
+        ? `<span class="pkgb-prov-kind kind-campaign" title="This rule targets a specific known incident">campaign</span>`
+        : '';
+    return `<div class="pkgb-finding-prov"${tip ? ` title="${escapeHtml(tip)}"` : ''}>${ruleChip}${campaignPill}</div>`;
+}
+
 // Clickable findings list — each links to its line in the code panel.
 function buildPkgbuildFindingsHTML(findings) {
     findings = findings || [];
@@ -1816,6 +1836,7 @@ function buildPkgbuildFindingsHTML(findings) {
                 <span class="pkgb-finding-loc">L${f.line_no}</span>
                 <span class="pkgb-finding-why">${escapeHtml(f.why || '')}</span>
             </a>
+            ${findingProvenanceHTML(f)}
         </li>`).join('');
     return `<h4 class="pkgb-findings-h">Lines worth a look</h4><ul class="pkgb-findings-list">${items}</ul>`;
 }
@@ -6307,6 +6328,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildPkgbuildRiskHTML,
         buildPkgbuildMetaHTML,
         buildPkgbuildFindingsHTML,
+        findingProvenanceHTML,
         buildPkgbuildCodeHTML,
         buildPkgbuildTabsHTML,
         buildPkgbuildViews,
