@@ -1147,7 +1147,9 @@ body {
 /* Above the other modals (z 300) so it stacks on top when opened from the install preview. */
 #pkgbuild-modal { z-index: 400; }
 .pkgbuild-modal-content { width: 880px; max-height: 86vh; }
-.pkgbuild-body { display: flex; flex-direction: column; gap: 16px; padding: 20px 24px 24px; overflow: auto; }
+/* min-height:0 lets this flex child shrink below its content so its own overflow:auto scrolls,
+   instead of overflowing the modal (which is overflow:hidden) and clipping the code panel. */
+.pkgbuild-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 16px; padding: 20px 24px 24px; overflow: auto; }
 /* Sticky risk summary lives between header and the scrolling body. */
 .pkgbuild-risk { flex-shrink: 0; padding: 0 24px; margin-top: 16px; }
 .pkgbuild-risk-banner { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: var(--radius-md); border: 1px solid var(--border-color); }
