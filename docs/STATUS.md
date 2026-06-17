@@ -119,6 +119,11 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **AUR caution banner above the badge grid (2026-06-17, GUI-verified).** From a GUI eyeball: the
+  "From the AUR — community-submitted… review the PKGBUILD" trust banner read better directly under the
+  title, *above* the Reputation/Votes/Popularity badges, instead of beneath them. Pure markup reorder —
+  swapped `#detail-why-source` and `#rich-badges-grid` in the Overview panel (`index.html`); both are
+  filled by `id`, so no JS/CSS change. Suite 690. **GUI-verified.**
 - **`datetime.utcnow()` deprecation cleanup (2026-06-17).** Replaced all **25** `datetime.utcnow()`
   call sites (deprecated, slated for removal — noisy under local Python 3.14; CI only runs 3.10–3.13 so
   it was invisible there) with a single new helper `commons.util.utc_now()`. The helper is
