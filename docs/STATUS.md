@@ -306,7 +306,8 @@ re-add a native extension without a measured win. Details in the historical
   when flagged). Tests: `test_aur_risk.py` (info-overrides-pkg regression + breakdown),
   `test_api.py::AurMetaTest`, `main_js_contracts::testReputationPopupHtml`. Suite **618** + JS **52**.
   **GUI-verified 2026-06-17** (android-studio detail modal: scores a realistic **100 · Trusted** — was
-  15 · Risk before the fix — with the **Votes 1,134 / Popularity 9.13** badges filling the grid). Plan:
+  15 · Risk before the fix — with the **Votes 1,134 / Popularity 9.13** badges filling the grid; and
+  clicking the **Reputation badge opens the breakdown popup**). Plan:
   [plans/2026-06-16-aur-reputation-legibility.md](plans/2026-06-16-aur-reputation-legibility.md).
 - **Detail pane tabs + wall-of-text containment + PKGBUILD/comments placement (2026-06-16).** From two
   GUI eyeballs: the detail modal's installed-files list (arch `pacman -Qlq`, often thousands of
@@ -524,8 +525,10 @@ re-add a native extension without a measured win. Details in the historical
   action* (install/update/uninstall) via the same `copyEquivalentCommand`; (b) a **"Copy command"**
   button in **Settings → Mirrors** beside Regenerate that copies the already-previewed reflector
   command (`get_mirror_status().command`). No backend change (reuses `get_command`/`get_mirror_status`).
-  Suite **536** + JS 38. **Needs a GUI eyeball.** Only **`flatpak override` copy on the Permissions
-  page** remains deferred (per-edit command shape; lower value).
+  Suite **536** + JS 38. The **detail-modal footer "Copy command" is GUI-verified 2026-06-17**
+  (android-studio → copies the command to the clipboard); the **Settings → Mirrors** copy button still
+  wants an eyeball. Only **`flatpak override` copy on the Permissions page** remains deferred (per-edit
+  command shape; lower value).
 - **Dependency tree view (2026-06-05).** Completed the detail-page Dependencies section into a full
   relationship picture + a drill-down tree (the BACKLOG "Dependency tree view" item). **Backend:**
   `get_dependency_summary` now additionally returns `makedepends`/`checkdepends` (AUR only — binary
