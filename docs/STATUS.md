@@ -53,9 +53,12 @@ from **[BACKLOG.md](BACKLOG.md)**. Highest-value next moves, in order:
 1. **GUI verification sweep** — run `atlas --logs` on a real desktop and eyeball the queued surfaces
    below. Headless tests are green, but pywebview modals, clipboard, icons, and desktop actions need
    a real session.
-2. **"Why is this installed?"** — detail-page power-user sugar for explicit-vs-dependency reason,
-   required-by/reverse-dep list, and orphan status. Start with a `docs/plans/` note before backend
-   work.
+2. **"Why is this installed?"** — **picked for next session; plan drafted**
+   ([plans/2026-06-17-why-installed.md](plans/2026-06-17-why-installed.md)). The core (explicit-vs-
+   dependency reason, orphan status, required-by) already shipped in `get_dependency_summary` /
+   `buildDependencySummaryHTML` (2026-06-05); the remaining delta is attributing a pulled-in dependency
+   to the **explicit package(s)** that dragged it in, via a bounded pure-pacman reverse walk (+ optional
+   Overview mirror line + a GUI eyeball). ~half a session, low risk, local-only.
 3. **Launch-time baseline** — manually measure time-to-window and time-to-first-view before any
    further startup/concurrency changes.
 
