@@ -114,9 +114,13 @@ re-add a native extension without a measured win. Details in the historical
   into `get_dependency_summary` (`installed_because`, only for a non-orphan dependency); frontend
   `buildDependencySummaryHTML` renders the names (cap 4 + "+N more"), falling back to the generic line
   when unresolved. The rest of the item (explicit/dependency/orphan reason + required-by) shipped
-  2026-06-05. No new system dep (no `pactree`/`pacman-contrib`). Tests: `FindExplicitRootsTest` (8) +
-  api `installed_because`/orphan-skip + a JS contract. Suite **683** + JS **55**. **Needs a GUI
-  eyeball.** Plan: [plans/2026-06-17-why-installed.md](plans/2026-06-17-why-installed.md).
+  2026-06-05. No new system dep (no `pactree`/`pacman-contrib`). **Orphan accuracy tightened to
+  `pacman -Qdt`** (from an eyeball): an orphan candidate is demoted when it's still an *optional*
+  dependency of an installed package (new `pacman.map_optional_for`, sharing a refactored
+  `_map_qi_set_field` parser with `map_required_by`; fixed a latent multi-line-value bug in the old
+  parser). Verified live (`7zip` Optional For parses; `python-build` stays a true orphan). Tests:
+  `FindExplicitRootsTest` (8) + `OptionalForTest` (3) + api cases + a JS contract. Suite **687** + JS
+  **55**. **Needs a GUI eyeball.** Plan: [plans/2026-06-17-why-installed.md](plans/2026-06-17-why-installed.md).
 - **PKGBUILD audit: external rules-pack loader — maintenance step (d), step 1 (2026-06-17).** An
   optional local JSON file (`$CONFIG/arch/audit_rules.json`) can add *regex* rules without an app
   release. **Strictly additive + fail-closed:** a pack never edits/removes a bundled rule, can't shadow

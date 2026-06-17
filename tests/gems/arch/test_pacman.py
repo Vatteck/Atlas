@@ -189,3 +189,37 @@ class FindExplicitRootsTest(TestCase):
 
     def test_empty_name(self):
         self.assertEqual([], pacman.find_explicit_roots('', self._rb({}), explicit={'app'}))
+
+
+_QI_OPTFOR = """Name            : libfoo
+Version         : 1.0-1
+Required By     : None
+Optional For    : appbar  appbaz
+Conflicts With  : None
+
+Name            : libbar
+Version         : 2.0-1
+Required By     : someapp
+Optional For    : None
+Conflicts With  : None
+"""
+
+
+class OptionalForTest(TestCase):
+    """map_optional_for / map_required_by share a parser; verify both fields parse from one block."""
+
+    @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value=_QI_OPTFOR)
+    def test_map_optional_for_parses_field(self, run_cmd: Mock):
+        res = pacman.map_optional_for(['libfoo', 'libbar'])
+        self.assertEqual({'appbar', 'appbaz'}, res['libfoo'])
+        self.assertEqual(set(), res['libbar'])  # 'None' → empty
+
+    @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value=_QI_OPTFOR)
+    def test_map_required_by_still_parses_after_refactor(self, run_cmd: Mock):
+        res = pacman.map_required_by(['libfoo', 'libbar'])
+        self.assertEqual(set(), res['libfoo'])           # Required By: None
+        self.assertEqual({'someapp'}, res['libbar'])
+
+    @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value="")
+    def test_empty_output_falls_back_to_empty_sets(self, run_cmd: Mock):
+        self.assertEqual({'x': set()}, pacman.map_optional_for(['x']))

@@ -1787,6 +1787,15 @@ class AtlasApi:
                     self.logger.debug(f"dep summary: install reason failed for {name}: {e}")
                 # An orphan candidate: pulled in as a dependency, but now nothing requires it.
                 data['orphan'] = data['install_reason'] == 'dependency' and not data['required_by']
+                # `pacman -Qdt` semantics: a package still listed as an *optional* dependency of an
+                # installed package isn't a true orphan — don't tell the user they can remove it.
+                if data['orphan']:
+                    try:
+                        opt_for = (pacman.map_optional_for([name]) or {}).get(name) or set()
+                        if opt_for:
+                            data['orphan'] = False
+                    except Exception as e:
+                        self.logger.debug(f"dep summary: optional-for check failed for {name}: {e}")
                 # "Dependency of what?" — attribute a pulled-in dependency to the explicit package(s)
                 # that dragged it in. Only for a non-orphan dependency (an orphan has no roots).
                 if data['install_reason'] == 'dependency' and data['required_by']:

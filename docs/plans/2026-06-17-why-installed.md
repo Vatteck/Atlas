@@ -62,6 +62,17 @@ attribution) on a real install with a known orphan + a known dependency.
 - Frontend: `buildDependencySummaryHTML` — dependency-with-roots renders the names + "+N more";
   empty roots falls back to the generic line; explicit/orphan unchanged. (Node-VM contract test.)
 
+## Orphan accuracy — `-Qdt` parity (2026-06-17)
+A GUI eyeball raised: is "orphan" accurate? Atlas's check was `install_reason == 'dependency' and not
+required_by`, where `required_by` is the `pacman -Qi` **Required By** (hard deps only) — equivalent to
+`pacman -Qdtt`, marginally more aggressive than `pacman -Qdt`. Tightened to match `-Qdt`: an orphan
+candidate is **demoted** when it's still listed under **Optional For** (an optional dependency of an
+installed package). New `pacman.map_optional_for` (shares a refactored `_map_qi_set_field` parser with
+`map_required_by`; the old duplicate parser also had a latent multi-line-value bug, now fixed); the
+extra `-Qi` runs only for an orphan *candidate*. Fail-open (probe fails → prior behaviour). Verified
+live: `7zip`'s Optional For (`ark`, `yazi`) parses correctly; `python-build` (the eyeball case) stays
+a true orphan (empty Required By + Optional For). Tests: `OptionalForTest` (3) + api demotion case.
+
 ## Non-goals
 - No `pactree`/`expac`/`pacman-contrib` dependency — pure `pacman -Q*` only (low maintenance).
 - No full reverse-dependency *tree* UI (the Dependencies accordion already drills down); just the

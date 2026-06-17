@@ -2037,10 +2037,24 @@ class DependencySummaryTest(unittest.TestCase):
              patch('atlas.gems.arch.pacman.map_optional_deps', return_value={}), \
              patch('atlas.gems.arch.pacman.map_conflicts_with', return_value={}), \
              patch('atlas.gems.arch.pacman.map_required_by', return_value={'libfoo': set()}), \
+             patch('atlas.gems.arch.pacman.map_optional_for', return_value={'libfoo': set()}), \
              patch('atlas.gems.arch.pacman.get_install_reason', return_value='dependency'):
             d = self.api.get_dependency_summary('arch_repo:libfoo')['data']
         self.assertEqual('dependency', d['install_reason'])
-        self.assertTrue(d['orphan'])  # installed as a dep, now required by nothing
+        self.assertTrue(d['orphan'])  # installed as a dep, now required by nothing (hard or optional)
+
+    def test_not_orphan_when_optional_dependency_of_installed_pkg(self):
+        # -Qdt semantics: still listed under "Optional For" → not a true orphan, don't say "remove it".
+        self._pkg(name='libfoo', ptype='arch_repo', repository='extra', installed=True)
+        with patch('atlas.gems.arch.pacman.map_updates_data', return_value={}), \
+             patch('atlas.gems.arch.pacman.map_optional_deps', return_value={}), \
+             patch('atlas.gems.arch.pacman.map_conflicts_with', return_value={}), \
+             patch('atlas.gems.arch.pacman.map_required_by', return_value={'libfoo': set()}), \
+             patch('atlas.gems.arch.pacman.map_optional_for', return_value={'libfoo': {'someapp'}}), \
+             patch('atlas.gems.arch.pacman.get_install_reason', return_value='dependency'):
+            d = self.api.get_dependency_summary('arch_repo:libfoo')['data']
+        self.assertEqual('dependency', d['install_reason'])
+        self.assertFalse(d['orphan'])  # optdepend of an installed package → not a removable orphan
 
     def test_installed_because_names_explicit_roots(self):
         self._pkg(name='libfoo', ptype='arch_repo', repository='extra', installed=True)
@@ -2062,6 +2076,7 @@ class DependencySummaryTest(unittest.TestCase):
              patch('atlas.gems.arch.pacman.map_optional_deps', return_value={}), \
              patch('atlas.gems.arch.pacman.map_conflicts_with', return_value={}), \
              patch('atlas.gems.arch.pacman.map_required_by', return_value={'libfoo': set()}), \
+             patch('atlas.gems.arch.pacman.map_optional_for', return_value={'libfoo': set()}), \
              patch('atlas.gems.arch.pacman.get_install_reason', return_value='dependency'), \
              patch('atlas.gems.arch.pacman.find_explicit_roots') as fer:
             d = self.api.get_dependency_summary('arch_repo:libfoo')['data']

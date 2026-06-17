@@ -895,12 +895,15 @@ def get_cache_dir() -> str:
             return '/var/cache/pacman/pkg'
 
 
-def map_required_by(names: Iterable[str] = None, remote: bool = False) -> Dict[str, Set[str]]:
+def _map_qi_set_field(field: str, names: Iterable[str] = None, remote: bool = False) -> Dict[str, Set[str]]:
+    """Map each package to the space-separated set under a ``pacman -Qi``/``-Sii`` list field
+    (e.g. ``'Required By'``, ``'Optional For'``). ``'None'`` → empty set; values that wrap across
+    indented continuation lines are folded in. Missing field → no entry for that package."""
     output = run_cmd(f"pacman -{'Sii' if remote else 'Qi'} {' '.join(names) if names else ''}".strip(),
                      print_error=False)
 
     if output:
-        latest_name, required = None, None
+        latest_name, collected = None, None
         res = {}
 
         for l in output.split('\n'):
@@ -908,28 +911,41 @@ def map_required_by(names: Iterable[str] = None, remote: bool = False) -> Dict[s
                 if l[0] != ' ':
                     line = l.strip()
                     field_sep_idx = line.index(':')
-                    field = line[0:field_sep_idx].strip()
+                    fname = line[0:field_sep_idx].strip()
 
-                    if field == 'Name':
+                    if fname == 'Name':
+                        latest_name = line[field_sep_idx + 1:].strip()
+                    elif fname == field:
                         val = line[field_sep_idx + 1:].strip()
-                        latest_name = val
-                    elif field == 'Required By':
-                        val = line[field_sep_idx + 1:].strip()
-                        required = set()
+                        collected = set()
                         if val != 'None':
-                            required.update((d for d in val.split(' ') if d))
+                            collected.update(d for d in val.split(' ') if d)
 
-                    elif latest_name and required is not None:
-                        res[latest_name] = required
-                        latest_name, required = None, None
+                    elif latest_name and collected is not None:
+                        res[latest_name] = collected
+                        latest_name, collected = None, None
 
-                elif latest_name and required is not None:
-                    required.update(required.update((d for d in l.strip().split(' ') if d)))
+                elif latest_name and collected is not None:  # indented continuation of the field value
+                    collected.update(d for d in l.strip().split(' ') if d)
+        if latest_name and collected is not None:  # capture a trailing record (field is last in block)
+            res[latest_name] = collected
         return res
     elif names:
         return {n: set() for n in names}
     else:
         return {}
+
+
+def map_required_by(names: Iterable[str] = None, remote: bool = False) -> Dict[str, Set[str]]:
+    """Packages that hard-depend on each given package (``Required By`` in ``pacman -Qi``)."""
+    return _map_qi_set_field('Required By', names, remote)
+
+
+def map_optional_for(names: Iterable[str] = None) -> Dict[str, Set[str]]:
+    """Packages that list each given package as an *optional* dependency (``Optional For`` in
+    ``pacman -Qi``). Local-only — ``Optional For`` isn't reported for remote (``-Sii``) packages.
+    Lets us avoid calling an optdepend-of-an-installed-package an orphan (``pacman -Qdt`` semantics)."""
+    return _map_qi_set_field('Optional For', names, remote=False)
 
 
 def map_conflicts_with(names: Iterable[str], remote: bool) -> Dict[str, Dict[str, Set[str]]]:
