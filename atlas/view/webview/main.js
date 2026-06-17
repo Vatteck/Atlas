@@ -1430,7 +1430,15 @@ function renderWhySource(pkg, opts) {
     if (!hint.text) { el.classList.add('hidden'); el.innerHTML = ''; return; }
     const icon = hint.level === 'safe' ? '🛡️' : hint.level === 'warn' ? '⚠️' : 'ℹ️';
     el.className = `why-source why-source-${hint.level}`;
-    el.innerHTML = `<span class="why-source-icon">${icon}</span><span>${escapeHtml(hint.text)}</span>`;
+    // AUR packages should almost always be read before building — surface the PKGBUILD right here,
+    // where the banner already says "review it", rather than burying it on a back tab.
+    const isAur = normalizeType(pkg.type) === 'aur';
+    const action = isAur ? `<button type="button" class="btn btn-secondary btn-sm why-source-action" id="why-review-pkgbuild">📄 Review PKGBUILD →</button>` : '';
+    el.innerHTML = `<span class="why-source-icon">${icon}</span><span class="why-source-text">${escapeHtml(hint.text)}</span>${action}`;
+    if (isAur) {
+        const btn = document.getElementById('why-review-pkgbuild');
+        if (btn) btn.onclick = () => openPkgbuildViewer(pkg);
+    }
 }
 
 // Pure: a list of expandable dependency nodes (the drill-down tree). Each node carries its name in a
@@ -1599,9 +1607,9 @@ function activateDetailTab(name) {
 }
 
 // Pure: decide which tabs are visible and which should be active. Overview/Details always show;
-// deps/history show when their panel has content; build is AUR-only AND needs content. If the
-// current active tab ends up hidden, fall back to the first visible tab. (DOM-free → unit-tested.)
-const DETAIL_TAB_ORDER = ['overview', 'details', 'deps', 'history', 'build'];
+// deps/history show when their panel has content. If the current active tab ends up hidden, fall
+// back to the first visible tab. (DOM-free → unit-tested.)
+const DETAIL_TAB_ORDER = ['overview', 'details', 'deps', 'history'];
 function computeDetailTabs(content, activeTab) {
     content = content || {};
     const visible = DETAIL_TAB_ORDER.filter(name => {
@@ -1613,10 +1621,10 @@ function computeDetailTabs(content, activeTab) {
 }
 
 // Apply the tab decision to the DOM: read each panel's content state, then show/hide tabs + activate.
-function updateDetailTabs(isAur) {
+function updateDetailTabs() {
     const panelHas = (name) =>
         hasVisibleContent(document.querySelector(`.modal-body .detail-panel[data-panel="${name}"]`));
-    const content = { deps: panelHas('deps'), history: panelHas('history'), build: !!isAur && panelHas('build') };
+    const content = { deps: panelHas('deps'), history: panelHas('history') };
     const activeBtn = document.querySelector('#detail-tabs .detail-tab.active');
     const activeName = activeBtn && activeBtn.dataset ? activeBtn.dataset.tab : 'overview';
     const { visible, active } = computeDetailTabs(content, activeName);
@@ -2171,18 +2179,6 @@ function wireDependencyTree(body) {
 
 // Show/hide the "Build recipe" affordance — AUR only (repo packages are built+signed by Arch;
 // Flatpak/AppImage have no PKGBUILD).
-function renderPkgbuildAffordance(pkg) {
-    const section = document.getElementById('detail-pkgbuild-section');
-    if (!section) return;
-    if (normalizeType(pkg.type) === 'aur') {
-        section.classList.remove('hidden');
-        const btn = document.getElementById('detail-pkgbuild-btn');
-        if (btn) btn.onclick = () => openPkgbuildViewer(pkg);
-    } else {
-        section.classList.add('hidden');
-    }
-}
-
 const pkgbuildModal = document.getElementById('pkgbuild-modal');
 let pkgbuildViews = [];      // [{name, kind:'diff'|'code', ...}] — diff (if any) first, then files
 let pkgbuildActiveTab = 0;
@@ -2367,7 +2363,9 @@ async function renderDetailHistory(pkg, stillCurrent = () => true) {
 // drop the raw get_info rows that duplicate it (makedepends/checkdepends are build-only — kept).
 // 'maintainer' is also dropped: for Arch its value is just the source string ('aur' / a repo name),
 // not a person — the header already shows the real maintainer/developer + the source badge.
-const SKIP_DETAIL_KEYS = new Set(['id', 'name', 'version', 'description', 'dependson', 'optdepends', 'orphan', 'maintainer']);
+// 'pkg build' is the full raw PKGBUILD text (info['..._pkg_build']) — it's a wall of text and we have
+// a dedicated viewer (Review PKGBUILD on Overview), so it never belongs in the key/value table.
+const SKIP_DETAIL_KEYS = new Set(['id', 'name', 'version', 'description', 'dependson', 'optdepends', 'orphan', 'maintainer', 'pkg build']);
 
 // Package Detail Modal View
 // --- Permissions page (Flatseal-style, master/detail) ----------------------
@@ -2792,13 +2790,14 @@ function openDetailModal(pkg, group) {
     detailModal.dataset.pkgId = detailPkgId;
     const stillCurrentDetail = () => detailModal.dataset.pkgId === detailPkgId;
 
-    // Reset tabs for the new package: Overview active, files block cleared, Build & Trust gated to AUR.
-    const isAur = normalizeType(pkg.type) === 'aur';
-    const refreshTabs = () => { if (stillCurrentDetail()) updateDetailTabs(isAur); };
+    // Reset tabs for the new package: Overview active, files + comments cleared.
+    const refreshTabs = () => { if (stillCurrentDetail()) updateDetailTabs(); };
     activateDetailTab('overview');
     const filesSection = document.getElementById('detail-files-section');
     if (filesSection) { filesSection.classList.add('hidden'); document.getElementById('detail-files').innerHTML = ''; }
-    updateDetailTabs(isAur);
+    const commentsSection = document.getElementById('detail-comments-section');
+    if (commentsSection) commentsSection.classList.remove('collapsed');  // start expanded each open
+    updateDetailTabs();
 
     const detailIcon = document.getElementById('detail-icon');
     detailIcon.src = getIconSrc(pkg.icon_url);
@@ -2839,9 +2838,6 @@ function openDetailModal(pkg, group) {
 
     // Dependency summary (lazy, stale-guarded). Section stays hidden until there's something to show.
     Promise.resolve(renderDependencySummary(pkg, stillCurrentDetail)).finally(refreshTabs);
-
-    // "Build recipe" — first-class PKGBUILD viewer affordance (AUR only).
-    Promise.resolve(renderPkgbuildAffordance(pkg)).finally(refreshTabs);
 
     // Link to the package's web page (AUR / official Arch). Routed through open_url so it
     // opens in the system browser rather than navigating the app window.
@@ -5382,6 +5378,19 @@ document.getElementById('detail-tabs').addEventListener('click', (e) => {
     if (!tab || tab.classList.contains('hidden')) return;
     activateDetailTab(tab.dataset.tab);
 });
+
+// AUR comments (Details tab) collapse/expand toggle.
+const commentsToggle = document.getElementById('detail-comments-toggle');
+if (commentsToggle) {
+    const toggleComments = () => {
+        const section = document.getElementById('detail-comments-section');
+        if (section) section.classList.toggle('collapsed');
+    };
+    commentsToggle.addEventListener('click', toggleComments);
+    commentsToggle.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleComments(); }
+    });
+}
 
 // Source-comparison panel: install from the chosen source (routes through the full preview).
 document.getElementById('detail-source-compare').addEventListener('click', (e) => {

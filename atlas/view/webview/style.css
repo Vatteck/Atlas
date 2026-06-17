@@ -2975,15 +2975,23 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
 #detail-source-compare:empty { display: none; }
 /* "Why this source?" trust hint (single-source detail pages). */
 .why-source {
-    display: flex; align-items: flex-start; gap: 8px; margin: 4px 0 14px;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px;
     padding: 10px 12px; border-radius: var(--radius-sm); font-size: 13px; line-height: 1.4;
     background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-secondary);
 }
 .why-source.hidden { display: none; }
-.why-source-icon { flex-shrink: 0; }
+.why-source-icon { flex-shrink: 0; align-self: flex-start; }
+.why-source-text { flex: 1 1 60%; min-width: 0; }
+.why-source-action { flex-shrink: 0; margin-left: auto; white-space: nowrap; }
 .why-source-safe { background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.25); }
 .why-source-warn { background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.25); }
 .why-source-info { background: rgba(99, 102, 241, 0.07); border-color: rgba(99, 102, 241, 0.22); }
+
+/* Collapsible detail section (AUR comments in the Details tab) */
+.collapsible-toggle { cursor: pointer; display: flex; align-items: center; gap: 6px; user-select: none; }
+.collapsible-caret { display: inline-block; transition: transform 0.15s ease; font-size: 11px; }
+.collapsible.collapsed .collapsible-caret { transform: rotate(-90deg); }
+.collapsible.collapsed .collapsible-body { display: none; }
 
 /* Dependency summary: expandable Requires / Optional / Required-by groups with chip lists. */
 .dep-group { border: 1px solid var(--border-color); border-radius: var(--radius-sm); margin-bottom: 8px; }

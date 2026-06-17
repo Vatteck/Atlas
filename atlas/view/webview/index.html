@@ -220,7 +220,6 @@
                     <button type="button" class="detail-tab" data-tab="details" role="tab">Details</button>
                     <button type="button" class="detail-tab" data-tab="deps" role="tab">Dependencies</button>
                     <button type="button" class="detail-tab" data-tab="history" role="tab">History</button>
-                    <button type="button" class="detail-tab" data-tab="build" role="tab">Build &amp; Trust</button>
                 </div>
 
                 <div class="detail-panel active" data-panel="overview" role="tabpanel">
@@ -240,6 +239,11 @@
                     <div id="detail-files-section" class="detail-section hidden">
                         <h3>Installed files</h3>
                         <div id="detail-files"></div>
+                    </div>
+                    <div id="detail-comments-section" class="detail-section collapsible hidden">
+                        <h3 class="collapsible-toggle" id="detail-comments-toggle" role="button" tabindex="0">
+                            <span class="collapsible-caret">▾</span> AUR comments</h3>
+                        <div id="detail-comments" class="collapsible-body"></div>
                     </div>
                 </div>
 
@@ -261,17 +265,6 @@
                     </div>
                 </div>
 
-                <div class="detail-panel" data-panel="build" role="tabpanel">
-                    <div id="detail-pkgbuild-section" class="detail-section hidden">
-                        <h3>Build recipe</h3>
-                        <p class="detail-section-hint">This package builds from a community PKGBUILD. Read exactly what it runs before installing.</p>
-                        <button class="btn btn-secondary" id="detail-pkgbuild-btn">📄 View PKGBUILD</button>
-                    </div>
-                    <div id="detail-comments-section" class="detail-section hidden">
-                        <h3>AUR comments</h3>
-                        <div id="detail-comments"></div>
-                    </div>
-                </div>
             </div>
             <div class="modal-footer" id="modal-footer"></div>
         </div>

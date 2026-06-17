@@ -1159,15 +1159,15 @@ function testComputeDetailTabs() {
   const { hooks } = loadMainJs({});
   const { computeDetailTabs } = hooks;
 
-  // overview + details always show; empty deps/history/build hidden
+  // overview + details always show; empty deps/history hidden
   // (join to strings — hooks return VM-realm arrays, which deepStrictEqual rejects on prototype)
   let r = computeDetailTabs({}, 'overview');
   assert.strictEqual(r.visible.join(','), 'overview,details', 'only always-on tabs by default');
   assert.strictEqual(r.active, 'overview', 'overview stays active');
 
   // content present → tabs appear
-  r = computeDetailTabs({ deps: true, history: true, build: true }, 'overview');
-  assert.strictEqual(r.visible.join(','), 'overview,details,deps,history,build', 'all tabs when content present');
+  r = computeDetailTabs({ deps: true, history: true }, 'overview');
+  assert.strictEqual(r.visible.join(','), 'overview,details,deps,history', 'all tabs when content present');
 
   // active tab that becomes hidden falls back to the first visible tab
   r = computeDetailTabs({ deps: false }, 'deps');
@@ -1176,7 +1176,7 @@ function testComputeDetailTabs() {
   // a still-visible active tab is preserved
   r = computeDetailTabs({ history: true }, 'history');
   assert.strictEqual(r.active, 'history', 'visible active tab preserved');
-  assert.ok(!r.visible.includes('build'), 'build hidden when not flagged (non-AUR / no content)');
+  assert.ok(!r.visible.includes('deps'), 'deps hidden when it has no content');
 }
 
 async function testBrowseLandingBuilders() {

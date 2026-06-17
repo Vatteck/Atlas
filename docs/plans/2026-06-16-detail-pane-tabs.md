@@ -12,8 +12,17 @@
 > 240px scroll list, render capped at 2000 rows with a note). Fixed a latent `--accent-primary` →
 > `--accent-color` var typo in the AUR-comments CSS while here. Tests:
 > `main_js_contracts::testBuildInstalledFilesHTML` + `testComputeDetailTabs`. **GUI eyeball:** tabs
-> switch + auto-hide when empty; Build & Trust only for AUR; files filter narrows the list; big
-> packages stay contained.
+> switch + auto-hide when empty; files filter narrows the list; big packages stay contained.
+>
+> **Follow-up rework (2026-06-16, second GUI eyeball):** (1) the raw `pkg build` PKGBUILD text was
+> also walling the Details table — now skipped (`SKIP_DETAIL_KEYS`), since there's a real viewer.
+> (2) Per feedback, surfaced the PKGBUILD where users actually decide: a **"Review PKGBUILD →"**
+> button inside the Overview AUR caution banner (`renderWhySource`, opens the full viewer). (3) Moved
+> **AUR comments into the lower half of the Details tab** as a collapsible (hide/show) block. (4) With
+> PKGBUILD on Overview and comments in Details, the **Build & Trust tab was removed** — tabs are now
+> **Overview / Details / Dependencies / History** (and `computeDetailTabs`/`updateDetailTabs` dropped
+> the AUR-only `build` gating). Suite 614 + JS 51 still green. Still needs a GUI eyeball on the new
+> banner button + comments collapse.
 **Trigger:** GUI-eyeball feedback — (1) the "installed files" list in the detail pane balloons into a
 giant wall of text; (2) the detail modal now has enough sections to warrant tabs.
 
