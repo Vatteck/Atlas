@@ -36,6 +36,11 @@ cover. No Rust/Qt revival; no new big architectural migration without a measured
 
 ## Next
 
+**Competitive-research Themes 5–6 are planned, not built.** Dedicated, code-grounded plans exist —
+[Theme 5: package queue across views](plans/2026-06-16-theme5-package-queue.md) (medium–large; reuses
+`batch_install`) and [Theme 6: fuzzy search](plans/2026-06-16-theme6-fuzzy-search.md) (small;
+client-side, reuses `fuzzyScore`). Theme 6 #1 (re-rank results) is the cheapest pure-upside start.
+
 The forward menu now lives in **[BACKLOG.md](BACKLOG.md)**, which is the canonical longer-horizon
 feature list. Highest-value next moves, in order:
 

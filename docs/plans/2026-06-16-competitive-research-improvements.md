@@ -213,6 +213,9 @@ benefit from a small delay to avoid hitting AUR rate limits.
 
 ## Theme 5: Package queue across views (exploratory)
 
+> **Dedicated plan written 2026-06-16:** [2026-06-16-theme5-package-queue.md](2026-06-16-theme5-package-queue.md)
+> (grounded against the existing Select-mode / `batch_install` infra). Not yet implemented.
+
 **Why:** Pacsea has a persistent package queue — users can browse, search, and queue packages
 across multiple views, then review and install the full queue in one shot. Atlas has Select
 mode but it's per-view (switching views clears the selection).
@@ -234,6 +237,9 @@ implementing.
 ---
 
 ## Theme 6: Fuzzy search for packages
+
+> **Dedicated plan written 2026-06-16:** [2026-06-16-theme6-fuzzy-search.md](2026-06-16-theme6-fuzzy-search.md)
+> (grounded against the existing `fuzzyScore` + backend-driven search). Not yet implemented.
 
 **Why:** Pacsea offers fuzzy matching for package search. Atlas uses exact substring
 matching. The command palette already has `fuzzyScore` — reusing it for package search
