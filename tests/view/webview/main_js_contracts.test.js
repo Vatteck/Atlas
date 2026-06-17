@@ -1203,6 +1203,35 @@ function testReputationPopupHtml() {
   assert.ok(reputationPopupHtml(null).includes('not a safety check'), 'null risk → still renders');
 }
 
+function testRerankByFuzzy() {
+  const { hooks } = loadMainJs({});
+  const { rerankByFuzzy } = hooks;
+  // join to a string — hooks return VM-realm arrays, which deepStrictEqual rejects on prototype
+  const ids = (list) => list.map(p => p.id).join(',');
+
+  // the closest name match floats to the top, even if the backend returned it last
+  const results = [
+    { id: 'a', name: 'libwidget-extras' },
+    { id: 'b', name: 'something-unrelated' },
+    { id: 'c', name: 'widget' },
+  ];
+  const out = rerankByFuzzy(results, 'widget');
+  assert.strictEqual(out[0].id, 'c', 'exact name match ranks first');
+  assert.strictEqual(out.length, 3, 'no result dropped');
+  assert.strictEqual(ids(out).split(',').sort().join(','), 'a,b,c', 'same ids, just reordered');
+
+  // stable: non-matching items keep their original backend order (below matches)
+  const r2 = rerankByFuzzy([
+    { id: 'x', name: 'zzz' }, { id: 'y', name: 'yyy' }, { id: 'm', name: 'gimp' },
+  ], 'gimp');
+  assert.strictEqual(ids(r2), 'm,x,y', 'match first, non-matches keep backend order');
+
+  // empty query / tiny lists / bad input pass through unchanged
+  assert.strictEqual(ids(rerankByFuzzy(results, '')), 'a,b,c', 'empty query → unchanged');
+  assert.strictEqual(rerankByFuzzy(null, 'x').length, 0, 'null → []');
+  assert.strictEqual(ids(rerankByFuzzy([{ id: 'solo', name: 'solo' }], 'x')), 'solo', '<2 → unchanged');
+}
+
 async function testBrowseLandingBuilders() {
   const { hooks } = loadMainJs({});
   const { buildCategoryCardHTML, buildResumeBrowseHTML } = hooks;
@@ -1551,6 +1580,7 @@ function testPermsListEnsuresIconObserver() {
     testBuildInstalledFilesHTML,
     testComputeDetailTabs,
     testReputationPopupHtml,
+    testRerankByFuzzy,
     testBrowseLandingBuilders,
     testBuildMirrorOptionsHTML,
     testPkgbuildViewerBuilders,

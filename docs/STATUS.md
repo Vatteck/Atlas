@@ -36,10 +36,11 @@ cover. No Rust/Qt revival; no new big architectural migration without a measured
 
 ## Next
 
-**Competitive-research Themes 5–6 are planned, not built.** Dedicated, code-grounded plans exist —
+**Competitive-research Theme 5 is planned, not built; Theme 6 is half-built.**
 [Theme 5: package queue across views](plans/2026-06-16-theme5-package-queue.md) (medium–large; reuses
-`batch_install`) and [Theme 6: fuzzy search](plans/2026-06-16-theme6-fuzzy-search.md) (small;
-client-side, reuses `fuzzyScore`). Theme 6 #1 (re-rank results) is the cheapest pure-upside start.
+`batch_install`) is fully planned. [Theme 6: fuzzy search](plans/2026-06-16-theme6-fuzzy-search.md) —
+**part 1 (re-rank results) shipped**; part 2 (thresholded fuzzy *fallback* for Installed/Updates) is
+the cheap remaining piece.
 
 The forward menu now lives in **[BACKLOG.md](BACKLOG.md)**, which is the canonical longer-horizon
 feature list. Highest-value next moves, in order:
@@ -98,6 +99,16 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Fuzzy search re-rank — competitive-research Theme 6 part 1 (2026-06-16).** Search results from the
+  backend (`pyApiCall('search', …)`, which matches name/description/keywords) are now **re-ranked
+  client-side** so the closest *name* match is first — `widg` puts `widget` on top instead of buried.
+  Pure `rerankByFuzzy(results, query)` reuses the command-palette `fuzzyScore`, is stable on ties, and
+  **never drops a result** (non-matching items keep backend order below the matches); applied before
+  `writeToCache` so cached queries keep the order. Empty query / <2 results / bad input pass through.
+  Client-only, no backend change. Test: `main_js_contracts::testRerankByFuzzy`. JS **53**. **Needs a
+  GUI eyeball** (partial/typo'd query surfaces the obvious package first). Part 2 (thresholded fuzzy
+  *fallback* for the finite Installed/Updates lists) is still planned, not built. Plan:
+  [plans/2026-06-16-theme6-fuzzy-search.md](plans/2026-06-16-theme6-fuzzy-search.md).
 - **AUR request throttle — competitive-research Theme 4 (2026-06-16).** `AURClient` now enforces a
   150ms minimum gap between consecutive AUR requests (`_throttle()` via `time.monotonic`/`time.sleep`,
   `_MIN_REQUEST_INTERVAL`), called by every network method (`search`, `get_info`, `get_src_info`

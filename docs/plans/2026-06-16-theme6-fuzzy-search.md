@@ -1,8 +1,9 @@
 # Theme 6: Fuzzy package search
 
 **Date:** 2026-06-16
-**Status:** Plan (not started) — dedicated plan for competitive-research Theme 6 (Pacsea's fuzzy
-matching). Parent: [2026-06-16-competitive-research-improvements.md](2026-06-16-competitive-research-improvements.md).
+**Status:** Part 1 (re-rank) ✅ shipped 2026-06-16; Part 2 (fuzzy fallback) not started. Dedicated
+plan for competitive-research Theme 6 (Pacsea's fuzzy matching).
+Parent: [2026-06-16-competitive-research-improvements.md](2026-06-16-competitive-research-improvements.md).
 
 ## Goal
 
@@ -23,10 +24,15 @@ of today's exact-substring behaviour where `widget` won't find `wodget` and orde
 
 Two scoped, low-risk improvements, both reusing `fuzzyScore`:
 
-### 1. Re-rank backend results by relevance
+### 1. Re-rank backend results by relevance — ✅ shipped 2026-06-16
 - After `search` returns, **stable-sort** the results by `fuzzyScore(query, pkg.name)` (tie-break:
   keep backend order). Exact/substring hits naturally score highest, so this only *reorders* — it
   never drops a backend result. Put the obvious match on top.
+- **Shipped:** pure `rerankByFuzzy(results, query)` (reuses `fuzzyScore` over `name`/`display_name`,
+  stable on ties, never drops, passthrough for empty query / <2 results / bad input). Applied to the
+  `pyApiCall('search', …)` result before `writeToCache`, so cached hits keep the ranked order. Test:
+  `main_js_contracts::testRerankByFuzzy`. JS **53**. **Needs a GUI eyeball** (search a partial/typo'd
+  name → the obvious package is at the top).
 
 ### 2. Fuzzy fallback when there are zero exact hits (local lists)
 - For the finite local lists (Installed, Updates), add a **client-side fuzzy filter**: when the query

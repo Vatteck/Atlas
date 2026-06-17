@@ -4395,6 +4395,8 @@ async function fetchPackages() {
     let results = [];
     if (query) {
         results = await pyApiCall('search', query, 'all');
+        // Surface the closest name match first (the backend also matches description/keywords).
+        results = rerankByFuzzy(results, query);
     } else {
         if (currentView === 'installed') {
             results = await pyApiCall('get_installed', 'all');
@@ -5951,6 +5953,20 @@ function filterCommands(commands, query) {
     return scored.map(s => s.c);
 }
 
+// Pure: stable re-rank of backend search results so the best *name* match floats to the top
+// (the backend matches on name/description/keywords, but the user's query is almost always a name).
+// Reuses fuzzyScore. **Never drops** a result — items whose name fuzzyScore can't match keep their
+// original backend order, below the matches. Empty query / <2 results → returned unchanged.
+function rerankByFuzzy(results, query) {
+    const list = Array.isArray(results) ? results : [];
+    const q = (query || '').trim();
+    if (!q || list.length < 2) return list;
+    return list
+        .map((pkg, idx) => ({ pkg, idx, score: fuzzyScore(q, (pkg && (pkg.name || pkg.display_name)) || '') }))
+        .sort((a, b) => (b.score - a.score) || (a.idx - b.idx))  // best name match first; stable on ties
+        .map(s => s.pkg);
+}
+
 function renderCommandResults(query) {
     const list = document.getElementById('command-results');
     if (!list) return;
@@ -6060,6 +6076,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildInstalledFilesHTML,
         computeDetailTabs,
         reputationPopupHtml,
+        rerankByFuzzy,
         highlightBashLine,
         buildPkgbuildRiskHTML,
         buildPkgbuildMetaHTML,
