@@ -5,8 +5,9 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-17 (PKGBUILD audit: rule provenance now surfaced in the viewer — rule-id chip
-+ campaign pill + tooltip per finding [needs a GUI eyeball]; plus structural/semantic checks:
+**Last updated:** 2026-06-17 (PKGBUILD audit: new `atlas-cli audit-scan` rule-health re-scan [samples
+live AUR PKGBUILDs, reports per-rule fire rates / FP drift]; rule provenance surfaced in the viewer —
+rule-id chip + campaign pill + tooltip per finding [GUI-verified]; plus structural/semantic checks:
 network-in-package(), unchecksummed-remote-source, and .SRCINFO↔PKGBUILD source-host divergence [wired
 through get_pkgbuild] — whole-file, lower-FP than regex; plus the rule-provenance side map and CI
 regression corpus — see Done log and plans/2026-06-17-audit-provenance-ui.md +
@@ -106,6 +107,20 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **PKGBUILD audit: corpus re-scan CLI — maintenance step (c) (2026-06-17).** `atlas-cli audit-scan
+  [-n N] [--fp-threshold F] [-f text|json]` samples N random live AUR PKGBUILDs, scans each, and
+  reports per-rule fire rates plus two buckets: **FP drift** (rules firing on ≥F of the sample → review
+  precision) and **never fired** (kind-aware — a malicious-pattern rule reading 0× on benign packages
+  is healthy, so the real signal is an *evergreen* rule that never matches → possible broken regex).
+  The rule-health review queue against live data, complementing the fixed regression corpus (step b).
+  Pure, offline-testable core in `atlas/gems/arch/audit_rescan.py` (`aggregate_fire_counts`,
+  `build_report`, `collect_samples` with injected fetcher+rng, `format_report_text/json`); thin wiring
+  in `cli/{cli_args,app,controller}.py` (`CLIManager.audit_rescan` locates the arch manager, pulls
+  names via `aur_client.download_names()`, fetches each PKGBUILD via `fetch_aur_file(name, 'PKGBUILD')`).
+  PKGBUILD-only (the `.SRCINFO` divergence rule is excluded from the universe); fetches by name-as-base
+  so split packages may be skipped (fine for a *sample*). Verified live (6-pkg run flagged
+  `weak_checksum`/`skip_checksum`, security rules 0×). Tests: `test_audit_rescan.py` (15). Suite **664**.
+  Plan: [plans/2026-06-17-audit-corpus-rescan.md](plans/2026-06-17-audit-corpus-rescan.md).
 - **PKGBUILD audit: rule provenance in the viewer UI (2026-06-17).** The kind/added/source we recorded
   in `_RULE_META` is now visible per finding. Backend: `scan()` and `scan_divergence()` attach
   `'meta': rule_metadata(rule_id)` to every finding (no existing keys changed). Frontend: pure

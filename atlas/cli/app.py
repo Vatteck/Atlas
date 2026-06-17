@@ -62,6 +62,8 @@ def main():
 
     if args.command == 'updates':
         cli.list_updates(args.format)
+    elif args.command == 'audit-scan':
+        cli.audit_rescan(args.sample, args.fp_threshold, args.format)
 
 
 if __name__ == '__main__':

@@ -12,4 +12,15 @@ def read() -> Namespace:
     updates_parser = sub_parsers.add_parser('updates', help='List available software updates')
     updates_parser.add_argument('-f', '--format', help='Command output format. Default: %(default)s', choices=['text', 'json'], default='text')
 
+    rescan_parser = sub_parsers.add_parser(
+        'audit-scan',
+        help='Sample live AUR PKGBUILDs and report PKGBUILD-audit rule fire rates (rule-health check)')
+    rescan_parser.add_argument('-n', '--sample', type=int, default=200,
+                               help='Number of random AUR PKGBUILDs to sample. Default: %(default)s')
+    rescan_parser.add_argument('--fp-threshold', type=float, default=0.5,
+                               help='Flag rules firing on at least this fraction of the sample '
+                                    '(0-1). Default: %(default)s')
+    rescan_parser.add_argument('-f', '--format', choices=['text', 'json'], default='text',
+                               help='Command output format. Default: %(default)s')
+
     return parser.parse_args()
