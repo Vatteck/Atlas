@@ -5,9 +5,10 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-17 (PKGBUILD audit maintainability: rule provenance side map
-[evergreen/campaign + added/source] and a CI regression corpus [benign→no WARN, malicious→≥1 WARN] —
-see Done log and plans/2026-06-16-audit-rule-maintenance.md. Prior: History/Activity PR review follow-up: stale detail history reset;
+**Last updated:** 2026-06-17 (PKGBUILD audit: first structural/semantic checks — network-in-package()
+and unchecksummed-remote-source [whole-file, lower-FP than regex]; plus the earlier rule-provenance
+side map and CI regression corpus — see Done log and plans/2026-06-17-audit-structural-checks.md +
+plans/2026-06-16-audit-rule-maintenance.md. Prior: History/Activity PR review follow-up: stale detail history reset;
 History/Activity completion shipped; planning-doc reconciliation + GUI verification queue captured;
 AUR reputation scoring + diff security annotation + batch update risk tiers shipped; reconciled the
 stashed mirror regen options — country/protocol/sort in Settings → Mirrors; competitive-research
@@ -101,6 +102,21 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **PKGBUILD audit: structural / semantic checks — step 1 (2026-06-17).** First non-regex detection
+  (discovery #4 from the maintenance plan): whole-file checks that read field *relationships*, harder
+  to evade and lower-FP than surface patterns. Added a `_STRUCTURAL` pass alongside `_RULES` (analyzer
+  `(text) -> [(line_no, line)]`; `scan()` runs regex rules then structural, merges, re-sorts).
+  **(1) `network_in_package`** — a network fetch / pipe-to-shell *inside* `package()` (brace-matched
+  via `_function_span`); package() should only install built files, so fetching+running code there is
+  an install-time backdoor. Network in `build()` is fine (not flagged). **(2)
+  `unchecksummed_remote_source`** — an ordered `source=()`↔`*sums=()` parser (`_ordered_arrays`) flags
+  a remote **http(s) non-VCS** source whose checksum is SKIP/absent at its index; VCS (`git+…`, pinned
+  by commit) and local-file sources are never flagged (those stay the generic `skip_checksum` INFO).
+  Both carry `_RULE_META` provenance (evergreen, 2026-06-17) and corpus coverage (benign VCS/verified
+  file stays WARN-free; malicious `curl|sh`-in-`package()` + https-SKIP file WARNs). Suite **638** + JS
+  **55**. Deferred: source-host≠url-host (high FP — needs to earn its noise) and `.SRCINFO`↔PKGBUILD
+  divergence (needs `.SRCINFO` threaded through `get_pkgbuild`). No GUI change. Plan:
+  [plans/2026-06-17-audit-structural-checks.md](plans/2026-06-17-audit-structural-checks.md).
 - **PKGBUILD audit: rule provenance + regression corpus (2026-06-17).** First implementation of the
   audit-maintenance strategy (answering "how do we find more patterns and keep the ruleset fresh").
   **(a) Rule metadata:** `EVERGREEN`/`CAMPAIGN` constants + a `_RULE_META` *side map* keyed by rule id

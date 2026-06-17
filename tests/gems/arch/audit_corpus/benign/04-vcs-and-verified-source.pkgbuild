@@ -1,0 +1,25 @@
+# Maintainer: Robin Vale <robin@example.com>
+pkgname=editor-plus
+pkgver=4.8.1
+pkgrel=1
+pkgdesc="An editor with a plugin from a pinned git source"
+arch=('x86_64')
+url="https://example.com/editor-plus"
+license=('GPL3')
+depends=('qt6-base')
+makedepends=('git' 'cmake')
+source=("https://example.com/dl/$pkgname-$pkgver.tar.gz"
+        "git+https://git.example.com/editor-plugin.git#commit=a1b2c3d4")
+sha256sums=('3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b'
+            'SKIP')
+
+build() {
+  cd "$pkgname-$pkgver"
+  cmake -B build -DCMAKE_INSTALL_PREFIX=/usr
+  cmake --build build
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  DESTDIR="$pkgdir" cmake --install build
+}

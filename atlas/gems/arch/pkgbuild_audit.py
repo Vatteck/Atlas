@@ -210,6 +210,7 @@ _RULES = [
 # Honesty rule: only record `added`/`source` we genuinely know.
 _KS_AUR_SOURCE = 'ks-aur-scanner rule categories (mapped to MITRE ATT&CK techniques), 2026-06-16'
 _ATOMIC_ARCH_SOURCE = 'Atomic Arch (June 2026) AUR supply-chain campaign'
+_STRUCTURAL_SOURCE = 'structural/semantic checks (docs/plans/2026-06-17-audit-structural-checks.md)'
 
 _RULE_META: Dict[str, Dict] = {
     # Campaign rules — incident-specific, retire when the campaign is dead.
@@ -234,6 +235,10 @@ _RULE_META: Dict[str, Dict] = {
     'http_source': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
     'suid_capability': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
     'ld_preload': {'kind': EVERGREEN, 'added': '2026-06-16', 'source': _KS_AUR_SOURCE},
+
+    # Structural / semantic checks (whole-file), 2026-06-17.
+    'network_in_package': {'kind': EVERGREEN, 'added': '2026-06-17', 'source': _STRUCTURAL_SOURCE},
+    'unchecksummed_remote_source': {'kind': EVERGREEN, 'added': '2026-06-17', 'source': _STRUCTURAL_SOURCE},
 }
 
 
@@ -247,11 +252,164 @@ def rule_metadata(rule_id: str) -> Dict:
     return {'kind': meta['kind'], 'added': meta.get('added'), 'source': meta.get('source')}
 
 
+# --- Structural / semantic checks (whole-file, not per-line) ------------------------------------
+# These look at field *relationships*, not surface patterns, so they're harder to evade and lower-FP
+# than the regex rules. See docs/plans/2026-06-17-audit-structural-checks.md.
+
+# A network fetch or pipe-to-shell — mirrors network_cmd + pipe_to_shell, reused inside package().
+_NETWORK_FETCH_RE = re.compile(
+    r'\b(?:curl|wget|ncat|nc|socat)\s+(?:-|\$|["\']?(?:https?|ftp|tftp)://)'
+    r'|/dev/tcp/'
+    r'|\|\s*(?:sudo\s+)?(?:ba|z|da|k)?sh\b'
+    r'|<\(\s*(?:curl|wget)', re.I)
+
+
+def _function_span(lines: List[str], name: str):
+    """Return the (start, end) line indices (inclusive) spanning a bash function body, brace-matched.
+    Handles `name() {`, `name ()`, and `function name`. None if the function isn't found."""
+    header = re.compile(rf'^\s*(?:function\s+)?{re.escape(name)}\s*\(\s*\)\s*\{{?'
+                        rf'|^\s*function\s+{re.escape(name)}\b')
+    for i, line in enumerate(lines):
+        if not header.match(line):
+            continue
+        depth, started = 0, False
+        for j in range(i, len(lines)):
+            for ch in lines[j]:
+                if ch == '{':
+                    depth += 1
+                    started = True
+                elif ch == '}':
+                    depth -= 1
+                    if started and depth == 0:
+                        return i, j
+        return i, len(lines) - 1
+    return None
+
+
+def _network_in_package(text: str):
+    """Hits for a network fetch / pipe-to-shell *inside* package(). package() should only install
+    already-built files — fetching and running code there is a classic install-time backdoor."""
+    lines = text.splitlines()
+    span = _function_span(lines, 'package')
+    if not span:
+        return []
+    start, end = span
+    hits = []
+    for idx in range(start, end + 1):
+        stripped = lines[idx].strip()
+        if not stripped or stripped.startswith('#'):
+            continue
+        if _NETWORK_FETCH_RE.search(lines[idx]):
+            hits.append((idx + 1, stripped))
+    return hits
+
+
+def _split_array(body: str) -> List[str]:
+    """Ordered array entries from a bash array body (quoted or bare), preserving position."""
+    out = []
+    for a, b, c in re.findall(r"'([^']*)'|\"([^\"]*)\"|(\S+)", body):
+        val = a or b or c
+        if val == ')':
+            continue
+        out.append(val)
+    return out
+
+
+def _collect_array(lines: List[str], start: int, first: str):
+    """Accumulate an array body from its opening line until the line with the closing ')'.
+    Returns (body_text, end_index)."""
+    if ')' in first:
+        return first[:first.index(')')], start
+    parts = [first]
+    for j in range(start + 1, len(lines)):
+        ln = lines[j]
+        if ')' in ln:
+            parts.append(ln[:ln.index(')')])
+            return ' '.join(parts), j
+        parts.append(ln)
+    return ' '.join(parts), len(lines) - 1
+
+
+def _ordered_arrays(text: str):
+    """Parse the plain `source=()` and `*sums=()` arrays preserving index alignment (arch-suffixed
+    arrays like source_x86_64 are intentionally ignored in v1). Returns (source, source_line_no,
+    sums) where sums is a list of ordered value lists."""
+    lines = text.splitlines()
+    source: List[str] = []
+    source_line = 0
+    sums: List[List[str]] = []
+    i, n = 0, len(lines)
+    while i < n:
+        raw = lines[i]
+        m_src = re.match(r'^\s*source\s*=\s*\((.*)', raw)
+        m_sum = re.match(r'^\s*((?:sha(?:1|224|256|384|512)|b2|md5)sums)\s*=\s*\((.*)', raw)
+        if m_src:
+            body, j = _collect_array(lines, i, m_src.group(1))
+            source = _split_array(body)
+            source_line = i + 1
+            i = j + 1
+            continue
+        if m_sum:
+            body, j = _collect_array(lines, i, m_sum.group(2))
+            sums.append(_split_array(body))
+            i = j + 1
+            continue
+        i += 1
+    return source, source_line, sums
+
+
+def _is_remote_binary_source(entry: str) -> bool:
+    """A remote http(s) download that is NOT a VCS source (git+/svn+/hg+/bzr+) — i.e. a tarball/
+    binary whose integrity rests entirely on its checksum. Local-file and VCS sources are excluded."""
+    url = entry.split('::', 1)[1] if '::' in entry else entry
+    if re.match(r'^(?:git|svn|hg|bzr)\+', url, re.I):
+        return False
+    return bool(re.match(r'^https?://', url, re.I))
+
+
+def _unchecksummed_remote_source(text: str):
+    """Hits for a remote http(s) source whose checksum is SKIP/absent in every *sums array — the
+    maintainer (or an attacker who can reach the host) can swap the tarball with no integrity check.
+    VCS and local-file sources are expected to SKIP and are never flagged."""
+    source, source_line, sums = _ordered_arrays(text)
+    if not source:
+        return []
+    hits = []
+    for i, entry in enumerate(source):
+        if not _is_remote_binary_source(entry):
+            continue
+        verified = False
+        for arr in sums:
+            if i < len(arr):
+                val = arr[i].strip()
+                if val and val.upper() != 'SKIP':
+                    verified = True
+                    break
+        if not verified:
+            hits.append((source_line, entry))
+    return hits
+
+
+# (rule_id, severity, why, analyzer) — analyzer(text) -> list of (line_no, line_text) hits.
+_STRUCTURAL = [
+    ('network_in_package', WARN,
+     'Network fetch or pipe-to-shell inside package() — package() should only install already-built '
+     'files; fetching and running code here is a classic install-time backdoor.',
+     _network_in_package),
+
+    ('unchecksummed_remote_source', WARN,
+     'A remote http(s) source is not checksum-verified (SKIP/absent) — unlike a VCS source (pinned '
+     'by commit) this tarball can be swapped at the host with no integrity check.',
+     _unchecksummed_remote_source),
+]
+
+
 def scan(text: str) -> List[Dict]:
     """Return advisory findings for the given PKGBUILD/.install text.
 
     Each finding: {line_no (1-based), line (stripped), rule, severity, why}. Pure-comment lines are
-    skipped (inert, and a frequent false-positive source). Sorted by line number.
+    skipped (inert, and a frequent false-positive source). Per-line regex rules run first, then the
+    whole-file structural checks; the combined list is sorted by line number.
     """
     findings: List[Dict] = []
     if not text:
@@ -268,6 +426,16 @@ def scan(text: str) -> List[Dict]:
                                      'rule': rule_id, 'severity': severity, 'why': why})
             except Exception:
                 continue  # a bad rule must never break the scan
+
+    for rule_id, severity, why, analyzer in _STRUCTURAL:
+        try:
+            for line_no, line_text in analyzer(text):
+                findings.append({'line_no': line_no, 'line': line_text,
+                                 'rule': rule_id, 'severity': severity, 'why': why})
+        except Exception:
+            continue  # a bad structural check must never break the scan
+
+    findings.sort(key=lambda f: f['line_no'])
     return findings
 
 
