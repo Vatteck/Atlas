@@ -1,7 +1,8 @@
 # Competitive research improvements
 
 **Date:** 2026-06-16
-**Status:** Theme 1 shipped 2026-06-16 (17 new audit rules, 14 → 31). Themes 2–6 not started.
+**Status:** Themes 1–2 shipped 2026-06-16 (audit rules 14 → 31; AUR comments in the detail view).
+Themes 3–6 not started.
 **Sources reviewed:**
 [arch-toolkit](https://github.com/Firstp1ck/arch-toolkit) (Rust AUR library),
 [ks-aur-scanner](https://github.com/KiefStudioMA/ks-aur-scanner) (Rust PKGBUILD security scanner, 115+ rules),
@@ -105,7 +106,21 @@ misses other persistence vectors.
 
 ---
 
-## Theme 2: AUR comments in the detail view
+## Theme 2: AUR comments in the detail view — ✅ shipped 2026-06-16
+
+> **Shipped:** new pure parser module `atlas/gems/arch/aur_comments.py` (`parse_comments(html) ->
+> [{author, date, body}]`, network-free, unit-tested) + `AtlasApi.get_aur_comments(pkg_id)` (resolves
+> the pkgbase, fetches the AUR page once per session via the shared `HttpClient`, caches per base,
+> fails open). Frontend: lazy `renderAurComments` + pure `buildAurCommentsHTML` in a new "AUR comments"
+> detail section (`detail-comments-section`), AUR-only.
+>
+> **Deviation from the design below:** bodies are returned as **plain text** (tags stripped in the
+> parser), not sanitized markdown. Re-injecting scraped third-party HTML into WebKitGTK is an XSS
+> surface we chose not to open; the frontend escapes the text and linkifies bare http(s) URLs via
+> `safeExternalUrl` (`linkifyComment`). Tests: `test_aur_comments.py` (parser),
+> `test_api.py::AurCommentsTest` (fetch/cache/fail-open), `main_js_contracts::testBuildAurCommentsHTML`
+> (escaping + linkify). Suite **614** + JS **49**. **Needs a GUI eyeball** (open an AUR package with
+> comments → section renders; links open externally; long/odd comments look sane).
 
 **Why:** Pacsea shows AUR package comments directly in its detail view. Comments often
 contain build-fix tips, security warnings from other users, and context about orphaned or
@@ -222,7 +237,7 @@ would improve discovery (typo tolerance, partial matches).
 | # | Theme | Effort | Value | Risk |
 |---|-------|--------|-------|------|
 | 1 | ✅ Expand PKGBUILD audit rules (14→31, shipped) | Medium | High — closes the biggest gap vs. ks-aur-scanner | Low (additive, advisory) |
-| 2 | AUR comments in detail view | Medium | High — unique context for trust decisions | Low (fail-open, cached) |
+| 2 | ✅ AUR comments in detail view (shipped) | Medium | High — unique context for trust decisions | Low (fail-open, cached) |
 | 3 | Auth readiness check | Small | Medium — prevents a real pain point | Low (advisory only) |
 | 4 | AUR client rate-limit delay | Small | Medium — correctness/politeness | Low |
 | 5 | Package queue (exploratory) | Large | Medium — convenience, not safety | Medium (UX complexity) |

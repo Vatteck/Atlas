@@ -3016,3 +3016,12 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
 .detail-activity-row.error .detail-activity-status { color: var(--status-error); }
 .detail-activity-type, .detail-activity-time, .detail-activity-error { color: var(--text-secondary); }
 .detail-activity-open { margin-top: 10px; }
+
+/* AUR comments (detail view, Theme 2) */
+.aur-comment { padding: 9px 0; border-bottom: 1px solid var(--border-color); }
+.aur-comment:last-of-type { border-bottom: none; }
+.aur-comment-head { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; }
+.aur-comment-author { font-weight: 600; font-size: 13px; color: var(--text-primary); }
+.aur-comment-date { font-size: 12px; color: var(--text-secondary); }
+.aur-comment-body { font-size: 13px; color: var(--text-secondary); line-height: 1.5; word-break: break-word; }
+.aur-comment-body a { color: var(--accent-primary); }

@@ -107,6 +107,61 @@ class AurMetaTest(unittest.TestCase):
         mock_run.assert_not_called()
 
 
+class AurCommentsTest(unittest.TestCase):
+    """get_aur_comments: scrape + parse the AUR package page, per-session cache, fail-open."""
+
+    PAGE = ('<div class="comments">'
+            '<h4 class="comment-header"><a href="/account/alice">alice</a>'
+            '<time datetime="2024-03-01T00:00:00Z">2024-03-01</time></h4>'
+            '<div class="article-content"><p>works for me</p></div>'
+            '</div>')
+
+    def setUp(self):
+        self.api = AtlasApi(Mock(), Mock())
+
+    def _setup(self, repository='aur', base='foo', page=None, status=200):
+        pkg = Mock(name='pkg'); pkg.name = 'foo'; pkg.repository = repository; pkg.base = base
+        self.api._get_pkg = Mock(return_value=pkg)
+        arch_man = Mock()
+        arch_man.aur_client.get_info.return_value = [{'PackageBase': base}]
+        self.api._manager_by_gem = Mock(return_value=arch_man)
+        resp = Mock(); resp.status_code = status; resp.text = (self.PAGE if page is None else page)
+        self.http = Mock(); self.http.get.return_value = resp
+        self.api._http_client = Mock(return_value=self.http)
+        return resp
+
+    def test_non_aur_returns_empty(self):
+        self._setup(repository='core')
+        self.assertEqual([], self.api.get_aur_comments('foo')['data']['comments'])
+
+    def test_parses_comments_from_page(self):
+        self._setup()
+        data = self.api.get_aur_comments('foo')['data']
+        self.assertEqual(1, len(data['comments']))
+        self.assertEqual('alice', data['comments'][0]['author'])
+        self.assertEqual('https://aur.archlinux.org/packages/foo/', data['url'])
+
+    def test_uses_packagebase_for_the_url(self):
+        self._setup(base='foo-git')
+        data = self.api.get_aur_comments('foo')['data']
+        self.assertEqual('https://aur.archlinux.org/packages/foo-git/', data['url'])
+
+    def test_result_is_cached_per_session(self):
+        self._setup()
+        self.api.get_aur_comments('foo')
+        self.api.get_aur_comments('foo')
+        self.http.get.assert_called_once()           # second call served from cache
+
+    def test_non_200_fails_open_to_empty(self):
+        self._setup(status=503)
+        self.assertEqual([], self.api.get_aur_comments('foo')['data']['comments'])
+
+    def test_fetch_exception_fails_open(self):
+        self._setup()
+        self.http.get.side_effect = RuntimeError('network down')
+        self.assertEqual([], self.api.get_aur_comments('foo')['data']['comments'])
+
+
 class PkgbuildViewTest(unittest.TestCase):
     """get_pkgbuild: AUR-only fetch + advisory scan + metadata for the first-class viewer."""
 

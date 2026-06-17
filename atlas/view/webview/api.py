@@ -126,6 +126,10 @@ class AtlasApi:
         self._aur_discovery_cache = None
         self._aur_discovery_cache_ts = 0.0
 
+        # AUR detail-view comments are scraped from the package web page; cache per base for the
+        # session (comments don't change mid-session and the page is one fetch). base -> [comments].
+        self._aur_comments_cache = {}
+
         # Root-password broker (see docs/plans/2026-05-30-root-password-flow-design.md).
         # A validated password is cached for the session so we don't re-prompt for every
         # sub-operation; the modal hands it back via submit_root_password().
@@ -1926,6 +1930,49 @@ class AtlasApi:
         except Exception as e:
             self.logger.error(f"get_aur_meta failed: {e}")
             return {'status': 'ok', 'data': {}}
+
+    def get_aur_comments(self, pkg_id: str) -> dict:
+        """On-demand AUR package comments for the detail view (build-fix tips, security warnings, and
+        orphan/broken context from other users). The AUR RPC has no comments endpoint, so the package
+        web page is scraped once per package per session and the rendered HTML is reduced to plain text
+        (never re-injected into the UI). data: {comments: [{author, date, body}], url}. Non-AUR →
+        empty. Fails open (any error → empty list); never raises — it's context, not a gate."""
+        try:
+            pkg = self._get_pkg(pkg_id)
+            if pkg is None or getattr(pkg, 'repository', None) != 'aur':
+                return {'status': 'ok', 'data': {'comments': []}}
+
+            # Comments live under the package *base* (split packages share a page), same as the PKGBUILD.
+            base = getattr(pkg, 'base', None) or pkg.name
+            arch_man = self._manager_by_gem('arch')
+            aur_client = getattr(arch_man, 'aur_client', None)
+            if aur_client is not None:
+                try:
+                    infos = aur_client.get_info((pkg.name,))
+                    info = (infos[0] if infos else {}) or {}
+                    base = info.get('PackageBase') or base
+                except Exception as e:
+                    self.logger.debug(f"get_aur_comments: base lookup failed for {pkg.name}: {e}")
+
+            url = f'https://aur.archlinux.org/packages/{base}/'
+            cache = self._aur_comments_cache
+            if base in cache:
+                return {'status': 'ok', 'data': {'comments': cache[base], 'url': url}}
+
+            from atlas.gems.arch import aur_comments
+            comments = []
+            try:
+                res = self._http_client().get(url)
+                if res is not None and getattr(res, 'status_code', 0) == 200:
+                    comments = aur_comments.parse_comments(res.text)
+            except Exception as e:
+                self.logger.debug(f"get_aur_comments: fetch/parse failed for {base}: {e}")
+
+            cache[base] = comments  # cache even an empty result (no comments / page error) for the session
+            return {'status': 'ok', 'data': {'comments': comments, 'url': url}}
+        except Exception as e:
+            self.logger.error(f"get_aur_comments failed: {e}")
+            return {'status': 'ok', 'data': {'comments': []}}
 
     def get_update_risk_tiers(self, pkg_ids: List[str]) -> dict:
         """One batched AUR RPC call to score every pending AUR update for the Update-All preview.

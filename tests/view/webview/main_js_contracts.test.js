@@ -1110,6 +1110,28 @@ async function testBuildPackageActivityHTML() {
   assert.ok(html.includes('&lt;boom&gt;'), 'escapes errors');
 }
 
+async function testBuildAurCommentsHTML() {
+  const { hooks } = loadMainJs({});
+  const { buildAurCommentsHTML, linkifyComment } = hooks;
+
+  assert.strictEqual(buildAurCommentsHTML([]), '', 'no comments → empty (section hidden)');
+  assert.strictEqual(buildAurCommentsHTML(null), '', 'null → empty');
+
+  const html = buildAurCommentsHTML([
+    { author: 'alice', date: '2024-03-01T00:00:00Z', body: 'see https://wiki.archlinux.org/x for help' },
+    { author: '<script>', date: '', body: 'line1\nline2 <b>bold</b>' },
+  ]);
+  assert.ok(html.includes('alice'), 'renders author');
+  assert.ok(html.includes('<a href="#" data-url="https://wiki.archlinux.org/x"'), 'linkifies safe URL');
+  // untrusted author/body are escaped, never injected as live HTML
+  assert.ok(!html.includes('<script>') && html.includes('&lt;script&gt;'), 'escapes author');
+  assert.ok(!html.includes('<b>bold</b>') && html.includes('&lt;b&gt;bold'), 'escapes body HTML');
+  assert.ok(html.includes('line1<br>line2'), 'newlines become <br>');
+
+  // linkify refuses non-http(s) schemes
+  assert.ok(!linkifyComment('javascript:alert(1)').includes('<a '), 'no link for javascript: scheme');
+}
+
 async function testBrowseLandingBuilders() {
   const { hooks } = loadMainJs({});
   const { buildCategoryCardHTML, buildResumeBrowseHTML } = hooks;
@@ -1454,6 +1476,7 @@ function testPermsListEnsuresIconObserver() {
     testBuildDependencySummaryHTML,
     testPackageActivitySectionClearsForNonInstalledPackages,
     testBuildPackageActivityHTML,
+    testBuildAurCommentsHTML,
     testBrowseLandingBuilders,
     testBuildMirrorOptionsHTML,
     testPkgbuildViewerBuilders,

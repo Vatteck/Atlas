@@ -8,8 +8,8 @@
 **Last updated:** 2026-06-16 (History/Activity PR review follow-up: stale detail history reset;
 History/Activity completion shipped; planning-doc reconciliation + GUI verification queue captured;
 AUR reputation scoring + diff security annotation + batch update risk tiers shipped; reconciled the
-stashed mirror regen options — country/protocol/sort in Settings → Mirrors; expanded the PKGBUILD
-audit ruleset 14 → 31 (competitive-research Theme 1) — see Done log)
+stashed mirror regen options — country/protocol/sort in Settings → Mirrors; competitive-research
+Themes 1–2 shipped — PKGBUILD audit ruleset 14 → 31, and AUR comments in the detail view — see Done log)
 **Version:** 0.12.0 (the polish-and-trust release; 0.11.0 was the first cohesive Atlas release)
 **Working branch:** `work` in this checkout; app work normally lands on `master` (run `git branch`
 before acting — branch names in docs go stale)
@@ -88,6 +88,20 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **AUR comments in the detail view — competitive-research Theme 2 (2026-06-16).** AUR package
+  comments (build-fix tips, security warnings, orphan/broken context) now show in a lazy "AUR comments"
+  section of the detail modal. The AUR RPC has no comments endpoint, so the package page is scraped:
+  new pure parser `atlas/gems/arch/aur_comments.py` (`parse_comments` → `[{author, date, body}]`,
+  network-free, unit-tested), and `AtlasApi.get_aur_comments(pkg_id)` resolves the pkgbase, fetches once
+  per session via the shared `HttpClient`, caches per base, and fails open. **Security choice:** bodies
+  are reduced to **plain text** in the parser (we never re-inject scraped third-party HTML into
+  WebKitGTK); the frontend (`buildAurCommentsHTML`/`linkifyComment`) escapes the text and linkifies bare
+  http(s) URLs through `safeExternalUrl`. AUR-only; non-AUR/no-comments keep the section hidden. Tests:
+  `test_aur_comments.py`, `test_api.py::AurCommentsTest`, `main_js_contracts::testBuildAurCommentsHTML`.
+  Suite **614** + JS **49**. **Needs a GUI eyeball** (open an AUR package with comments → section
+  renders, links open externally). Plan:
+  [plans/2026-06-16-competitive-research-improvements.md](plans/2026-06-16-competitive-research-improvements.md)
+  (Theme 2).
 - **PKGBUILD audit ruleset expansion — competitive-research Theme 1 (2026-06-16).** Grew the advisory
   PKGBUILD/.install scanner from **14 → 31 rules** (`pkgbuild_audit.py`), distilled from ks-aur-scanner's
   detection categories — all pure pattern matchers, no external tools/network/ML, fail-open, advisory-only

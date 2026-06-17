@@ -1531,6 +1531,60 @@ async function renderPackageActivity(pkg, stillCurrent = () => true) {
     section.classList.remove('hidden');
 }
 
+// Escape body text and turn bare http(s) URLs into safe links. The text is fully escaped first
+// (XSS-safe), then escaped URL substrings are wrapped — AUR comments are untrusted user content.
+function linkifyComment(text) {
+    const escaped = escapeHtml(String(text == null ? '' : text));
+    return escaped.replace(/https?:\/\/[^\s<]+/g, (m) => {
+        // strip trailing sentence punctuation that isn't part of the URL
+        const trail = m.match(/(&#039;|&quot;|[.,;:!?)\]]+)$/);
+        const suffix = trail ? trail[0] : '';
+        const url = suffix ? m.slice(0, m.length - suffix.length) : m;
+        const safe = safeExternalUrl(url.replace(/&amp;/g, '&'));
+        if (!safe) return m;
+        return `<a href="#" data-url="${escapeHtml(safe)}">${escapeHtml(url)}</a>${suffix}`;
+    });
+}
+
+// AUR detail comments (Theme 2). Pure: renders scraped plain-text comments (author/date/body).
+// Returns '' for no comments so the section stays hidden. URLs in bodies are linkified safely.
+function buildAurCommentsHTML(comments) {
+    comments = comments || [];
+    if (!comments.length) return '';
+    const rows = comments.map(c => {
+        const when = c.date ? (new Date(c.date).toString() !== 'Invalid Date'
+            ? new Date(c.date).toLocaleString() : c.date) : '';
+        const body = linkifyComment(c.body || '').replace(/\n/g, '<br>');
+        return `<div class="aur-comment">
+            <div class="aur-comment-head">
+                <span class="aur-comment-author">${escapeHtml(c.author || 'anonymous')}</span>
+                ${when ? `<span class="aur-comment-date">${escapeHtml(when)}</span>` : ''}
+            </div>
+            <div class="aur-comment-body">${body}</div>
+        </div>`;
+    }).join('');
+    return rows;
+}
+
+async function renderAurComments(pkg, stillCurrent = () => true) {
+    const section = document.getElementById('detail-comments-section');
+    const body = document.getElementById('detail-comments');
+    if (!section || !body) return;
+    section.classList.add('hidden');
+    body.innerHTML = '';
+    if (!pkg || normalizeType(pkg.type) !== 'aur') return;
+    const res = await pyApiCall('get_aur_comments', pkg.id);
+    if (!stillCurrent()) return;
+    const comments = (res && res.comments) || [];
+    const html = buildAurCommentsHTML(comments);
+    if (!html) return;  // no comments → keep the section hidden
+    body.innerHTML = html;
+    // Links inside comment bodies open externally through the vetted broker.
+    body.querySelectorAll('a[data-url]').forEach(a =>
+        a.addEventListener('click', (e) => { e.preventDefault(); openExternalUrl(a.getAttribute('data-url')); }));
+    section.classList.remove('hidden');
+}
+
 // ---- PKGBUILD viewer (first-class AUR build-recipe reader) ----------------------------------
 // All builders below are pure (escape their own input) and Node-VM contract-tested.
 
@@ -2906,6 +2960,7 @@ function openDetailModal(pkg, group) {
     renderDetailScreenshots(pkg, stillCurrentDetail);
     renderDetailHistory(pkg, stillCurrentDetail);
     renderPackageActivity(pkg, stillCurrentDetail);
+    renderAurComments(pkg, stillCurrentDetail);
 
     // Fetch key-value info from python
     pyApiCall('get_info', pkg.id).then(info => {
@@ -5828,6 +5883,8 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildDependencySummaryHTML,
         buildDepNodesHTML,
         buildPackageActivityHTML,
+        buildAurCommentsHTML,
+        linkifyComment,
         highlightBashLine,
         buildPkgbuildRiskHTML,
         buildPkgbuildMetaHTML,
