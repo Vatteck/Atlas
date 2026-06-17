@@ -305,8 +305,8 @@ re-add a native extension without a measured win. Details in the historical
   badge grid is filled with the score's own inputs — **Votes / Popularity** badges (+ **Out of Date**
   when flagged). Tests: `test_aur_risk.py` (info-overrides-pkg regression + breakdown),
   `test_api.py::AurMetaTest`, `main_js_contracts::testReputationPopupHtml`. Suite **618** + JS **52**.
-  **Needs a GUI eyeball** (popular AUR pkg now scores realistically; Reputation badge opens the
-  breakdown; votes/popularity badges fill the grid). Plan:
+  **GUI-verified 2026-06-17** (android-studio detail modal: scores a realistic **100 · Trusted** — was
+  15 · Risk before the fix — with the **Votes 1,134 / Popularity 9.13** badges filling the grid). Plan:
   [plans/2026-06-16-aur-reputation-legibility.md](plans/2026-06-16-aur-reputation-legibility.md).
 - **Detail pane tabs + wall-of-text containment + PKGBUILD/comments placement (2026-06-16).** From two
   GUI eyeballs: the detail modal's installed-files list (arch `pacman -Qlq`, often thousands of
@@ -323,8 +323,11 @@ re-add a native extension without a measured win. Details in the historical
   (hide/show) block; the now-empty **Build & Trust tab was removed**. Also fixed a latent
   `--accent-primary` → `--accent-color` CSS var typo. Pure frontend (no backend change). Tests:
   `main_js_contracts::testBuildInstalledFilesHTML` + `testComputeDetailTabs`. Suite **614** + JS **51**.
-  **Needs a GUI eyeball** (tabs switch + auto-hide empties; Overview Review-PKGBUILD button; Details
-  comments collapse; files filter; big packages stay contained). Plan:
+  **GUI-verified 2026-06-17** for the visible Overview surfaces (the **Overview/Details/Dependencies/
+  History tab bar renders** and the **Overview "Review PKGBUILD" button** shows, on the android-studio
+  modal). Interaction-only checks not provable from that view still want a click-through: tab
+  switch/empty-auto-hide, Details comments collapse, and the installed-files filter/containment on a
+  thousands-of-files package. Plan:
   [plans/2026-06-16-detail-pane-tabs.md](plans/2026-06-16-detail-pane-tabs.md).
 - **AUR comments in the detail view — competitive-research Theme 2 (2026-06-16).** AUR package
   comments (build-fix tips, security warnings, orphan/broken context) now show in a lazy "AUR comments"
