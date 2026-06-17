@@ -1,6 +1,8 @@
 # Sandboxed AUR builds — clean-chroot building ("Vault") — 2026-06-02
 
-> **Status: IN PROGRESS (signed off 2026-06-03 — "start layer 3").** Supersedes the one-line
+> **Status: ✅ SHIPPED & GUI-verified 2026-06-03** (increments 1+2 — engine + config/lifecycle/wiring;
+> see STATUS "AUR safety Layer 3"). The "Open questions for sign-off" at the bottom were all resolved
+> at sign-off (see "Decisions locked" below) — kept for the rationale trail. Supersedes the one-line
 > "Container sandboxing (Vault) — aspirational" entry in BACKLOG.md.
 >
 > **Decisions locked at sign-off:** off by default (`aur_build_chroot`, host build stays the proven
