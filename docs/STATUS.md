@@ -324,11 +324,11 @@ re-add a native extension without a measured win. Details in the historical
   (hide/show) block; the now-empty **Build & Trust tab was removed**. Also fixed a latent
   `--accent-primary` → `--accent-color` CSS var typo. Pure frontend (no backend change). Tests:
   `main_js_contracts::testBuildInstalledFilesHTML` + `testComputeDetailTabs`. Suite **614** + JS **51**.
-  **GUI-verified 2026-06-17** for the visible Overview surfaces (the **Overview/Details/Dependencies/
-  History tab bar renders** and the **Overview "Review PKGBUILD" button** shows, on the android-studio
-  modal). Interaction-only checks not provable from that view still want a click-through: tab
-  switch/empty-auto-hide, Details comments collapse, and the installed-files filter/containment on a
-  thousands-of-files package. Plan:
+  **GUI-verified 2026-06-17:** tab bar renders, **tab switching works**, the Overview "Review PKGBUILD"
+  button shows, and the **installed-files filter/containment** works on a thousands-of-files package.
+  Two sub-checks remain, both needing a package that triggers them: **empty-tab auto-hide** (open a
+  Flatpak/AppImage with no deps/history → the Dependencies/History tabs should be absent, not empty) and
+  **Details comments collapse** (an AUR pkg with comments). Plan:
   [plans/2026-06-16-detail-pane-tabs.md](plans/2026-06-16-detail-pane-tabs.md).
 - **AUR comments in the detail view — competitive-research Theme 2 (2026-06-16).** AUR package
   comments (build-fix tips, security warnings, orphan/broken context) now show in a lazy "AUR comments"
