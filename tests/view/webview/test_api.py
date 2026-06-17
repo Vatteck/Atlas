@@ -106,6 +106,23 @@ class AurMetaTest(unittest.TestCase):
         self.assertFalse(self.api.get_aur_meta('antigravity')['data']['update_available'])
         mock_run.assert_not_called()
 
+    def test_surfaces_votes_popularity_and_scores_from_rpc_info(self):
+        # Regression: the pkg object lacks AUR stats; the score must come from the fresh RPC info
+        # (a popular package is Trusted, not a misleading low 'Risk').
+        arch_man = self._setup(baseline='alice', current='alice', installed=True)
+        import time as _t
+        arch_man.aur_client.get_info.return_value = [{
+            'Maintainer': 'alice', 'Version': '2.0.6-1', 'NumVotes': 500, 'Popularity': 2.0,
+            'OutOfDate': None, 'FirstSubmitted': int(_t.time() - 3 * 365.25 * 24 * 3600),
+        }]
+        data = self.api.get_aur_meta('antigravity')['data']
+        self.assertEqual(500, data['votes'])
+        self.assertEqual(2.0, data['popularity'])
+        self.assertFalse(data['out_of_date'])
+        self.assertEqual('trusted', data['risk']['tier'])
+        self.assertGreaterEqual(data['risk']['score'], 70)
+        self.assertTrue(data['risk']['breakdown'])
+
 
 class AurCommentsTest(unittest.TestCase):
     """get_aur_comments: scrape + parse the AUR package page, per-session cache, fail-open."""

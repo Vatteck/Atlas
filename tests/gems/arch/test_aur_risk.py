@@ -55,6 +55,34 @@ class AurRiskScoreTest(unittest.TestCase):
         self.assertLessEqual(result['score'], 100)
         self.assertGreaterEqual(result['score'], 0)
 
+    def test_rpc_info_overrides_bare_pkg(self):
+        # The detail-flow bug: a pkg object with no AUR stats would score ~15, but the fresh RPC
+        # info has the real numbers and must win — a popular package scores high, not Risk.
+        bare = SimpleNamespace(votes=None, popularity=None, first_submitted=None, maintainer=None)
+        info = {'NumVotes': 500, 'Popularity': 2.0, 'Maintainer': 'alice',
+                'FirstSubmitted': int(time.time() - 3 * aur_risk._SECONDS_PER_YEAR)}
+        from_bare = aur_risk.calculate_aur_risk_score(bare, maintainer_changed=False)
+        from_info = aur_risk.calculate_aur_risk_score(bare, maintainer_changed=False, info=info)
+        self.assertLess(from_bare['score'], aur_risk._CAUTION_MIN)   # the misleading artifact
+        self.assertEqual(from_info['score'], 100)                    # the real reputation
+        self.assertEqual(from_info['tier'], aur_risk.TRUSTED)
+
+    def test_rpc_info_null_maintainer_is_orphaned(self):
+        info = {'NumVotes': 500, 'Popularity': 2.0, 'Maintainer': None,
+                'FirstSubmitted': int(time.time() - 3 * aur_risk._SECONDS_PER_YEAR)}
+        result = aur_risk.calculate_aur_risk_score(SimpleNamespace(), maintainer_changed=False, info=info)
+        self.assertEqual(result['factors']['not_orphaned'], 0.0)
+
+    def test_breakdown_explains_the_score(self):
+        pkg = _pkg(votes=500, popularity=2.0, age_years=3, maintainer='alice')
+        result = aur_risk.calculate_aur_risk_score(pkg, maintainer_changed=False)
+        keys = [b['key'] for b in result['breakdown']]
+        self.assertEqual(keys, ['votes', 'age', 'not_orphaned', 'maintainer_stable', 'popularity'])
+        # each row carries a display value + points/max; points sum to the total (full marks here)
+        self.assertTrue(all({'key', 'label', 'value', 'points', 'max'} <= set(b) for b in result['breakdown']))
+        self.assertEqual(sum(b['points'] for b in result['breakdown']), result['score'])
+        self.assertEqual(sum(b['max'] for b in result['breakdown']), 100)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -2292,6 +2292,15 @@ body {
 .popup-note { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin: 0 0 14px; }
 .popup-note code { background: rgba(127,127,127,0.15); border-radius: 4px; padding: 1px 5px; }
 
+/* AUR reputation breakdown (Reputation badge popup) */
+.rep-breakdown { display: flex; flex-direction: column; gap: 10px; margin: 4px 0 14px; }
+.rep-row-head { display: flex; align-items: baseline; gap: 8px; font-size: 13px; margin-bottom: 4px; }
+.rep-row-label { color: var(--text-primary); font-weight: 600; }
+.rep-row-value { color: var(--text-secondary); flex: 1; }
+.rep-row-points { color: var(--text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rep-bar { height: 6px; border-radius: 3px; background: var(--bg-base); overflow: hidden; }
+.rep-bar-fill { height: 100%; background: var(--accent-color); border-radius: 3px; }
+
 /* Flatpak permission editor (toggles) */
 #detail-perms-action:empty { display: none; }
 #detail-perms-action { display: flex; margin: 16px 0 20px; }

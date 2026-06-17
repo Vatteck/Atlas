@@ -1920,13 +1920,16 @@ class AtlasApi:
             risk = None
             try:
                 from atlas.gems.arch.aur_risk import calculate_aur_risk_score
-                risk = calculate_aur_risk_score(pkg, maintainer_changed=changed is not None)
+                # Score from the fresh RPC info (votes/popularity/age live there, not on the pkg object).
+                risk = calculate_aur_risk_score(pkg, maintainer_changed=changed is not None, info=info)
             except Exception as e:
                 self.logger.debug(f"get_aur_meta: risk scoring failed: {e}")
 
             return {'status': 'ok', 'data': {'maintainer': current, 'changed': changed,
                                              'latest_version': latest, 'update_available': update_available,
-                                             'risk': risk}}
+                                             'risk': risk,
+                                             'votes': info.get('NumVotes'), 'popularity': info.get('Popularity'),
+                                             'out_of_date': bool(info.get('OutOfDate'))}}
         except Exception as e:
             self.logger.error(f"get_aur_meta failed: {e}")
             return {'status': 'ok', 'data': {}}
@@ -1994,12 +1997,13 @@ class AtlasApi:
                 aur_client = getattr(arch_man, 'aur_client', None)
                 try:
                     infos = aur_client.get_info([p.name for p in aur_pkgs]) if aur_client else []
-                    current_by_name = {i['Name']: i.get('Maintainer') for i in (infos or [])}
+                    info_by_name = {i['Name']: i for i in (infos or [])}
                     for p in aur_pkgs:
+                        info = info_by_name.get(p.name) or {}
                         baseline = getattr(p, 'maintainer', None)
-                        current = current_by_name.get(p.name)
+                        current = info.get('Maintainer')
                         changed = bool(baseline and current and current != baseline)
-                        risk = calculate_aur_risk_score(p, maintainer_changed=changed)
+                        risk = calculate_aur_risk_score(p, maintainer_changed=changed, info=info)
                         tier = 'safe' if risk['tier'] == TRUSTED else risk['tier']
                         results[p.id] = {'tier': tier, 'score': risk['score']}
                 except Exception as e:
@@ -2260,7 +2264,7 @@ class AtlasApi:
 
         try:
             from atlas.gems.arch.aur_risk import calculate_aur_risk_score
-            data['aur_risk'] = calculate_aur_risk_score(pkg, maintainer_changed=maintainer_changed)
+            data['aur_risk'] = calculate_aur_risk_score(pkg, maintainer_changed=maintainer_changed, info=info)
         except Exception as e:
             self.logger.debug(f"preview: AUR risk scoring failed for {pkg.name}: {e}")
 

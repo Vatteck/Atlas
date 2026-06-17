@@ -2770,6 +2770,29 @@ function licensePopupHtml(meta) {
     return body + lic;
 }
 
+// Pure: explains the composite AUR reputation score — the tier, then each signal's contribution
+// (value + points/max), then the disclaimer. So the number isn't an opaque "15 · Risk".
+function reputationPopupHtml(risk) {
+    risk = risk || {};
+    const tierLabel = { trusted: 'Trusted', caution: 'Caution', risk: 'Risk' }[risk.tier] || (risk.tier || 'Unknown');
+    const rows = (risk.breakdown || []).map(b => {
+        const max = b.max || 0;
+        const pct = max > 0 ? Math.max(0, Math.min(100, Math.round((b.points / max) * 100))) : 0;
+        return `<div class="rep-row">
+            <div class="rep-row-head">
+                <span class="rep-row-label">${escapeHtml(b.label || b.key || '')}</span>
+                <span class="rep-row-value">${escapeHtml(String(b.value == null ? '' : b.value))}</span>
+                <span class="rep-row-points">${b.points}/${b.max}</span>
+            </div>
+            <div class="rep-bar"><div class="rep-bar-fill" style="width:${pct}%"></div></div>
+        </div>`;
+    }).join('');
+    return `<p>Atlas's <strong>reputation score</strong> combines the AUR signals you'd otherwise weigh by hand `
+        + `into one number: <strong>${risk.score == null ? '?' : risk.score}/100 · ${escapeHtml(tierLabel)}</strong>.</p>`
+        + `<div class="rep-breakdown">${rows}</div>`
+        + `<p class="popup-note">Heuristic only — <strong>not a safety check</strong>. A high score means the package has the reputation signals trusted packages usually have, not that its PKGBUILD is safe. Always review it.</p>`;
+}
+
 function maintainerChangePopupHtml(changed) {
     changed = changed || {};
     const oldM = escapeHtml(changed.old || 'unknown');
@@ -3019,15 +3042,40 @@ function openDetailModal(pkg, group) {
             }
             if (info.risk && info.risk.score !== undefined) {
                 const tierLabel = { trusted: 'Trusted', caution: 'Caution', risk: 'Risk' }[info.risk.tier] || info.risk.tier;
-                parts.push(`<div class="rich-badge-tile risk-${escapeHtml(info.risk.tier)}" title="Composite AUR trust score — heuristic only, not a safety check">
+                parts.push(`<div class="rich-badge-tile clickable risk-${escapeHtml(info.risk.tier)}" data-popup="reputation" title="Click to see how this score is calculated">
                     <div class="rich-badge-icon-container"><div class="rich-badge-icon"><span class="material-symbols-outlined">shield</span></div></div>
                     <span class="rich-badge-value">${info.risk.score} · ${escapeHtml(tierLabel)}</span>
-                    <span class="rich-badge-title">Reputation</span>
+                    <span class="rich-badge-title">Reputation ⓘ</span>
+                </div>`);
+            }
+            // Surface the score's own inputs as badges — fills the grid and shows the trust signals
+            // at a glance (votes/popularity), plus the out-of-date flag when set.
+            if (typeof info.votes === 'number') {
+                parts.push(`<div class="rich-badge-tile no-icon" title="AUR community votes">
+                    <span class="rich-badge-icon"></span>
+                    <span class="rich-badge-value">${info.votes.toLocaleString()}</span>
+                    <span class="rich-badge-title">Votes</span>
+                </div>`);
+            }
+            if (typeof info.popularity === 'number') {
+                parts.push(`<div class="rich-badge-tile no-icon" title="AUR popularity (recent install activity)">
+                    <span class="rich-badge-icon"></span>
+                    <span class="rich-badge-value">${info.popularity.toFixed(2)}</span>
+                    <span class="rich-badge-title">Popularity</span>
+                </div>`);
+            }
+            if (info.out_of_date) {
+                parts.push(`<div class="rich-badge-tile risk-risk" title="The AUR community has flagged this package out of date">
+                    <div class="rich-badge-icon-container"><div class="rich-badge-icon"><span class="material-symbols-outlined">schedule</span></div></div>
+                    <span class="rich-badge-value">Flagged</span>
+                    <span class="rich-badge-title">Out of Date</span>
                 </div>`);
             }
             badgesEl.insertAdjacentHTML('beforeend', parts.join(''));
             const mb = badgesEl.querySelector('[data-popup="maint"]');
             if (mb) mb.addEventListener('click', () => showInfoPopup('Maintainer changed', maintainerChangePopupHtml(info.changed)));
+            const rb = badgesEl.querySelector('[data-popup="reputation"]');
+            if (rb) rb.addEventListener('click', () => showInfoPopup('AUR reputation score', reputationPopupHtml(info.risk)));
 
             if (info.update_available && pkg.installed && !pkg.update_available) {
                 const old = document.getElementById('detail-action-btn');
@@ -6011,6 +6059,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         linkifyComment,
         buildInstalledFilesHTML,
         computeDetailTabs,
+        reputationPopupHtml,
         highlightBashLine,
         buildPkgbuildRiskHTML,
         buildPkgbuildMetaHTML,

@@ -1179,6 +1179,30 @@ function testComputeDetailTabs() {
   assert.ok(!r.visible.includes('deps'), 'deps hidden when it has no content');
 }
 
+function testReputationPopupHtml() {
+  const { hooks } = loadMainJs({});
+  const { reputationPopupHtml } = hooks;
+
+  const html = reputationPopupHtml({
+    score: 85, tier: 'trusted',
+    breakdown: [
+      { key: 'votes', label: 'Community votes', value: '500', points: 30, max: 30 },
+      { key: 'age', label: 'Package age', value: '3.0 yr', points: 25, max: 25 },
+      { key: 'popularity', label: 'Popularity', value: '<x>', points: 5, max: 10 },
+    ],
+  });
+  assert.ok(html.includes('85/100') && /Trusted/.test(html), 'shows score + tier');
+  assert.ok(html.includes('Community votes') && html.includes('500'), 'renders a breakdown row with its value');
+  assert.ok(html.includes('30/30') && html.includes('5/10'), 'shows each signal\'s points/max');
+  assert.ok(html.includes('width:50%'), 'bar fill reflects points/max ratio');
+  assert.ok(html.includes('not a safety check'), 'keeps the disclaimer');
+  assert.ok(!html.includes('<x>') && html.includes('&lt;x&gt;'), 'escapes untrusted values');
+
+  // resilient to missing data
+  assert.ok(reputationPopupHtml({}).includes('?/100'), 'no score → ?/100, no crash');
+  assert.ok(reputationPopupHtml(null).includes('not a safety check'), 'null risk → still renders');
+}
+
 async function testBrowseLandingBuilders() {
   const { hooks } = loadMainJs({});
   const { buildCategoryCardHTML, buildResumeBrowseHTML } = hooks;
@@ -1526,6 +1550,7 @@ function testPermsListEnsuresIconObserver() {
     testBuildAurCommentsHTML,
     testBuildInstalledFilesHTML,
     testComputeDetailTabs,
+    testReputationPopupHtml,
     testBrowseLandingBuilders,
     testBuildMirrorOptionsHTML,
     testPkgbuildViewerBuilders,

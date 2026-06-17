@@ -11,7 +11,9 @@ AUR reputation scoring + diff security annotation + batch update risk tiers ship
 stashed mirror regen options — country/protocol/sort in Settings → Mirrors; competitive-research
 Themes 1–2 shipped — PKGBUILD audit ruleset 14 → 31, and AUR comments in the detail view; detail pane
 reorganized into tabs (Overview/Details/Deps/History) + installed-files & raw-PKGBUILD containment,
-PKGBUILD surfaced on the Overview caution banner, comments moved into Details (from GUI eyeballs) — see Done log)
+PKGBUILD surfaced on the Overview caution banner, comments moved into Details; AUR reputation score
+fixed (was computed from an unpopulated pkg object) + made legible with a clickable breakdown and
+votes/popularity badges (from GUI eyeballs) — see Done log)
 **Version:** 0.12.0 (the polish-and-trust release; 0.11.0 was the first cohesive Atlas release)
 **Working branch:** `work` in this checkout; app work normally lands on `master` (run `git branch`
 before acting — branch names in docs go stale)
@@ -90,6 +92,22 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **AUR reputation: correct score + legible breakdown + filled badge grid (2026-06-16).** A GUI
+  eyeball showed android-studio (a hugely popular AUR pkg) as **15 · Risk** with no explanation. Root
+  cause was a real bug: `calculate_aur_risk_score` read votes/popularity/age off the **pkg object**,
+  which is unpopulated in the detail/preview flow — so those factors scored 0 even though
+  `get_aur_meta`/`_preview_aur` had *just* fetched the RPC `info` with the real numbers (15 was purely
+  `maintainer_stable`). Fix: the scorer takes an `info=` param and prefers the fresh RPC values
+  (`NumVotes`/`Popularity`/`FirstSubmitted`/`Maintainer`); all three callers (incl. the batched
+  `get_update_risk_tiers`) pass it. Legibility: the scorer now returns a `breakdown` (per-signal
+  value + points/max), the **Reputation badge is clickable** → a popup (`reputationPopupHtml`)
+  showing how each signal contributed + the "not a safety check" disclaimer, and the empty Overview
+  badge grid is filled with the score's own inputs — **Votes / Popularity** badges (+ **Out of Date**
+  when flagged). Tests: `test_aur_risk.py` (info-overrides-pkg regression + breakdown),
+  `test_api.py::AurMetaTest`, `main_js_contracts::testReputationPopupHtml`. Suite **618** + JS **52**.
+  **Needs a GUI eyeball** (popular AUR pkg now scores realistically; Reputation badge opens the
+  breakdown; votes/popularity badges fill the grid). Plan:
+  [plans/2026-06-16-aur-reputation-legibility.md](plans/2026-06-16-aur-reputation-legibility.md).
 - **Detail pane tabs + wall-of-text containment + PKGBUILD/comments placement (2026-06-16).** From two
   GUI eyeballs: the detail modal's installed-files list (arch `pacman -Qlq`, often thousands of
   entries) **and** the raw `pkg build` PKGBUILD text both ballooned into giant table cells, and the

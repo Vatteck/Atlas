@@ -37,18 +37,27 @@ def _tier_for(score: float) -> str:
     return RISK
 
 
-def calculate_aur_risk_score(pkg, maintainer_changed: bool) -> dict:
+def calculate_aur_risk_score(pkg, maintainer_changed: bool, info: Optional[dict] = None) -> dict:
     """Composite reputation score for an AUR package.
 
-    :param pkg: an `ArchPackage` (only `votes`, `popularity`, `first_submitted`, `maintainer`
-                are read; all are optional and missing data scores 0 for that factor).
+    :param pkg: an `ArchPackage` (fallback source for `votes`, `popularity`, `first_submitted`,
+                `maintainer`; all optional, missing data scores 0 for that factor).
     :param maintainer_changed: whether the AUR maintainer differs from the cached baseline.
-    :return: {'score': int 0-100, 'tier': 'trusted'|'caution'|'risk', 'factors': {...}}
+    :param info: the AUR RPC `info` dict, when available. **Preferred** over the pkg attributes —
+                 the pkg object in the detail/preview flow often lacks the AUR stats (votes etc.),
+                 which would zero out those factors and produce a misleadingly low score.
+    :return: {'score': int 0-100, 'tier', 'factors': {...}, 'breakdown': [{key,label,value,points,max}]}
     """
-    votes = getattr(pkg, 'votes', None) or 0
-    popularity = getattr(pkg, 'popularity', None) or 0.0
-    first_submitted = getattr(pkg, 'first_submitted', None)
-    maintainer = getattr(pkg, 'maintainer', None)
+    if info:
+        votes = info.get('NumVotes') or 0
+        popularity = info.get('Popularity') or 0.0
+        first_submitted = info.get('FirstSubmitted')
+        maintainer = info.get('Maintainer')      # null here means genuinely orphaned
+    else:
+        votes = getattr(pkg, 'votes', None) or 0
+        popularity = getattr(pkg, 'popularity', None) or 0.0
+        first_submitted = getattr(pkg, 'first_submitted', None)
+        maintainer = getattr(pkg, 'maintainer', None)
 
     votes_score = min(votes / _VOTES_CEILING, 1) * 100
 
@@ -56,6 +65,7 @@ def calculate_aur_risk_score(pkg, maintainer_changed: bool) -> dict:
         age_years = max(time.time() - first_submitted, 0) / _SECONDS_PER_YEAR
         age_score = min(age_years / _AGE_CEILING_YEARS, 1) * 100
     else:
+        age_years = 0.0
         age_score = 0.0
 
     not_orphaned_score = 100.0 if maintainer is not None else 0.0
@@ -72,4 +82,28 @@ def calculate_aur_risk_score(pkg, maintainer_changed: bool) -> dict:
     score = sum(factors[name] * weight for name, weight in _WEIGHTS.items())
     score = round(max(0.0, min(100.0, score)))
 
-    return {'score': score, 'tier': _tier_for(score), 'factors': factors}
+    # Human-readable contribution of each signal, so the UI can explain the number.
+    def _pts(name):
+        return round(factors[name] * _WEIGHTS[name])
+
+    def _max(name):
+        return round(_WEIGHTS[name] * 100)
+
+    breakdown = [
+        {'key': 'votes', 'label': 'Community votes', 'value': f'{int(votes)}',
+         'points': _pts('votes'), 'max': _max('votes')},
+        {'key': 'age', 'label': 'Package age',
+         'value': (f'{age_years:.1f} yr' if first_submitted else 'unknown'),
+         'points': _pts('age'), 'max': _max('age')},
+        {'key': 'not_orphaned', 'label': 'Maintainer',
+         'value': ('present' if maintainer is not None else 'orphaned'),
+         'points': _pts('not_orphaned'), 'max': _max('not_orphaned')},
+        {'key': 'maintainer_stable', 'label': 'Maintainer stability',
+         'value': ('changed recently' if maintainer_changed else 'stable'),
+         'points': _pts('maintainer_stable'), 'max': _max('maintainer_stable')},
+        {'key': 'popularity', 'label': 'Popularity',
+         'value': f'{float(popularity):.2f}',
+         'points': _pts('popularity'), 'max': _max('popularity')},
+    ]
+
+    return {'score': score, 'tier': _tier_for(score), 'factors': factors, 'breakdown': breakdown}
