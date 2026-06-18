@@ -1310,10 +1310,18 @@ function compareSourcePreference(a, b) {
     const pb = SOURCE_PREF[normalizeType(b.type)] ?? 9;
     return pa - pb;
 }
+// Group key for cross-source collapsing: lowercase + strip separators so a Flatpak's display name
+// and an AUR/repo package name for the same app line up — e.g. "Google Chrome" ≙ "google-chrome",
+// "Sublime Text" ≙ "sublime-text". Separator-only (spaces/`.`/`_`/`-`) keeps it conservative: it
+// bridges punctuation/casing without token-matching that could merge genuinely distinct apps.
+function groupKey(name) {
+    return String(name == null ? '' : name).trim().toLowerCase().replace(/[\s._-]+/g, '');
+}
+
 function collapseByName(packages) {
     const order = [], map = new Map();
     (packages || []).forEach(p => {
-        const key = (p.name || '').trim().toLowerCase();
+        const key = groupKey(p.name);
         if (!map.has(key)) { map.set(key, []); order.push(key); }
         map.get(key).push(p);
     });
@@ -6382,6 +6390,8 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildTransactionPreviewHTML,
         buildUpdateAllPreviewData,
         buildSourceCompareHTML,
+        groupKey,
+        collapseByName,
         whySourceHint,
         buildCategoryCardHTML,
         buildResumeBrowseHTML,

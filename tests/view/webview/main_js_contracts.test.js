@@ -980,6 +980,31 @@ async function testBuildSourceCompareHTML() {
   assert.ok(html.includes('Official Arch repository') && html.includes('Sandboxed'), 'per-source notes');
 }
 
+async function testCollapseByNameAcrossSources() {
+  const { hooks } = loadMainJs({});
+  const { groupKey, collapseByName } = hooks;
+
+  // separator/casing-insensitive key so display names and package names align
+  assert.strictEqual(groupKey('Google Chrome'), 'googlechrome');
+  assert.strictEqual(groupKey('google-chrome'), 'googlechrome');
+  assert.strictEqual(groupKey('Sublime Text'), groupKey('sublime-text'));
+
+  // Flatpak "Google Chrome" + AUR "google-chrome" → one grouped card with two sources
+  const groups = collapseByName([
+    { id: 'flatpak:com.google.Chrome', name: 'Google Chrome', type: 'flatpak' },
+    { id: 'aur:google-chrome', name: 'google-chrome', type: 'aur' },
+  ]);
+  assert.strictEqual(groups.length, 1, 'differing names collapse into one group');
+  assert.strictEqual(groups[0].sources.length, 2, 'both sources kept');
+
+  // distinct variants must NOT over-merge
+  const variants = collapseByName([
+    { id: 'aur:google-chrome', name: 'google-chrome', type: 'aur' },
+    { id: 'aur:google-chrome-beta', name: 'google-chrome-beta', type: 'aur' },
+  ]);
+  assert.strictEqual(variants.length, 2, 'google-chrome vs google-chrome-beta stay separate');
+}
+
 async function testSummarizeFailureCategories() {
   const { hooks } = loadMainJs({});
   const cases = [
@@ -1684,6 +1709,7 @@ function testPermsListEnsuresIconObserver() {
     testTransactionPreviewUpdateShowsVersionDelta,
     testBuildUpdateAllPreviewData,
     testBuildSourceCompareHTML,
+    testCollapseByNameAcrossSources,
     testWhySourceHint,
     testBuildDependencySummaryHTML,
     testPackageActivitySectionClearsForNonInstalledPackages,
