@@ -119,6 +119,17 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Persistent rotating debug log (2026-06-17).** Added an on-disk log so issues from a GUI session can
+  be diagnosed after the fact (and by an agent) instead of only scrolling past in a terminal. `logs.py`
+  `new_logger` now always attaches a **`RotatingFileHandler`** at `~/.cache/atlaspm/logs/atlas.log`
+  (`paths.APP_LOG_DIR`/`APP_LOG_FILE`), **1 MiB × 3 backups (~4 MiB cap)** so it's never a standing disk
+  cost; terminal output stays gated by `--logs`. The logger is now always live (the file handler needs
+  it) — it only silences itself if the file handler can't be created *and* `--logs` is off. `app.py`
+  also installs a `sys.excepthook` that routes uncaught exceptions through the logger (so crashes land
+  in the file), passing `KeyboardInterrupt` through untouched. Fails open everywhere (a bad log dir
+  never breaks boot). Tests: `tests/view/test_logs.py` (file written even with `--logs` off; disabled
+  only when no file handler + not enabled). Suite **694**. **For debugging: read
+  `~/.cache/atlaspm/logs/atlas.log`** after reproducing an issue.
 - **AUR badge: drop the redundant build-kind word now that the chip carries it (2026-06-17).** Follow-up
   eyeball: with the new variant chip, the footer still also printed the build kind as text (`binary · ▲0`,
   `AUR · source · ▲52`) — duplicating the chip. Now the **single-source** AUR tag uses the chip too

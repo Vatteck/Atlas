@@ -34,6 +34,17 @@ def main():
 
     logger = logs.new_logger(__app_name__, bool(args.logs))
 
+    # Route uncaught exceptions through the logger so a crash is captured in the rotating log file
+    # (for after-the-fact debugging), not just printed to a terminal nobody saved. Ctrl-C is left
+    # to the default handler.
+    def _log_uncaught(exc_type, exc_value, exc_tb):
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_tb)
+            return
+        logger.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_tb))
+        sys.__excepthook__(exc_type, exc_value, exc_tb)
+    sys.excepthook = _log_uncaught
+
     try:
         locale.setlocale(locale.LC_NUMERIC, '')
     except Exception:
