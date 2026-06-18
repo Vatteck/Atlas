@@ -119,6 +119,16 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Log hygiene from the first real log read (2026-06-17).** The new debug log immediately paid off.
+  **(1)** `mapper.check_update` logged **two WARNINGs per installed AUR package** ("no last_modified" +
+  "install_date will be used") on every `read_installed` — ~240 of ~305 lines in one session; that's
+  the normal AUR fallback path → downgraded to `debug` (kept the rare no-install_date case at WARNING).
+  **(2)** The startup `pacman -Syy` failure was logged as **ERROR with no detail**; it's expected
+  (startup `prepare()` runs with `root_password=None`, before the user authenticates). Now
+  `SyncDatabases` captures pacman's stderr and logs the no-auth skip at **INFO** (Atlas uses the db
+  cache, syncs after auth), reserving ERROR for a genuine failure (password supplied) — now with exit
+  code + stderr. Open question for the user: whether to optionally prompt for root on startup
+  (bauh-style) so the first-screen update counts are fresh — see decision pending. Suite **694**.
 - **Persistent rotating debug log (2026-06-17).** Added an on-disk log so issues from a GUI session can
   be diagnosed after the fact (and by an agent) instead of only scrolling past in a terminal. `logs.py`
   `new_logger` now always attaches a **`RotatingFileHandler`** at `~/.cache/atlaspm/logs/atlas.log`
