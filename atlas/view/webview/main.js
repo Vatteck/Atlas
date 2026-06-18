@@ -1415,9 +1415,9 @@ function sourceBadges(group, activeIdx) {
         if (src !== 'aur') {
             return `<span class="tag ${escapeHtml(src)}" title="${escapeHtml(sourceLabel(pkg.type))}">${escapeHtml(sourceLabel(pkg.type))}</span>`;
         }
-        const v = aurVariant(pkg.name);
+        // Build variant rides in the chip (sourcePillHTML); no redundant "· source/binary" word.
         const votesStr = (typeof pkg.votes === 'number') ? ` · ▲${pkg.votes}` : '';
-        let out = `<span class="tag aur" title="AUR — community-maintained, less vetted than the official repo. Build: ${escapeHtml(v.label)}">AUR · ${escapeHtml(v.label)}${escapeHtml(votesStr)}</span>`;
+        let out = `<span class="tag aur" title="AUR — community-maintained, less vetted than the official repo. Build: ${escapeHtml(aurVariant(pkg.name).label)}">${sourcePillHTML(pkg)}${escapeHtml(votesStr)}</span>`;
         if (pkg.out_of_date) out += `<span class="tag ood" title="Flagged out-of-date on the AUR">out of date</span>`;
         return out;
     }
@@ -1429,13 +1429,13 @@ function sourceBadges(group, activeIdx) {
         const title = `${sourcePillLabel(s)}${s.installed ? ' • installed' : ''}`;
         return `<button class="${escapeHtml(cls)}" data-srcidx="${i}" title="${escapeHtml(title)}">${sourcePillHTML(s)}</button>`;
     }).join('');
-    // When the selected source is AUR, surface its build kind + votes (and out-of-date)
-    // inline — the same detail single-source AUR cards show, minus the redundant "AUR".
+    // When the selected source is AUR, surface its votes (and out-of-date) inline. The build kind
+    // is already shown by the active pill's chip, so we don't repeat the "binary/source" word.
     let extra = '';
     if (normalizeType(pkg.type) === 'aur') {
-        const v = aurVariant(pkg.name);
-        const votesStr = (typeof pkg.votes === 'number') ? ` · ▲${pkg.votes}` : '';
-        extra += `<span class="tag aur-detail" title="AUR build: ${escapeHtml(v.label)}">${escapeHtml(v.label)}${escapeHtml(votesStr)}</span>`;
+        if (typeof pkg.votes === 'number') {
+            extra += `<span class="tag aur-detail" title="AUR votes">▲${pkg.votes}</span>`;
+        }
         if (pkg.out_of_date) extra += `<span class="tag ood" title="Flagged out-of-date on the AUR">out of date</span>`;
     }
     return `<div class="source-pills">${pills}</div>${extra}`;

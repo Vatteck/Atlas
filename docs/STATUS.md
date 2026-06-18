@@ -119,6 +119,12 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **AUR badge: drop the redundant build-kind word now that the chip carries it (2026-06-17).** Follow-up
+  eyeball: with the new variant chip, the footer still also printed the build kind as text (`binary · ▲0`,
+  `AUR · source · ▲52`) — duplicating the chip. Now the **single-source** AUR tag uses the chip too
+  (`AUR · ▲52` for source, `AUR `+bin/git chip otherwise) and the **multi-source** detail shows just
+  the votes (`▲N`), no repeated "binary/source" word. The build kind lives in exactly one place (the
+  chip). Suite **692** + JS **56**. **Needs a GUI eyeball.**
 - **AUR variant pills: distinct chip so "AUR" vs "AUR bin" don't look alike (2026-06-17).** From a GUI
   eyeball on `chrome-remote-desktop` (regular AUR + AUR `-bin`): both pills were the same amber and
   differed only by appended " bin" text, reading as near-duplicates. New `sourcePillHTML` keeps the
