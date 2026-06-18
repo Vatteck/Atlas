@@ -298,7 +298,9 @@ class ArchCompilationOptimizer(Thread):
                         custom_makepkg = RE_MAKE_FLAGS.sub('', global_makepkg)
                         optimizations.append('MAKEFLAGS="-j$(nproc)"')
                     else:
-                        self.logger.warning("It seems '{}' compilation flags are already customized".format(GLOBAL_MAKEPKG))
+                        # Normal: the user already has custom makepkg flags (e.g. CachyOS ships them),
+                        # so Atlas leaves them alone. Informational, not a warning.
+                        self.logger.info("It seems '{}' compilation flags are already customized".format(GLOBAL_MAKEPKG))
                 else:
                     optimizations.append('MAKEFLAGS="-j$(nproc)"')
 

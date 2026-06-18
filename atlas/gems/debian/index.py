@@ -75,7 +75,8 @@ class ApplicationIndexer:
                 idx_str = f.read().strip()
 
             if not idx_str:
-                self._log.warning(f"Debian applications index is empty ({self._file_path})")
+                # Expected when Debian support is off (the default) — nothing was indexed. Not a warning.
+                self._log.info(f"Debian applications index is empty ({self._file_path})")
             else:
                 try:
                     for name, data in json.loads(idx_str).items():
