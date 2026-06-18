@@ -129,9 +129,9 @@ re-add a native extension without a measured win. Details in the historical
   `-beta`/`-bin`-style variant distinction both still hold (verified by tests). Applies everywhere
   `collapseByName` runs (lists, search, suggestions, Browse). Tests: `testCollapseByNameAcrossSources`
   (Flatpak+AUR collapse into one 2-source group; `google-chrome` vs `google-chrome-beta` stay split).
-  Suite **692** + JS **56**. **Needs a GUI eyeball** (Chrome now one card with a source switcher).
-  *Known limitation:* a `-bin`/`-git` suffix still splits (`visual-studio-code-bin` ≠ "Visual Studio
-  Code") — out of scope for a conservative separator-only key.
+  Suite **692** + JS **56**. **GUI-verified 2026-06-17** (Chrome's Flatpak + AUR now render as one card
+  with a source switcher). *Known limitation:* a `-bin`/`-git` suffix still splits
+  (`visual-studio-code-bin` ≠ "Visual Studio Code") — out of scope for a conservative separator-only key.
 - **PKGBUILD viewer: credential_harvest false positive + sticky hover highlight (2026-06-17).** Two GUI
   bug reports on google-chrome's PKGBUILD. **(1) `credential_harvest` FP:** the rule matched bare daemon
   package names (`gnome-keyring`, `\bkwallet\b`, `login-keyring`), which fire on perfectly normal
