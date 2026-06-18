@@ -133,8 +133,8 @@ re-add a native extension without a measured win. Details in the historical
   (returns 194). Tests: `RepositoryUpdatesTest` (parse + checkupdates-preferred + exit-2-empty +
   fallback-when-absent + fallback-on-error). Suite **700**. This makes the bauh-style startup root
   prompt unnecessary for update accuracy (lazy-auth model stays); an opt-in "sync on startup" toggle is
-  noted as a lower-value future option. **Needs a GUI eyeball** (dashboard/Updates now shows the real
-  repo update count). Plan:
+  noted as a lower-value future option. **GUI-verified 2026-06-17** (dashboard/Updates shows the real
+  repo update count; startup speed fine). Plan:
   [plans/2026-06-17-fresh-repo-updates-checkupdates.md](plans/2026-06-17-fresh-repo-updates-checkupdates.md).
 - **Log hygiene from the first real log read (2026-06-17).** The new debug log immediately paid off.
   **(1)** `mapper.check_update` logged **two WARNINGs per installed AUR package** ("no last_modified" +
