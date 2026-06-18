@@ -978,16 +978,40 @@ async function testBuildSourceCompareHTML() {
   assert.ok(html.includes('class="btn btn-primary srccmp-install" data-id="flatpak:com.valvesoftware.Steam"'), 'install button targets the non-installed source');
   assert.ok(!html.includes('data-id="arch_repo:steam"'), 'no install button for the installed source');
   assert.ok(html.includes('Official Arch repository') && html.includes('Sandboxed'), 'per-source notes');
+
+  // AUR build variants in one group: rows are labelled distinctly + the guideline is shown
+  const aurGroup = { name: 'brave', sources: [
+    { id: 'aur:brave-bin', type: 'aur', name: 'brave-bin', version: '1.2' },
+    { id: 'aur:brave-git', type: 'aur', name: 'brave-git', version: 'r1234' },
+  ]};
+  const aurHtml = hooks.buildSourceCompareHTML(aurGroup);
+  assert.ok(aurHtml.includes('AUR bin') && aurHtml.includes('AUR git'), 'variant labels distinguish AUR options');
+  assert.ok(aurHtml.includes('srccmp-guideline') && aurHtml.includes('prebuilt binary'), 'bin/git guideline shown');
+  // single AUR option → no guideline
+  const oneAur = hooks.buildSourceCompareHTML({ name: 'x', sources: [
+    { id: 'aur:x', type: 'aur', name: 'x', version: '1' },
+    { id: 'flatpak:x', type: 'flatpak', name: 'x', version: '1' },
+  ]});
+  assert.ok(!oneAur.includes('srccmp-guideline'), 'no AUR-build guideline with a single AUR option');
 }
 
 async function testCollapseByNameAcrossSources() {
   const { hooks } = loadMainJs({});
-  const { groupKey, collapseByName } = hooks;
+  const { groupKey, stripBuildSuffix, collapseByName, sourcePillLabel, sourceCompareNote } = hooks;
 
   // separator/casing-insensitive key so display names and package names align
   assert.strictEqual(groupKey('Google Chrome'), 'googlechrome');
   assert.strictEqual(groupKey('google-chrome'), 'googlechrome');
   assert.strictEqual(groupKey('Sublime Text'), groupKey('sublime-text'));
+
+  // build-method suffixes are stripped for grouping; channel suffixes are NOT
+  assert.strictEqual(groupKey('brave-bin'), 'brave');
+  assert.strictEqual(groupKey('brave-git'), 'brave');
+  assert.strictEqual(groupKey('Brave'), 'brave');
+  assert.strictEqual(stripBuildSuffix('foo-git-bin'), 'foo', 'chained suffixes stripped');
+  assert.strictEqual(groupKey('git'), 'git', 'bare "git" is not a suffix');
+  assert.notStrictEqual(groupKey('google-chrome-beta'), groupKey('google-chrome'),
+    '-beta is a channel, not a build — stays separate');
 
   // Flatpak "Google Chrome" + AUR "google-chrome" → one grouped card with two sources
   const groups = collapseByName([
@@ -997,12 +1021,37 @@ async function testCollapseByNameAcrossSources() {
   assert.strictEqual(groups.length, 1, 'differing names collapse into one group');
   assert.strictEqual(groups[0].sources.length, 2, 'both sources kept');
 
-  // distinct variants must NOT over-merge
+  // brave-bin + brave-git + Flatpak "Brave" → one card, 3 options; default is NOT the -git build
+  const brave = collapseByName([
+    { id: 'aur:brave-git', name: 'brave-git', type: 'aur' },
+    { id: 'aur:brave-bin', name: 'brave-bin', type: 'aur' },
+    { id: 'flatpak:com.brave.Browser', name: 'Brave', type: 'flatpak' },
+  ]);
+  assert.strictEqual(brave.length, 1, 'bin/git/flatpak collapse into one group');
+  assert.strictEqual(brave[0].sources.length, 3, 'all three options kept');
+  assert.notStrictEqual(brave[0].sources[0].name, 'brave-git', 'default option is not the -git build');
+
+  // two AUR packages with the SAME build variant + same key are genuinely different → split
+  const dupes = collapseByName([
+    { id: 'aur:foo', name: 'foo', type: 'aur' },
+    { id: 'aur:foo2', name: 'foo', type: 'aur' },
+  ]);
+  assert.strictEqual(dupes.length, 2, 'same-variant same-name AUR pkgs are not fake-switched');
+
+  // distinct channels must NOT over-merge
   const variants = collapseByName([
     { id: 'aur:google-chrome', name: 'google-chrome', type: 'aur' },
     { id: 'aur:google-chrome-beta', name: 'google-chrome-beta', type: 'aur' },
   ]);
   assert.strictEqual(variants.length, 2, 'google-chrome vs google-chrome-beta stay separate');
+
+  // labels distinguish AUR build variants; notes give the guideline
+  assert.strictEqual(sourcePillLabel({ type: 'aur', name: 'brave-bin' }), 'AUR bin');
+  assert.strictEqual(sourcePillLabel({ type: 'aur', name: 'brave-git' }), 'AUR git');
+  assert.strictEqual(sourcePillLabel({ type: 'aur', name: 'brave' }), 'AUR');
+  assert.ok(sourceCompareNote('aur', 'brave-bin').includes('prebuilt binary'), 'bin note');
+  assert.ok(/latest GIT/i.test(sourceCompareNote('aur', 'brave-git')), 'git note');
+  assert.ok(sourceCompareNote('aur', 'brave').includes('from source'), 'source note');
 }
 
 async function testSummarizeFailureCategories() {

@@ -119,6 +119,26 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **AUR build-variant grouping (`-bin`/`-git`/source as options of one app) (2026-06-17).** Followed
+  up the separator fix to close the suffix gap: `groupKey` now also strips **build-method** suffixes
+  (`-bin`/`-git`/`-svn`/`-hg`/`-bzr`/`-cvs`/`-darcs`, chained-safe via `stripBuildSuffix`) so `brave`,
+  `brave-bin`, `brave-git` (and a Flatpak "Brave") collapse into **one card with a source switcher**.
+  **Channel** suffixes (`-beta`/`-dev`/`-nightly`) are deliberately *not* stripped — those are
+  different apps and stay separate (tested). The same-source-dupe guard was upgraded from a raw
+  *type* check to an **option signature** (`sourceOptionSig` = type + AUR variant) so two AUR builds
+  read as two distinct options instead of being split, while genuine dupes (same type+variant+name)
+  still split. To make the options legible: switcher pills + compare-panel rows now label AUR builds
+  distinctly (`sourcePillLabel` → "AUR bin"/"AUR git"/"AUR"); `sourceCompareNote` is variant-aware
+  (prebuilt-binary / builds-latest-VCS-may-be-unstable / builds-from-source); the compare panel shows
+  a **guideline line** explaining `-bin`/`-git`/source when ≥2 AUR variants are present; and
+  `compareSourcePreference` gained a tie-break (`aurBuildRank`) so a group **never defaults to a `-git`
+  build**. Frontend-only. Tests: extended `testCollapseByNameAcrossSources` (suffix strip, chained,
+  bare-"git", bin/git/flatpak→1 card, default-not-git, same-variant dupes split, labels, notes) +
+  `testBuildSourceCompareHTML` (variant labels + guideline shown/omitted). Suite **692** + JS **56**.
+  **Needs a GUI eyeball** (search "brave"/"chrome" → one card; switch pills; compare panel shows each
+  build's version + the guideline). *Known cosmetic:* a grouped card's title is the default option's
+  name (e.g. "brave-bin"), not a prettified base — left as-is for honesty (title = active install
+  target).
 - **Cross-source grouping bridges display-name vs package-name (2026-06-17).** From a GUI eyeball:
   Google Chrome's Flatpak and AUR builds rendered as **two separate cards** because `collapseByName`
   keyed on the exact lowercased name and the Flatpak's display name ("Google Chrome") ≠ the AUR package

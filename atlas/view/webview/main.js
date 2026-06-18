@@ -1304,18 +1304,64 @@ function getIconDataSrc(iconUrl) {
 // separate (so AUR -bin/-git variants and forks remain their own cards). Order is
 // preserved from the already-ranked input (first occurrence sets the group's position).
 const SOURCE_PREF = { arch_repo: 0, aur: 1, flatpak: 2, appimage: 3 };  // trust/preference order
+// AUR build preference for the *default* option: prefer a stable build (binary/source) over a
+// bleeding-edge VCS (-git) build, so a grouped card never defaults to -git.
+function aurBuildRank(p) {
+    if (normalizeType(p.type) !== 'aur') return 0;
+    const k = aurVariant(p.name).kind;
+    return k === 'vcs' ? 2 : (k === 'debug' ? 1 : 0);
+}
+
 function compareSourcePreference(a, b) {
     if (!!a.installed !== !!b.installed) return a.installed ? -1 : 1;  // installed source wins
     const pa = SOURCE_PREF[normalizeType(a.type)] ?? 9;
     const pb = SOURCE_PREF[normalizeType(b.type)] ?? 9;
-    return pa - pb;
+    if (pa !== pb) return pa - pb;
+    return aurBuildRank(a) - aurBuildRank(b);  // tie-break within a source: stable build first
 }
-// Group key for cross-source collapsing: lowercase + strip separators so a Flatpak's display name
-// and an AUR/repo package name for the same app line up — e.g. "Google Chrome" ≙ "google-chrome",
-// "Sublime Text" ≙ "sublime-text". Separator-only (spaces/`.`/`_`/`-`) keeps it conservative: it
-// bridges punctuation/casing without token-matching that could merge genuinely distinct apps.
+// Build-method suffixes that mean "same app, different build" — stripped for grouping so
+// foo / foo-bin / foo-git collapse into one card. Deliberately NOT channel suffixes
+// (-beta/-dev/-nightly): those are genuinely different apps/channels and must stay separate.
+const AUR_BUILD_SUFFIXES = ['-bin', '-git', '-svn', '-hg', '-bzr', '-cvs', '-darcs'];
+
+function stripBuildSuffix(name) {
+    let n = String(name == null ? '' : name).trim();
+    let changed = true;
+    while (changed) {                  // handles the rare chained case (e.g. foo-git-bin)
+        changed = false;
+        for (const suf of AUR_BUILD_SUFFIXES) {
+            if (n.length > suf.length && n.toLowerCase().endsWith(suf)) {
+                n = n.slice(0, -suf.length); changed = true; break;
+            }
+        }
+    }
+    return n;
+}
+
+// Group key for cross-source collapsing: drop the build-method suffix, lowercase, and strip
+// separators so a Flatpak's display name and an AUR/repo package name for the same app line up —
+// "Google Chrome" ≙ "google-chrome", "Brave" ≙ "brave-bin" ≙ "brave-git". Conservative: it bridges
+// punctuation/casing/build-method without token-matching that could merge genuinely distinct apps.
 function groupKey(name) {
-    return String(name == null ? '' : name).trim().toLowerCase().replace(/[\s._-]+/g, '');
+    return stripBuildSuffix(name).toLowerCase().replace(/[\s._-]+/g, '');
+}
+
+// A source's "option" identity inside a group: the source type, plus the AUR build variant so
+// foo-bin and foo-git read as two distinct *options* (not same-source dupes). Two sources sharing
+// a signature (e.g. two Flatpaks with the same display name) are genuinely different packages and
+// must NOT be folded into a fake switcher.
+function sourceOptionSig(p) {
+    const t = normalizeType(p.type);
+    return t === 'aur' ? `aur:${aurVariant(p.name).label}` : t;
+}
+
+// Short pill/label for a source — for AUR it names the build variant so multiple AUR options in
+// one group are tellable apart ("AUR bin" / "AUR git" / "AUR").
+function sourcePillLabel(s) {
+    if (normalizeType(s.type) !== 'aur') return sourceLabel(s.type);
+    const v = aurVariant(s.name);
+    if (v.kind === 'source') return 'AUR';
+    return `AUR ${v.kind === 'binary' ? 'bin' : v.label}`;
 }
 
 function collapseByName(packages) {
@@ -1328,11 +1374,13 @@ function collapseByName(packages) {
     const groups = [];
     order.forEach(key => {
         const items = map.get(key);
-        const types = items.map(p => normalizeType(p.type));
-        // The switcher is for ONE app available from DIFFERENT sources. Same name + same
-        // source = genuinely different packages (e.g. several Flatpaks that share a display
-        // name like "Adwaita theme") — don't fake a multi-source switcher; keep them apart.
-        if (new Set(types).size !== types.length) {
+        const sigs = items.map(sourceOptionSig);
+        // The switcher is for ONE app available from DIFFERENT options (source, or AUR build
+        // variant). Two items sharing an option signature — same source + same AUR build, e.g.
+        // several Flatpaks with the display name "Adwaita theme" — are genuinely different
+        // packages; don't fake a multi-source switcher, keep them apart. (foo-bin vs foo-git have
+        // distinct signatures, so they DO collapse into one card.)
+        if (new Set(sigs).size !== sigs.length) {
             items.forEach(p => groups.push({ key, name: p.name, sources: [p] }));
         } else {
             const sources = items.slice().sort(compareSourcePreference);
@@ -1362,8 +1410,8 @@ function sourceBadges(group, activeIdx) {
     const pills = group.sources.map((s, i) => {
         const t = normalizeType(s.type);
         const cls = `source-pill src-${t}${i === activeIdx ? ' active' : ''}${s.installed ? ' installed' : ''}`;
-        const title = `${sourceLabel(s.type)}${s.installed ? ' • installed' : ''}`;
-        return `<button class="${escapeHtml(cls)}" data-srcidx="${i}" title="${escapeHtml(title)}">${escapeHtml(sourceLabel(s.type))}</button>`;
+        const title = `${sourcePillLabel(s)}${s.installed ? ' • installed' : ''}`;
+        return `<button class="${escapeHtml(cls)}" data-srcidx="${i}" title="${escapeHtml(title)}">${escapeHtml(sourcePillLabel(s))}</button>`;
     }).join('');
     // When the selected source is AUR, surface its build kind + votes (and out-of-date)
     // inline — the same detail single-source AUR cards show, minus the redundant "AUR".
@@ -1377,10 +1425,17 @@ function sourceBadges(group, activeIdx) {
     return `<div class="source-pills">${pills}</div>${extra}`;
 }
 
-// One-line characterisation of a source, for the detail-page comparison panel.
-function sourceCompareNote(type) {
+// One-line characterisation of a source, for the detail-page comparison panel. For AUR the note is
+// build-variant aware (the "guideline" a user wants when choosing between -bin / -git / source).
+function sourceCompareNote(type, name) {
     switch (normalizeType(type)) {
-        case 'aur': return 'Community-maintained · built from source';
+        case 'aur': {
+            const v = aurVariant(name);
+            if (v.kind === 'binary') return 'Community-maintained · prebuilt binary (no compiling)';
+            if (v.kind === 'vcs') return `Community-maintained · builds latest ${v.label.toUpperCase()} (may be unstable)`;
+            if (v.kind === 'debug') return 'Community-maintained · debug build';
+            return 'Community-maintained · builds from source';
+        }
         case 'flatpak': return 'Sandboxed · cross-distro';
         case 'arch':
         case 'arch_repo': return 'Official Arch repository';
@@ -1402,22 +1457,28 @@ function buildSourceCompareHTML(group) {
         const t = normalizeType(s.type);
         const ver = s.version ? `v${escapeHtml(s.version)}` : '—';
         const size = s.size ? formatBytes(s.size) : (s.download_size ? formatBytes(s.download_size) : '—');
-        const note = sourceCompareNote(s.type);
+        const note = sourceCompareNote(s.type, s.name);
         const action = s.installed
             ? `<span class="srccmp-installed">✓ Installed</span>`
             : `<button class="btn btn-primary srccmp-install" data-id="${escapeHtml(s.id)}">Install</button>`;
         return `<div class="srccmp-row src-${escapeHtml(t)}${s.installed ? ' is-installed' : ''}">
-            <div class="srccmp-src"><span class="source-pill src-${escapeHtml(t)}">${escapeHtml(sourceLabel(s.type))}</span></div>
+            <div class="srccmp-src"><span class="source-pill src-${escapeHtml(t)}">${escapeHtml(sourcePillLabel(s))}</span></div>
             <div class="srccmp-ver">${ver}</div>
             <div class="srccmp-size">${size}</div>
             <div class="srccmp-note">${escapeHtml(note)}</div>
             <div class="srccmp-action">${action}</div>
         </div>`;
     }).join('');
+    // When ≥2 of the options are AUR build variants, spell out what -bin / -git / source mean.
+    const aurVariantCount = sources.filter(s => normalizeType(s.type) === 'aur').length;
+    const guideline = aurVariantCount >= 2
+        ? `<p class="srccmp-guideline"><strong>AUR builds:</strong> <code>-bin</code> installs a prebuilt binary (fast, no compiling — trust the packager); <code>-git</code> builds the latest commit (newest, can be unstable); the plain name builds the released source.</p>`
+        : '';
     return `<div class="srccmp">
         <div class="srccmp-head">Available from ${sources.length} sources</div>
         <div class="srccmp-table">${rows}</div>
         <p class="srccmp-hint">Each source is packaged independently — pick where to install from.</p>
+        ${guideline}
     </div>`;
 }
 
@@ -6391,7 +6452,10 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildUpdateAllPreviewData,
         buildSourceCompareHTML,
         groupKey,
+        stripBuildSuffix,
         collapseByName,
+        sourcePillLabel,
+        sourceCompareNote,
         whySourceHint,
         buildCategoryCardHTML,
         buildResumeBrowseHTML,
