@@ -575,11 +575,13 @@ class SyncDatabases(Thread):
 
                             self.taskman.update_progress(self.task_id, progress, self.i18n['arch.task.sync_sb.status'].format(db))
 
+                stderr_lines = []
                 for o in p.stderr:
                     line = o.decode().strip()
 
                     if line:
                         self.task_man.update_output(self.task_id, line)
+                        stderr_lines.append(line)
 
                 p.wait()
 
@@ -587,7 +589,16 @@ class SyncDatabases(Thread):
                     database.register_sync(self.logger)
                     self.synchronized = True
                 else:
-                    self.logger.error("Could not synchronize database")
+                    detail = ' | '.join(stderr_lines) if stderr_lines else 'no error output'
+                    if not self.root_password:
+                        # Expected at startup: no root password yet (and passwordless sudo isn't
+                        # configured), so `pacman -Syy` can't run. Atlas falls back to the existing
+                        # database cache and will sync once the user authenticates — not an error.
+                        self.logger.info("Skipped database synchronization — root authentication not "
+                                         "available yet (pacman: %s)", detail)
+                    else:
+                        self.logger.error("Could not synchronize database (pacman exit %s): %s",
+                                          p.returncode, detail)
 
             except Exception:
                 self.logger.info("Error while synchronizing databases")
