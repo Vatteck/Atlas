@@ -119,6 +119,23 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Fresh repo-update detection via `checkupdates` — fixes silently-missed Arch updates (2026-06-17).**
+  Investigating the startup-sync issue surfaced a real correctness bug: `list_repository_updates()` ran
+  `pacman -Qu`, which compares against the **local sync db** — only as fresh as the last `pacman -Sy`.
+  With the startup root-sync failing (no auth) and no terminal `pacman -Sy`, repo updates released since
+  then were **invisible**, while AUR (live RPC) and Flatpak (live remote) showed fine. Measured on the
+  dev box: `pacman -Qu` = **3**, real pending = **194**. Fix: prefer **`checkupdates`** (pacman-contrib)
+  — it syncs a *temporary* db **without root** (fakeroot) and reports accurately; same `name old -> new`
+  format, exit 2 = no-updates. `list_repository_updates()` now tries `_checkupdates_updates()` and
+  **falls back to `pacman -Qu`** when checkupdates is absent / errors / times out (offline) → never
+  worse than before, accurate when pacman-contrib is present. Extracted pure `parse_repository_updates`.
+  `pacman-contrib` added as an **optdepends** in the Arch PKGBUILD. **End-to-end verified live**
+  (returns 194). Tests: `RepositoryUpdatesTest` (parse + checkupdates-preferred + exit-2-empty +
+  fallback-when-absent + fallback-on-error). Suite **700**. This makes the bauh-style startup root
+  prompt unnecessary for update accuracy (lazy-auth model stays); an opt-in "sync on startup" toggle is
+  noted as a lower-value future option. **Needs a GUI eyeball** (dashboard/Updates now shows the real
+  repo update count). Plan:
+  [plans/2026-06-17-fresh-repo-updates-checkupdates.md](plans/2026-06-17-fresh-repo-updates-checkupdates.md).
 - **Log hygiene from the first real log read (2026-06-17).** The new debug log immediately paid off.
   **(1)** `mapper.check_update` logged **two WARNINGs per installed AUR package** ("no last_modified" +
   "install_date will be used") on every `read_installed` — ~240 of ~305 lines in one session; that's

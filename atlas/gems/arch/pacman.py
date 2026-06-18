@@ -427,15 +427,54 @@ def map_repositories(pkgnames: Iterable[str] = None) -> Dict[str, str]:
     return {}
 
 
-def list_repository_updates() -> Dict[str, str]:
-    output = run_cmd('pacman -Qu')
+def parse_repository_updates(output: Optional[str]) -> Dict[str, str]:
+    """Pure: parse `pacman -Qu` / `checkupdates` output (`name old -> new`) into {name: new_version}.
+
+    Both tools share the same line format. Junk/blank lines are skipped; a line with no version
+    token still records the name (value = the last token, matching the legacy behaviour)."""
     res = {}
     if output:
         for line in output.split('\n'):
+            line = line.strip()
             if line:
                 line_split = line.split(' ')
                 res[line_split[0]] = line_split[-1]
     return res
+
+
+def _checkupdates_updates() -> Optional[Dict[str, str]]:
+    """Fresh repo updates via pacman-contrib's `checkupdates`, or None to signal "fall back".
+
+    `checkupdates` syncs a *temporary* database without root, so it reports accurately even when the
+    system sync db is stale (the common case when the user hasn't run `pacman -Sy` / authenticated an
+    Atlas sync). Exit 0 = updates, 2 = no updates (both success); anything else (incl. offline) → None
+    so the caller falls back to `pacman -Qu`."""
+    if not shutil.which('checkupdates'):
+        return None
+    try:
+        proc = new_subprocess(['checkupdates'])
+        out, _ = proc.communicate(timeout=120)
+    except Exception:
+        traceback.print_exc()
+        return None
+    if proc.returncode not in (0, 2):
+        return None
+    try:
+        return parse_repository_updates(out.decode())
+    except (UnicodeDecodeError, AttributeError):
+        return None
+
+
+def list_repository_updates() -> Dict[str, str]:
+    """Repo packages with a pending update, as {name: new_version}.
+
+    Prefers `checkupdates` (fresh, no root) and falls back to `pacman -Qu` (the local sync db, which
+    may be stale) when checkupdates is unavailable, errors, or times out — so it's never worse than
+    the old behaviour, and accurate when pacman-contrib is installed."""
+    fresh = _checkupdates_updates()
+    if fresh is not None:
+        return fresh
+    return parse_repository_updates(run_cmd('pacman -Qu'))
 
 
 def get_build_date(pkgname: str) -> str:

@@ -223,3 +223,56 @@ class OptionalForTest(TestCase):
     @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value="")
     def test_empty_output_falls_back_to_empty_sets(self, run_cmd: Mock):
         self.assertEqual({'x': set()}, pacman.map_optional_for(['x']))
+
+
+class RepositoryUpdatesTest(TestCase):
+
+    def test_parse_repository_updates(self):
+        out = "alsa-lib 1.2.15-2 -> 1.2.16-1\nfirefox 151.0-1 -> 152.0-1\n"
+        self.assertEqual({'alsa-lib': '1.2.16-1', 'firefox': '152.0-1'},
+                         pacman.parse_repository_updates(out))
+
+    def test_parse_repository_updates_empty_and_junk(self):
+        self.assertEqual({}, pacman.parse_repository_updates(''))
+        self.assertEqual({}, pacman.parse_repository_updates(None))
+        # blank lines are skipped; a lone token still records the name
+        self.assertEqual({'pkg': 'pkg'}, pacman.parse_repository_updates('\n  \npkg\n'))
+
+    @patch(f'{__app_name__}.gems.arch.pacman.shutil.which', return_value='/usr/bin/checkupdates')
+    @patch(f'{__app_name__}.gems.arch.pacman.new_subprocess')
+    def test_prefers_checkupdates_when_available(self, new_subprocess: Mock, which: Mock):
+        proc = Mock()
+        proc.communicate.return_value = (b'firefox 151.0-1 -> 152.0-1\n', b'')
+        proc.returncode = 0
+        new_subprocess.return_value = proc
+        with patch(f'{__app_name__}.gems.arch.pacman.run_cmd') as run_cmd:
+            self.assertEqual({'firefox': '152.0-1'}, pacman.list_repository_updates())
+            run_cmd.assert_not_called()  # checkupdates won → no fallback to pacman -Qu
+
+    @patch(f'{__app_name__}.gems.arch.pacman.shutil.which', return_value='/usr/bin/checkupdates')
+    @patch(f'{__app_name__}.gems.arch.pacman.new_subprocess')
+    def test_checkupdates_exit2_is_no_updates_not_fallback(self, new_subprocess: Mock, which: Mock):
+        proc = Mock()
+        proc.communicate.return_value = (b'', b'')
+        proc.returncode = 2  # no updates — success, empty
+        new_subprocess.return_value = proc
+        with patch(f'{__app_name__}.gems.arch.pacman.run_cmd') as run_cmd:
+            self.assertEqual({}, pacman.list_repository_updates())
+            run_cmd.assert_not_called()
+
+    @patch(f'{__app_name__}.gems.arch.pacman.shutil.which', return_value=None)
+    @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value='vim 9.2-1 -> 9.3-1\n')
+    def test_falls_back_to_pacman_qu_when_checkupdates_absent(self, run_cmd: Mock, which: Mock):
+        self.assertEqual({'vim': '9.3-1'}, pacman.list_repository_updates())
+        run_cmd.assert_called_once()
+
+    @patch(f'{__app_name__}.gems.arch.pacman.shutil.which', return_value='/usr/bin/checkupdates')
+    @patch(f'{__app_name__}.gems.arch.pacman.new_subprocess')
+    @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value='vim 9.2-1 -> 9.3-1\n')
+    def test_falls_back_on_checkupdates_error(self, run_cmd: Mock, new_subprocess: Mock, which: Mock):
+        proc = Mock()
+        proc.communicate.return_value = (b'some error', b'')
+        proc.returncode = 1  # error (e.g. offline) → fall back to pacman -Qu
+        new_subprocess.return_value = proc
+        self.assertEqual({'vim': '9.3-1'}, pacman.list_repository_updates())
+        run_cmd.assert_called_once()
