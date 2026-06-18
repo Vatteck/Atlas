@@ -5,7 +5,10 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-17 (latest: a long **GUI-eyeball + diagnostics** stretch. **Fixed a real
+**Last updated:** 2026-06-18 (**makepkg.conf optimizer** — fixed a latent bug where computed
+optimizations were silently discarded on a makepkg.conf missing the standard commented directives;
+extracted a pure, tested `compute_makepkg_optimizations` + finished its log-hygiene (WARN→INFO). Suite
+705. Prior (2026-06-17): a long **GUI-eyeball + diagnostics** stretch. **Fixed a real
 correctness bug** — repo updates were under-reported ~60× (3 vs 194) because update detection used the
 stale local sync db; now prefers **`checkupdates`** (no-root, fresh) with a `pacman -Qu` fallback
 [GUI-verified]. Added a **persistent rotating debug log** at `~/.cache/atlaspm/logs/atlas.log` (+
@@ -44,10 +47,11 @@ fixed (was computed from an unpopulated pkg object) + made legible with a clicka
 votes/popularity badges (from GUI eyeballs); competitive-research Theme 4 (AUR request throttle) shipped,
 Theme 3 (auth-readiness) dropped as N/A to Atlas's root model — see Done log)
 **Version:** 0.12.0 (the polish-and-trust release; 0.11.0 was the first cohesive Atlas release)
-**Working branch:** `master` in this checkout (all 2026-06-17 work — audit track, "why installed",
-`utcnow()` cleanup, CI 3.14, the GUI-eyeball fixes, debug log, and the `checkupdates` repo-update fix —
-landed + pushed to `origin/master`; suite **700**; CI green across Python 3.10–3.14); app work normally
-lands on `master` (run `git branch` before acting — branch names in docs go stale)
+**Working branch:** `master` in this checkout (all recent work — audit track, "why installed",
+`utcnow()` cleanup, CI 3.14, the GUI-eyeball fixes, debug log, the `checkupdates` repo-update fix, and
+the makepkg-optimizer fix — landed + pushed to `origin/master`; suite **705**; CI green across Python
+3.10–3.14); app work normally lands on `master` (run `git branch` before acting — branch names in docs
+go stale)
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)** — the longer-horizon menu we pull
 > from. This file stays the live baton (in-progress / just-shipped).
@@ -56,14 +60,16 @@ lands on `master` (run `git branch` before acting — branch names in docs go st
 
 ## Current focus
 
-**A GUI-eyeball + diagnostics pass is complete (2026-06-17); tree green at suite 700 + JS 56.** Working
+**A GUI-eyeball + diagnostics pass is complete (2026-06-17–18); tree green at suite 705 + JS 56.** Working
 through the live app on a real desktop surfaced and fixed a string of issues end-to-end (all in the
 Done log, all GUI-verified except where noted): the **detail-modal trust/grouping UX** (AUR banner
 placement, scroll-blank fix, comments→Overview as styled cards, Flatpak History local time,
 `credential_harvest` FP, sticky hover, cross-source + AUR build-variant grouping), a **persistent debug
 log** to make future diagnosis possible, and — the headline — a **real correctness bug**: repo updates
 were under-reported ~60× because detection read the stale local sync db; now uses `checkupdates`
-(no-root, fresh) with a safe `pacman -Qu` fallback (`pacman-contrib` added as optdepends). Decisions
+(no-root, fresh) with a safe `pacman -Qu` fallback (`pacman-contrib` added as optdepends); and a
+**makepkg-optimizer** fix where opt-in build optimizations were silently dropped on some configs.
+Decisions
 logged: bauh-style startup root prompt is **not needed** (checkupdates gives accurate counts without
 auth; lazy-auth model stays); an opt-in "sync on startup" toggle is a low-value future option. No
 Rust/Qt revival; no new big architectural migration without a measured reason.
