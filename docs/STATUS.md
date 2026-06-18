@@ -128,7 +128,7 @@ re-add a native extension without a measured win. Details in the historical
   failure falls back to the raw string (history never breaks over one odd line). `date` is display-only
   (the controller reads only `['commit']`), so no behaviour change beyond the shown time. Tests:
   `ParseCommitDateTest` (tz-independent: naive + re-localizes to the original UTC instant; bad-format
-  raises). Suite **692**. **Needs a GUI eyeball** (History dates now match your local clock).
+  raises). Suite **692**. **GUI-verified 2026-06-17** (History dates now match the local clock).
 - **AUR comments styling — cards + code blocks (2026-06-17).** From a GUI eyeball: the comment thread
   read as an undifferentiated wall of text (author/body run together, separated only by a hairline; and
   pasted shell commands rendered as wrapped prose). Two changes: **(1) card per comment** — each
