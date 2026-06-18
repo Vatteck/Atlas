@@ -524,6 +524,14 @@ body {
 .source-pill.src-aur { color: #b26a00; }
 [data-theme="dark"] .source-pill.src-aur { color: #f0a83c; }
 .source-pill.src-aur.active { background: rgba(217, 119, 6, 0.18); }
+/* AUR build-variant chip: keeps the amber "AUR" identity but makes -bin/-git pop so they don't
+   read as duplicates of the plain "AUR" (source) pill. */
+.aur-kind { display: inline-block; margin-left: 5px; padding: 0 5px; border-radius: 4px;
+    font-size: 9px; font-weight: 700; line-height: 15px; text-transform: uppercase;
+    letter-spacing: 0.04em; color: #fff; vertical-align: middle; }
+.aur-kind-bin { background: #2563eb; }   /* prebuilt binary */
+.aur-kind-vcs { background: #7c3aed; }   /* VCS / -git build (moving target) */
+.aur-kind-other { background: #64748b; }
 /* Small dot marking the installed source. */
 .source-pill.installed::after {
     content: '';

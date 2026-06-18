@@ -1355,13 +1355,29 @@ function sourceOptionSig(p) {
     return t === 'aur' ? `aur:${aurVariant(p.name).label}` : t;
 }
 
-// Short pill/label for a source — for AUR it names the build variant so multiple AUR options in
-// one group are tellable apart ("AUR bin" / "AUR git" / "AUR").
+// Short plain-text label for a source — for AUR it names the build variant so multiple AUR options
+// in one group are tellable apart ("AUR bin" / "AUR git" / "AUR"). Used for titles/aria.
 function sourcePillLabel(s) {
     if (normalizeType(s.type) !== 'aur') return sourceLabel(s.type);
     const v = aurVariant(s.name);
     if (v.kind === 'source') return 'AUR';
     return `AUR ${v.kind === 'binary' ? 'bin' : v.label}`;
+}
+
+// CSS modifier for an AUR build variant (drives the coloured chip): bin / vcs / other.
+function aurKindClass(s) {
+    const v = aurVariant(s.name);
+    return v.kind === 'binary' ? 'bin' : (v.kind === 'vcs' ? 'vcs' : 'other');
+}
+
+// Display HTML for a source pill — same as the label, but the AUR build variant is a distinct
+// coloured chip after "AUR" so "AUR" (source) and "AUR bin"/"AUR git" don't read as duplicates.
+function sourcePillHTML(s) {
+    if (normalizeType(s.type) !== 'aur') return escapeHtml(sourceLabel(s.type));
+    const v = aurVariant(s.name);
+    if (v.kind === 'source') return 'AUR';
+    const short = v.kind === 'binary' ? 'bin' : v.label;
+    return `AUR<span class="aur-kind aur-kind-${aurKindClass(s)}">${escapeHtml(short)}</span>`;
 }
 
 function collapseByName(packages) {
@@ -1411,7 +1427,7 @@ function sourceBadges(group, activeIdx) {
         const t = normalizeType(s.type);
         const cls = `source-pill src-${t}${i === activeIdx ? ' active' : ''}${s.installed ? ' installed' : ''}`;
         const title = `${sourcePillLabel(s)}${s.installed ? ' • installed' : ''}`;
-        return `<button class="${escapeHtml(cls)}" data-srcidx="${i}" title="${escapeHtml(title)}">${escapeHtml(sourcePillLabel(s))}</button>`;
+        return `<button class="${escapeHtml(cls)}" data-srcidx="${i}" title="${escapeHtml(title)}">${sourcePillHTML(s)}</button>`;
     }).join('');
     // When the selected source is AUR, surface its build kind + votes (and out-of-date)
     // inline — the same detail single-source AUR cards show, minus the redundant "AUR".
@@ -1462,7 +1478,7 @@ function buildSourceCompareHTML(group) {
             ? `<span class="srccmp-installed">✓ Installed</span>`
             : `<button class="btn btn-primary srccmp-install" data-id="${escapeHtml(s.id)}">Install</button>`;
         return `<div class="srccmp-row src-${escapeHtml(t)}${s.installed ? ' is-installed' : ''}">
-            <div class="srccmp-src"><span class="source-pill src-${escapeHtml(t)}">${escapeHtml(sourcePillLabel(s))}</span></div>
+            <div class="srccmp-src"><span class="source-pill src-${escapeHtml(t)}">${sourcePillHTML(s)}</span></div>
             <div class="srccmp-ver">${ver}</div>
             <div class="srccmp-size">${size}</div>
             <div class="srccmp-note">${escapeHtml(note)}</div>
@@ -6455,6 +6471,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         stripBuildSuffix,
         collapseByName,
         sourcePillLabel,
+        sourcePillHTML,
         sourceCompareNote,
         whySourceHint,
         buildCategoryCardHTML,

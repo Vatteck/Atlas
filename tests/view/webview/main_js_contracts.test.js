@@ -985,7 +985,7 @@ async function testBuildSourceCompareHTML() {
     { id: 'aur:brave-git', type: 'aur', name: 'brave-git', version: 'r1234' },
   ]};
   const aurHtml = hooks.buildSourceCompareHTML(aurGroup);
-  assert.ok(aurHtml.includes('AUR bin') && aurHtml.includes('AUR git'), 'variant labels distinguish AUR options');
+  assert.ok(aurHtml.includes('aur-kind-bin') && aurHtml.includes('aur-kind-vcs'), 'variant chips distinguish AUR options');
   assert.ok(aurHtml.includes('srccmp-guideline') && aurHtml.includes('prebuilt binary'), 'bin/git guideline shown');
   // single AUR option → no guideline
   const oneAur = hooks.buildSourceCompareHTML({ name: 'x', sources: [
@@ -1049,6 +1049,13 @@ async function testCollapseByNameAcrossSources() {
   assert.strictEqual(sourcePillLabel({ type: 'aur', name: 'brave-bin' }), 'AUR bin');
   assert.strictEqual(sourcePillLabel({ type: 'aur', name: 'brave-git' }), 'AUR git');
   assert.strictEqual(sourcePillLabel({ type: 'aur', name: 'brave' }), 'AUR');
+
+  // the pill HTML renders the variant as a distinct coloured chip (not just appended text)
+  const { sourcePillHTML } = hooks;
+  assert.ok(/AUR<span class="aur-kind aur-kind-bin">bin<\/span>/.test(sourcePillHTML({ type: 'aur', name: 'brave-bin' })), 'bin chip');
+  assert.ok(/aur-kind-vcs">git/.test(sourcePillHTML({ type: 'aur', name: 'brave-git' })), 'git chip');
+  assert.strictEqual(sourcePillHTML({ type: 'aur', name: 'brave' }), 'AUR', 'plain source AUR has no chip');
+  assert.strictEqual(sourcePillHTML({ type: 'flatpak', name: 'Brave' }), 'Flatpak', 'non-AUR unchanged');
   assert.ok(sourceCompareNote('aur', 'brave-bin').includes('prebuilt binary'), 'bin note');
   assert.ok(/latest GIT/i.test(sourceCompareNote('aur', 'brave-git')), 'git note');
   assert.ok(sourceCompareNote('aur', 'brave').includes('from source'), 'source note');

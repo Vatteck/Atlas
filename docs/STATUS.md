@@ -119,6 +119,14 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **AUR variant pills: distinct chip so "AUR" vs "AUR bin" don't look alike (2026-06-17).** From a GUI
+  eyeball on `chrome-remote-desktop` (regular AUR + AUR `-bin`): both pills were the same amber and
+  differed only by appended " bin" text, reading as near-duplicates. New `sourcePillHTML` keeps the
+  amber **"AUR"** identity but renders the build variant as a distinct **coloured chip** after it —
+  `aur-kind-bin` (blue, prebuilt binary) / `aur-kind-vcs` (violet, `-git`/VCS) — so the options are
+  tellable at a glance, in both the card switcher and the detail compare panel. Plain-text
+  `sourcePillLabel` kept for titles/aria. Tests: `sourcePillHTML` chip cases. Suite **692** + JS **56**.
+  **Needs a GUI eyeball.**
 - **AUR build-variant grouping (`-bin`/`-git`/source as options of one app) (2026-06-17).** Followed
   up the separator fix to close the suffix gap: `groupKey` now also strips **build-method** suffixes
   (`-bin`/`-git`/`-svn`/`-hg`/`-bzr`/`-cvs`/`-darcs`, chained-safe via `stripBuildSuffix`) so `brave`,
