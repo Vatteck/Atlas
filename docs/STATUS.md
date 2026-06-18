@@ -5,7 +5,15 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-18 (**makepkg.conf optimizer** — fixed a latent bug where computed
+**Last updated:** 2026-06-18 (**blank-page stranded-scroll fix** — during a GUI verification sweep the
+main column (topbar + content) intermittently went blank after using the app a while; no JS error. Root
+cause: `.content` is the scroll container with a `position:sticky` topbar, and nothing reset `scrollTop`
+on view change, so switching from a tall scrolled view (Updates/Installed/long category) to a short one
+(Health/Dashboard) left the scroll stranded past the new content — the whole column scrolled out of
+view. Same failure mode as the earlier `.modal-body` fix. Added `resetContentScroll()` called on every
+view change (`activateView`, `openPacnewCenter`, Browse `renderBrowse`/`renderCategoryPackages`).
+DOM-only (no unit test, per precedent). **GUI-verified.** Suite still 705. Prior same day: **makepkg.conf
+optimizer** — fixed a latent bug where computed
 optimizations were silently discarded on a makepkg.conf missing the standard commented directives;
 extracted a pure, tested `compute_makepkg_optimizations` + finished its log-hygiene (WARN→INFO). Suite
 705. Prior (2026-06-17): a long **GUI-eyeball + diagnostics** stretch. **Fixed a real
@@ -60,7 +68,10 @@ go stale)
 
 ## Current focus
 
-**A GUI-eyeball + diagnostics pass is complete (2026-06-17–18); tree green at suite 705 + JS 56.** Working
+**The GUI verification sweep continues (2026-06-18) — it just caught a real blank-page bug** (stranded
+scroll on the `.content` container blanking short views after a tall scrolled one; fixed + GUI-verified,
+see Done log). The remaining queue below (Browse buckets, Permissions, Activity/History, System Health
+actions, Mirrors) is still worth a real session. **A GUI-eyeball + diagnostics pass is complete (2026-06-17–18); tree green at suite 705 + JS 56.** Working
 through the live app on a real desktop surfaced and fixed a string of issues end-to-end (all in the
 Done log, all GUI-verified except where noted): the **detail-modal trust/grouping UX** (AUR banner
 placement, scroll-blank fix, comments→Overview as styled cards, Flatpak History local time,
@@ -143,6 +154,19 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Blank main column — stranded-scroll fix (2026-06-18, GUI-verified).** During the GUI verification
+  sweep, the entire main column (sticky topbar + content) intermittently went blank after using the app
+  for a while — sidebar fine, **no JS error** in the WebKit console. Root cause: `.content` is the
+  `overflow-y:auto` scroll container and `.topbar` is `position:sticky` inside it, but nothing reset
+  `scrollTop` on view change. Navigating from a tall, scrolled-down view (Updates with 229 items,
+  Installed, a long Browse category) to a short one (Health/Dashboard) left `scrollTop` stranded past the
+  new shorter content, scrolling the whole column — sticky topbar included — out of the viewport. (The
+  two repro screenshots differed only by how far it was stranded: topbar still pinned vs. fully off.)
+  Exactly the failure mode of the earlier `.modal-body` scroll fix. Fix (`main.js`): added
+  `resetContentScroll()` (`.content.scrollTop = 0`) and call it on every view change — `activateView`,
+  `openPacnewCenter`, and the Browse `renderBrowse`/`renderCategoryPackages` drill-down/back paths.
+  DOM-only behaviour → no vm-harness unit test (same as the modal-scroll precedent). **GUI-verified**
+  (tall-view → short-view no longer blanks; Browse category → Back lands at top). Suite still **705**.
 - **makepkg.conf optimizer — fix dropped-optimizations bug + make it testable (2026-06-18).** The
   bauh-legacy `ArchCompilationOptimizer` (generates `$CONFIG/arch/makepkg.conf` with parallel make /
   multithreaded compression / ccache, used via `makepkg --config` when `optimize` is on) had a **latent

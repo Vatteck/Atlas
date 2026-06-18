@@ -122,6 +122,11 @@ const searchInput = document.getElementById('search-input');
 const typeFilter = document.getElementById('type-filter');
 const sortFilter = document.getElementById('sort-filter');
 const navItems = document.querySelectorAll('.nav-item');
+// The main column (.content) is the scroll container; the topbar is sticky inside it. Switching
+// from a tall, scrolled-down view to a short one leaves scrollTop stranded past the new content,
+// scrolling everything (sticky topbar included) out of view → a blank page. Reset it on view change.
+const contentScroll = document.querySelector('.content');
+function resetContentScroll() { if (contentScroll) contentScroll.scrollTop = 0; }
 
 const selectModeBtn = document.getElementById('select-mode-btn');
 const batchBar = document.getElementById('batch-bar');
@@ -4211,6 +4216,7 @@ function copyText(text) {
 async function openPacnewCenter() {
     currentView = 'pacnew';
     navEpoch++;
+    resetContentScroll();  // see activateView: avoid a stranded scroll blanking a short view
     navItems.forEach(n => n.classList.remove('active'));  // not a nav item
     searchInput.value = '';
     applyTopbarContext();
@@ -4774,6 +4780,7 @@ function getLastBrowseCategory() {
 
 async function renderBrowse() {
     activeBrowseCategory = null;
+    resetContentScroll();  // category list → landing can also strand the scroll (see activateView)
     applyTopbarContext();  // landing = category grid → hide package-list controls
     currentPackages = [];
     currentGroups = [];
@@ -4880,6 +4887,7 @@ function browseCategoryHeader(category) {
 async function renderCategoryPackages(key, label, opts) {
     const api = (opts && opts.api) || 'get_category_packages';
     activeBrowseCategory = { key, label };
+    resetContentScroll();  // landing → category (or category → category) shouldn't inherit scroll
     setLastBrowseCategory({ key, label, api });  // remember for the landing's resume chip
     applyTopbarContext();  // open category = package list → show the controls
     packagesGrid.style.display = 'block';
@@ -5463,6 +5471,7 @@ function activateView(viewName) {
     
     currentView = viewName;
     navEpoch++;  // supersede any in-flight view render so it can't paint over us
+    resetContentScroll();  // don't inherit the previous view's scroll (strands a short view → blank)
     searchInput.value = ''; // clear search on view change
 
     const notice = document.getElementById('updates-notice');
