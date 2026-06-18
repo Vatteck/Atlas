@@ -137,6 +137,20 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **makepkg.conf optimizer — fix dropped-optimizations bug + make it testable (2026-06-18).** The
+  bauh-legacy `ArchCompilationOptimizer` (generates `$CONFIG/arch/makepkg.conf` with parallel make /
+  multithreaded compression / ccache, used via `makepkg --config` when `optimize` is on) had a **latent
+  bug**: its working copy started as `None` and was only set when a directive line was *present and
+  stripped*, but the final write was gated on `if custom_makepkg and optimizations` — so on a
+  makepkg.conf missing the standard (commented) `MAKEFLAGS`/`COMPRESS*` lines, optimizations were
+  computed and then **silently discarded**. Extracted the whole transform into a **pure, module-level
+  `compute_makepkg_optimizations(content, ncpus, ccache_installed) -> (content, optimizations, skipped)`**
+  that initialises from the full file content and gates the write on `optimizations` alone — so any
+  applicable optimization is actually written. Behaviour preserved otherwise (still respects an explicit
+  `MAKEFLAGS` / already-`--threads`'d `COMPRESS*`; only runs when `config['optimize']` is on). Also
+  finished the log-hygiene: the remaining "already customized" / "no BUILDENV" lines are now **INFO**
+  (`skipped` reasons), not WARNING. Tests: `test_makepkg_optimizer.py` (5 — stock-applies-all,
+  fully-tuned-left-alone, **the missing-directive regression**, no-cpus, ccache). Suite **705**.
 - **Fresh repo-update detection via `checkupdates` — fixes silently-missed Arch updates (2026-06-17).**
   Investigating the startup-sync issue surfaced a real correctness bug: `list_repository_updates()` ran
   `pacman -Qu`, which compares against the **local sync db** — only as fresh as the last `pacman -Sy`.

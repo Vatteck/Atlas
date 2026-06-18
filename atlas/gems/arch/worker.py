@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from atlas.commons.util import utc_now
 from pathlib import Path
 from threading import Thread
-from typing import Optional
+from typing import List, Optional, Tuple
 
 import requests
 
@@ -33,7 +33,87 @@ URL_INFO = 'https://aur.archlinux.org/rpc/?v=5&type=info&arg={}'
 GLOBAL_MAKEPKG = '/etc/makepkg.conf'
 
 RE_MAKE_FLAGS = re.compile(r'#?\s*MAKEFLAGS\s*=\s*.+\s*')
+RE_COMPRESS_XZ = re.compile(r'#?\s*COMPRESSXZ\s*=\s*.+')
+RE_COMPRESS_ZST = re.compile(r'#?\s*COMPRESSZST\s*=\s*.+')
+RE_BUILD_ENV = re.compile(r'\s+BUILDENV\s*=.+')
+RE_CCACHE = re.compile(r'!?ccache')
 RE_CLEAR_REPLACE = re.compile(r'[\-_.]')
+
+
+def compute_makepkg_optimizations(global_makepkg: str, ncpus: Optional[int],
+                                  ccache_installed: bool) -> Tuple[Optional[str], List[str], List[str]]:
+    """Pure: decide how to speed up AUR builds from the system `/etc/makepkg.conf` content.
+
+    Returns ``(optimized_content, optimizations, skipped)``:
+      * ``optimized_content`` — the input with the directives we override stripped out (the base the
+        generated file is built from), or ``None`` when nothing applies.
+      * ``optimizations`` — the directive lines Atlas would append (parallel make, multithreaded
+        compression, ccache).
+      * ``skipped`` — human-readable reasons a directive was left alone (already customized / not
+        present), for the caller to log at INFO.
+
+    Respects the user's existing config: never overrides an explicit ``MAKEFLAGS`` or an already
+    ``--threads``'d ``COMPRESS*``. Fixes a latent bug where optimizations were computed but dropped
+    because the working copy was never initialised — it now starts from the full file content, so any
+    applicable optimization is actually written.
+    """
+    content = global_makepkg
+    optimizations: List[str] = []
+    skipped: List[str] = []
+
+    if ncpus:
+        makeflags = RE_MAKE_FLAGS.findall(content)
+        if makeflags:
+            if not [f for f in makeflags if not f.startswith('#')]:
+                content = RE_MAKE_FLAGS.sub('', content)
+                optimizations.append('MAKEFLAGS="-j$(nproc)"')
+            else:
+                skipped.append("'{}' MAKEFLAGS already customized".format(GLOBAL_MAKEPKG))
+        else:
+            optimizations.append('MAKEFLAGS="-j$(nproc)"')
+
+    compress_xz = RE_COMPRESS_XZ.findall(content)
+    if compress_xz:
+        if not [f for f in compress_xz if not f.startswith('#') and '--threads' in f]:
+            content = RE_COMPRESS_XZ.sub('', content)
+            optimizations.append('COMPRESSXZ=(xz -c -z - --threads=0)')
+        else:
+            skipped.append("'{}' COMPRESSXZ already customized".format(GLOBAL_MAKEPKG))
+    else:
+        optimizations.append('COMPRESSXZ=(xz -c -z - --threads=0)')
+
+    compress_zst = RE_COMPRESS_ZST.findall(content)
+    if compress_zst:
+        if not [f for f in compress_zst if not f.startswith('#') and '--threads' in f]:
+            content = RE_COMPRESS_ZST.sub('', content)
+            optimizations.append('COMPRESSZST=(zstd -c -z -q - --threads=0)')
+        else:
+            skipped.append("'{}' COMPRESSZST already customized".format(GLOBAL_MAKEPKG))
+    else:
+        optimizations.append('COMPRESSZST=(zstd -c -z -q - --threads=0)')
+
+    build_envs = RE_BUILD_ENV.findall(content)
+    if build_envs:
+        build_def = None
+        for e in build_envs:
+            env_line = e.strip()
+            if RE_CCACHE.findall(env_line):
+                if ccache_installed:
+                    content = content.replace(e, '')
+                    if not build_def:
+                        build_def = RE_CCACHE.sub('', env_line).replace('(', '(ccache ')
+                elif not build_def:
+                    build_def = RE_CCACHE.sub('', env_line)
+        if build_def:
+            optimizations.append(build_def)
+    else:
+        skipped.append('no BUILDENV declaration found')
+        if ccache_installed:
+            optimizations.append('BUILDENV=(ccache)')
+
+    if not optimizations:
+        return None, [], skipped
+    return content, optimizations, skipped
 
 
 class AURIndexUpdater(Thread):
@@ -258,10 +338,6 @@ class ArchCompilationOptimizer(Thread):
         super(ArchCompilationOptimizer, self).__init__(daemon=True)
         self.logger = logger
         self.i18n = i18n
-        self.re_compress_xz = re.compile(r'#?\s*COMPRESSXZ\s*=\s*.+')
-        self.re_compress_zst = re.compile(r'#?\s*COMPRESSZST\s*=\s*.+')
-        self.re_build_env = re.compile(r'\s+BUILDENV\s*=.+')
-        self.re_ccache = re.compile(r'!?ccache')
         self.taskman = taskman
         self.task_id = 'arch_make_optm'
         self.create_config = create_config
@@ -286,87 +362,16 @@ class ArchCompilationOptimizer(Thread):
 
             Path(ARCH_CONFIG_DIR).mkdir(parents=True, exist_ok=True)
 
-            custom_makepkg, optimizations = None, []
+            custom_makepkg, optimizations, skipped = compute_makepkg_optimizations(
+                global_makepkg, ncpus, self._is_ccache_installed())
 
-            if ncpus:
-                makeflags = RE_MAKE_FLAGS.findall(global_makepkg)
-
-                if makeflags:
-                    not_commented = [f for f in makeflags if not f.startswith('#')]
-
-                    if not not_commented:
-                        custom_makepkg = RE_MAKE_FLAGS.sub('', global_makepkg)
-                        optimizations.append('MAKEFLAGS="-j$(nproc)"')
-                    else:
-                        # Normal: the user already has custom makepkg flags (e.g. CachyOS ships them),
-                        # so Atlas leaves them alone. Informational, not a warning.
-                        self.logger.info("It seems '{}' compilation flags are already customized".format(GLOBAL_MAKEPKG))
-                else:
-                    optimizations.append('MAKEFLAGS="-j$(nproc)"')
-
-            self.taskman.update_progress(self.task_id, 20, None)
-
-            compress_xz = self.re_compress_xz.findall(custom_makepkg or global_makepkg)
-
-            if compress_xz:
-                not_eligible = [f for f in compress_xz if not f.startswith('#') and '--threads' in f]
-
-                if not not_eligible:
-                    custom_makepkg = self.re_compress_xz.sub('', custom_makepkg or global_makepkg)
-                    optimizations.append('COMPRESSXZ=(xz -c -z - --threads=0)')
-                else:
-                    self.logger.warning("It seems '{}' COMPRESSXZ is already customized".format(GLOBAL_MAKEPKG))
-            else:
-                optimizations.append('COMPRESSXZ=(xz -c -z - --threads=0)')
-
-            self.taskman.update_progress(self.task_id, 40, None)
-
-            compress_zst = self.re_compress_zst.findall(custom_makepkg or global_makepkg)
-
-            if compress_zst:
-                not_eligible = [f for f in compress_zst if not f.startswith('#') and '--threads' in f]
-
-                if not not_eligible:
-                    custom_makepkg = self.re_compress_zst.sub('', custom_makepkg or global_makepkg)
-                    optimizations.append('COMPRESSZST=(zstd -c -z -q - --threads=0)')
-                else:
-                    self.logger.warning("It seems '{}' COMPRESSZST is already customized".format(GLOBAL_MAKEPKG))
-            else:
-                optimizations.append('COMPRESSZST=(zstd -c -z -q - --threads=0)')
-
-            self.taskman.update_progress(self.task_id, 60, None)
-
-            build_envs = self.re_build_env.findall(custom_makepkg or global_makepkg)
-
-            if build_envs:
-                build_def = None
-                for e in build_envs:
-                    env_line = e.strip()
-
-                    ccache_defs = self.re_ccache.findall(env_line)
-                    ccache_installed = self._is_ccache_installed()
-
-                    if ccache_defs:
-                        if ccache_installed:
-                            custom_makepkg = (custom_makepkg or global_makepkg).replace(e, '')
-
-                            if not build_def:
-                                build_def = self.re_ccache.sub('', env_line).replace('(', '(ccache ')
-                        elif not build_def:
-                            build_def = self.re_ccache.sub('', env_line)
-
-                if build_def:
-                    optimizations.append(build_def)
-            else:
-                self.logger.warning("No BUILDENV declaration found")
-
-                if self._is_ccache_installed():
-                    self.logger.info('Adding a BUILDENV declaration')
-                    optimizations.append('BUILDENV=(ccache)')
+            for reason in skipped:
+                # Already-customized / not-present directives are normal — informational, not warnings.
+                self.logger.info("Leaving makepkg.conf alone: {}".format(reason))
 
             self.taskman.update_progress(self.task_id, 80, None)
 
-            if custom_makepkg and optimizations:
+            if optimizations:
                 generated_by = '# <generated by atlas>\n'
                 custom_makepkg = custom_makepkg + '\n' + generated_by + '\n'.join(optimizations) + '\n'
 
