@@ -110,18 +110,22 @@ class AURDataMapper:
         valid_last_modified = last_modified is not None and isinstance(last_modified, int)
 
         if not valid_last_modified:
-            self.logger.warning("'last_modified' timestamp informed for package '{}' is invalid: {}".format(pkg.name, valid_last_modified))
+            self.logger.debug("'last_modified' timestamp informed for package '{}' is invalid: {}".format(pkg.name, valid_last_modified))
 
         pkg_last_modified_ts = pkg.last_modified if pkg.last_modified is not None else pkg.install_date
 
         if pkg.last_modified is None:
-            self.logger.warning("AUR package '{}' has no 'last_modified' field set.".format(pkg.name))
+            # Normal for AUR packages — the RPC often omits last_modified, so we fall back to
+            # install_date. Diagnostic-only (debug), once per package per refresh; not a warning.
+            self.logger.debug("AUR package '{}' has no 'last_modified' field set.".format(pkg.name))
 
             if pkg.install_date is None:
+                # The genuinely-degraded case (no timestamp at all → version-string-only update
+                # detection) is rare and worth keeping visible.
                 self.logger.warning("AUR package '{}' has no 'install_date' field set".format(pkg.name))
                 self.logger.warning("Update checking for AUR package '{}' will only consider version strings".format(pkg.name))
             else:
-                self.logger.warning("AUR package {} 'install_date' field will be used for update checking".format(pkg.name))
+                self.logger.debug("AUR package {} 'install_date' field will be used for update checking".format(pkg.name))
 
         if pkg_last_modified_ts is not None and valid_last_modified and pkg_last_modified_ts < last_modified:
             return True
