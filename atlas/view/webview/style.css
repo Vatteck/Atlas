@@ -1186,7 +1186,7 @@ body {
 
 .pkgbuild-code { border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-base); font-family: ui-monospace, "Cascadia Code", Menlo, monospace; font-size: 12.5px; line-height: 1.6; overflow: auto; padding: 8px 0; }
 .pkgb-line { display: flex; padding: 0 12px; white-space: pre; }
-.pkgb-line:hover { background: var(--bg-surface-hover); }
+.pkgb-line.pkgb-hover { background: var(--bg-surface-hover); }
 .pkgb-line.flagged { background: rgba(217, 119, 6, 0.06); }
 .pkgb-line.flagged.sev-info { background: rgba(99, 102, 241, 0.06); }
 .pkgb-line.pkgb-line-flash { animation: pkgb-flash 1.2s ease-out; }

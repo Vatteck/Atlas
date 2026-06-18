@@ -3387,6 +3387,22 @@ if (pkgbuildModal) {
             setTimeout(() => line.classList.remove('pkgb-line-flash'), 1200);
         }
     });
+    // Row hover highlight driven from JS, not CSS :hover — WebKitGTK can fail to clear :hover on
+    // fast pointer movement, leaving a trail of stuck-highlighted lines. We keep exactly one lit.
+    const pkgbCode = document.getElementById('pkgbuild-code');
+    if (pkgbCode) {
+        let hoveredLine = null;
+        const clearPkgbHover = () => {
+            if (hoveredLine) { hoveredLine.classList.remove('pkgb-hover'); hoveredLine = null; }
+        };
+        pkgbCode.addEventListener('mouseover', (e) => {
+            const line = e.target.closest('.pkgb-line');
+            if (line === hoveredLine) return;
+            clearPkgbHover();
+            if (line && pkgbCode.contains(line)) { line.classList.add('pkgb-hover'); hoveredLine = line; }
+        });
+        pkgbCode.addEventListener('mouseleave', clearPkgbHover);
+    }
     // Open upstream/source URLs in the system browser.
     pkgbuildModal.addEventListener('click', (e) => {
         const a = e.target.closest('.pkgb-link');

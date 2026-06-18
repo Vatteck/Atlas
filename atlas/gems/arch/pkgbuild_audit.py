@@ -128,9 +128,12 @@ _RULES = [
 
     # --- Credential theft --- #
     ('credential_harvest', WARN,
-     'Reads credential/keyring stores (shadow, GnuPG, keyrings, browser profiles, .netrc) — '
+     'Reads credential/keyring stores (shadow, GnuPG, keyring files, browser profiles, .netrc) — '
      'these have no business in a package build.',
-     re.compile(r'/etc/shadow\b|\.gnupg\b|\bkwallet\b|gnome-keyring|login-keyring|\.netrc\b'
+     # Match credential *storage paths/files*, not bare daemon package names — `gnome-keyring`
+     # and `kwallet` are common optdepends names, so matching them produced false positives.
+     re.compile(r'/etc/g?shadow\b|\.gnupg\b|\.netrc\b'
+                r'|\.local/share/keyrings\b|login\.keyring\b|/kwalletd/'
                 r'|\.mozilla\b|\.config/(?:chromium|google-chrome|google-chrome-beta)\b', re.I).search),
 
     ('ssh_key_exfil', WARN,

