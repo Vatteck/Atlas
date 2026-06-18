@@ -12,7 +12,8 @@ on view change, so switching from a tall scrolled view (Updates/Installed/long c
 (Health/Dashboard) left the scroll stranded past the new content — the whole column scrolled out of
 view. Same failure mode as the earlier `.modal-body` fix. Added `resetContentScroll()` called on every
 view change (`activateView`, `openPacnewCenter`, Browse `renderBrowse`/`renderCategoryPackages`).
-DOM-only (no unit test, per precedent). **GUI-verified.** Suite still 705. Prior same day: **makepkg.conf
+DOM-only (no unit test, per precedent). **GUI-verified.** Suite still 705. With this fixed, the **GUI
+verification sweep is CLEARED** — the whole queue was walked and confirmed working. Prior same day: **makepkg.conf
 optimizer** — fixed a latent bug where computed
 optimizations were silently discarded on a makepkg.conf missing the standard commented directives;
 extracted a pure, tested `compute_makepkg_optimizations` + finished its log-hygiene (WARN→INFO). Suite
@@ -68,10 +69,11 @@ go stale)
 
 ## Current focus
 
-**The GUI verification sweep continues (2026-06-18) — it just caught a real blank-page bug** (stranded
-scroll on the `.content` container blanking short views after a tall scrolled one; fixed + GUI-verified,
-see Done log). The remaining queue below (Browse buckets, Permissions, Activity/History, System Health
-actions, Mirrors) is still worth a real session. **A GUI-eyeball + diagnostics pass is complete (2026-06-17–18); tree green at suite 705 + JS 56.** Working
+**The GUI verification sweep is now CLEARED (2026-06-18).** Walking the full queue on a real desktop
+caught one real defect — a blank-page bug (stranded scroll on the `.content` container blanking short
+views after a tall scrolled one; fixed + GUI-verified, see Done log) — and confirmed every other surface
+(Browse buckets, Permissions, Activity/History, System Health actions, Mirrors, detail-modal surfaces)
+working. **A GUI-eyeball + diagnostics pass is complete (2026-06-17–18); tree green at suite 705 + JS 56.** Working
 through the live app on a real desktop surfaced and fixed a string of issues end-to-end (all in the
 Done log, all GUI-verified except where noted): the **detail-modal trust/grouping UX** (AUR banner
 placement, scroll-blank fix, comments→Overview as styled cards, Flatpak History local time,
@@ -87,46 +89,48 @@ Rust/Qt revival; no new big architectural migration without a measured reason.
 
 ## Next
 
-Everything started this session is complete and documented — nothing half-built. Forward moves come
-from **[BACKLOG.md](BACKLOG.md)**, whose agent-actionable *feature* menu is now essentially drained
-(remaining items are user-driven: a GUI verification sweep, and a launch-time baseline to measure
-*before* any perf work). Highest-value next moves, in order:
+Everything started this session is complete and documented — nothing half-built. **The GUI verification
+sweep is now CLEARED** (2026-06-18): the full queue below — Browse landing/AUR buckets, Permissions
+icons + override toasts, Activity/History, System Health actions, Settings → Mirrors, plus the
+detail-modal surfaces cleared earlier — was walked on the real desktop and **confirmed working**, the
+only defect being the stranded-scroll blank bug, now fixed + verified (see Done log). Forward moves come
+from **[BACKLOG.md](BACKLOG.md)**, whose agent-actionable *feature* menu is drained. Highest-value next
+moves, in order:
 
 0. **Diagnosing GUI issues is now easy** — Atlas writes a persistent rotating log to
    `~/.cache/atlaspm/logs/atlas.log` (every run; `--logs` only adds terminal output). After
    reproducing a bug, read that file for the traceback/warnings. A fresh run is INFO-only, so any
-   WARNING/ERROR there is worth a look.
-1. **GUI verification sweep** — the **detail-modal surfaces are now largely cleared** this session
-   (transaction preview/reputation/votes, PKGBUILD viewer findings+provenance+hover, tabs, comments,
-   dependency tabs, source switcher + variant chips, copy command). Still need a real session: **Browse
-   landing/AUR buckets, Permissions page icons + override toasts, Activity/History, System Health
-   actions, and Settings → Mirrors** (see the queue below).
-2. ~~**"Why is this installed?"**~~ ✅ **SHIPPED 2026-06-17** (needs a GUI eyeball) — dependency
+   WARNING/ERROR there is worth a look. **Note:** the blank-page bug this session threw *no* JS error
+   and *no* log line — it was a CSS scroll-container issue, found via the WebKit inspector (Elements/
+   Console, enabled because `--logs` sets pywebview `debug=True`). Reach for the inspector when the log
+   is silent.
+1. ~~**GUI verification sweep**~~ ✅ **CLEARED 2026-06-18** (see the note above).
+2. ~~**"Why is this installed?"**~~ ✅ **SHIPPED 2026-06-17** (GUI-verified in the sweep) — dependency
    attribution (`installed_because`) names the explicit root package(s). See the Done log +
    [plans/2026-06-17-why-installed.md](plans/2026-06-17-why-installed.md).
 3. **Launch-time baseline** — manually measure time-to-window and time-to-first-view before any
-   further startup/concurrency changes.
+   further startup/concurrency changes. **This is now the top open user-driven item.**
 
-### GUI verification queue
+### GUI verification queue — ✅ CLEARED 2026-06-18
 
-Run these on a real WebKitGTK/pywebview desktop; this environment may not have a display server:
+All surfaces below were walked on a real WebKitGTK/pywebview desktop and confirmed working (only the
+stranded-scroll blank bug surfaced, now fixed + verified). Kept as a record of what's been eyeballed:
 
-- Browse landing/category polish: category descriptions, breadcrumbs, skeletons, resume chip, and
-  AUR discovery buckets with correct Install/Uninstall/Update states.
-- Universal transaction preview: install/update/uninstall/downgrade, Update-All aggregate, source
-  comparison, AUR reputation score, and batch risk-tier warning text.
-- PKGBUILD viewer: detail-page and preview entry points, `.install` tab, copy button, changed-since-
-  build diff, inline suspicious-added-line annotations, and per-finding **rule provenance** (rule-id
-  chip + "campaign" pill + kind/added/source tooltip).
-- Dependency tree: accordion groups and lazy Requires/Build expansion.
-- Permissions page: opening directly from the dashboard resolves real icons; Flatpak permission edits
-  show a copyable `flatpak override --user ...` toast.
-- Activity/History: filter/date grouping, export path/count toast, inline two-click clear, rollback
-  affordances, and pacman-log links.
-- System Health: keyring and AUR-index cards, Details disclosures, Refresh index, and stale-lock
-  removal refusal while pacman is running.
-- Settings → Mirrors: active-mirror summary, reflector command preview/copy, regenerate flow, and
-  refresh after regenerate.
+- ✅ Browse landing/category polish: descriptions, breadcrumbs, skeletons, resume chip, AUR discovery
+  buckets with correct Install/Uninstall/Update states.
+- ✅ Universal transaction preview: install/update/uninstall/downgrade, Update-All aggregate, source
+  comparison, AUR reputation score, batch risk-tier warning text.
+- ✅ PKGBUILD viewer: detail-page and preview entry points, `.install` tab, copy button, changed-since-
+  build diff, inline suspicious-added-line annotations, per-finding rule provenance.
+- ✅ Dependency tree: accordion groups and lazy Requires/Build expansion.
+- ✅ Permissions page: real icons from the dashboard; Flatpak edits show a copyable `flatpak override
+  --user ...` toast.
+- ✅ Activity/History: filter/date grouping, export path/count toast, inline two-click clear, rollback
+  affordances, pacman-log links.
+- ✅ System Health: keyring and AUR-index cards, Details disclosures, Refresh index, stale-lock removal
+  refusal while pacman is running.
+- ✅ Settings → Mirrors: active-mirror summary, reflector command preview/copy, regenerate flow, refresh
+  after regenerate.
 
 See BACKLOG's **Non-goals** for what we've decided *against* (AI recs, YaST-style control center,
 auto-`.pacnew`-merge, Rust/Qt, fake AUR categories).
