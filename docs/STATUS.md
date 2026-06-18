@@ -5,7 +5,18 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-17 (later: **`datetime.utcnow()` deprecation cleanup** — all 25 sites →
+**Last updated:** 2026-06-17 (latest: a long **GUI-eyeball + diagnostics** stretch. **Fixed a real
+correctness bug** — repo updates were under-reported ~60× (3 vs 194) because update detection used the
+stale local sync db; now prefers **`checkupdates`** (no-root, fresh) with a `pacman -Qu` fallback
+[GUI-verified]. Added a **persistent rotating debug log** at `~/.cache/atlaspm/logs/atlas.log` (+
+`sys.excepthook`), which immediately earned its keep: cleaned up per-AUR-package WARNING spam → debug,
+made the startup DB-sync skip an INFO with pacman's stderr (was a bare ERROR), and downgraded two
+benign once-per-run WARNINGs → INFO. Plus a batch of GUI fixes from real eyeballs: AUR caution banner
+above the badges, detail-modal scroll-blank fix, AUR comments moved to Overview + restyled as cards
+with shell-code blocks, Flatpak History dates → local time, `credential_harvest` FP on optdepends +
+sticky PKGBUILD hover-trail, **cross-source grouping** ("Google Chrome"≙"google-chrome") and **AUR
+`-bin`/`-git`/source build variants grouped as one app** with distinct chips + guideline. Suite **700**.
+Earlier same day: **`datetime.utcnow()` deprecation cleanup** — all 25 sites →
 new naive `commons.util.utc_now()` helper [behaviour-preserving; documents why it stays naive so the
 cache-timestamp round-trip isn't broken] + fixed an import-time default-arg bug in `datetime_as_milis`;
 suite 690, the utcnow DeprecationWarnings are gone. Earlier same day: **"Why is this installed?"** finished — dependency
@@ -34,8 +45,9 @@ votes/popularity badges (from GUI eyeballs); competitive-research Theme 4 (AUR r
 Theme 3 (auth-readiness) dropped as N/A to Atlas's root model — see Done log)
 **Version:** 0.12.0 (the polish-and-trust release; 0.11.0 was the first cohesive Atlas release)
 **Working branch:** `master` in this checkout (all 2026-06-17 work — audit track, "why installed",
-`utcnow()` cleanup, CI 3.14 — landed + pushed to `origin/master`; CI green across Python 3.10–3.14);
-app work normally lands on `master` (run `git branch` before acting — branch names in docs go stale)
+`utcnow()` cleanup, CI 3.14, the GUI-eyeball fixes, debug log, and the `checkupdates` repo-update fix —
+landed + pushed to `origin/master`; suite **700**; CI green across Python 3.10–3.14); app work normally
+lands on `master` (run `git branch` before acting — branch names in docs go stale)
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)** — the longer-horizon menu we pull
 > from. This file stays the live baton (in-progress / just-shipped).
@@ -44,17 +56,17 @@ app work normally lands on `master` (run `git branch` before acting — branch n
 
 ## Current focus
 
-**PKGBUILD-audit hardening track complete + "Why is this installed?" done (2026-06-17); back to the
-BACKLOG menu.** This session built out the audit subsystem end to end (see the Done log): rule
-provenance + regression corpus, structural/semantic checks (network-in-`package()`,
-unchecksummed-remote-source, `.SRCINFO`↔PKGBUILD divergence), provenance surfaced in the viewer UI
-(GUI-verified), the `atlas-cli audit-scan` rule-health tool, a local fail-closed external rules-pack
-loader, and a self-review pass (one FP fix). Also finished the **"Why is this installed?"** BACKLOG
-item — dependency attribution to explicit roots + orphan accuracy tightened to `pacman -Qdt`. Open
-questions were resolved *with decisions* (decision log): structural rule #3 dropped on measured FP
-evidence; remote signed packs designed-and-deferred (permanent-maintenance cost not worth it for a
-solo-dev side project). Tree is green — **688 Python + 55 JS**. No Rust/Qt revival; no new big
-architectural migration without a measured reason.
+**A GUI-eyeball + diagnostics pass is complete (2026-06-17); tree green at suite 700 + JS 56.** Working
+through the live app on a real desktop surfaced and fixed a string of issues end-to-end (all in the
+Done log, all GUI-verified except where noted): the **detail-modal trust/grouping UX** (AUR banner
+placement, scroll-blank fix, comments→Overview as styled cards, Flatpak History local time,
+`credential_harvest` FP, sticky hover, cross-source + AUR build-variant grouping), a **persistent debug
+log** to make future diagnosis possible, and — the headline — a **real correctness bug**: repo updates
+were under-reported ~60× because detection read the stale local sync db; now uses `checkupdates`
+(no-root, fresh) with a safe `pacman -Qu` fallback (`pacman-contrib` added as optdepends). Decisions
+logged: bauh-style startup root prompt is **not needed** (checkupdates gives accurate counts without
+auth; lazy-auth model stays); an opt-in "sync on startup" toggle is a low-value future option. No
+Rust/Qt revival; no new big architectural migration without a measured reason.
 
 ## Next
 
@@ -63,9 +75,15 @@ from **[BACKLOG.md](BACKLOG.md)**, whose agent-actionable *feature* menu is now 
 (remaining items are user-driven: a GUI verification sweep, and a launch-time baseline to measure
 *before* any perf work). Highest-value next moves, in order:
 
-1. **GUI verification sweep** — run `atlas --logs` on a real desktop and eyeball the queued surfaces
-   below. Headless tests are green, but pywebview modals, clipboard, icons, and desktop actions need
-   a real session.
+0. **Diagnosing GUI issues is now easy** — Atlas writes a persistent rotating log to
+   `~/.cache/atlaspm/logs/atlas.log` (every run; `--logs` only adds terminal output). After
+   reproducing a bug, read that file for the traceback/warnings. A fresh run is INFO-only, so any
+   WARNING/ERROR there is worth a look.
+1. **GUI verification sweep** — the **detail-modal surfaces are now largely cleared** this session
+   (transaction preview/reputation/votes, PKGBUILD viewer findings+provenance+hover, tabs, comments,
+   dependency tabs, source switcher + variant chips, copy command). Still need a real session: **Browse
+   landing/AUR buckets, Permissions page icons + override toasts, Activity/History, System Health
+   actions, and Settings → Mirrors** (see the queue below).
 2. ~~**"Why is this installed?"**~~ ✅ **SHIPPED 2026-06-17** (needs a GUI eyeball) — dependency
    attribution (`installed_because`) names the explicit root package(s). See the Done log +
    [plans/2026-06-17-why-installed.md](plans/2026-06-17-why-installed.md).
