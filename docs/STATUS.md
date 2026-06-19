@@ -5,7 +5,15 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-19 (**Stable-release tooling** — added `linux_dist/arch/release.sh` to cut a
+**Last updated:** 2026-06-19 (**Cut 0.13.0** — bumped `__version__` to 0.13.0, finalized the CHANGELOG
+`[0.13.0]` section, tagged + pushed `v0.13.0`, and pinned the `atlas-pm` release PKGBUILD/.SRCINFO to the
+tarball (sha256 `09dce7f6`). Suite 710. Found + fixed a bug in the new `release.sh`: `tar tzf | head`
+SIGPIPE'd under `set -o pipefail`, aborting the script right after the tag push (before pinning) — now
+reads the listing into a var. **Remaining manual step: publish to the AUR.** `atlas-pm` is **not yet
+registered** on the AUR (only `atlas-pm-git` exists, showing v0.12.0) — the first `git push` to
+`ssh://aur@aur.archlinux.org/atlas-pm.git` registers it; needs Vatteck's AUR SSH key, so it wasn't
+automated. (Also note `atlas-pm-git` on the AUR is overdue a `publish-aur.sh` sync — still missing the
+`pacman-contrib` optdepend.) Prior same day: **Stable-release tooling** — added `linux_dist/arch/release.sh` to cut a
 versioned **`atlas-pm`** AUR package (the stable sibling of the bleeding-edge `atlas-pm-git`). It runs
 the test suite, tags `vX.Y.Z` + pushes the tag, pins the GitHub tarball's sha256 into
 `linux_dist/arch/release/PKGBUILD` (built from `Atlas-$pkgver/`, `conflicts=atlas-pm-git`, no `pkgver()`),
