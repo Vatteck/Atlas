@@ -8,6 +8,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 > Entries from `0.11.0` on are Atlas; `0.10.7` and earlier are inherited bauh history (the
 > fork point — `__version__` was never bumped between then and the first Atlas release).
 
+## [Unreleased]
+
+### Added
+- **Update All — choose which sources to upgrade.** The Update-All preview now has a "Sources to
+  update" checkbox group (Arch / AUR / Flatpak / AppImage), so you can skip a whole source — e.g.
+  **exclude AUR** during the current wave of malicious AUR uploads — without updating
+  package-by-package. The selection is **remembered** between runs (persisted as a skip list; new
+  sources default on), and the confirm button live-updates its count and disables when nothing is
+  ticked.
+
+### Fixed
+- **Update All no longer hangs on large update sets.** Clicking Update All with hundreds of pending
+  updates could freeze the UI for minutes with no feedback: the pre-flight risk-tier scan resolved
+  every package through a fallback that ran a full multi-source search *per package*. It now resolves
+  from the in-memory registry and batches any misses into a single read — plus an immediate
+  "Preparing update" toast so the button is never a dead end.
+- **Package registry eviction** is now LRU instead of wiping the whole cache past its cap, which had
+  caused the slow per-package searches above (and the same latent slowdown after long browsing).
+- **Quieter logs** — a momentary network drop during the post-upgrade refresh no longer logs an
+  `ERROR` + stack trace for each best-effort metadata fetch; it's a concise warning.
+
+### Packaging
+- **Stable-release tooling** — `linux_dist/arch/release.sh` cuts a versioned **`atlas-pm`** AUR package
+  (the stable sibling of `atlas-pm-git`): it tags the release, pins the source tarball's checksum,
+  regenerates `.SRCINFO`, and prints (or `--publish`es) the AUR steps. `atlas-pm-git` remains the
+  primary channel.
+- Published the `pacman-contrib` optdepend (no-root `checkupdates`) that was present in the PKGBUILD
+  but missing from `.SRCINFO`.
+
 ## [0.12.0] 2026-06-06
 The polish-and-trust release. Building on 0.11.0's foundations, this round makes Atlas feel
 like a *store you can reason about*: a dashboard that answers "what needs my attention?", a
