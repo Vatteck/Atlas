@@ -8,7 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 > Entries from `0.11.0` on are Atlas; `0.10.7` and earlier are inherited bauh history (the
 > fork point — `__version__` was never bumped between then and the first Atlas release).
 
-## [Unreleased]
+## [0.13.0] 2026-06-19
+Update-All gets safer and calmer: pick which sources a bulk upgrade touches (so you can skip AUR
+during the current malicious-upload wave), and the dialog no longer stalls on large update sets.
+Also adds tooling to cut stable `atlas-pm` releases.
 
 ### Added
 - **Update All — choose which sources to upgrade.** The Update-All preview now has a "Sources to
