@@ -9,7 +9,7 @@ Flatpak, and AppImage** — all from one modern interface.
 Atlas is a community fork of [bauh](https://github.com/vinifmor/bauh), rebuilt around a
 **[pywebview](https://pywebview.flowrocket.com/) web UI** and a lazy-loaded engine.
 
-> Status: actively developed (v0.12.0). Built and tested on Arch / CachyOS.
+> Status: actively developed (v0.13.0). Built and tested on Arch / CachyOS.
 
 ![Atlas dashboard](docs/screenshots/dashboard.png)
 
@@ -35,6 +35,17 @@ Atlas is a community fork of [bauh](https://github.com/vinifmor/bauh), rebuilt a
   snapshot before changes; per-package update pinning.
 
 ---
+
+## What's new in 0.13.0
+
+- **Update All, your choice of sources.** The Update-All preview now has per-source toggles
+  (Arch / AUR / Flatpak / AppImage), so you can run a bulk upgrade while **skipping AUR** —
+  handy during the current wave of malicious AUR uploads — without updating one by one. Your
+  selection is remembered between runs.
+- **Update All no longer stalls** on large update sets — the pre-flight is near-instant
+  instead of freezing for minutes, with immediate feedback when you click.
+
+_Full history in [CHANGELOG.md](CHANGELOG.md)._
 
 ## What's new in 0.12.0 — the polish-and-trust release
 
