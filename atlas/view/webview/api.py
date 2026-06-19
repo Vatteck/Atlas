@@ -8,6 +8,7 @@ import threading
 import time
 import traceback
 import webbrowser
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 from typing import List, Optional, Tuple
@@ -117,7 +118,7 @@ class AtlasApi:
     def __init__(self, manager: GenericSoftwareManager, logger: logging.Logger):
         self.manager = manager
         self.logger = logger
-        self.pkg_registry = {}  # opaque_id -> SoftwarePackage
+        self.pkg_registry = OrderedDict()  # opaque_id -> SoftwarePackage (LRU-evicted)
         self._registry_lock = threading.Lock()
         self.window = None
 
@@ -544,9 +545,14 @@ class AtlasApi:
     def _serialize_pkg(self, pkg) -> dict:
         pkg_id = self._get_pkg_id(pkg)
         with self._registry_lock:
-            if len(self.pkg_registry) > 2000:
-                self.pkg_registry.clear()
+            # LRU eviction: drop the oldest single entry past the cap rather than wiping the
+            # whole map. A blunt clear() used to evict packages the UI still holds (e.g. the
+            # pending updates), turning later _get_pkg() lookups into expensive multi-manager
+            # search() fallbacks. move_to_end keeps recently-touched packages alive.
             self.pkg_registry[pkg_id] = pkg
+            self.pkg_registry.move_to_end(pkg_id)
+            while len(self.pkg_registry) > 2000:
+                self.pkg_registry.popitem(last=False)
 
         
         try:
@@ -2011,7 +2017,35 @@ class AtlasApi:
         data: {tiers: {pkg_id: {tier, score}}, counts: {safe, caution, risk}}."""
         try:
             from atlas.gems.arch.aur_risk import calculate_aur_risk_score, TRUSTED
-            pkgs = [p for p in (self._get_pkg(pid) for pid in (pkg_ids or [])) if p]
+
+            # Resolve registry-only first. Never go through _get_pkg here: its self-healing
+            # fallback runs a full multi-manager search() *per missing id*, and this method is
+            # handed every pending update at once (200+ ids in a big upgrade). The registry is
+            # bluntly cleared past 2000 entries, so after any browsing the update packages are
+            # gone and every id misses -> hundreds of serial Flatpak-bound searches = a silent
+            # multi-minute hang. Resolve the misses in ONE batched read_installed() instead.
+            requested = pkg_ids or []
+            pkgs, missing = [], []
+            with self._registry_lock:
+                for pid in requested:
+                    p = self.pkg_registry.get(pid)
+                    if p:
+                        pkgs.append(p)
+                    else:
+                        missing.append(pid)
+            if missing:
+                try:
+                    installed = self.manager.read_installed().installed or []
+                    by_id = {self._get_pkg_id(p): p for p in installed}
+                    for pid in missing:
+                        p = by_id.get(pid)
+                        if p:
+                            pkgs.append(p)
+                            with self._registry_lock:
+                                self.pkg_registry[pid] = p
+                except Exception as e:
+                    self.logger.debug(f"get_update_risk_tiers: batch resolve of {len(missing)} ids failed: {e}")
+
             aur_pkgs = [p for p in pkgs if (getattr(p, 'repository', None) or '') == 'aur']
 
             results = {}

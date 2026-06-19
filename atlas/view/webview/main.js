@@ -3670,6 +3670,9 @@ updateAllBtn.addEventListener('click', async () => {
     // reputation-tier call). Fail-open — a null result just means that signal is omitted; the
     // upgrade is never blocked by a check failing.
     const updates = (currentPackages || []).filter(p => p && p.update_available);
+    // The pre-flight (news + .pacnew + AUR risk scoring) can take a beat on a large update
+    // set, so give immediate feedback rather than a dead button.
+    showToast('Preparing update', `Checking ${updates.length} package${updates.length === 1 ? '' : 's'}…`, 'info');
     const news = await pyApiCall('check_upgrade_news');
     const pacnew = await pyApiCall('get_pacnew_files');
     const riskTiers = await pyApiCall('get_update_risk_tiers', updates.map(p => p.id));

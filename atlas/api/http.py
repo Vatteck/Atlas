@@ -53,7 +53,10 @@ class HttpClient:
                     time.sleep(self.sleep)
             except Exception as e:
                 if isinstance(e, requests.exceptions.ConnectionError):
-                    self.logger.error('Internet seems to be off')
+                    # A connectivity blip on a best-effort fetch — the caller decides whether it
+                    # matters, so this is a warning, not an error (it floods the log otherwise,
+                    # e.g. the post-upgrade metadata refresh hitting a momentary network drop).
+                    self.logger.warning('Internet seems to be off')
                     raise e
                 elif isinstance(e, requests.exceptions.TooManyRedirects):
                     self.logger.warning(f"Too many redirects for GET -> {url}")

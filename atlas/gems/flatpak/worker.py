@@ -1,4 +1,3 @@
-import traceback
 from io import StringIO
 from threading import Thread
 
@@ -88,9 +87,11 @@ class FlatpakAsyncDataLoader(Thread):
 
                     self.api_cache.add(self.app.id, loaded_data)
                     self.persist = self.app.supports_disk_cache()
-            except Exception:
-                self.logger.error("Could not retrieve app data for id '{}'".format(self.app.id))
-                traceback.print_exc()
+            except Exception as e:
+                # Best-effort metadata prefetch — a miss (usually the network being momentarily
+                # off) just leaves the app uncached, so log a concise warning rather than an
+                # ERROR + full traceback that spams the log during a routine read.
+                self.logger.warning("Could not retrieve app data for id '%s': %s", self.app.id, e)
 
             self.app.status = PackageStatus.READY
 

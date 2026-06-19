@@ -887,29 +887,25 @@ class AtlasApiOrphansTest(unittest.TestCase):
         pkg.get_publisher = Mock(return_value=None)
         pkg.get_type = Mock(return_value="Flatpak")
 
-        # Populate registry to 2000 elements
+        # Fill the registry right up to the 2000 cap.
         for i in range(2000):
             self.api.pkg_registry[str(i)] = Mock()
-
         self.assertEqual(len(self.api.pkg_registry), 2000)
 
-        # Serialize one more package (registry size is 2000, not exceeding 2000 yet)
+        # Serializing past the cap evicts the *oldest* single entry (LRU) instead of wiping
+        # the whole map, so the size holds at the cap and the new package is kept.
         res = self.api._serialize_pkg(pkg)
         pkg_id = res['id']
-        self.assertEqual(len(self.api.pkg_registry), 2001)
+        self.assertEqual(len(self.api.pkg_registry), 2000)
         self.assertIn(pkg_id, self.api.pkg_registry)
+        self.assertNotIn("0", self.api.pkg_registry)  # oldest evicted
+        self.assertIn("1999", self.api.pkg_registry)   # recent survives
 
-        # Now force the registry size to 2005 (exceeding 2000)
-        for i in range(2000, 2005):
-            self.api.pkg_registry[str(i)] = Mock()
-
-        self.assertEqual(len(self.api.pkg_registry), 2006)
-
-        # Serialize one more package, it should trigger eviction (clear) and then add itself
-        res2 = self.api._serialize_pkg(pkg)
-        pkg_id2 = res2['id']
-        self.assertEqual(len(self.api.pkg_registry), 1)
-        self.assertIn(pkg_id2, self.api.pkg_registry)
+        # The map stays bounded no matter how many more get serialized.
+        for _ in range(10):
+            self.api._serialize_pkg(pkg)
+        self.assertEqual(len(self.api.pkg_registry), 2000)
+        self.assertIn(pkg_id, self.api.pkg_registry)
 
 
 class AtlasApiPinTest(unittest.TestCase):
