@@ -12,8 +12,10 @@ SIGPIPE'd under `set -o pipefail`, aborting the script right after the tag push 
 reads the listing into a var. **Remaining manual step: publish to the AUR.** `atlas-pm` is **not yet
 registered** on the AUR (only `atlas-pm-git` exists, showing v0.12.0) — the first `git push` to
 `ssh://aur@aur.archlinux.org/atlas-pm.git` registers it; needs Vatteck's AUR SSH key, so it wasn't
-automated. (Also note `atlas-pm-git` on the AUR is overdue a `publish-aur.sh` sync — still missing the
-`pacman-contrib` optdepend.) Prior same day: **Stable-release tooling** — added `linux_dist/arch/release.sh` to cut a
+automated. (Verified the existing `atlas-pm-git` AUR package is **already current** — `publish-aur.sh`
+reported nothing to push; it has the `pacman-contrib` optdepend, synced 2026-06-18. Its `.SRCINFO`
+`pkgver=0.12.0` is just the static placeholder a `-git` package carries; `pkgver()` recomputes at build.)
+Prior same day: **Stable-release tooling** — added `linux_dist/arch/release.sh` to cut a
 versioned **`atlas-pm`** AUR package (the stable sibling of the bleeding-edge `atlas-pm-git`). It runs
 the test suite, tags `vX.Y.Z` + pushes the tag, pins the GitHub tarball's sha256 into
 `linux_dist/arch/release/PKGBUILD` (built from `Atlas-$pkgver/`, `conflicts=atlas-pm-git`, no `pkgver()`),
