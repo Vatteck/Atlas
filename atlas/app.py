@@ -32,6 +32,11 @@ def main():
 
     args = app_args.read()
 
+    # Diagnostic, no GUI — gather the environment and exit before any backend init.
+    if getattr(args, 'self_check', False):
+        from atlas import self_check
+        sys.exit(self_check.run())
+
     logger = logs.new_logger(__app_name__, bool(args.logs))
 
     # Route uncaught exceptions through the logger so a crash is captured in the rotating log file

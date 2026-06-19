@@ -5,7 +5,20 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-19 (**Cut 0.13.0** — bumped `__version__` to 0.13.0, finalized the CHANGELOG
+**Last updated:** 2026-06-19 (**Pre-publish hardening** — verified the `atlas-pm` release PKGBUILD
+**actually builds** via `makepkg` (correct `usr/bin` + desktop/icon layout). Then four cleanups: (1)
+removed the last **Qt-era dead code** — `atlas/stylesheet.py` (a `.qss` processor nothing imported) + its
+test + the orphan `USER_THEMES_DIR` const; the Qt gutting is otherwise clean (zero Qt imports/deps). (2)
+Fixed 5 invalid-regex-escape `SyntaxWarning`s (`\s`/`\K` → raw strings in pacman.py, debian/index.py,
+flatpak.py) that Python 3.14 flags and a future Python would reject. (3) Added an **Arch CI job**
+(`archlinux:latest`) that runs the suite on real Arch + builds the wheel and checks the install layout —
+the Ubuntu matrix couldn't catch distro/packaging breakage. (4) Added **`atlas --self-check`**
+(`atlas/self_check.py`) — prints desktop/display-server/detected-tools so the manual KDE/GNOME smoke pass
+is deterministic; documented in new **docs/RELEASE_SMOKE.md** + DEVELOPMENT.md §7.1. Also added
+`testpaths = tests` to setup.cfg so a leftover `makepkg` build tree under `linux_dist/arch/release/src/`
+can't break pytest collection. Suite **707** (−7 stylesheet tests, +4 self-check). README bumped to 0.13.0.
+**Still GUI-eyeball + the RELEASE_SMOKE pass before publishing `atlas-pm` to the AUR.** Prior same day:
+**Cut 0.13.0** — bumped `__version__` to 0.13.0, finalized the CHANGELOG
 `[0.13.0]` section, tagged + pushed `v0.13.0`, and pinned the `atlas-pm` release PKGBUILD/.SRCINFO to the
 tarball (sha256 `09dce7f6`). Suite 710. Found + fixed a bug in the new `release.sh`: `tar tzf | head`
 SIGPIPE'd under `set -o pipefail`, aborting the script right after the tag push (before pinning) — now

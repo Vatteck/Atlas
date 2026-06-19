@@ -129,3 +129,9 @@ and prints the commit + AUR-publish commands. Without `--publish` it touches not
 Bump `atlas/__init__.py`'s `__version__` (and tidy `CHANGELOG.md`) before releasing. For a
 packaging-only re-release of the same version, bump `pkgrel` by hand — the script leaves it alone
 unless the version changed.
+
+Before tagging, walk **[RELEASE_SMOKE.md](RELEASE_SMOKE.md)** — a short manual pass for the
+environment-dependent behaviour CI can't cover (KDE vs GNOME, tray, terminals, missing tools).
+`atlas --self-check` prints the runtime environment (desktop, display server, detected tools) to
+make that pass deterministic. CI itself now includes an **Arch — tests + package build** job that
+runs the suite on real Arch and verifies the wheel build + install layout.

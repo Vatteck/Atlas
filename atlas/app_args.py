@@ -11,6 +11,8 @@ def read() -> Namespace:
     parser.add_argument('--offline', action="store_true", help='It assumes the internet connection is off')
     parser.add_argument('--suggestions', action="store_true",
                         help='It forces loading software suggestions after the initialization process')
+    parser.add_argument('--self-check', action="store_true",
+                        help='Print the runtime environment (desktop, display server, detected tools) and exit')
 
     exclusive_args = parser.add_mutually_exclusive_group()
     exclusive_args.add_argument('--settings', action="store_true", help="Display only the settings panel")
