@@ -31,3 +31,39 @@ jobs:
 
       - name: Run tests
         run: python -m pytest -q
+
+  # Real-Arch job: the matrix above runs on Ubuntu and only exercises the pure-Python logic.
+  # This runs the suite on actual Arch (real pacman) AND builds the wheel + checks the install
+  # layout the PKGBUILDs produce — catching distro/packaging breakage the Ubuntu job can't.
+  arch-build:
+    name: Arch — tests + package build
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install toolchain
+        run: pacman -Syu --noconfirm --needed git python python-pip
+
+      - uses: actions/checkout@v6
+
+      - name: Set up venv and install
+        # A venv sidesteps Arch's PEP-668 externally-managed Python.
+        run: |
+          python -m venv /tmp/venv
+          . /tmp/venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt -e . pytest build installer setuptools wheel
+
+      - name: Run tests on Arch
+        run: |
+          . /tmp/venv/bin/activate
+          python -m pytest -q
+
+      - name: Build wheel and verify install layout (mirrors the PKGBUILD package())
+        run: |
+          . /tmp/venv/bin/activate
+          python -m build --wheel --no-isolation
+          python -m installer --destdir="$PWD/pkgroot" dist/*.whl
+          for f in usr/bin/atlas usr/bin/atlas-cli; do
+            test -f "pkgroot/$f" || { echo "missing $f in built package"; exit 1; }
+          done
+          echo "Arch build + install layout OK"
