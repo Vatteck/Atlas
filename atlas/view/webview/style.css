@@ -2997,6 +2997,18 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
 .txp-notes { display: flex; flex-direction: column; gap: 4px; }
 .txp-note { font-size: 12px; color: var(--text-secondary); }
 
+/* Update-All source chooser */
+.txp-sources { display: flex; flex-direction: column; gap: 6px; padding: 12px;
+    border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-surface); }
+.txp-sources-head { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--text-secondary); margin-bottom: 2px; }
+.txp-source-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px 0; }
+.txp-source-toggle input { cursor: pointer; width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--accent-color); }
+.txp-source-toggle .txp-source-name { margin: 0; }
+.txp-source-count { margin-left: auto; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.txp-source-toggle input:not(:checked) ~ .txp-source-name,
+.txp-source-toggle input:not(:checked) ~ .txp-source-count { opacity: .45; }
+
 /* Source-comparison panel (detail page, multi-source apps) */
 #detail-source-compare:empty { display: none; }
 /* "Why this source?" trust hint (single-source detail pages). */

@@ -932,6 +932,22 @@ async function testBuildUpdateAllPreviewData() {
   assert.strictEqual(data.sizes.download, 3000);
   assert.strictEqual(data.sizes.installed, null);
   assert.ok(data.notes.some(n => n.includes('Arch: 1') && n.includes('AUR: 1') && n.includes('Flatpak: 1')), 'source split note');
+
+  // Source chooser: one toggle per present source, trust-ordered, all checked by default.
+  assert.ok(data.sources && data.sources.length === 3, 'sources list built');
+  assert.strictEqual(data.sources.map(s => s.key).join(','), 'arch_repo,aur,flatpak', 'trust order');
+  assert.ok(data.sources.every(s => s.checked), 'all sources checked by default');
+  assert.strictEqual(data.sources.find(s => s.key === 'aur').count, 1, 'aur count');
+  assert.strictEqual(data.sources.find(s => s.key === 'arch_repo').label, 'Arch', 'source label');
+
+  // Remembered skip list pre-unchecks the matching source.
+  const withExcluded = hooks.buildUpdateAllPreviewData(updates, { excluded: ['aur'] });
+  assert.strictEqual(withExcluded.sources.find(s => s.key === 'aur').checked, false, 'excluded source unchecked');
+  assert.strictEqual(withExcluded.sources.find(s => s.key === 'flatpak').checked, true, 'other sources stay checked');
+
+  // A single source needs no chooser.
+  const oneSource = hooks.buildUpdateAllPreviewData([{ type: 'arch_repo' }, { type: 'arch_repo' }], {});
+  assert.strictEqual(oneSource.sources, null, 'no chooser for a single source');
   const titles = data.warnings.map(w => w.title);
   assert.ok(titles.some(t => t.includes('2 unread Arch news')), 'news warning');
   assert.ok(titles.some(t => t.includes('1 config file')), 'pacnew warning');

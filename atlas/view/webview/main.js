@@ -1038,6 +1038,18 @@ function buildTransactionPreviewHTML(data) {
         html += `</div>`;
     }
 
+    // Update-All source chooser: tick which sources to include in this bulk upgrade. Lets the
+    // user skip e.g. AUR (community-maintained, less vetted) without updating package-by-package.
+    if (action === 'update-all' && Array.isArray(data.sources) && data.sources.length > 1) {
+        html += `<div class="txp-sources"><div class="txp-sources-head">Sources to update</div>` +
+            data.sources.map(s => `
+            <label class="txp-source-toggle">
+                <input type="checkbox" data-source="${escapeHtml(s.key)}" data-count="${s.count}"${s.checked ? ' checked' : ''}>
+                <span class="txp-source-name tag ${escapeHtml(normalizeType(s.key))}">${escapeHtml(s.label)}</span>
+                <span class="txp-source-count">${s.count}</span>
+            </label>`).join('') + `</div>`;
+    }
+
     if (data.aur_risk && data.aur_risk.score !== undefined) {
         const tierLabel = { trusted: 'Trusted', caution: 'Caution', risk: 'Risk' }[data.aur_risk.tier] || data.aur_risk.tier;
         html += `<div class="txp-risk-indicator risk-${escapeHtml(data.aur_risk.tier)}" title="Composite AUR trust score — heuristic only, not a safety check">
@@ -1176,7 +1188,23 @@ function openTransactionPreview(data, pkgId) {
         proceed.textContent = copy.btn;
         proceed.classList.toggle('btn-danger', !!copy.danger);
         proceed.classList.toggle('btn-primary', !copy.danger);
+        proceed.disabled = false;
     }
+
+    // Update-All source chooser: keep the proceed button's count in sync with the ticked sources
+    // and disable it when nothing is selected (nothing to do).
+    const sourceToggles = [...document.querySelectorAll('#tx-preview-body input[data-source]')];
+    if (proceed && sourceToggles.length) {
+        const syncProceed = () => {
+            const n = sourceToggles.filter(t => t.checked)
+                                   .reduce((sum, t) => sum + (parseInt(t.dataset.count, 10) || 0), 0);
+            proceed.textContent = n > 0 ? `Update ${n}` : 'Nothing selected';
+            proceed.disabled = n === 0;
+        };
+        sourceToggles.forEach(t => t.addEventListener('change', syncProceed));
+        syncProceed();
+    }
+
     document.getElementById('tx-preview-modal').classList.remove('hidden');
     setTimeout(() => proceed && proceed.focus(), 50);
     return new Promise(resolve => { txPreviewResolver = resolve; });
@@ -1216,12 +1244,28 @@ function buildUpdateAllPreviewData(updates, extras) {
         if (typeof p.download_size === 'number') { totalDownload += p.download_size; sizedCount++; }
     }
     const n = updates.length;
+    // Source toggles for the preview. Built from the actual update types so each distinct
+    // source key (matching the serialized `type`, which the backend filter also uses) gets its
+    // own toggle with a correct count — including any enabled-but-off-by-default source. Offered
+    // in trust order. `extras.excluded` (remembered skip list) pre-unchecks a source so e.g. AUR
+    // stays off between runs.
+    const excluded = new Set(extras.excluded || []);
+    const SRC_RANK = { arch_repo: 0, aur: 1, flatpak: 2, appimage: 3 };
+    const byKey = new Map();
+    for (const p of updates) {
+        const key = normalizeType(p.type);
+        byKey.set(key, (byKey.get(key) || 0) + 1);
+    }
+    const sources = [...byKey.entries()]
+        .map(([key, count]) => ({ key, label: sourceLabel(key), count, checked: !excluded.has(key) }))
+        .sort((a, b) => (SRC_RANK[a.key] ?? 9) - (SRC_RANK[b.key] ?? 9));
     const data = {
         action: 'update-all',
         name: `${n} package${n === 1 ? '' : 's'}`,
         source_label: '', version: '',
         sizes: sizedCount > 0 ? { download: totalDownload, installed: null } : null,
         deps: { direct: [], optional: [] }, permissions: null, warnings: [], notes: [],
+        sources: sources.length > 1 ? sources : null,  // a single source needs no chooser
     };
     const parts = [];
     if (counts.arch) parts.push(`Arch: ${counts.arch}`);
@@ -3676,6 +3720,7 @@ updateAllBtn.addEventListener('click', async () => {
     const news = await pyApiCall('check_upgrade_news');
     const pacnew = await pyApiCall('get_pacnew_files');
     const riskTiers = await pyApiCall('get_update_risk_tiers', updates.map(p => p.id));
+    const prefs = await pyApiCall('get_update_all_prefs');  // remembered source skip list
 
     // Aggregate preview: how many packages, the source split, total download size, and the above
     // signals — built from the already-loaded updates list (no extra read_installed).
@@ -3683,9 +3728,14 @@ updateAllBtn.addEventListener('click', async () => {
         news_count: news ? news.new_count : 0,
         pacnew_count: pacnew ? pacnew.count : 0,
         tiers: riskTiers,
+        excluded: (prefs && prefs.exclude) || [],
     });
     const proceed = await openTransactionPreview(previewData);
     if (!proceed) { showToast('Upgrade cancelled', 'Nothing was changed', 'info'); return; }
+
+    // Read the source selection from the (still-rendered) chooser: any unticked source is skipped.
+    const excludeSources = [...document.querySelectorAll('#tx-preview-body input[data-source]')]
+        .filter(t => !t.checked).map(t => t.dataset.source);
 
     // Arch news gate: after the aggregate, show the actual articles (clickable) so the user can read
     // any manual-intervention notice before `-Syu`.
@@ -3698,7 +3748,7 @@ updateAllBtn.addEventListener('click', async () => {
     }
 
     showToast('Updating All', 'Starting system packages upgrade...', 'info');
-    const result = await pyApiCall('update_all');
+    const result = await pyApiCall('update_all', excludeSources);
     if (result && result.success) {
         showToast('Success', 'System upgrade finished', 'success');
     } else {

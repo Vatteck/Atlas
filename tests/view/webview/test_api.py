@@ -817,6 +817,72 @@ class NotifyTest(unittest.TestCase):
         self.api._notify('x')
 
 
+class UpdateAllSourceSelectionTest(unittest.TestCase):
+    """Update All can skip whole sources (e.g. AUR) and remembers the skip list."""
+
+    def setUp(self):
+        self.manager = Mock()
+        self.api = AtlasApi(self.manager, Mock())
+        self.core = {'ui': {}}
+        self.manager.configman.get_config.return_value = self.core
+        # No root prompt in the way, and capture what actually gets upgraded.
+        self.api.acquire_root_password = Mock(return_value=(True, None))
+        self.api._notify = Mock()
+        self.captured = {}
+        def _reqs(pkgs, **kw):
+            self.captured['pkgs'] = list(pkgs)
+            return Mock()
+        self.manager.get_upgrade_requirements.side_effect = _reqs
+        self.manager.upgrade.return_value = True
+
+    def _pkg(self, name, source):
+        p = Mock()
+        p.name = name
+        p.update = True
+        p.get_type.return_value = source
+        return p
+
+    def _installed(self, *pkgs):
+        self.manager.read_installed.return_value = Mock(installed=list(pkgs))
+
+    @patch('atlas.view.webview.api.record_activity')
+    def test_excluded_source_is_dropped_from_upgrade(self, _ra):
+        self._installed(self._pkg('repo-pkg', 'arch_repo'),
+                        self._pkg('aur-pkg', 'aur'),
+                        self._pkg('flat-pkg', 'flatpak'))
+        res = self.api.update_all(exclude_sources=['aur'])
+        self.assertTrue(res['success'])
+        upgraded = sorted(p.name for p in self.captured['pkgs'])
+        self.assertEqual(['flat-pkg', 'repo-pkg'], upgraded)  # aur skipped
+
+    @patch('atlas.view.webview.api.record_activity')
+    def test_selection_is_persisted_and_round_trips(self, _ra):
+        self._installed(self._pkg('repo-pkg', 'arch_repo'), self._pkg('aur-pkg', 'aur'))
+        self.api.update_all(exclude_sources=['aur'])
+        self.assertEqual(['aur'], self.core['ui']['update_all_exclude_sources'])
+        self.manager.configman.save_config.assert_called_with(self.core)
+        # the getter reflects what was saved
+        self.assertEqual(['aur'], self.api.get_update_all_prefs()['data']['exclude'])
+
+    @patch('atlas.view.webview.api.record_activity')
+    def test_excluding_everything_skips_the_upgrade(self, _ra):
+        self._installed(self._pkg('aur-pkg', 'aur'))
+        res = self.api.update_all(exclude_sources=['aur'])
+        self.assertTrue(res['success'])
+        self.assertEqual('No sources selected', res['message'])
+        self.manager.upgrade.assert_not_called()
+
+    @patch('atlas.view.webview.api.record_activity')
+    def test_no_exclusions_upgrades_everything(self, _ra):
+        self._installed(self._pkg('repo-pkg', 'arch_repo'), self._pkg('aur-pkg', 'aur'))
+        self.api.update_all()
+        self.assertEqual(2, len(self.captured['pkgs']))
+
+    def test_get_prefs_defaults_to_empty(self):
+        self.manager.configman.get_config.return_value = {}
+        self.assertEqual([], self.api.get_update_all_prefs()['data']['exclude'])
+
+
 class JsonSafeTest(unittest.TestCase):
     """get_info() payloads carry datetimes (Arch first_submitted/last_modified, Flathub
     release dates) that pywebview's json.dumps can't encode — _json_safe converts them."""

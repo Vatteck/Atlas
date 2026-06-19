@@ -542,6 +542,15 @@ class AtlasApi:
             pkg_type = getattr(pkg, 'gem_name', 'unknown') or 'unknown'
         return f"{pkg_type}:{pkg.name}"
 
+    def _pkg_source_key(self, pkg) -> str:
+        """The source key used by the Update-All selector — matches the serialized `type`
+        (`arch_repo`, `aur`, `flatpak`, `appimage`, ...). `get_type()` already returns 'aur'
+        vs 'arch_repo' for Arch packages, so this needs no special-casing."""
+        try:
+            return str(pkg.get_type() or pkg.gem_name)
+        except Exception:
+            return str(getattr(pkg, 'gem_name', 'unknown') or 'unknown')
+
     def _serialize_pkg(self, pkg) -> dict:
         pkg_id = self._get_pkg_id(pkg)
         with self._registry_lock:
@@ -2900,22 +2909,53 @@ class AtlasApi:
                 self.window.evaluate_js("terminalSetDone(false)")
             return {'status': 'error', 'message': str(e)}
 
-    def update_all(self) -> dict:
+    def get_update_all_prefs(self) -> dict:
+        """Remembered Update-All source selection: the list of source keys (arch_repo / aur /
+        flatpak / appimage) to *skip* in a bulk upgrade. Used to pre-set the preview toggles so
+        unticking a source (e.g. AUR) is remembered between runs. Fails open to an empty skip
+        list (update everything)."""
         try:
-            self.logger.info("Update All triggered")
+            ui = self.manager.configman.get_config().get('ui') or {}
+            exclude = ui.get('update_all_exclude_sources') or []
+            exclude = [str(s) for s in exclude] if isinstance(exclude, (list, tuple)) else []
+            return {'status': 'ok', 'data': {'exclude': exclude}}
+        except Exception as e:
+            self.logger.debug(f"get_update_all_prefs failed (defaulting to skip nothing): {e}")
+            return {'status': 'ok', 'data': {'exclude': []}}
+
+    def update_all(self, exclude_sources: Optional[List[str]] = None) -> dict:
+        try:
+            self.logger.info(f"Update All triggered (excluding sources: {exclude_sources or 'none'})")
             if self.window:
                 self.window.evaluate_js("terminalOpen('Checking for system updates...')")
-            
+
+            # Remember the source selection so it pre-fills next time (skip list — new sources
+            # default ON). Best-effort: a persistence failure never blocks the upgrade.
+            excluded = {str(s) for s in (exclude_sources or [])}
+            try:
+                core = self.manager.configman.get_config()
+                core.setdefault('ui', {})['update_all_exclude_sources'] = sorted(excluded)
+                self.manager.configman.save_config(core)
+            except Exception as e:
+                self.logger.debug(f"Could not persist update_all source selection: {e}")
+
             watcher = WebviewWatcher(self.logger, self.window, self)
             installed_res = self.manager.read_installed()
             upgradable = [p for p in (installed_res.installed or []) if p.update]
 
+            if upgradable and excluded:
+                kept = [p for p in upgradable if self._pkg_source_key(p) not in excluded]
+                skipped = len(upgradable) - len(kept)
+                self.logger.info(f"Skipping {skipped} update(s) from excluded sources {sorted(excluded)}")
+                upgradable = kept
+
             if not upgradable:
-                self.logger.info("No updates available.")
+                msg = 'No sources selected' if excluded else 'No updates available'
+                self.logger.info(f"{msg}.")
                 if self.window:
-                    self.window.evaluate_js("terminalSetStatus('No updates available')")
+                    self.window.evaluate_js(f"terminalSetStatus({json.dumps(msg)})")
                     self.window.evaluate_js("terminalSetDone(true)")
-                return {'status': 'ok', 'success': True, 'message': 'No updates available'}
+                return {'status': 'ok', 'success': True, 'message': msg}
 
             # Acquire a password if any upgradable package needs root; cache covers the rest.
             root_password = None

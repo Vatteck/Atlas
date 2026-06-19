@@ -5,7 +5,31 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-18 (**blank-page stranded-scroll fix** — during a GUI verification sweep the
+**Last updated:** 2026-06-19 (**Update-All source selection** — the Update-All preview modal now has a
+"Sources to update" checkbox group (Arch / AUR / Flatpak / AppImage, trust-ordered, one toggle per source
+present with its count). Motivation: the current wave of malicious AUR uploads — the user wants to run a
+bulk upgrade while **skipping AUR** without updating package-by-package. The selection is **remembered**
+(persisted as a *skip* list in `core['ui']['update_all_exclude_sources']`; new sources default ON). The
+proceed button live-updates its count and disables when nothing's ticked. Backend:
+`update_all(exclude_sources=None)` filters the upgrade set by `pkg.get_type()` and persists the choice;
+new `get_update_all_prefs()` getter feeds the initial toggle state; `_pkg_source_key()` helper. Source
+key == serialized `type`, so frontend/backend agree with no mapping. Plan:
+`docs/plans/2026-06-19-update-all-source-selection.md`. Suite **710** (+5 api tests; extended the
+buildUpdateAllPreviewData JS contract — note: assert on VM-built arrays via `.join()`, not
+`deepStrictEqual`, which trips on cross-realm prototypes). **Needs a GUI eyeball** on the chooser. Prior
+same day: **Update-All silent multi-minute hang fixed** — clicking Update All with
+200+ updates froze the UI for minutes with no feedback while the debug log flooded with per-package
+multi-manager searches. Root cause: the pre-flight `get_update_risk_tiers` resolves every pending update
+id via `_get_pkg`, whose self-healing fallback runs a full Arch+AUR+**Flatpak**+AppImage `search()` (~1.3s
+each, Flatpak-bound) **per registry miss** — and the registry was being **bluntly `clear()`ed** past 2000
+entries, so after any browsing every update id missed → 200+ serial searches. Two fixes: (1)
+`get_update_risk_tiers` now resolves registry-only and batches all misses into **one** `read_installed()`
+instead of N searches; (2) `_serialize_pkg` registry eviction is now **LRU** (`OrderedDict`, drop oldest
+past cap) instead of wiping the whole map — which also removes the latent surprise-search for any
+`_get_pkg` consumer (install/uninstall) after long browsing. Plus an immediate "Preparing update" toast
+on click so the pre-flight isn't a dead button. Suite **705** (rewrote the eviction test for LRU
+semantics). **Needs a GUI eyeball** on the Update-All path with a large update set. Prior same day:
+**blank-page stranded-scroll fix** — during a GUI verification sweep the
 main column (topbar + content) intermittently went blank after using the app a while; no JS error. Root
 cause: `.content` is the scroll container with a `position:sticky` topbar, and nothing reset `scrollTop`
 on view change, so switching from a tall scrolled view (Updates/Installed/long category) to a short one
