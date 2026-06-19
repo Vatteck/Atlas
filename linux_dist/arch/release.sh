@@ -92,8 +92,10 @@ TARBALL_URL="https://github.com/$GH_REPO/archive/refs/tags/$TAG.tar.gz"
 echo "==> Pinning sha256 from $TARBALL_URL"
 TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
-curl -fSL "$TARBALL_URL" -o "$TMP"
-TOP="$(tar tzf "$TMP" | head -1)"
+curl -fsSL "$TARBALL_URL" -o "$TMP"
+# Read the whole listing into a var and take line 1 — piping to `head` would SIGPIPE `tar`,
+# which `set -o pipefail` turns into a script-killing failure.
+TOP="$(tar tzf "$TMP")"; TOP="${TOP%%$'\n'*}"
 [[ "$TOP" == "Atlas-$VERSION/" ]] \
     || echo "warning: tarball top dir is '$TOP', expected 'Atlas-$VERSION/' — check the cd in build()/package()" >&2
 SHA="$(sha256sum "$TMP" | cut -d' ' -f1)"
