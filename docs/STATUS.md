@@ -5,7 +5,17 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-19 (**Update-All source selection** — the Update-All preview modal now has a
+**Last updated:** 2026-06-19 (**Stable-release tooling** — added `linux_dist/arch/release.sh` to cut a
+versioned **`atlas-pm`** AUR package (the stable sibling of the bleeding-edge `atlas-pm-git`). It runs
+the test suite, tags `vX.Y.Z` + pushes the tag, pins the GitHub tarball's sha256 into
+`linux_dist/arch/release/PKGBUILD` (built from `Atlas-$pkgver/`, `conflicts=atlas-pm-git`, no `pkgver()`),
+regenerates `release/.SRCINFO`, and prints the commit + AUR-publish commands — touching the AUR only with
+`--publish`. The release PKGBUILD is a tracked template (`pkgver=0.0.0`/`SKIP` placeholders the script
+rewrites). Docs: DEVELOPMENT.md §7.1. **Decision: stay `atlas-pm-git`-only for now** — only cut `atlas-pm`
+once there are real users wanting stability over HEAD; first publish needs the `atlas-pm` AUR name
+registered (separate repo). Also fixed a pre-existing `.SRCINFO` drift (missing `pacman-contrib`
+optdepend) and folded post-upgrade metadata-fetch log noise (ERROR+traceback → WARNING). No app-code
+change this entry. Prior same day: **Update-All source selection** — the Update-All preview modal now has a
 "Sources to update" checkbox group (Arch / AUR / Flatpak / AppImage, trust-ordered, one toggle per source
 present with its count). Motivation: the current wave of malicious AUR uploads — the user wants to run a
 bulk upgrade while **skipping AUR** without updating package-by-package. The selection is **remembered**
