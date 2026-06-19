@@ -1,0 +1,7 @@
+# makepkg build artifacts (PKGBUILD + .SRCINFO are tracked; everything below is generated)
+/src/
+/pkg/
+/Atlas-*/
+*.tar.gz
+*.pkg.tar.*
+*.log

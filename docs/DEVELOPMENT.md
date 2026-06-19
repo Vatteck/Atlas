@@ -110,3 +110,22 @@ back here, and commits + pushes only if something changed. Needs your AUR SSH ke
 > The icon/code fixes themselves need **no** PKGBUILD change — `atlas-pm-git` builds from
 > `master` HEAD, so a user `paru -S atlas-pm-git` rebuild picks them up. Only edit/publish the
 > PKGBUILD when **packaging metadata** changes (deps, install paths, the desktop entry).
+
+### 7.1 Stable releases — `atlas-pm`
+
+`atlas-pm-git` is the primary channel and needs no per-commit work. Cut a **stable, versioned**
+`atlas-pm` package only when you have a commit you'd hand a stranger as "a release" (real users
+wanting stability, not HEAD). Its recipe lives at `linux_dist/arch/release/PKGBUILD` (built from
+a tagged tarball with a **pinned** sha256, not `master`).
+
+```bash
+./linux_dist/arch/release.sh            # version from atlas/__init__.py (or pass 0.13.0)
+./linux_dist/arch/release.sh --publish  # also sync + push the atlas-pm AUR repo
+```
+
+It runs the test suite, tags `vX.Y.Z` + pushes the tag (GitHub only generates the tarball once
+the tag exists), pins the tarball's sha256 into `release/PKGBUILD`, regenerates `release/.SRCINFO`,
+and prints the commit + AUR-publish commands. Without `--publish` it touches nothing on the AUR.
+Bump `atlas/__init__.py`'s `__version__` (and tidy `CHANGELOG.md`) before releasing. For a
+packaging-only re-release of the same version, bump `pkgrel` by hand — the script leaves it alone
+unless the version changed.
