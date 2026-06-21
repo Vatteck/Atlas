@@ -1,0 +1,42 @@
+name: Publish stable to AUR
+
+# Auto-publish the stable, versioned atlas-pm AUR package whenever its pinned recipe changes on
+# master (i.e. after release.sh cuts a new version and you commit linux_dist/arch/release/PKGBUILD).
+# The action regenerates .SRCINFO and pushes PKGBUILD + .SRCINFO to ssh://aur@aur.archlinux.org/
+# atlas-pm.git. On its FIRST run it creates (registers) the package — atlas-pm is the stable sibling
+# of the bleeding-edge atlas-pm-git (see aur-publish.yml).
+#
+# Uses the same one-time setup as the -git workflow: the AUR account's SSH *private* key in the
+# AUR_SSH_PRIVATE_KEY repo secret (its public key registered on your AUR account). No local setup.
+#
+# Build verification lives in the CI "arch-build" job + release.sh's local makepkg, so this stays
+# lean (no in-action test build).
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'linux_dist/arch/release/PKGBUILD'
+  workflow_dispatch: {}   # manual run — used for the first-time registration
+
+concurrency:
+  group: aur-publish-stable
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Publish atlas-pm to the AUR
+        # Pinned to the v4.1.3 commit SHA (same as aur-publish.yml) — this third-party action
+        # receives the AUR SSH private key, so pin to an exact commit, not a movable tag.
+        uses: KSXGitHub/github-actions-deploy-aur@da03e160361ce01bf087e790b6ffd196d7dccff7
+        with:
+          pkgname: atlas-pm
+          pkgbuild: linux_dist/arch/release/PKGBUILD
+          commit_username: Vatteck
+          commit_email: vatteck@gmail.com
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "atlas-pm release (atlas ${{ github.sha }})"
