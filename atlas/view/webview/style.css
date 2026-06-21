@@ -11,6 +11,9 @@
     --text-secondary: #64748b;
     --accent-color: #6366f1;           /* Premium Indigo */
     --accent-hover: #4f46e5;           /* Deeper Indigo */
+    --accent-text: #ffffff;            /* Foreground for text/icons ON an accent background.
+                                          Default white (good on dark accents); bright accents
+                                          (green/amber/teal/yellow) override this to a dark value. */
     --accent-glass: rgba(99, 102, 241, 0.15);
     --accent-shadow-hover: 0 10px 24px rgba(99, 102, 241, 0.2);
     --accent-border-hover: rgba(99, 102, 241, 0.4);
@@ -59,7 +62,7 @@
     --bg-base: #2e3440; --bg-surface: #3b4252; --bg-surface-glass: rgba(59, 66, 82, 0.75);
     --bg-sidebar: #292e39; --bg-topbar: rgba(46, 52, 64, 0.97); --bg-surface-hover: #434c5e;
     --border-color: rgba(255, 255, 255, 0.08); --text-primary: #eceff4; --text-secondary: #a9b1c2;
-    --accent-color: #88c0d0; --accent-hover: #8fbcbb; --accent-glass: rgba(136, 192, 208, 0.16);
+    --accent-color: #88c0d0; --accent-hover: #8fbcbb; --accent-text: #11242b; --accent-glass: rgba(136, 192, 208, 0.16);
     --accent-shadow-hover: 0 10px 24px rgba(136, 192, 208, 0.16); --accent-border-hover: rgba(136, 192, 208, 0.4);
     --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
 }
@@ -67,7 +70,7 @@
     --bg-base: #002b36; --bg-surface: #073642; --bg-surface-glass: rgba(7, 54, 66, 0.75);
     --bg-sidebar: #00252e; --bg-topbar: rgba(0, 43, 54, 0.97); --bg-surface-hover: #0a4250;
     --border-color: rgba(255, 255, 255, 0.08); --text-primary: #eee8d5; --text-secondary: #93a1a1;
-    --accent-color: #2aa198; --accent-hover: #1f9c93; --accent-glass: rgba(42, 161, 152, 0.16);
+    --accent-color: #2aa198; --accent-hover: #1f9c93; --accent-text: #002b30; --accent-glass: rgba(42, 161, 152, 0.16);
     --accent-shadow-hover: 0 10px 24px rgba(42, 161, 152, 0.16); --accent-border-hover: rgba(42, 161, 152, 0.4);
     --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
 }
@@ -75,7 +78,7 @@
     --bg-base: #000000; --bg-surface: #0a0a0a; --bg-surface-glass: rgba(0, 0, 0, 0.85);
     --bg-sidebar: #000000; --bg-topbar: rgba(0, 0, 0, 0.98); --bg-surface-hover: #1a1a1a;
     --border-color: rgba(255, 255, 255, 0.4); --text-primary: #ffffff; --text-secondary: #d4d4d4;
-    --accent-color: #ffd400; --accent-hover: #ffe44d; --accent-glass: rgba(255, 212, 0, 0.18);
+    --accent-color: #ffd400; --accent-hover: #ffe44d; --accent-text: #1a1500; --accent-glass: rgba(255, 212, 0, 0.18);
     --accent-shadow-hover: 0 10px 24px rgba(255, 212, 0, 0.2); --accent-border-hover: rgba(255, 212, 0, 0.5);
     --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
 }
@@ -91,13 +94,13 @@
     --accent-border-hover: rgba(59, 130, 246, 0.4);
 }
 [data-accent="teal"] {
-    --accent-color: #14b8a6; --accent-hover: #0d9488;
+    --accent-color: #14b8a6; --accent-hover: #0d9488; --accent-text: #06231f;
     --accent-glass: rgba(20, 184, 166, 0.15);
     --accent-shadow-hover: 0 10px 24px rgba(20, 184, 166, 0.18);
     --accent-border-hover: rgba(20, 184, 166, 0.4);
 }
 [data-accent="green"] {
-    --accent-color: #22c55e; --accent-hover: #16a34a;
+    --accent-color: #22c55e; --accent-hover: #16a34a; --accent-text: #052e16;
     --accent-glass: rgba(34, 197, 94, 0.15);
     --accent-shadow-hover: 0 10px 24px rgba(34, 197, 94, 0.18);
     --accent-border-hover: rgba(34, 197, 94, 0.4);
@@ -109,7 +112,7 @@
     --accent-border-hover: rgba(244, 63, 94, 0.4);
 }
 [data-accent="amber"] {
-    --accent-color: #f59e0b; --accent-hover: #d97706;
+    --accent-color: #f59e0b; --accent-hover: #d97706; --accent-text: #2b1c00;
     --accent-glass: rgba(245, 158, 11, 0.15);
     --accent-shadow-hover: 0 10px 24px rgba(245, 158, 11, 0.18);
     --accent-border-hover: rgba(245, 158, 11, 0.4);
@@ -232,7 +235,7 @@ body {
 .badge {
     margin-left: auto;
     background-color: var(--accent-color);
-    color: white;
+    color: var(--accent-text);
     font-size: 11px;
     font-weight: 700;
     padding: 2px 8px;
@@ -668,7 +671,7 @@ body {
 
 .btn-primary {
     background-color: var(--accent-color);
-    color: white;
+    color: var(--accent-text);
 }
 
 .btn-primary:hover {
@@ -1444,7 +1447,7 @@ body {
     transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
 }
 .activity-chip:hover { color: var(--text-primary); }
-.activity-chip.active { background: var(--accent-color); border-color: var(--accent-color); color: #fff; }
+.activity-chip.active { background: var(--accent-color); border-color: var(--accent-color); color: var(--accent-text); }
 .activity-filter-right { display: flex; gap: 8px; align-items: center; }
 .activity-type-select, .activity-search {
     background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-primary);
@@ -2891,7 +2894,7 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
     padding: 8px 16px;
     border-radius: var(--radius-md);
     background: var(--accent-color);
-    color: #fff;
+    color: var(--accent-text);
     border: none;
     font: inherit;
     font-weight: 600;
@@ -2946,7 +2949,7 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
     padding: 7px 14px;
     border-radius: var(--radius-md);
     background: var(--accent-color);
-    color: #fff;
+    color: var(--accent-text);
     border: none;
     font: inherit;
     font-weight: 600;
@@ -3116,7 +3119,7 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
 .dep-group > summary::before { content: '▸'; color: var(--text-secondary); transition: transform var(--transition-fast); }
 .dep-group[open] > summary::before { transform: rotate(90deg); }
 .dep-count {
-    background: var(--accent-color); color: #fff; font-size: 11px; font-weight: 700;
+    background: var(--accent-color); color: var(--accent-text); font-size: 11px; font-weight: 700;
     min-width: 20px; text-align: center; padding: 1px 6px; border-radius: 999px;
 }
 .dep-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 12px 12px; }
