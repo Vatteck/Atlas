@@ -49,7 +49,8 @@ new `get_update_all_prefs()` getter feeds the initial toggle state; `_pkg_source
 key == serialized `type`, so frontend/backend agree with no mapping. Plan:
 `docs/plans/2026-06-19-update-all-source-selection.md`. Suite **710** (+5 api tests; extended the
 buildUpdateAllPreviewData JS contract — note: assert on VM-built arrays via `.join()`, not
-`deepStrictEqual`, which trips on cross-realm prototypes). **Needs a GUI eyeball** on the chooser. Prior
+`deepStrictEqual`, which trips on cross-realm prototypes). **GUI-verified 2026-06-20** (the chooser
+looks good). Prior
 same day: **Update-All silent multi-minute hang fixed** — clicking Update All with
 200+ updates froze the UI for minutes with no feedback while the debug log flooded with per-package
 multi-manager searches. Root cause: the pre-flight `get_update_risk_tiers` resolves every pending update
@@ -165,8 +166,11 @@ moves, in order:
 2. ~~**"Why is this installed?"**~~ ✅ **SHIPPED 2026-06-17** (GUI-verified in the sweep) — dependency
    attribution (`installed_because`) names the explicit root package(s). See the Done log +
    [plans/2026-06-17-why-installed.md](plans/2026-06-17-why-installed.md).
-3. **Launch-time baseline** — manually measure time-to-window and time-to-first-view before any
-   further startup/concurrency changes. **This is now the top open user-driven item.**
+3. ~~**Launch-time baseline + optimization**~~ ✅ **DONE 2026-06-20** (see Done log) — measured the
+   baseline, then shipped **window-first startup + boot splash**: time-to-window **1152 → 805 ms
+   (~30%)**. The remaining big layer is the **WebKit parse of the 464 KB JS/CSS bundle (~1 s)** —
+   left alone (avenue C) because trimming it adds a build step (solo-dev maintenance cost).
+   **Splash visuals still need a GUI eyeball before the stable publish.**
 
 ### GUI verification queue — ✅ CLEARED 2026-06-18
 
@@ -214,6 +218,42 @@ re-add a native extension without a measured win. Details in the historical
 ---
 
 ## Done
+
+- **Window-first startup + boot splash — ~30% faster time-to-window (2026-06-20).** The launch
+  optimization (avenue B in [plans/2026-06-20-launch-optimization.md](plans/2026-06-20-launch-optimization.md)).
+  `app.main()` used to build the whole backend (context + `load_managers` + manager) **before**
+  creating the window. Now (strangler-fig, default on, `ATLAS_LEGACY_STARTUP=1` restores the old
+  synchronous path): `app.py` factors the build into `build_manager()`, constructs `AtlasApi` with
+  **no manager**, shows the window, then builds the backend on a daemon thread and calls
+  `api.set_manager()` (+ starts the tray) from it — GTK/WebKit window construction (native,
+  GIL-releasing) runs concurrently with gem probing. `AtlasApi.manager` is now a **blocking
+  property** (backed by a `threading.Event`) so every existing `self.manager` access transparently
+  waits; `is_backend_ready()` is a non-blocking probe. A **boot splash** (`index.html` `#boot-splash`
+  + `style.css` + `main.js` `waitForBackendReady`/`hideBootSplash`) covers the gap — since the WebKit
+  parse (~1 s) outlasts the backend build (~440 ms), the user sees a branded splash from ~800 ms
+  instead of a blank window. **Measured best-of-5 (working tree vs installed 0.13.0): time-to-window
+  1152 → 805 ms (~347 ms / ~30%).** Suite **707** + JS contracts green; real `app.py` boots clean.
+  **Splash visuals need a GUI eyeball.** Also bundles **avenue A** (lazy-import the `requests`/
+  `urllib3`/`bs4`/`lxml` stacks out of the gems' module load — verified out of `sys.modules` after
+  `load_managers`), kept mainly so that stack builds off the main thread under B. *Measurement
+  gotcha recorded in the plan: `/tmp` bench scripts must use `PYTHONPATH=<repo>` or they import the
+  installed snapshot, not the working tree — an early A/B was confounded by exactly this.*
+- **Launch-time baseline measured (2026-06-20).** Closed the open measurement item before any
+  startup/concurrency tuning. Method: two throwaway harnesses in `/tmp` (left ephemeral) on the
+  real system Python 3.14.5 — `atlas_launch_bench.py` times each `app.main()` backend phase up to
+  `webview.create_window`; `atlas_window_bench.py` launches the **real GTK/WebKit window** like
+  `app.py`, records the pywebview `shown`/`loaded` events relative to interpreter start, then
+  auto-destroys the window (no GUI eyeball needed). Warm steady-state (3 runs each):
+  **backend cold-start ~605 ms** (first cold run ~840 ms), **time-to-window (`shown`) ~1.1–1.4 s**,
+  **time-to-DOM (`loaded`) ~2.1 s** (~4.6 s first cold run). Breakdown of the ~605 ms backend
+  portion: **Python imports ~370 ms** (top-level ~180 + deferred ~190) and **`gems.load_managers()`
+  ~150 ms warm / 316 ms cold** (the only variable, FS/subprocess-bound phase) dominate; config / i18n
+  / context / `GenericSoftwareManager` / `AtlasApi` are all <10 ms. GUI layers on top: ~500 ms
+  backend-ready→window (GTK/WebKit construction) and ~1 s window→DOM (WebKit parsing the
+  HTML/JS/CSS bundle). **Conclusion:** launch is **import- and parse-bound**, not logic-bound — a
+  measured win lives in lazy-importing heavy modules, deferring `load_managers` I/O, or trimming the
+  JS/CSS bundle, **not** in threading the backend init or native code (consistent with the Rust
+  verdict). Optimization pass is the active next step.
 
 - **Blank main column — stranded-scroll fix (2026-06-18, GUI-verified).** During the GUI verification
   sweep, the entire main column (sticky topbar + content) intermittently went blank after using the app

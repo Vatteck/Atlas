@@ -7,7 +7,6 @@ from pathlib import Path
 from threading import Thread
 from typing import Dict, List, Optional
 
-import requests
 
 from atlas.api.abstract.controller import SoftwareManager
 from atlas.api.http import HttpClient
@@ -90,6 +89,7 @@ class CategoriesDownloader(Thread):
             traceback.print_exc()
 
     def download_categories(self) -> Dict[str, List[str]]:
+        import requests  # lazy: keep the HTTP stack off the launch critical path
         self.logger.info(self._msg('Downloading category definitions from {}'.format(self.url_categories_file)))
 
         try:

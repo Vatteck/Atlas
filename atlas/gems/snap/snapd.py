@@ -3,37 +3,48 @@ import traceback
 from logging import Logger
 from typing import Optional, List
 
-from requests import Session
-from requests.adapters import HTTPAdapter
-from urllib3.connection import HTTPConnection
-from urllib3.connectionpool import HTTPConnectionPool
-
 from atlas.commons.system import run_cmd
 
 URL_BASE = 'http://snapd/v2'
 
-
-class SnapdConnection(HTTPConnection):
-    def __init__(self):
-        super(SnapdConnection, self).__init__('localhost')
-
-    def connect(self):
-        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.sock.connect("/run/snapd.socket")
+# `requests`/`urllib3` (the ~280 ms HTTP stack) used to be imported at module scope here to
+# subclass HTTPConnection/Adapter. Snap is off by default, yet this module is imported at launch
+# (load_managers loads every gem controller), so it dragged the whole stack onto the launch
+# critical path. The snapd adapter is now built lazily on first use, inside _build_snapd_adapter().
+# See docs/plans/2026-06-20-launch-optimization.md.
+_SNAPD_ADAPTER_CLS = None
 
 
-class SnapdConnectionPool(HTTPConnectionPool):
-    def __init__(self):
-        super(SnapdConnectionPool, self).__init__('localhost')
+def _build_snapd_adapter():
+    """Define + cache the requests/urllib3 adapter that talks to snapd's UNIX socket. Imports the
+    HTTP stack lazily so it stays off the launch path until a snap operation actually runs."""
+    global _SNAPD_ADAPTER_CLS
+    if _SNAPD_ADAPTER_CLS is None:
+        from requests.adapters import HTTPAdapter
+        from urllib3.connection import HTTPConnection
+        from urllib3.connectionpool import HTTPConnectionPool
 
-    def _new_conn(self):
-        return SnapdConnection()
+        class SnapdConnection(HTTPConnection):
+            def __init__(self):
+                super(SnapdConnection, self).__init__('localhost')
 
+            def connect(self):
+                self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                self.sock.connect("/run/snapd.socket")
 
-class SnapdAdapter(HTTPAdapter):
+        class SnapdConnectionPool(HTTPConnectionPool):
+            def __init__(self):
+                super(SnapdConnectionPool, self).__init__('localhost')
 
-    def get_connection(self, url, proxies=None):
-        return SnapdConnectionPool()
+            def _new_conn(self):
+                return SnapdConnection()
+
+        class SnapdAdapter(HTTPAdapter):
+            def get_connection(self, url, proxies=None):
+                return SnapdConnectionPool()
+
+        _SNAPD_ADAPTER_CLS = SnapdAdapter
+    return _SNAPD_ADAPTER_CLS
 
 
 class SnapdClient:
@@ -42,10 +53,11 @@ class SnapdClient:
         self.logger = logger
         self.session = self._new_session()
 
-    def _new_session(self) -> Optional[Session]:
+    def _new_session(self):
         try:
+            from requests import Session
             session = Session()
-            session.mount("http://snapd/", SnapdAdapter())
+            session.mount("http://snapd/", _build_snapd_adapter()())
             return session
         except Exception:
             self.logger.error("Could not establish a connection to 'snapd.socker'")

@@ -115,8 +115,14 @@ class AtlasApi:
     )
     _AUR_DISCOVERY_TTL = 3600  # seconds; the source refreshes daily, so an hour-stale cache is fine
 
-    def __init__(self, manager: GenericSoftwareManager, logger: logging.Logger):
-        self.manager = manager
+    def __init__(self, manager: Optional[GenericSoftwareManager] = None, logger: logging.Logger = None):
+        # Window-first startup (see docs/plans/2026-06-20-launch-optimization.md) builds the manager
+        # in a background thread *after* the window is shown, then calls set_manager(). `manager` is
+        # a property that blocks until ready, so every existing `self.manager` access transparently
+        # waits — no per-call-site change needed. Passing a manager here keeps the legacy
+        # synchronous path working (used by the env-var fallback and the test suite).
+        self._manager = None
+        self._manager_ready = threading.Event()
         self.logger = logger
         self.pkg_registry = OrderedDict()  # opaque_id -> SoftwarePackage (LRU-evicted)
         self._registry_lock = threading.Lock()
@@ -160,7 +166,31 @@ class AtlasApi:
 
         # Prepare the managers in a background thread to prevent GUI lockup using ThreadPoolExecutor
         self._executor = ThreadPoolExecutor(max_workers=5)
+        self._prepare_future = None
+
+        # Legacy/synchronous path: a manager handed in at construction is immediately ready.
+        if manager is not None:
+            self.set_manager(manager)
+
+    @property
+    def manager(self) -> GenericSoftwareManager:
+        """The backend manager. Blocks until it's ready — under window-first startup it is built in
+        a background thread, so an API call that lands before the build finishes simply waits (the
+        front-end shows the boot splash meanwhile). Once ready this is a plain attribute read."""
+        self._manager_ready.wait()
+        return self._manager
+
+    def set_manager(self, manager: GenericSoftwareManager):
+        """Attach the backend manager (window-first startup calls this from its build thread) and
+        kick off the post-load preparation. Releases any API calls blocked on the `manager`
+        property."""
+        self._manager = manager
+        self._manager_ready.set()
         self._prepare_future = self._executor.submit(self._prepare_manager)
+
+    def is_backend_ready(self) -> bool:
+        """Non-blocking readiness check for the boot splash (see main.js)."""
+        return self._manager_ready.is_set()
 
     def set_window(self, window):
         self.window = window

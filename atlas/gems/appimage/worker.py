@@ -11,7 +11,6 @@ from pathlib import Path
 from threading import Thread
 from typing import Optional, Generator
 
-import requests
 
 from atlas.api.abstract.handler import TaskManager, ProcessWatcher
 from atlas.api.http import HttpClient
@@ -421,6 +420,7 @@ class AppImageSuggestionsDownloader(Thread):
                 traceback.print_exc()
 
     def download(self) -> Optional[str]:
+        import requests  # lazy: keep the HTTP stack off the launch critical path
         if not self._file_url:
             self.logger.error("No AppImage suggestions file URL defined")
             return

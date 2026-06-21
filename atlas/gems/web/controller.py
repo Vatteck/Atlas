@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import glob
+import importlib.util
 import json
 import locale
 import os
@@ -10,10 +13,8 @@ from pathlib import Path
 from threading import Thread
 from typing import List, Type, Set, Tuple, Optional, Dict, Generator, Iterable, Pattern
 
-import requests
 import yaml
 from colorama import Fore
-from requests import Response
 
 from atlas.api.abstract.context import ApplicationContext
 from atlas.api.abstract.controller import SoftwareManager, SearchResult, UpgradeRequirements, TransactionResult, \
@@ -40,19 +41,16 @@ from atlas.gems.web.search import SearchIndexManager
 from atlas.gems.web.worker import SuggestionsManager, UpdateEnvironmentSettings, \
     SuggestionsLoader, SearchIndexGenerator
 
-try:
-    from bs4 import BeautifulSoup, SoupStrainer
+# bs4 (+ its chardet tree) and lxml are ~200 ms of import time and are only needed when the web
+# gem actually parses a page. The web gem is off by default yet its controller is imported at launch
+# (load_managers loads every gem), so these are detected lazily via find_spec (no heavy import) and
+# BeautifulSoup is imported on first parse. See docs/plans/2026-06-20-launch-optimization.md.
+def _bs4_available() -> bool:
+    return importlib.util.find_spec('bs4') is not None
 
-    BS4_AVAILABLE = True
-except Exception:
-    BS4_AVAILABLE = False
 
-try:
-    import lxml
-
-    LXML_AVAILABLE = True
-except Exception:
-    LXML_AVAILABLE = False
+def _lxml_available() -> bool:
+    return importlib.util.find_spec('lxml') is not None
 
 RE_SEVERAL_SPACES = re.compile(r'\s+')
 RE_SYMBOLS_SPLIT = re.compile(r'[\-|_\s:.]')
@@ -251,7 +249,8 @@ class WebApplicationManager(SoftwareManager, SettingsController):
         except Exception as e:
             self.logger.warning(f"Could not GET '{url}'. Exception: {e.__class__.__name__}")
 
-    def _map_url(self, url: str) -> Tuple["BeautifulSoup", requests.Response]:
+    def _map_url(self, url: str) -> Tuple["BeautifulSoup", "requests.Response"]:
+        from bs4 import BeautifulSoup, SoupStrainer  # lazy: keep bs4/lxml off the launch path
         url_res = self._request_url(url)
         if url_res is not None and url_res.status_code != 404:
             return BeautifulSoup(url_res.text, 'lxml', parse_only=SoupStrainer('head')), url_res
@@ -945,10 +944,10 @@ class WebApplicationManager(SoftwareManager, SettingsController):
         self.enabled = enabled
 
     def can_work(self) -> Tuple[bool, Optional[str]]:
-        if not BS4_AVAILABLE:
+        if not _bs4_available():
             return False, self.i18n['missing_dep'].format(dep=bold('python3-beautifulsoup4'))
 
-        if not LXML_AVAILABLE:
+        if not _lxml_available():
             return False, self.i18n['missing_dep'].format(dep=bold('python3-lxml'))
 
         config = self.configman.get_config()
@@ -1005,6 +1004,7 @@ class WebApplicationManager(SoftwareManager, SettingsController):
         pass
 
     def _fill_suggestion(self, app: WebApplication):
+        import requests  # lazy: keep the HTTP stack off the launch critical path
         soup_map = self._map_url(app.url)
 
         if soup_map:

@@ -10,7 +10,6 @@ from pathlib import Path
 from threading import Thread
 from typing import Dict, List, Optional
 
-import requests
 import yaml
 
 from atlas.api.abstract.download import FileDownloader
@@ -271,6 +270,7 @@ class EnvironmentUpdater:
                 self.logger.error(f'Could not parse the cache environment settings file: {cached_settings_str}')
 
     def read_settings(self, web_config: dict, cache: bool = True) -> Optional[dict]:
+        import requests  # lazy: keep the HTTP stack off the launch critical path
         if self.taskman:
             self.taskman.register_task(self.task_read_settings_id, self.i18n['web.task.download_settings'], get_icon_path())
             self.taskman.update_progress(self.task_read_settings_id, 1, None)

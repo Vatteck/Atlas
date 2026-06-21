@@ -5,7 +5,6 @@ from logging import Logger
 from pathlib import Path
 from typing import Optional
 
-import requests
 import yaml
 
 from atlas.api.http import HttpClient
@@ -111,6 +110,7 @@ class SuggestionsManager:
             return {}
 
     def download(self) -> dict:
+        import requests  # lazy: keep the HTTP stack off the launch critical path
         self.logger.info(f"Reading suggestions from {self._file_url}")
         try:
             suggestions = self.http_client.get_yaml(self._file_url, session=False)

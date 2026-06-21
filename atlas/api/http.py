@@ -1,26 +1,45 @@
+from __future__ import annotations
+
 import logging
 import time
 import traceback
 from typing import Optional
 
-import requests
 import yaml
 
 from atlas.commons import system
 from atlas.commons.view_utils import get_human_size_str
+
+# `requests` (and its urllib3/charset-normalizer/chardet tree) is ~280 ms of import time and is
+# only needed once a network call actually happens — well after the window is shown. It is imported
+# lazily inside the methods below (and the session is built on first use) to keep it off the launch
+# critical path. See docs/plans/2026-06-20-launch-optimization.md.
 
 
 class HttpClient:
 
     def __init__(self, logger: logging.Logger, max_attempts: int = 2, timeout: int = 30, sleep: float = 0.5):
         self.max_attempts = max_attempts
-        self.session = requests.Session()
+        self._session = None
         self.timeout = timeout
         self.sleep = sleep
         self.logger = logger
 
+    @property
+    def session(self):
+        if self._session is None:
+            import requests
+            import urllib3
+            # Suppress the InsecureRequestWarning for the intentional ignore_ssl=True calls. This
+            # used to run eagerly at app start; it now happens on first session use, which is the
+            # first moment urllib3 is actually imported.
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            self._session = requests.Session()
+        return self._session
+
     def get(self, url: str, params: dict = None, headers: dict = None, allow_redirects: bool = True, ignore_ssl: bool = False, single_call: bool = False,
             session: bool = True, stream: bool = False) -> Optional[requests.Response]:
+        import requests
         cur_attempts = 1
 
         while cur_attempts <= self.max_attempts:
@@ -83,6 +102,7 @@ class HttpClient:
         if not url:
             return
 
+        import requests
         params = {'url': url, 'allow_redirects': True, 'stream': True}
 
         try:
@@ -110,6 +130,7 @@ class HttpClient:
             return get_human_size_str(size)
 
     def exists(self, url: str, session: bool = True, timeout: int = 5) -> bool:
+        import requests
         params = {'url': url, 'allow_redirects': True, 'verify': False, 'timeout': timeout}
 
         try:

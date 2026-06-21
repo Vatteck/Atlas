@@ -12,7 +12,6 @@ from pathlib import Path
 from threading import Thread
 from typing import List, Optional, Tuple
 
-import requests
 
 from atlas.api.abstract.context import ApplicationContext
 from atlas.api.abstract.handler import TaskManager
@@ -159,6 +158,7 @@ class AURIndexUpdater(Thread):
             return True
 
     def update_index(self):
+        import requests  # lazy: keep the HTTP stack off the launch critical path
         self.logger.info('Indexing AUR packages')
         self.taskman.update_progress(self.task_id, 5, self.i18n['arch.task.aur.index.substatus.download'])
         try:

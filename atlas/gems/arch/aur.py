@@ -7,7 +7,6 @@ import urllib.parse
 import zlib
 from typing import Set, List, Iterable, Dict, Optional, Generator, Tuple
 
-import requests
 
 from atlas.api.http import HttpClient
 from atlas.gems.arch import AUR_INDEX_FILE, git
@@ -71,6 +70,7 @@ class AURClient:
         return self.http_client.get_json(URL_SEARCH + words)
 
     def get_info(self, names: Iterable[str]) -> Optional[List[dict]]:
+        import requests  # lazy: keep the HTTP stack off the launch critical path
         if names:
             try:
                 self._throttle()
@@ -213,6 +213,7 @@ class AURClient:
         self.logger.warning('The AUR index file was not found')
 
     def download_names(self) -> Set[str]:
+        import requests  # lazy: keep the HTTP stack off the launch critical path
         self.logger.info('Downloading AUR index')
         try:
             self._throttle()

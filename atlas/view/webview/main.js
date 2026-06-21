@@ -5774,8 +5774,37 @@ document.getElementById('detail-source-compare').addEventListener('click', (e) =
 });
 
 // Initialization hook when pywebview is ready
-window.addEventListener('pywebviewready', function() {
+// Boot splash control. Window-first startup (see docs/plans/2026-06-20-launch-optimization.md)
+// shows the window before the backend manager is built, so we keep the splash up until the backend
+// reports ready, then reveal the app. Falls through after a safety timeout so a stuck readiness
+// check can never trap the user behind the splash (API calls block server-side regardless).
+function hideBootSplash() {
+    const splash = document.getElementById('boot-splash');
+    if (!splash || splash.classList.contains('hidden')) return;
+    splash.classList.add('hidden');
+    setTimeout(() => { if (splash.parentNode) splash.remove(); }, 300);  // after the fade
+}
+
+async function waitForBackendReady(maxMs = 30000) {
+    const start = Date.now();
+    while (Date.now() - start < maxMs) {
+        try {
+            const api = window.pywebview && window.pywebview.api;
+            if (api && api.is_backend_ready) {
+                if (await api.is_backend_ready()) return true;
+            } else {
+                return true;  // legacy build with no readiness probe: don't block
+            }
+        } catch (e) { /* transient bridge hiccup — keep polling */ }
+        await new Promise(r => setTimeout(r, 100));
+    }
+    return false;  // timed out; proceed anyway
+}
+
+window.addEventListener('pywebviewready', async function() {
     console.log("pywebview is ready!");
+    await waitForBackendReady();
+    hideBootSplash();
     fetchPackages();
     refreshUpdatesBadge();  // populate the sidebar Updates count without opening that page
 });
