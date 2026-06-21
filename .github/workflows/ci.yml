@@ -54,9 +54,9 @@ jobs:
     container: archlinux:latest
     steps:
       - name: Install toolchain
-        # desktop-file-utils provides desktop-file-validate, which the packaging test in the suite
-        # picks up automatically (it self-skips when the tool is absent) to validate atlas-pm.desktop.
-        run: pacman -Syu --noconfirm --needed git python python-pip desktop-file-utils
+        # desktop-file-utils → desktop-file-validate (packaging test, self-skips if absent).
+        # diffutils → `diff`, used by the real-pacnew diff test (minimal container lacks it).
+        run: pacman -Syu --noconfirm --needed git python python-pip desktop-file-utils diffutils
 
       - uses: actions/checkout@v6
 
