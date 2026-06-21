@@ -2953,6 +2953,24 @@ class AtlasApi:
             self.logger.debug(f"get_update_all_prefs failed (defaulting to skip nothing): {e}")
             return {'status': 'ok', 'data': {'exclude': []}}
 
+    def set_window_bg(self, color: str) -> dict:
+        """Persist the active theme's base background color so the *next* launch can paint the native
+        window in it before WebKit renders — without this the window flashes a hardcoded dark before
+        the boot splash for non-dark themes. The front-end sends the resolved `--bg-base` whenever
+        the theme/accent changes (see main.js syncWindowBg). Validated to a hex color and stored in
+        `core['ui']['window_bg']`; app.py reads it at create_window. Best-effort / fails open."""
+        try:
+            c = (color or '').strip()
+            if not re.fullmatch(r'#[0-9a-fA-F]{3,8}', c):
+                return {'status': 'error', 'message': 'invalid color'}
+            core = self.manager.configman.get_config()
+            core.setdefault('ui', {})['window_bg'] = c
+            self.manager.configman.save_config(core)
+            return {'status': 'ok'}
+        except Exception as e:
+            self.logger.debug(f"Could not persist window_bg: {e}")
+            return {'status': 'error', 'message': str(e)}
+
     def update_all(self, exclude_sources: Optional[List[str]] = None) -> dict:
         try:
             self.logger.info(f"Update All triggered (excluding sources: {exclude_sources or 'none'})")

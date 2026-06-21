@@ -52,6 +52,41 @@
     --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
 }
 
+/* Accent colors — composable with any palette via data-accent on <html>. "indigo" is the default
+   and emits NO block (it falls through to the per-mode --accent-* above). These come AFTER the
+   palette blocks so the attribute selector (equal specificity) wins for the 5 accent vars. Single
+   value per accent, chosen to read on both light and dark. See plans/2026-06-20-theme-options.md. */
+[data-accent="blue"] {
+    --accent-color: #3b82f6; --accent-hover: #2563eb;
+    --accent-glass: rgba(59, 130, 246, 0.15);
+    --accent-shadow-hover: 0 10px 24px rgba(59, 130, 246, 0.18);
+    --accent-border-hover: rgba(59, 130, 246, 0.4);
+}
+[data-accent="teal"] {
+    --accent-color: #14b8a6; --accent-hover: #0d9488;
+    --accent-glass: rgba(20, 184, 166, 0.15);
+    --accent-shadow-hover: 0 10px 24px rgba(20, 184, 166, 0.18);
+    --accent-border-hover: rgba(20, 184, 166, 0.4);
+}
+[data-accent="green"] {
+    --accent-color: #22c55e; --accent-hover: #16a34a;
+    --accent-glass: rgba(34, 197, 94, 0.15);
+    --accent-shadow-hover: 0 10px 24px rgba(34, 197, 94, 0.18);
+    --accent-border-hover: rgba(34, 197, 94, 0.4);
+}
+[data-accent="rose"] {
+    --accent-color: #f43f5e; --accent-hover: #e11d48;
+    --accent-glass: rgba(244, 63, 94, 0.15);
+    --accent-shadow-hover: 0 10px 24px rgba(244, 63, 94, 0.18);
+    --accent-border-hover: rgba(244, 63, 94, 0.4);
+}
+[data-accent="amber"] {
+    --accent-color: #f59e0b; --accent-hover: #d97706;
+    --accent-glass: rgba(245, 158, 11, 0.15);
+    --accent-shadow-hover: 0 10px 24px rgba(245, 158, 11, 0.18);
+    --accent-border-hover: rgba(245, 158, 11, 0.4);
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -3172,4 +3207,29 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
 }
 @keyframes boot-splash-spin {
     to { transform: rotate(360deg); }
+}
+
+/* Settings → Appearance: accent color swatches */
+.accent-swatches {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+.accent-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--swatch);
+    border: 2px solid transparent;
+    box-shadow: 0 0 0 1px var(--border-color);
+    cursor: pointer;
+    padding: 0;
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.accent-swatch:hover {
+    transform: scale(1.12);
+}
+.accent-swatch.selected {
+    border-color: var(--bg-surface);
+    box-shadow: 0 0 0 2px var(--swatch);
 }

@@ -155,11 +155,18 @@ def main():
         pass  # non-GTK backend / gi unavailable — harmless
 
     # Native window background, painted before WebKit renders any HTML/CSS — without this pywebview
-    # defaults to white, so the window flashes white for a beat before the boot splash appears. Use
-    # the dark-theme base (#05070c, --bg-base[data-theme=dark]); the UI theme lives in localStorage
-    # (default 'dark') which Python can't read at create time, so we match the default. A light-theme
-    # user gets a brief dark tint instead of white before the splash repaints — far less jarring than
-    # the white flash. See docs/plans/2026-06-20-launch-optimization.md.
+    # defaults to white, so the window flashes before the boot splash. The front-end mirrors the
+    # active theme's base color into config (core['ui']['window_bg']) whenever the theme/accent
+    # changes (AtlasApi.set_window_bg), so this tracks the user's actual theme across launches.
+    # Defaults to the dark base (#05070c) on first run / unknown. See
+    # docs/plans/2026-06-20-theme-options.md.
+    window_bg = '#05070c'
+    try:
+        cfg_bg = (app_config.get('ui') or {}).get('window_bg')
+        if isinstance(cfg_bg, str) and cfg_bg.strip():
+            window_bg = cfg_bg.strip()
+    except Exception:
+        pass
     window = webview.create_window(
         'Atlas',
         html_path,
@@ -167,7 +174,7 @@ def main():
         width=1000,
         height=700,
         min_size=(400, 400),
-        background_color='#05070c'
+        background_color=window_bg
     )
     api.set_window(window)
 

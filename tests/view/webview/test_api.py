@@ -2581,3 +2581,30 @@ class PacnewMirrorTest(unittest.TestCase):
         self.assertEqual('reflector', d['tool'])
         self.assertIn('reflector', d['command'])
         self.assertIsNotNone(d['last_modified_iso'])
+
+
+class SetWindowBgTest(unittest.TestCase):
+    """set_window_bg persists the active theme's base color (for the next launch's native window
+    background) only for valid hex colors."""
+
+    def setUp(self):
+        self.manager = Mock()
+        self.config = {}
+        self.manager.configman.get_config.return_value = self.config
+        self.api = AtlasApi(self.manager, Mock())
+
+    def test_valid_hex_persisted(self):
+        res = self.api.set_window_bg('#05070c')
+        self.assertEqual('ok', res['status'])
+        self.assertEqual('#05070c', self.config['ui']['window_bg'])
+        self.manager.configman.save_config.assert_called_once_with(self.config)
+
+    def test_short_and_long_hex_accepted(self):
+        for c in ('#fff', '#f4f6fa', '#11223344'):
+            self.assertEqual('ok', self.api.set_window_bg(c)['status'])
+
+    def test_invalid_color_rejected_and_not_saved(self):
+        for bad in ('red', 'rgb(0,0,0)', '#xyz', '', '#12', 'javascript:1'):
+            self.assertEqual('error', self.api.set_window_bg(bad)['status'])
+        self.assertNotIn('ui', self.config)
+        self.manager.configman.save_config.assert_not_called()

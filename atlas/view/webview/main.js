@@ -9,21 +9,84 @@ if (typeof localStorage === 'undefined' || !localStorage) {
     };
 }
 
-// Theme Management
+// Theme Management — two axes: palette (data-theme: light/dark/+presets) and accent
+// (data-accent: indigo[default]/blue/teal/green/rose/amber). Both persist in localStorage (durable
+// now that pywebview runs with persistent storage) and mirror the resolved window background to the
+// backend so the native splash-flash color tracks the active theme. See
+// plans/2026-06-20-theme-options.md.
 const themeToggleBtn = document.getElementById('theme-toggle');
 const rootElement = document.documentElement;
 
-// Initialize theme from localStorage or default to dark
-const savedTheme = localStorage.getItem('atlas-theme') || 'dark';
-rootElement.setAttribute('data-theme', savedTheme);
+const THEME_PALETTES = ['light', 'dark'];   // presets appended in stage 2
+const ACCENT_COLORS = ['indigo', 'blue', 'teal', 'green', 'rose', 'amber'];
 
+// Initialize from localStorage (defaults: dark palette, indigo accent) — applied synchronously
+// before first paint to avoid a flash of the wrong theme.
+rootElement.setAttribute('data-theme', localStorage.getItem('atlas-theme') || 'dark');
+rootElement.setAttribute('data-accent', localStorage.getItem('atlas-accent') || 'indigo');
+
+// Push the resolved base background to the backend so the next launch paints the native window in
+// the right color before WebKit renders (kills the splash-flash for non-dark themes). Fire-and-
+// forget; only meaningful once the backend is ready, so callers gate on that or just let it no-op.
+function syncWindowBg() {
+    try {
+        const bg = getComputedStyle(rootElement).getPropertyValue('--bg-base').trim();
+        if (bg && window.pywebview && window.pywebview.api && window.pywebview.api.set_window_bg) {
+            window.pywebview.api.set_window_bg(bg);
+        }
+    } catch (e) { /* non-fatal: the flash color just won't update this run */ }
+}
+
+function setTheme(palette) {
+    const next = THEME_PALETTES.includes(palette) ? palette : 'dark';
+    rootElement.setAttribute('data-theme', next);
+    localStorage.setItem('atlas-theme', next);
+    syncWindowBg();
+}
+
+function setAccent(accent) {
+    const next = ACCENT_COLORS.includes(accent) ? accent : 'indigo';
+    rootElement.setAttribute('data-accent', next);
+    localStorage.setItem('atlas-accent', next);
+    syncWindowBg();  // accent doesn't change --bg-base, but harmless + keeps the mirror authoritative
+}
+
+// Topbar quick toggle: flip light/dark.
 themeToggleBtn.addEventListener('click', () => {
-    const currentTheme = rootElement.getAttribute('data-theme');
-    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-    
-    rootElement.setAttribute('data-theme', newTheme);
-    localStorage.setItem('atlas-theme', newTheme);
+    setTheme(rootElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
 });
+
+// Representative swatch color per accent (the dot shown in Settings; the live CSS lives in style.css).
+const ACCENT_SWATCHES = {
+    indigo: '#6366f1', blue: '#3b82f6', teal: '#14b8a6',
+    green: '#22c55e', rose: '#f43f5e', amber: '#f59e0b'
+};
+const THEME_LABELS = { light: 'Light', dark: 'Dark' };
+
+// Settings → Appearance rows (pure markup; handlers wired in the settings render).
+function buildThemeRow() {
+    const cur = localStorage.getItem('atlas-theme') || 'dark';
+    const opts = THEME_PALETTES.map(p =>
+        `<option value="${p}" ${cur === p ? 'selected' : ''}>${THEME_LABELS[p] || p}</option>`).join('');
+    return `
+        <label class="settings-row" title="Color theme — applies immediately">
+            <span class="settings-row-label">Theme</span>
+            <select id="settings-theme" class="styled-select">${opts}</select>
+        </label>`;
+}
+
+function buildAccentRow() {
+    const cur = localStorage.getItem('atlas-accent') || 'indigo';
+    const dots = ACCENT_COLORS.map(a =>
+        `<button type="button" class="accent-swatch${cur === a ? ' selected' : ''}" data-accent-pick="${a}"
+                 title="${a.charAt(0).toUpperCase() + a.slice(1)}" aria-label="${a} accent"
+                 style="--swatch:${ACCENT_SWATCHES[a]}"></button>`).join('');
+    return `
+        <div class="settings-row" title="Highlight color — applies immediately">
+            <span class="settings-row-label">Accent color</span>
+            <div class="accent-swatches" id="settings-accent">${dots}</div>
+        </div>`;
+}
 
 // HTML escaping helper to prevent XSS / Local RCE
 function escapeHtml(str) {
@@ -5328,6 +5391,13 @@ async function renderSettings() {
         </label>`;
     const generalRows = greetingRow + densityRow + generalToggleRows;
 
+    const appearanceSection = `
+        <section class="settings-section">
+            <h3>Appearance</h3>
+            ${buildThemeRow()}
+            ${buildAccentRow()}
+        </section>`;
+
     const tray = data.tray || {};
     const trayDisabledAttr = tray.available ? '' : 'disabled';
     const traySection = `
@@ -5406,6 +5476,7 @@ async function renderSettings() {
                 <h3>General</h3>
                 ${generalRows}
             </section>
+            ${appearanceSection}
             ${traySection}
             ${archSection}
             ${mirrorsSection}
@@ -5467,6 +5538,18 @@ async function renderSettings() {
     // Density is a localStorage display pref — apply it instantly (no Save needed).
     const densitySel = document.getElementById('settings-density');
     if (densitySel) densitySel.addEventListener('change', () => setDensity(densitySel.value));
+
+    const themeSel = document.getElementById('settings-theme');
+    if (themeSel) themeSel.addEventListener('change', () => setTheme(themeSel.value));
+
+    const accentHost = document.getElementById('settings-accent');
+    if (accentHost) accentHost.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-accent-pick]');
+        if (!btn) return;
+        setAccent(btn.dataset.accentPick);
+        accentHost.querySelectorAll('.accent-swatch').forEach(s => s.classList.remove('selected'));
+        btn.classList.add('selected');
+    });
 }
 
 async function saveSettings() {
@@ -5805,6 +5888,7 @@ window.addEventListener('pywebviewready', async function() {
     console.log("pywebview is ready!");
     await waitForBackendReady();
     hideBootSplash();
+    syncWindowBg();  // persist the current theme's base bg for next launch's native window color
     fetchPackages();
     refreshUpdatesBadge();  // populate the sidebar Updates count without opening that page
 });
@@ -6541,6 +6625,10 @@ function commandPaletteOpen() {
 
 if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
     window.__atlasTestHooks = {
+        setTheme,
+        setAccent,
+        buildThemeRow,
+        buildAccentRow,
         buildAttentionCenterHTML,
         buildUpdatesCardHTML,
         buildDashboardHeaderHTML,

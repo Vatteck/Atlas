@@ -688,6 +688,35 @@ async function testDensityClass() {
   assert.strictEqual(hooks.densityClass(null), 'density-comfortable');
 }
 
+async function testThemeAndAccentSelection() {
+  const { hooks, context } = loadMainJs({});
+  const root = context.document.documentElement;
+
+  // setTheme: valid persists + applies; junk falls back to dark.
+  hooks.setTheme('light');
+  assert.strictEqual(root.attributes['data-theme'], 'light');
+  assert.strictEqual(context.localStorage.getItem('atlas-theme'), 'light');
+  hooks.setTheme('bogus');
+  assert.strictEqual(root.attributes['data-theme'], 'dark');
+
+  // setAccent: valid persists; junk falls back to indigo.
+  hooks.setAccent('teal');
+  assert.strictEqual(root.attributes['data-accent'], 'teal');
+  assert.strictEqual(context.localStorage.getItem('atlas-accent'), 'teal');
+  hooks.setAccent('not-a-color');
+  assert.strictEqual(root.attributes['data-accent'], 'indigo');
+
+  // Builders reflect the persisted selection.
+  context.localStorage.setItem('atlas-theme', 'light');
+  context.localStorage.setItem('atlas-accent', 'rose');
+  assert.ok(/value="light"[^>]*selected/.test(hooks.buildThemeRow()), 'theme row marks current');
+  const accentHtml = hooks.buildAccentRow();
+  assert.ok(/data-accent-pick="rose"[^>]*selected|class="accent-swatch selected"[^>]*data-accent-pick="rose"/.test(accentHtml)
+            || /data-accent-pick="rose"/.test(accentHtml) && /selected/.test(accentHtml),
+            'accent row marks current swatch selected');
+  assert.ok(/data-accent-pick="amber"/.test(accentHtml), 'all accents rendered');
+}
+
 async function testTopbarContextDecision() {
   const { hooks } = loadMainJs({});
   const f = hooks.shouldShowPackageControls;
@@ -1750,6 +1779,7 @@ function testPermsListEnsuresIconObserver() {
 
 (async () => {
   const tests = [
+    testThemeAndAccentSelection,
     testRenderCategoryPackagesStoresCurrentPackages,
     testSortDropdownRerendersOpenBrowseCategory,
     testStaleDetailMetaDoesNotOverwriteNewModal,
