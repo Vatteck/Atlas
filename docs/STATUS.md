@@ -219,6 +219,20 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Theme options — accent picker + preset palettes + persistence (2026-06-20).** Settings →
+  **Appearance**: a Theme select (Light/Dark + **Nord / Solarized Dark / High Contrast** presets) and
+  an accent-color swatch row (indigo[default]/blue/teal/green/rose/amber). Accent is a `data-accent`
+  attribute on `<html>` composing with any palette via `[data-accent=…]` CSS; presets are
+  `[data-theme=…]` blocks. **Root-cause fix that started this:** pywebview defaulted to
+  `private_mode=True`, so WebKit discarded localStorage on exit — *every* UI pref (theme, density,
+  view/sort, Browse resume, mirror opts) silently reset each launch; now `private_mode=False` +
+  `storage_path` (`~/.local/share/atlaspm/webview`) makes them durable. Also folds in the proper
+  splash-flash fix: `main.js` mirrors the active theme's resolved `--bg-base` to the backend
+  (`AtlasApi.set_window_bg` → `core['ui']['window_bg']`) on change + on ready, and `app.py` paints the
+  native window in that color at `create_window` (default dark) — so the flash color tracks the user's
+  actual theme across launches. Tests: `SetWindowBgTest` + JS `testThemeAndAccentSelection`; suite
+  **710** + JS. **Each preset + the accent picker need a GUI eyeball** (contrast across cards/modals/
+  banners/code blocks). Plan: [plans/2026-06-20-theme-options.md](plans/2026-06-20-theme-options.md).
 - **Window-first startup + boot splash — ~30% faster time-to-window (2026-06-20).** The launch
   optimization (avenue B in [plans/2026-06-20-launch-optimization.md](plans/2026-06-20-launch-optimization.md)).
   `app.main()` used to build the whole backend (context + `load_managers` + manager) **before**

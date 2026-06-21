@@ -52,6 +52,34 @@
     --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
 }
 
+/* Preset palettes (stage 2). Each sets the base vars + a sensible default accent; a user-picked
+   data-accent still overrides (accent blocks come later → win). Need a GUI eyeball for contrast
+   across the app. See plans/2026-06-20-theme-options.md. */
+[data-theme="nord"] {
+    --bg-base: #2e3440; --bg-surface: #3b4252; --bg-surface-glass: rgba(59, 66, 82, 0.75);
+    --bg-sidebar: #292e39; --bg-topbar: rgba(46, 52, 64, 0.97); --bg-surface-hover: #434c5e;
+    --border-color: rgba(255, 255, 255, 0.08); --text-primary: #eceff4; --text-secondary: #a9b1c2;
+    --accent-color: #88c0d0; --accent-hover: #8fbcbb; --accent-glass: rgba(136, 192, 208, 0.16);
+    --accent-shadow-hover: 0 10px 24px rgba(136, 192, 208, 0.16); --accent-border-hover: rgba(136, 192, 208, 0.4);
+    --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+}
+[data-theme="solarized-dark"] {
+    --bg-base: #002b36; --bg-surface: #073642; --bg-surface-glass: rgba(7, 54, 66, 0.75);
+    --bg-sidebar: #00252e; --bg-topbar: rgba(0, 43, 54, 0.97); --bg-surface-hover: #0a4250;
+    --border-color: rgba(255, 255, 255, 0.08); --text-primary: #eee8d5; --text-secondary: #93a1a1;
+    --accent-color: #2aa198; --accent-hover: #1f9c93; --accent-glass: rgba(42, 161, 152, 0.16);
+    --accent-shadow-hover: 0 10px 24px rgba(42, 161, 152, 0.16); --accent-border-hover: rgba(42, 161, 152, 0.4);
+    --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+}
+[data-theme="high-contrast"] {
+    --bg-base: #000000; --bg-surface: #0a0a0a; --bg-surface-glass: rgba(0, 0, 0, 0.85);
+    --bg-sidebar: #000000; --bg-topbar: rgba(0, 0, 0, 0.98); --bg-surface-hover: #1a1a1a;
+    --border-color: rgba(255, 255, 255, 0.4); --text-primary: #ffffff; --text-secondary: #d4d4d4;
+    --accent-color: #ffd400; --accent-hover: #ffe44d; --accent-glass: rgba(255, 212, 0, 0.18);
+    --accent-shadow-hover: 0 10px 24px rgba(255, 212, 0, 0.2); --accent-border-hover: rgba(255, 212, 0, 0.5);
+    --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+}
+
 /* Accent colors — composable with any palette via data-accent on <html>. "indigo" is the default
    and emits NO block (it falls through to the per-mode --accent-* above). These come AFTER the
    palette blocks so the attribute selector (equal specificity) wins for the 5 accent vars. Single

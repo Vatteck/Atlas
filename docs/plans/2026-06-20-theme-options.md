@@ -43,11 +43,14 @@ Python-readable theme mirror** so the flash color tracks the active theme.
 - Keep the topbar `#theme-toggle` as a quick light/dark flip (it just sets `data-theme`).
 
 ## Staging
-- **Stage 1 (this pass):** accent picker + the persistence/flash mirror + Appearance section with
-  Light/Dark. Pure CSS + main.js + one small API method + app.py read. Unit-testable bits: the
-  accent/theme apply helpers (JS contract), the config read/write (py).
-- **Stage 2:** add preset palettes (`[data-theme=...]` blocks) + populate the Theme select. Each
-  preset needs a **GUI eyeball** (contrast/readability across the app).
+- **Stage 1 — DONE:** accent picker + the persistence/flash mirror + Appearance section with
+  Light/Dark. `set_window_bg` API + `core['ui']['window_bg']` read in app.py. Tests: SetWindowBgTest
+  + JS testThemeAndAccentSelection.
+- **Stage 2 — DONE (code):** preset palettes — `[data-theme="nord"|"solarized-dark"|"high-contrast"]`
+  blocks (each sets base vars + a default accent; user accent still overrides) + added to
+  THEME_PALETTES/THEME_LABELS so they appear in the Theme select. The flash mirror auto-handles each
+  preset's window bg. **Each preset still needs a GUI eyeball** for contrast/readability across the
+  whole app (cards, modals, banners, code blocks, badges).
 
 ## Risks / notes
 - WebKitGTK CSS: stick to explicit values; avoid `color-mix()`/relative-color (uncertain support).

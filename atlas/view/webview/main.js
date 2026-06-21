@@ -17,7 +17,7 @@ if (typeof localStorage === 'undefined' || !localStorage) {
 const themeToggleBtn = document.getElementById('theme-toggle');
 const rootElement = document.documentElement;
 
-const THEME_PALETTES = ['light', 'dark'];   // presets appended in stage 2
+const THEME_PALETTES = ['light', 'dark', 'nord', 'solarized-dark', 'high-contrast'];
 const ACCENT_COLORS = ['indigo', 'blue', 'teal', 'green', 'rose', 'amber'];
 
 // Initialize from localStorage (defaults: dark palette, indigo accent) — applied synchronously
@@ -61,7 +61,10 @@ const ACCENT_SWATCHES = {
     indigo: '#6366f1', blue: '#3b82f6', teal: '#14b8a6',
     green: '#22c55e', rose: '#f43f5e', amber: '#f59e0b'
 };
-const THEME_LABELS = { light: 'Light', dark: 'Dark' };
+const THEME_LABELS = {
+    light: 'Light', dark: 'Dark', nord: 'Nord',
+    'solarized-dark': 'Solarized Dark', 'high-contrast': 'High Contrast'
+};
 
 // Settings → Appearance rows (pure markup; handlers wired in the settings render).
 function buildThemeRow() {
