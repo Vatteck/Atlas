@@ -76,8 +76,13 @@ jobs:
       - name: Build wheel and verify install layout (mirrors the PKGBUILD package())
         run: |
           . /tmp/venv/bin/activate
+          # makepkg build()s from a clean tree before check(); CI ran pytest first, so strip the
+          # __pycache__ it left or setuptools bakes .pyc into the wheel.
+          find atlas -name __pycache__ -type d -prune -exec rm -rf {} +
           python -m build --wheel --no-isolation
-          python -m installer --destdir="$PWD/pkgroot" dist/*.whl
+          # --prefix=/usr to match the PKGBUILD (which runs system python, prefix /usr); the venv
+          # would otherwise install scripts under the venv prefix and the check below would miss them.
+          python -m installer --destdir="$PWD/pkgroot" --prefix=/usr dist/*.whl
           for f in usr/bin/atlas usr/bin/atlas-cli; do
             test -f "pkgroot/$f" || { echo "missing $f in built package"; exit 1; }
           done
