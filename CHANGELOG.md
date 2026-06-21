@@ -8,6 +8,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 > Entries from `0.11.0` on are Atlas; `0.10.7` and earlier are inherited bauh history (the
 > fork point — `__version__` was never bumped between then and the first Atlas release).
 
+## [0.14.0] 2026-06-21
+Faster, prettier, and more personal. Atlas starts noticeably quicker, lets you theme it, and finally
+remembers your preferences between launches.
+
+### Added
+- **Theme options.** Settings → Appearance now offers a **Theme** picker — Light, Dark, and three
+  presets (**Nord**, **Solarized Dark**, **High Contrast**) — plus an **accent color** picker
+  (indigo / blue / teal / green / rose / amber). Both apply instantly.
+- **Boot splash.** A brief branded splash while the backend finishes loading, so the window appears
+  fast instead of blank.
+
+### Changed
+- **~30% faster time-to-window.** The window now opens before the backend finishes initializing
+  (the managers build on a background thread), so Atlas feels responsive immediately. Set
+  `ATLAS_LEGACY_STARTUP=1` to fall back to the old synchronous startup.
+- **Lighter startup.** The HTTP/parse libraries load lazily (only when first needed), keeping them
+  off the launch path.
+
+### Fixed
+- **Preferences now persist.** Theme, display density, grid/list, sort, the Browse resume chip, and
+  mirror options were silently resetting on every launch (WebKit ran in private mode); they now
+  survive a restart.
+- **Readable text on bright accent colors.** Buttons/badges using a bright accent (green/amber/teal)
+  now use a dark foreground for contrast.
+- **KDE app icon.** Ship a scalable SVG icon so the titlebar/taskbar no longer falls back to a
+  theme's generic "atlas" map icon at small sizes.
+
+### Internal
+- Test hardening before wider release: front-end↔backend bridge contract, window-first startup
+  guards, a lazy-import regression guard, and packaging/desktop-file checks; CI now runs the JS
+  contract tests and the desktop-file validation. Suite **720**.
+
 ## [0.13.0] 2026-06-19
 Update-All gets safer and calmer: pick which sources a bulk upgrade touches (so you can skip AUR
 during the current malicious-upload wave), and the dialog no longer stalls on large update sets.

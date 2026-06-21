@@ -9,7 +9,7 @@ Flatpak, and AppImage** — all from one modern interface.
 Atlas is a community fork of [bauh](https://github.com/vinifmor/bauh), rebuilt around a
 **[pywebview](https://pywebview.flowrocket.com/) web UI** and a lazy-loaded engine.
 
-> Status: actively developed (v0.13.0). Built and tested on Arch / CachyOS.
+> Status: actively developed (v0.14.0). Built and tested on Arch / CachyOS.
 
 ![Atlas dashboard](docs/screenshots/dashboard.png)
 
@@ -35,6 +35,17 @@ Atlas is a community fork of [bauh](https://github.com/vinifmor/bauh), rebuilt a
   snapshot before changes; per-package update pinning.
 
 ---
+
+## What's new in 0.14.0
+
+- **Themes.** Pick a theme (Light / Dark / Nord / Solarized Dark / High Contrast) and an accent
+  color in Settings → Appearance — applied instantly.
+- **~30% faster to first window**, with a brief branded splash while the backend loads.
+- **Your preferences persist now** — theme, density, view/sort, and more survive a restart
+  (they were silently resetting before).
+- **Crisper KDE app icon** (scalable SVG) — no more generic "map" fallback at small sizes.
+
+_Full history in [CHANGELOG.md](CHANGELOG.md)._
 
 ## What's new in 0.13.0
 
