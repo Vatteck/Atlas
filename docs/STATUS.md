@@ -5,7 +5,21 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-19 (**Pre-publish hardening** — verified the `atlas-pm` release PKGBUILD
+**Last updated:** 2026-06-21 (**Launch speed + theming + KDE icon**, all on `origin/master`, suite **710** +
+JS green. (1) **Launch-time baseline** measured, then **window-first startup + boot splash** —
+time-to-window **1152 → 805 ms (~30%)**; backend builds on a daemon thread, `AtlasApi.manager` is a
+blocking property, `ATLAS_LEGACY_STARTUP=1` fallback. (2) **localStorage now persists** — pywebview ran
+`private_mode=True` so every UI pref silently reset each launch; fixed with `private_mode=False` +
+`storage_path`. (3) **Theme options** — Settings → Appearance: Light/Dark + **Nord/Solarized-Dark/
+High-Contrast** presets and an **accent-color picker** (data-theme + data-accent CSS axes); the active
+theme's base color is mirrored to config so the native window paints the right color (no splash flash).
+Plus an `--accent-text` foreground so text stays readable on bright accents. (4) **Scalable SVG app icon**
+(`hicolor/scalable/apps/atlas-pm.svg`) in both PKGBUILDs — closes the only-512px gap that let a theme's
+generic `atlas` map icon win at small titlebar sizes on KDE. *(A reported KDE map icon turned out to be a
+stale Plasma cache on a long-unused KDE session — Atlas's desktop file/StartupWMClass/icons verified
+correct; fixed by relogin, not code.)* Plans: [plans/2026-06-20-launch-optimization.md],
+[plans/2026-06-20-theme-options.md]. **Themes/accents/presets + the splash still want a broad GUI eyeball
+across DEs.** Prior (2026-06-19): **Pre-publish hardening** — verified the `atlas-pm` release PKGBUILD
 **actually builds** via `makepkg` (correct `usr/bin` + desktop/icon layout). Then four cleanups: (1)
 removed the last **Qt-era dead code** — `atlas/stylesheet.py` (a `.qss` processor nothing imported) + its
 test + the orphan `USER_THEMES_DIR` const; the Qt gutting is otherwise clean (zero Qt imports/deps). (2)
@@ -113,11 +127,11 @@ PKGBUILD surfaced on the Overview caution banner, comments moved into Details; A
 fixed (was computed from an unpopulated pkg object) + made legible with a clickable breakdown and
 votes/popularity badges (from GUI eyeballs); competitive-research Theme 4 (AUR request throttle) shipped,
 Theme 3 (auth-readiness) dropped as N/A to Atlas's root model — see Done log)
-**Version:** 0.12.0 (the polish-and-trust release; 0.11.0 was the first cohesive Atlas release)
-**Working branch:** `master` in this checkout (all recent work — audit track, "why installed",
-`utcnow()` cleanup, CI 3.14, the GUI-eyeball fixes, debug log, the `checkupdates` repo-update fix, and
-the makepkg-optimizer fix — landed + pushed to `origin/master`; suite **705**; CI green across Python
-3.10–3.14); app work normally lands on `master` (run `git branch` before acting — branch names in docs
+**Version:** 0.13.0 (tagged + published; `atlas-pm-git` rebuilt through `r341`; the stable `atlas-pm`
+AUR package is still **not yet registered**)
+**Working branch:** `master` in this checkout (all recent work — launch optimization, theme options +
+persistence, the scalable-SVG KDE icon fix — landed + pushed to `origin/master`; suite **710** + JS;
+CI green across Python 3.10–3.14); app work normally lands on `master` (run `git branch` before acting — branch names in docs
 go stale)
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)** — the longer-horizon menu we pull
@@ -219,6 +233,19 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Scalable SVG app icon — KDE titlebar fix (2026-06-21).** Both PKGBUILDs (`-git` + `release`)
+  now install `logo.svg` to `usr/share/icons/hicolor/scalable/apps/atlas-pm.svg` alongside the 512
+  PNG + pixmaps. We shipped *only* a 512×512 PNG, so small titlebar/taskbar sizes could miss and a
+  theme's generic `atlas` **map** icon (e.g. char-white on KDE) could win. A scalable icon is
+  KDE-preferred and renders at any size from one file — zero added build deps. *Diagnosed a live KDE
+  report: the desktop file (`Icon=atlas-pm`, `StartupWMClass=atlas-pm`), both system + a menu-editor
+  user override, and the `atlas-pm` icon all verified correct — the map was a **stale Plasma cache**
+  on a months-unused KDE session, fixed by relogin, not code.* Packaging-only; suite unaffected (710).
+- **Theme: readable text on bright accents (2026-06-21).** Bright accents (green/amber/teal + the
+  preset accents) used white text on an accent-colored background → low contrast on buttons, the
+  Updates badge, dep counts. Added an `--accent-text` foreground var (white default; dark for bright
+  accents/presets) used by `.btn-primary`, `.badge`, `.empty-state-action`, `.health-action`,
+  `.activity-chip.active`, `.dep-count`. GUI-confirmed by the user.
 - **Theme options — accent picker + preset palettes + persistence (2026-06-20).** Settings →
   **Appearance**: a Theme select (Light/Dark + **Nord / Solarized Dark / High Contrast** presets) and
   an accent-color swatch row (indigo[default]/blue/teal/green/rose/amber). Accent is a `data-accent`
