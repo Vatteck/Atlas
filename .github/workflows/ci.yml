@@ -32,6 +32,19 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
 
+  # The front-end has ~57 node:test contract tests that guard main.js (the pywebview UI logic).
+  # They're pure JS, so run them once here rather than per Python version.
+  js:
+    name: JS contract tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run JS contract tests
+        run: node --test tests/view/webview/main_js_contracts.test.js
+
   # Real-Arch job: the matrix above runs on Ubuntu and only exercises the pure-Python logic.
   # This runs the suite on actual Arch (real pacman) AND builds the wheel + checks the install
   # layout the PKGBUILDs produce — catching distro/packaging breakage the Ubuntu job can't.
@@ -41,7 +54,9 @@ jobs:
     container: archlinux:latest
     steps:
       - name: Install toolchain
-        run: pacman -Syu --noconfirm --needed git python python-pip
+        # desktop-file-utils provides desktop-file-validate, which the packaging test in the suite
+        # picks up automatically (it self-skips when the tool is absent) to validate atlas-pm.desktop.
+        run: pacman -Syu --noconfirm --needed git python python-pip desktop-file-utils
 
       - uses: actions/checkout@v6
 

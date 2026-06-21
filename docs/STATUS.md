@@ -5,8 +5,9 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-21 (**Launch speed + theming + KDE icon**, all on `origin/master`, suite **710** +
-JS green. (1) **Launch-time baseline** measured, then **window-first startup + boot splash** —
+**Last updated:** 2026-06-21 (**Launch speed + theming + KDE icon + test hardening**, all on
+`origin/master`, suite **720** + JS green; CI now runs the JS contract tests + packaging guards.
+(1) **Launch-time baseline** measured, then **window-first startup + boot splash** —
 time-to-window **1152 → 805 ms (~30%)**; backend builds on a daemon thread, `AtlasApi.manager` is a
 blocking property, `ATLAS_LEGACY_STARTUP=1` fallback. (2) **localStorage now persists** — pywebview ran
 `private_mode=True` so every UI pref silently reset each launch; fixed with `private_mode=False` +
@@ -130,7 +131,7 @@ Theme 3 (auth-readiness) dropped as N/A to Atlas's root model — see Done log)
 **Version:** 0.13.0 (tagged + published; `atlas-pm-git` rebuilt through `r341`; the stable `atlas-pm`
 AUR package is still **not yet registered**)
 **Working branch:** `master` in this checkout (all recent work — launch optimization, theme options +
-persistence, the scalable-SVG KDE icon fix — landed + pushed to `origin/master`; suite **710** + JS;
+persistence, the scalable-SVG KDE icon fix — landed + pushed to `origin/master`; suite **720** + JS (CI now runs JS + packaging guards);
 CI green across Python 3.10–3.14); app work normally lands on `master` (run `git branch` before acting — branch names in docs
 go stale)
 
@@ -233,6 +234,19 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **Pre-publish test hardening — Tier 1 + 2 (2026-06-21).** Added cheap, deterministic guards for the
+  real new-user risks, plus closed two CI gaps. **(1)** JS contract tests (~57) now **run in CI** (new
+  `js` job) — they previously only ran when invoked by hand. **(2)** `test_bridge_contract.py`: every
+  `pyApiCall('x')`/`window.pywebview.api.x(` name in main.js must resolve to a real `AtlasApi` method
+  (guards against silently **dead buttons**; 69/69 resolve today). **(3)** `test_startup.py`:
+  window-first contract — `AtlasApi(manager=None)` constructs, the `manager` property blocks then
+  releases on `set_manager()`, `is_backend_ready()` transitions (guards the "app won't start" class,
+  no GUI). **(4)** `test_lazy_imports.py`: a subprocess imports the whole launch path and asserts
+  requests/urllib3/bs4/lxml stay out of `sys.modules` (locks in the launch-speed win). **(5)**
+  `test_packaging.py`: install sources exist, both PKGBUILDs install the SVG+PNG+desktop, desktop
+  identity is `atlas-pm`, and `desktop-file-validate` runs where available (Arch CI now installs
+  `desktop-file-utils`). Deliberately **skipped**: headless WebKitGTK-in-xvfb launch (flaky, cries
+  wolf) and full E2E/visual-regression (brittle). Suite **720** (+10). Plan rationale in this thread.
 - **Scalable SVG app icon — KDE titlebar fix (2026-06-21).** Both PKGBUILDs (`-git` + `release`)
   now install `logo.svg` to `usr/share/icons/hicolor/scalable/apps/atlas-pm.svg` alongside the 512
   PNG + pixmaps. We shipped *only* a 512×512 PNG, so small titlebar/taskbar sizes could miss and a
