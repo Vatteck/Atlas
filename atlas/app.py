@@ -154,13 +154,20 @@ def main():
     except Exception:
         pass  # non-GTK backend / gi unavailable — harmless
 
+    # Native window background, painted before WebKit renders any HTML/CSS — without this pywebview
+    # defaults to white, so the window flashes white for a beat before the boot splash appears. Use
+    # the dark-theme base (#05070c, --bg-base[data-theme=dark]); the UI theme lives in localStorage
+    # (default 'dark') which Python can't read at create time, so we match the default. A light-theme
+    # user gets a brief dark tint instead of white before the splash repaints — far less jarring than
+    # the white flash. See docs/plans/2026-06-20-launch-optimization.md.
     window = webview.create_window(
         'Atlas',
         html_path,
         js_api=api,
         width=1000,
         height=700,
-        min_size=(400, 400)
+        min_size=(400, 400),
+        background_color='#05070c'
     )
     api.set_window(window)
 
