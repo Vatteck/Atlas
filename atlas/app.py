@@ -192,6 +192,18 @@ def main():
     if not os.environ.get('PYWEBVIEW_GUI'):
         start_kwargs['gui'] = 'gtk'
 
+    # Persist WebKit localStorage so UI preferences (theme, density, view/sort mode, Browse resume,
+    # mirror options) survive a relaunch. pywebview defaults to private_mode=True, which discards
+    # localStorage on exit — so every one of those silently reset each launch. Fails open: if the
+    # storage dir can't be created we leave private mode on rather than break the launch.
+    try:
+        from atlas.api.paths import WEBVIEW_STORAGE_DIR
+        os.makedirs(WEBVIEW_STORAGE_DIR, exist_ok=True)
+        start_kwargs['private_mode'] = False
+        start_kwargs['storage_path'] = WEBVIEW_STORAGE_DIR
+    except Exception as e:
+        logger.warning(f"Could not enable persistent WebKit storage ({e}); UI prefs won't persist this run")
+
     # System-tray indicator (non-Qt, AppIndicator/SNI). Additive and optional: a missing typelib
     # or a disabled config flag makes this a no-op. The indicator is built on the GTK main loop
     # (GLib.idle_add), so it's safe to wire from any thread — it materializes once the loop runs.

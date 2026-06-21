@@ -22,3 +22,8 @@ APP_LOG_FILE = f'{APP_LOG_DIR}/atlas.log'
 AUTOSTART_DIR = f'/etc/xdg/autostart' if user.is_root() else f'{Path.home()}/.config/autostart'
 BINARIES_DIR = f'/usr/local/bin' if user.is_root() else f'{Path.home()}/.local/bin'
 SHARED_FILES_DIR = f'/usr/local/share/{__path_name__}' if user.is_root() else f'{Path.home()}/.local/share/{__path_name__}'
+# Persistent WebKit storage (localStorage) for the pywebview front-end. Without a storage_path
+# pywebview runs WebKit in private mode and discards localStorage on exit, so every UI preference
+# (theme, density, view/sort mode, Browse resume, mirror options) silently resets each launch.
+# A data dir (not cache) — these are user preferences, not regenerable.
+WEBVIEW_STORAGE_DIR = f'{Path.home()}/.local/share/{__path_name__}/webview'
