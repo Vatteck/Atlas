@@ -50,6 +50,7 @@ package() {
     # — NOT the bare 'atlas', which collides with a generic map icon several themes ship. Keep
     # this in lockstep with linux_dist/arch/PKGBUILD (the -git variant).
     install -Dm644 atlas/desktop/atlas-pm.desktop "$pkgdir/usr/share/applications/atlas-pm.desktop"
+    install -Dm644 atlas/view/resources/img/logo.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/atlas-pm.svg"
     install -Dm644 atlas/view/resources/img/logo.png "$pkgdir/usr/share/icons/hicolor/512x512/apps/atlas-pm.png"
     install -Dm644 atlas/view/resources/img/logo.png "$pkgdir/usr/share/pixmaps/atlas-pm.png"
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
