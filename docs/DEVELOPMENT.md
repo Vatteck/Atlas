@@ -97,6 +97,11 @@ The AUR package **`atlas-pm-git`** lives in its own git repo
 it can't reference this repo's `linux_dist/arch/` subfolder. So `linux_dist/arch/PKGBUILD` is
 the **source of truth**, and the AUR copy is synced from it.
 
+**Both AUR packages are now published automatically by CI** on push to `master`
+(`.github/workflows/aur-publish.yml` for `atlas-pm-git`, `aur-publish-stable.yml` for the stable
+`atlas-pm`) — you normally don't run the publish scripts by hand. The manual path below remains for
+local pushes / first-time registration / debugging.
+
 Edit `linux_dist/arch/PKGBUILD`, then publish in one step:
 
 ```bash
@@ -113,10 +118,10 @@ back here, and commits + pushes only if something changed. Needs your AUR SSH ke
 
 ### 7.1 Stable releases — `atlas-pm`
 
-`atlas-pm-git` is the primary channel and needs no per-commit work. Cut a **stable, versioned**
-`atlas-pm` package only when you have a commit you'd hand a stranger as "a release" (real users
+The stable **`atlas-pm`** package is now **registered + live on the AUR** (first published at 0.14.0).
+Cut a new stable release when you have a commit you'd hand a stranger as "a release" (real users
 wanting stability, not HEAD). Its recipe lives at `linux_dist/arch/release/PKGBUILD` (built from
-a tagged tarball with a **pinned** sha256, not `master`).
+a tagged tarball with a **pinned** sha256, not `master`); CI then auto-publishes it.
 
 ```bash
 ./linux_dist/arch/release.sh            # version from atlas/__init__.py (or pass 0.13.0)

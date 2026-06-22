@@ -13,15 +13,19 @@ here. Read it top to bottom before writing code — it keeps you on the project'
 ## 1. Bootstrap — read these in order
 
 1. **This file** (guardrails + workflow). ← you are here
-2. **[`docs/STATUS.md`](docs/STATUS.md)** — the live baton: what just shipped, what's
+2. **[`docs/.last-agent`](docs/.last-agent)** — integrity checkpoint. The previous agent
+   recorded what it did here. Verify that its `last_commit` exists in `git log` and its
+   `summary` roughly matches what you see in the tree. **If they don't match, the docs
+   may be stale — flag it before touching code.**
+3. **[`docs/STATUS.md`](docs/STATUS.md)** — the live baton: what just shipped, what's
    next, known gaps. *Always read this to know where the project actually is right now.*
-3. **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** — the current system map.
-4. **[`docs/BACKLOG.md`](docs/BACKLOG.md)** — longer-horizon feature/QoL menu.
-5. **[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)** — build / run / test commands.
-6. **[`docs/ROADMAP.md`](docs/ROADMAP.md)** — historical Rust verdict; read when native-code
+4. **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** — the current system map.
+5. **[`docs/BACKLOG.md`](docs/BACKLOG.md)** — longer-horizon feature/QoL menu.
+6. **[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)** — build / run / test commands.
+7. **[`docs/ROADMAP.md`](docs/ROADMAP.md)** — historical Rust verdict; read when native-code
    temptation appears, not as the active plan.
 
-Do not start coding until you've read 1–5. If the user's request conflicts with the live
+Do not start coding until you've read 1–6. If the user's request conflicts with the live
 baton or backlog, say so and ask — don't silently go off-plan.
 
 ---
@@ -119,9 +123,12 @@ You are probably handing off to a different agent that won't remember this sessi
 1. Update **[`docs/STATUS.md`](docs/STATUS.md)**: move finished items to "Done", set the
    new "Current focus"/"Next", add any new gotcha to "Known gaps".
 2. If you started a feature, make sure its `docs/plans/` note reflects what you actually did.
-3. Make sure the tree imports and tests pass (`python -m pytest`), or note clearly in
+3. Write **[`docs/.last-agent`](docs/.last-agent)** with a one-line summary, the current
+   branch, and the HEAD commit hash. The next agent uses this to verify the docs aren't
+   stale before trusting them.
+4. Make sure the tree imports and tests pass (`python -m pytest`), or note clearly in
    STATUS.md what's broken and why.
-4. Commit with a clear message. Don't leave half-applied edits without a note.
+5. Commit with a clear message. Don't leave half-applied edits without a note.
 
 If you only answered a question / changed no code, you don't need to touch STATUS.md.
 

@@ -5,7 +5,12 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-21 (**Launch speed + theming + KDE icon + test hardening**, all on
+**Last updated:** 2026-06-21 (**First stable `atlas-pm` published to the AUR.** The release was cut
+(`v0.14.0` tagged + pushed, tarball sha256 pinned, `.SRCINFO` regenerated) and CI now **auto-publishes
+the stable `atlas-pm`** to the AUR, mirroring the `atlas-pm-git` workflow (commit `9a00817`). Vatteck
+**confirmed it shows on the AUR** — so `atlas-pm` is now **registered + live at 0.14.0**, no longer the
+long-standing "not yet registered" gap. Atlas now ships both AUR packages: stable **`atlas-pm`** and
+bleeding-edge **`atlas-pm-git`**. Prior same day: **Launch speed + theming + KDE icon + test hardening**, all on
 `origin/master`, suite **720** + JS green; CI now runs the JS contract tests + packaging guards.
 (1) **Launch-time baseline** measured, then **window-first startup + boot splash** —
 time-to-window **1152 → 805 ms (~30%)**; backend builds on a daemon thread, `AtlasApi.manager` is a
@@ -32,7 +37,7 @@ the Ubuntu matrix couldn't catch distro/packaging breakage. (4) Added **`atlas -
 is deterministic; documented in new **docs/RELEASE_SMOKE.md** + DEVELOPMENT.md §7.1. Also added
 `testpaths = tests` to setup.cfg so a leftover `makepkg` build tree under `linux_dist/arch/release/src/`
 can't break pytest collection. Suite **707** (−7 stylesheet tests, +4 self-check). README bumped to 0.13.0.
-**Still GUI-eyeball + the RELEASE_SMOKE pass before publishing `atlas-pm` to the AUR.** Prior same day:
+**(Now done: `atlas-pm` published to the AUR — see the top entry.)** Prior same day:
 **Cut 0.13.0** — bumped `__version__` to 0.13.0, finalized the CHANGELOG
 `[0.13.0]` section, tagged + pushed `v0.13.0`, and pinned the `atlas-pm` release PKGBUILD/.SRCINFO to the
 tarball (sha256 `09dce7f6`). Suite 710. Found + fixed a bug in the new `release.sh`: `tar tzf | head`
@@ -49,9 +54,8 @@ the test suite, tags `vX.Y.Z` + pushes the tag, pins the GitHub tarball's sha256
 `linux_dist/arch/release/PKGBUILD` (built from `Atlas-$pkgver/`, `conflicts=atlas-pm-git`, no `pkgver()`),
 regenerates `release/.SRCINFO`, and prints the commit + AUR-publish commands — touching the AUR only with
 `--publish`. The release PKGBUILD is a tracked template (`pkgver=0.0.0`/`SKIP` placeholders the script
-rewrites). Docs: DEVELOPMENT.md §7.1. **Decision: stay `atlas-pm-git`-only for now** — only cut `atlas-pm`
-once there are real users wanting stability over HEAD; first publish needs the `atlas-pm` AUR name
-registered (separate repo). Also fixed a pre-existing `.SRCINFO` drift (missing `pacman-contrib`
+rewrites). Docs: DEVELOPMENT.md §7.1. *(That "stay `atlas-pm-git`-only for now" decision has since been reversed —
+`atlas-pm` was registered + published at 0.14.0; see the top entry.)* Also fixed a pre-existing `.SRCINFO` drift (missing `pacman-contrib`
 optdepend) and folded post-upgrade metadata-fetch log noise (ERROR+traceback → WARNING). No app-code
 change this entry. Prior same day: **Update-All source selection** — the Update-All preview modal now has a
 "Sources to update" checkbox group (Arch / AUR / Flatpak / AppImage, trust-ordered, one toggle per source
@@ -128,8 +132,8 @@ PKGBUILD surfaced on the Overview caution banner, comments moved into Details; A
 fixed (was computed from an unpopulated pkg object) + made legible with a clickable breakdown and
 votes/popularity badges (from GUI eyeballs); competitive-research Theme 4 (AUR request throttle) shipped,
 Theme 3 (auth-readiness) dropped as N/A to Atlas's root model — see Done log)
-**Version:** 0.13.0 (tagged + published; `atlas-pm-git` rebuilt through `r341`; the stable `atlas-pm`
-AUR package is still **not yet registered**)
+**Version:** 0.14.0 (tagged + published; `atlas-pm-git` auto-published; the stable **`atlas-pm`** AUR
+package is now **registered + live at 0.14.0**, auto-published by CI)
 **Working branch:** `master` in this checkout (all recent work — launch optimization, theme options +
 persistence, the scalable-SVG KDE icon fix — landed + pushed to `origin/master`; suite **720** + JS (CI now runs JS + packaging guards);
 CI green across Python 3.10–3.14); app work normally lands on `master` (run `git branch` before acting — branch names in docs
@@ -185,7 +189,8 @@ moves, in order:
    baseline, then shipped **window-first startup + boot splash**: time-to-window **1152 → 805 ms
    (~30%)**. The remaining big layer is the **WebKit parse of the 464 KB JS/CSS bundle (~1 s)** —
    left alone (avenue C) because trimming it adds a build step (solo-dev maintenance cost).
-   **Splash visuals still need a GUI eyeball before the stable publish.**
+   **Splash visuals still want a GUI eyeball** (the stable publish already happened — this is now
+   post-release polish, not a blocker).
 
 ### GUI verification queue — ✅ CLEARED 2026-06-18
 
@@ -213,10 +218,11 @@ auto-`.pacnew`-merge, Rust/Qt, fake AUR categories).
 
 > **Handoff note (next agent):** this checkout is on branch `master` (all work pushed to
 > `origin/master`); still run `git branch` before committing/pushing rather than trusting this line.
-> Release **0.12.0** is tagged and published; `linux_dist/arch/publish-aur.sh`
-> was run during the release to sync `atlas-pm-git`. The published `atlas-pm-git` PKGBUILD is
-> byte-identical to ours (it's a `-git` pkg, so only PKGBUILD/.SRCINFO *content* changes need a
-> re-publish — `pkgver` is computed at build time). Re-run the script whenever the PKGBUILD changes.
+> Release **0.14.0** is tagged and published; **both** AUR packages are live — stable **`atlas-pm`**
+> and bleeding-edge **`atlas-pm-git`** — and CI **auto-publishes both** on release (commit `9a00817`).
+> The `atlas-pm-git` PKGBUILD is byte-identical to ours (it's a `-git` pkg, so only PKGBUILD/.SRCINFO
+> *content* changes need a re-publish — `pkgver` is computed at build time). The automation handles
+> publishing; `linux_dist/arch/publish-aur.sh` (and `release.sh`) remain for manual runs if needed.
 > Known external (not Atlas): the AUR `antigravity` 2.0.11 update fails to build — upstream source
 > URL 404s (Google pulled the tarball). The maintainer-change advisory can't flag `antigravity`
 > (installed before maintainer-caching → no baseline); it works for packages installed since.
@@ -234,6 +240,15 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **First stable `atlas-pm` published to the AUR (2026-06-21).** The long-standing release gap is
+  closed. `v0.14.0` was tagged + pushed, the GitHub tarball sha256 pinned into the release PKGBUILD, and
+  `release/.SRCINFO` regenerated (commits `d777b5d`, `001789e`). CI now **auto-publishes the stable
+  `atlas-pm`** to the AUR on release, mirroring the existing `atlas-pm-git` workflow (commit `9a00817`)
+  — so future stable bumps publish without the manual SSH step that previously blocked the *first*
+  registration. **Vatteck confirmed `atlas-pm` shows on the AUR**, registered + live at **0.14.0**.
+  Atlas now offers both AUR packages: stable **`atlas-pm`** and bleeding-edge **`atlas-pm-git`**. This
+  reverses the earlier "stay `atlas-pm-git`-only for now" decision (it required the AUR name registered,
+  which needed Vatteck's SSH key — now done). No app-code change.
 - **Pre-publish test hardening — Tier 1 + 2 (2026-06-21).** Added cheap, deterministic guards for the
   real new-user risks, plus closed two CI gaps. **(1)** JS contract tests (~57) now **run in CI** (new
   `js` job) — they previously only ran when invoked by hand. **(2)** `test_bridge_contract.py`: every
