@@ -1,5 +1,5 @@
 session: claude-code-2026-06-23
 timestamp: 2026-06-23T00:00:00Z
 branch: master
-last_commit: 2a3a0d2090cea0dfc89ebbd2220f0ac6efd4e08a
-summary: Added in-app .pacnew Discard/Apply actions to the config-review center (no merge editor; mirrorlist Apply blocked).
+last_commit: d305021e61b71984d35f437e3fc30a83761e850c
+summary: Per-file .pacnew Discard/Apply now on both the .pacnew center and the Updates notice (shared resolvePacnew helper).
