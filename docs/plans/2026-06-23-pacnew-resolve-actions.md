@@ -46,6 +46,10 @@ In `renderPacnewCenter` rows add per-file buttons. Apply omitted for mirrorlist.
 confirms via `prompt_confirmation`, calls the API, toasts, and re-renders the center
 (which also refreshes the Updates notice badge on next visit).
 
+**Follow-up (same day):** the Updates-view config notice (`renderUpdatesNotice`) carries
+the same per-file Discard/Apply buttons. `resolvePacnew` gained an `onDone` callback so the
+center re-renders itself and the notice re-renders itself after a successful action.
+
 ## Out of scope / risk notes
 
 - No merge editor.

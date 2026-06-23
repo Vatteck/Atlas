@@ -252,7 +252,9 @@ re-add a native extension without a measured win. Details in the historical
   `pacdiff` (large privileged surface); terminal `pacdiff` stays the path for line-by-line merges.
   Backend `discard_pacnew`/`apply_pacnew` in `api.py`; UI in `renderPacnewCenter` (main.js). Suite
   **720** green. Plan: [plans/2026-06-23-pacnew-resolve-actions.md]. **GUI-verified by Vatteck
-  (2026-06-23).**
+  (2026-06-23).** Follow-up same day: the **Updates-view config notice** now carries the same per-file
+  Discard/Apply buttons (`renderUpdatesNotice`), sharing the `resolvePacnew(path, mode, onDone)` helper
+  (the notice re-renders itself on success). Apply still omitted for mirrorlist in both places.
 
 - **First stable `atlas-pm` published to the AUR (2026-06-21).** The long-standing release gap is
   closed. `v0.14.0` was tagged + pushed, the GitHub tarball sha256 pinned into the release PKGBUILD, and

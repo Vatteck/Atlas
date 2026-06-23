@@ -2224,6 +2224,18 @@ body {
     font-size: 13px;
 }
 
+/* Rows that carry per-file actions: drop the bullet, lay the path + buttons on one line. */
+.config-notice-list:has(.config-notice-file) { list-style: none; padding-left: 0; }
+.config-notice-file {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 6px 0;
+}
+.config-notice-file > code { flex: 1 1 auto; min-width: 0; word-break: break-all; }
+.config-notice-file-actions { display: flex; flex-wrap: wrap; gap: 8px; flex: 0 0 auto; }
+
 .config-notice code {
     background: rgba(127, 127, 127, 0.15);
     border-radius: 4px;

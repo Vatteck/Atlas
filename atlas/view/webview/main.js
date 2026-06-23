@@ -4413,10 +4413,11 @@ async function renderPacnewCenter() {
     packagesGrid.querySelectorAll('.pacnew-apply-btn').forEach(b => b.addEventListener('click', () => resolvePacnew(b.dataset.path, 'apply')));
 }
 
-// Per-file resolution from the .pacnew center: 'discard' (rm the .pacnew, keep your config) or
-// 'apply' (overwrite your config with the new default). Both confirm, then run as root and
-// re-render the center. mirrorlist has no Apply button (backend blocks it too).
-async function resolvePacnew(path, mode) {
+// Per-file resolution from the .pacnew center or the Updates notice: 'discard' (rm the .pacnew,
+// keep your config) or 'apply' (overwrite your config with the new default). Both confirm, then run
+// as root and refresh via `onDone` (the center re-renders itself; the notice re-renders itself).
+// mirrorlist has no Apply button (backend blocks it too).
+async function resolvePacnew(path, mode, onDone = renderPacnewCenter) {
     const critical = pacnewRisk(path).level !== 'info';
     const isApply = mode === 'apply';
     const title = isApply ? 'Apply this .pacnew?' : 'Discard this .pacnew?';
@@ -4430,7 +4431,7 @@ async function resolvePacnew(path, mode) {
     if (res && res.status === 'cancelled') return;
     if (res && res.status === 'ok') {
         showToast('Config files', isApply ? 'Applied the .pacnew and removed it' : 'Discarded the .pacnew', 'success');
-        renderPacnewCenter();
+        onDone();
     }
 }
 
@@ -5140,7 +5141,20 @@ async function renderUpdatesNotice() {
     if (!el) return;
     const res = await pyApiCall('get_pacnew_files');  // unwrapped {files, count} or null
     if (!res || !res.count) { el.innerHTML = ''; return; }
-    const list = res.files.map(f => `<li><code>${escapeHtml(f)}</code></li>`).join('');
+    // Each file gets the same in-app actions as the .pacnew center: Discard (keep your config) and
+    // Apply (overwrite). Apply is omitted for mirrorlist (its .pacnew wipes your servers).
+    const list = res.files.map(f => {
+        const isMl = f.replace(/\.pac(new|save)$/, '').split('/').pop() === 'mirrorlist';
+        const applyBtn = isMl ? ''
+            : `<button class="btn btn-outline btn-small notice-apply-btn" data-path="${escapeHtml(f)}">Apply (overwrite)</button>`;
+        return `<li class="config-notice-file">
+            <code>${escapeHtml(f)}</code>
+            <span class="config-notice-file-actions">
+                ${applyBtn}
+                <button class="btn btn-outline btn-small notice-discard-btn" data-path="${escapeHtml(f)}">Discard .pacnew</button>
+            </span>
+        </li>`;
+    }).join('');
     // mirrorlist is the classic pacdiff footgun: overwriting it with the stock .pacnew wipes your
     // mirror servers. Call it out specifically so people don't blindly merge it.
     const hasMirrorlist = (res.files || []).some(f => f === '/etc/pacman.d/mirrorlist' || f.endsWith('/mirrorlist.pacnew'));
@@ -5149,7 +5163,7 @@ async function renderUpdatesNotice() {
     el.innerHTML = `
         <div class="config-notice">
             <div class="config-notice-title">⚠ ${escapeHtml(res.count)} configuration file${res.count > 1 ? 's' : ''} need review</div>
-            <p class="config-notice-body">These <code>.pacnew</code>/<code>.pacsave</code> files were installed alongside updates and may need merging with your current config. Review them with <code>pacdiff</code> (from <code>pacman-contrib</code>), then remove the <code>.pacnew</code> file.</p>
+            <p class="config-notice-body">These <code>.pacnew</code>/<code>.pacsave</code> files were installed alongside updates and may need merging with your current config. <strong>Discard</strong> keeps your config, <strong>Apply</strong> takes the new default; for a line-by-line merge or a diff, use <em>Review config files</em> or <code>pacdiff</code>.</p>
             ${mirrorlistCaution}
             <ul class="config-notice-list">${list}</ul>
             <div class="config-notice-actions">
@@ -5167,6 +5181,8 @@ async function renderUpdatesNotice() {
     });
     const regenBtn = document.getElementById('regen-mirrors-btn');
     if (regenBtn) regenBtn.addEventListener('click', () => regenerateMirrors(regenBtn));
+    el.querySelectorAll('.notice-discard-btn').forEach(b => b.addEventListener('click', () => resolvePacnew(b.dataset.path, 'discard', renderUpdatesNotice)));
+    el.querySelectorAll('.notice-apply-btn').forEach(b => b.addEventListener('click', () => resolvePacnew(b.dataset.path, 'apply', renderUpdatesNotice)));
 }
 
 // Action Handlers
