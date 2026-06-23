@@ -1,7 +1,7 @@
 # In-app .pacnew resolution: Discard / Apply
 
 **Date:** 2026-06-23
-**Status:** implementing
+**Status:** shipped + GUI-verified (2026-06-23)
 
 ## Problem
 
