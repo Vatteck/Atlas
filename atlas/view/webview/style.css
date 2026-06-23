@@ -2983,7 +2983,7 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
 .pacnew-item.tone-warn   .pacnew-risk { color: var(--status-warning); background: rgba(245, 158, 11, 0.15); }
 .pacnew-item.tone-info   .pacnew-risk { color: var(--text-secondary); background: var(--bg-surface-hover); }
 .pacnew-note { font-size: 12.5px; color: var(--text-secondary); margin-top: 4px; }
-.pacnew-actions { display: flex; gap: 8px; margin-top: 10px; }
+.pacnew-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .btn-small { padding: 5px 12px; font-size: 12px; }
 .pacnew-diff {
     margin-top: 10px;

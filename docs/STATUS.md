@@ -240,6 +240,20 @@ re-add a native extension without a measured win. Details in the historical
 
 ## Done
 
+- **In-app `.pacnew` resolution — Discard / Apply (2026-06-23).** The config-review notice and the
+  `.pacnew` center previously only *warned*; resolving a file meant dropping into a terminal via
+  `pacdiff`. Added two safe, root-only, per-file actions in the `.pacnew` center: **Discard** (`rm`
+  the `.pacnew`, keep your config — fulfils the notice's "just discard" advice) and **Apply
+  (overwrite)** (`mv` the `.pacnew` over the live config). Both whitelist the path against
+  `get_pacnew_files()` and run via `ensure_root_password()` + `new_root_subprocess`. **Apply is
+  hidden for `mirrorlist`** and hard-blocked in the backend (applying its stock all-commented
+  `.pacnew` wipes your servers — regenerate instead). Each action confirms first (extra warning on
+  critical files), then re-renders. Deliberately **no in-app merge editor** — that rebuilds
+  `pacdiff` (large privileged surface); terminal `pacdiff` stays the path for line-by-line merges.
+  Backend `discard_pacnew`/`apply_pacnew` in `api.py`; UI in `renderPacnewCenter` (main.js). Suite
+  **720** green. Plan: [plans/2026-06-23-pacnew-resolve-actions.md]. **Wants a GUI eyeball** (needs a
+  real `.pacnew` present to exercise).
+
 - **First stable `atlas-pm` published to the AUR (2026-06-21).** The long-standing release gap is
   closed. `v0.14.0` was tagged + pushed, the GitHub tarball sha256 pinned into the release PKGBUILD, and
   `release/.SRCINFO` regenerated (commits `d777b5d`, `001789e`). CI now **auto-publishes the stable

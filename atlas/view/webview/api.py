@@ -1498,6 +1498,70 @@ class AtlasApi:
             self.logger.error(f"Could not launch pacdiff: {e}")
             return {'status': 'error', 'message': str(e)}
 
+    def _validated_pacnew(self, path: str):
+        """Resolve `path` to a (path, base) pair only if it's a real pending .pacnew/.pacsave
+        reported by get_pacnew_files(). Returns (path, base) or an error dict — guards both
+        discard_pacnew and apply_pacnew against arbitrary file ops."""
+        if not isinstance(path, str) or not path.endswith(('.pacnew', '.pacsave')):
+            return {'status': 'error', 'message': 'Not a .pacnew/.pacsave file'}
+        listed = set((self.get_pacnew_files().get('data') or {}).get('files') or ())
+        if path not in listed:
+            return {'status': 'error', 'message': 'Unknown .pacnew file — refresh and try again.'}
+        return (path, path.rsplit('.pac', 1)[0])  # strip .pacnew / .pacsave
+
+    def discard_pacnew(self, path: str) -> dict:
+        """Delete a pending .pacnew/.pacsave, keeping the current config unchanged. The safe
+        'just discard it' path the review notice recommends. Needs root (these live under /etc,
+        /boot). Whitelisted to files get_pacnew_files() actually reported."""
+        v = self._validated_pacnew(path)
+        if isinstance(v, dict):
+            return v
+        path, _ = v
+        pwd = self.ensure_root_password()
+        if pwd is None:
+            return {'status': 'cancelled'}
+        try:
+            self.logger.info(f"Discarding pacnew: {path}")
+            proc = new_root_subprocess(['rm', '-f', path], root_password=pwd)
+            _, err = proc.communicate()
+            if proc.returncode != 0:
+                msg = (err or b'').decode(errors='replace').strip() or 'could not delete the file'
+                self.logger.error(f"discard_pacnew: {msg}")
+                return {'status': 'error', 'message': msg[:300]}
+            return {'status': 'ok'}
+        except Exception as e:
+            self.logger.error(f"discard_pacnew failed: {e}")
+            return {'status': 'error', 'message': str(e)}
+
+    def apply_pacnew(self, path: str) -> dict:
+        """Replace the live config with its pending .pacnew/.pacsave (mv over the original) — for
+        files the user never customised. Refuses mirrorlist (the .pacnew is the stock all-commented
+        list; applying it wipes your mirror servers — regenerate instead). Needs root. Whitelisted
+        to files get_pacnew_files() actually reported."""
+        v = self._validated_pacnew(path)
+        if isinstance(v, dict):
+            return v
+        path, base = v
+        if os.path.basename(base) == 'mirrorlist':
+            return {'status': 'error',
+                    'message': 'Refusing to apply the mirrorlist .pacnew — it would wipe your '
+                               'mirror servers. Regenerate the mirror list instead.'}
+        pwd = self.ensure_root_password()
+        if pwd is None:
+            return {'status': 'cancelled'}
+        try:
+            self.logger.info(f"Applying pacnew {path} -> {base}")
+            proc = new_root_subprocess(['mv', '-f', path, base], root_password=pwd)
+            _, err = proc.communicate()
+            if proc.returncode != 0:
+                msg = (err or b'').decode(errors='replace').strip() or 'could not apply the file'
+                self.logger.error(f"apply_pacnew: {msg}")
+                return {'status': 'error', 'message': msg[:300]}
+            return {'status': 'ok'}
+        except Exception as e:
+            self.logger.error(f"apply_pacnew failed: {e}")
+            return {'status': 'error', 'message': str(e)}
+
     # Curated ISO-3166 country codes reflector accepts via --country. A static list (no slow
     # `reflector --list-countries` network call) — the common Arch mirror countries.
     _MIRROR_COUNTRIES = (

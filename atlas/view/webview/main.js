@@ -4368,6 +4368,11 @@ async function renderPacnewCenter() {
     const hasMirrorlist = files.some(f => f.replace(/\.pac(new|save)$/, '').split('/').pop() === 'mirrorlist');
     const rows = files.map((f) => {
         const r = pacnewRisk(f);
+        // Apply (overwrite) is hidden for mirrorlist — its .pacnew is the stock all-commented
+        // list, so applying it wipes your servers (regenerate instead). Backend also blocks it.
+        const isMirrorlist = f.replace(/\.pac(new|save)$/, '').split('/').pop() === 'mirrorlist';
+        const applyBtn = isMirrorlist ? ''
+            : `<button class="btn btn-outline btn-small pacnew-apply-btn" data-path="${escapeHtml(f)}">Apply (overwrite)</button>`;
         return `<div class="pacnew-item tone-${r.level}">
             <div class="pacnew-row">
                 <code class="pacnew-path">${escapeHtml(f)}</code>
@@ -4376,6 +4381,8 @@ async function renderPacnewCenter() {
             <div class="pacnew-note">${escapeHtml(r.note)}</div>
             <div class="pacnew-actions">
                 <button class="btn btn-outline btn-small pacnew-diff-btn" data-path="${escapeHtml(f)}">Show diff</button>
+                ${applyBtn}
+                <button class="btn btn-outline btn-small pacnew-discard-btn" data-path="${escapeHtml(f)}">Discard .pacnew</button>
                 <button class="btn btn-outline btn-small pacnew-copy-btn" data-path="${escapeHtml(f)}">Copy path</button>
             </div>
             <pre class="pacnew-diff hidden" data-diff-for="${escapeHtml(f)}"></pre>
@@ -4384,7 +4391,7 @@ async function renderPacnewCenter() {
 
     packagesGrid.innerHTML = `<div class="pacnew-page">
         <div class="browse-subheader">${back}<span class="browse-cat-title">Config files (.pacnew)</span></div>
-        <p class="settings-help">Review each file and merge with <code>pacdiff</code>, then remove the <code>.pacnew</code>. Atlas never auto-merges.</p>
+        <p class="settings-help">Review the diff, then <strong>Discard</strong> to keep your config or <strong>Apply</strong> to take the new default. For a line-by-line merge, open <code>pacdiff</code> in a terminal. Atlas never auto-merges.</p>
         <div class="pacnew-global">
             <button class="btn btn-outline" id="pacnew-pacdiff">Open pacdiff in a terminal</button>
             ${hasMirrorlist ? '<button class="btn btn-outline" id="pacnew-regen">Regenerate mirror list</button>' : ''}
@@ -4402,6 +4409,29 @@ async function renderPacnewCenter() {
     if (rg) rg.addEventListener('click', () => regenerateMirrors(rg));
     packagesGrid.querySelectorAll('.pacnew-copy-btn').forEach(b => b.addEventListener('click', () => copyText(b.dataset.path)));
     packagesGrid.querySelectorAll('.pacnew-diff-btn').forEach(b => b.addEventListener('click', () => togglePacnewDiff(b)));
+    packagesGrid.querySelectorAll('.pacnew-discard-btn').forEach(b => b.addEventListener('click', () => resolvePacnew(b.dataset.path, 'discard')));
+    packagesGrid.querySelectorAll('.pacnew-apply-btn').forEach(b => b.addEventListener('click', () => resolvePacnew(b.dataset.path, 'apply')));
+}
+
+// Per-file resolution from the .pacnew center: 'discard' (rm the .pacnew, keep your config) or
+// 'apply' (overwrite your config with the new default). Both confirm, then run as root and
+// re-render the center. mirrorlist has no Apply button (backend blocks it too).
+async function resolvePacnew(path, mode) {
+    const critical = pacnewRisk(path).level !== 'info';
+    const isApply = mode === 'apply';
+    const title = isApply ? 'Apply this .pacnew?' : 'Discard this .pacnew?';
+    let message = isApply
+        ? `Overwrite ${path.replace(/\.pac(new|save)$/, '')} with the new default and delete the .pacnew? Any changes you made to this file will be lost.`
+        : `Delete ${path} and keep your current config unchanged?`;
+    if (isApply && critical) message += ' This is a system-critical file — review the diff first if you’re unsure.';
+    const ok = await pyApiCall('prompt_confirmation', title, message, isApply ? 'Apply' : 'Discard', 'Cancel');
+    if (!(ok && ok[0])) return;
+    const res = await pyApiCall(isApply ? 'apply_pacnew' : 'discard_pacnew', path);  // null on error (toasted)
+    if (res && res.status === 'cancelled') return;
+    if (res && res.status === 'ok') {
+        showToast('Config files', isApply ? 'Applied the .pacnew and removed it' : 'Discarded the .pacnew', 'success');
+        renderPacnewCenter();
+    }
 }
 
 async function togglePacnewDiff(btn) {
