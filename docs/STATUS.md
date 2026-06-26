@@ -5,7 +5,8 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-21 (**First stable `atlas-pm` published to the AUR.** The release was cut
+**Last updated:** 2026-06-26 (**Interactive Demo Update completed.** Updated the AtlasWeb app simulator to match all features shipped in the main app. Integrated Browse categories/buckets, News tab, Health checks + pacnew merging, Flatpak permission toggles, dynamic Theme/Accent presets, DetailModal tabs, Transaction previews, and PKGBUILD script inspection. Green build + Typecheck passing.)
+- Prior same day: **First stable `atlas-pm` published to the AUR.** The release was cut
 (`v0.14.0` tagged + pushed, tarball sha256 pinned, `.SRCINFO` regenerated) and CI now **auto-publishes
 the stable `atlas-pm`** to the AUR, mirroring the `atlas-pm-git` workflow (commit `9a00817`). Vatteck
 **confirmed it shows on the AUR** — so `atlas-pm` is now **registered + live at 0.14.0**, no longer the
@@ -239,6 +240,15 @@ re-add a native extension without a measured win. Details in the historical
 ---
 
 ## Done
+
+- **Interactive Demo Updates (2026-06-26).** Updated the AtlasWeb app simulator to match all features shipped in the main app since the demo was originally cut. Integrated:
+  - **Browse tab** — Category grid and AUR buckets + suggestions card interactions.
+  - **News tab** — Expanding Arch news feed with unread counters.
+  - **Health tab** — 10 subsystem checks and config `.pacnew` merging actions (Discard/Apply).
+  - **Permissions tab** — Flatpak sandbox toggle override editor with copyable terminal overrides.
+  - **Appearance config** — Theme presets (Nord, Solarized, High-Contrast, Dark, Light) and custom color accents that dynamically repaint the simulated workspace.
+  - **Modals overlays** — Detailed package modals with four tabs, preflight transaction checks, and full PKGBUILD script syntax inspection.
+  - Verification: Clean typechecking (`tsc --noEmit`) and production builds passing successfully.
 
 - **In-app `.pacnew` resolution — Discard / Apply (2026-06-23).** The config-review notice and the
   `.pacnew` center previously only *warned*; resolving a file meant dropping into a terminal via

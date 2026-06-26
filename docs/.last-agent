@@ -1,5 +1,5 @@
-session: claude-code-2026-06-23
-timestamp: 2026-06-23T00:00:00Z
+session: antigravity-2026-06-26
+timestamp: 2026-06-26T14:34:00Z
 branch: master
-last_commit: d305021e61b71984d35f437e3fc30a83761e850c
-summary: Per-file .pacnew Discard/Apply now on both the .pacnew center and the Updates notice (shared resolvePacnew helper).
+last_commit: f5ad878d33c15000c847f08021095662eec6a607
+summary: Updated the interactive demo (AppSimulator) in AtlasWeb with dynamic theme presets, Browse/News/Health/Permissions tabs, and preflight check/detail/PKGBUILD modals.
