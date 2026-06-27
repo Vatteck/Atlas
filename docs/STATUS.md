@@ -5,7 +5,8 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-26 (**Em dashes replaced.** Found and replaced all user-facing em dashes (—) with spaced hyphens ( - ) or hyphens across both Atlas and AtlasWeb repositories. All packaging builds and pytest suites are green.)
+**Last updated:** 2026-06-27 (**Thread-safe caching for pacman.py.** Implemented thread-safe module-level caching for pacman database wrapper functions `map_provided`, `list_installed_names`, and `list_explicit_names`. All pytest suites are green.)
+- Prior: **Em dashes replaced.** Found and replaced all user-facing em dashes (—) with spaced hyphens ( - ) or hyphens across both Atlas and AtlasWeb repositories. All packaging builds and pytest suites are green.
 - Prior same day: **Interactive Demo Update completed.** Updated the AtlasWeb app simulator to match all features shipped in the main app. Integrated Browse categories/buckets, News tab, Health checks + pacnew merging, Flatpak permission toggles, dynamic Theme/Accent presets, DetailModal tabs, Transaction previews, and PKGBUILD script inspection. Green build + Typecheck passing.
 - Prior same day: **First stable `atlas-pm` published to the AUR.** The release was cut
 (`v0.14.0` tagged + pushed, tarball sha256 pinned, `.SRCINFO` regenerated) and CI now **auto-publishes
@@ -241,6 +242,14 @@ re-add a native extension without a measured win. Details in the historical
 ---
 
 ## Done
+
+- **Thread-safe caching for pacman.py (2026-06-27).** Added thread-safe caching for pacman database wrapper functions to avoid expensive duplicate subprocess spawns and UI freezes.
+  - Added module-level caching variables: `_cache_provided_local`, `_cache_provided_remote`, `_cache_installed_names`, and `_cache_explicit_names`.
+  - Implemented `clear_caches()` to reset the caches under `_cache_lock`.
+  - Updated `map_provided()` to cache full database queries and bypass caching for target-specific package queries.
+  - Updated `list_installed_names()` and `list_explicit_names()` to cache and reuse the output thread-safely under `_cache_lock`.
+  - Added comprehensive test class `PacmanCacheTest` verifying caching, clearing, and bypassing behavior.
+  - Verification: 723/723 unit tests pass successfully.
 
 - **Interactive Demo Updates (2026-06-26).** Updated the AtlasWeb app simulator to match all features shipped in the main app since the demo was originally cut. Integrated:
   - **Browse tab** — Category grid and AUR buckets + suggestions card interactions.
