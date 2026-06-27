@@ -593,6 +593,7 @@ class SyncDatabases(Thread):
                 p.wait()
 
                 if p.returncode == 0:
+                    pacman.clear_caches()
                     database.register_sync(self.logger)
                     self.synchronized = True
                 else:

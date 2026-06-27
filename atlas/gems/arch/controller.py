@@ -312,6 +312,7 @@ class ArchManager(SoftwareManager, SettingsController):
                                  type_=MessageType.ERROR)
             return False
 
+        pacman.clear_caches()
         database.register_sync(self.logger)
         return True
 
@@ -1036,6 +1037,7 @@ class ArchManager(SoftwareManager, SettingsController):
             handler.watcher.change_substatus('')
 
             if success:
+                pacman.clear_caches()
                 output_handler.stop_working()
                 output_handler.join()
                 handler.watcher.print("Repository packages successfully upgraded")
@@ -1130,6 +1132,7 @@ class ArchManager(SoftwareManager, SettingsController):
                 output_handler.join()
                 return False
 
+            pacman.clear_caches()
             return True
         except Exception:
             self.logger.error("An error occurred while removing packages: {}".format(', '.join(to_remove)))
@@ -1262,6 +1265,9 @@ class ArchManager(SoftwareManager, SettingsController):
                                                    output_handler=status_handler.handle)
         status_handler.stop_working()
         status_handler.join()
+
+        if all_uninstalled:
+            pacman.clear_caches()
 
         installed = pacman.list_installed_names()
 
@@ -2965,6 +2971,7 @@ class ArchManager(SoftwareManager, SettingsController):
 
             synced, output = handler.handle_simple(pacman.sync_databases(root_password=root_password, force=True))
             if synced:
+                pacman.clear_caches()
                 database.register_sync(self.logger)
             else:
                 self.logger.warning("It was not possible to synchronized the package databases")
@@ -3004,6 +3011,7 @@ class ArchManager(SoftwareManager, SettingsController):
             pkg_installed = self._install_from_repository(install_context)
 
         if pkg_installed:
+            pacman.clear_caches()
             pkg.name = install_context.name  # changes the package name in case the PKGBUILD was edited
 
             if os.path.exists(pkg.get_disk_data_path()):
@@ -3605,6 +3613,7 @@ class ArchManager(SoftwareManager, SettingsController):
                                  type_=MessageType.ERROR)
             return False
         else:
+            pacman.clear_caches()
             database.register_sync(self.logger)
             msg = '<p>{}</p><br/>{}</p><p>{}</p>'.format(self.i18n['action.update.success.reboot.line1'],
                                                          self.i18n['action.update.success.reboot.line2'],

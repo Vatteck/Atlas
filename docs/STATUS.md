@@ -5,7 +5,7 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-27 (**Thread-safe caching for pacman.py.** Implemented thread-safe module-level caching for pacman database wrapper functions `map_provided`, `list_installed_names`, and `list_explicit_names`. All pytest suites are green.)
+**Last updated:** 2026-06-27 (**Cache clearing integration.** Integrated pacman.clear_caches() calls across all database synchronization, package installation, package uninstallation, package upgrade, and system upgrade transactions. Verified all pytest suites pass successfully.)
 - Prior: **Em dashes replaced.** Found and replaced all user-facing em dashes (—) with spaced hyphens ( - ) or hyphens across both Atlas and AtlasWeb repositories. All packaging builds and pytest suites are green.
 - Prior same day: **Interactive Demo Update completed.** Updated the AtlasWeb app simulator to match all features shipped in the main app. Integrated Browse categories/buckets, News tab, Health checks + pacnew merging, Flatpak permission toggles, dynamic Theme/Accent presets, DetailModal tabs, Transaction previews, and PKGBUILD script inspection. Green build + Typecheck passing.
 - Prior same day: **First stable `atlas-pm` published to the AUR.** The release was cut
@@ -242,6 +242,11 @@ re-add a native extension without a measured win. Details in the historical
 ---
 
 ## Done
+
+- **Cache clearing integration (2026-06-27).** Integrated calls to `pacman.clear_caches()` across all database synchronization, package installation, package uninstallation, package upgrade, and system upgrade transactions.
+  - Added cache-clearing hooks in `_sync_databases`, `sync_databases`, and `SyncDatabases` worker run upon successful database updates.
+  - Added cache-clearing hooks in `install`, `_uninstall_pkgs`, `_upgrade_repo_pkgs`, `_remove_transaction_packages`, and `upgrade_system` upon successful transaction completions.
+  - Verification: All 723 unit tests pass successfully.
 
 - **Thread-safe caching for pacman.py (2026-06-27).** Added thread-safe caching for pacman database wrapper functions to avoid expensive duplicate subprocess spawns and UI freezes.
   - Added module-level caching variables: `_cache_provided_local`, `_cache_provided_remote`, `_cache_installed_names`, and `_cache_explicit_names`.
