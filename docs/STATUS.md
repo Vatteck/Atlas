@@ -5,7 +5,8 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-26 (**Interactive Demo Update completed.** Updated the AtlasWeb app simulator to match all features shipped in the main app. Integrated Browse categories/buckets, News tab, Health checks + pacnew merging, Flatpak permission toggles, dynamic Theme/Accent presets, DetailModal tabs, Transaction previews, and PKGBUILD script inspection. Green build + Typecheck passing.)
+**Last updated:** 2026-06-26 (**Em dashes replaced.** Found and replaced all user-facing em dashes (—) with spaced hyphens ( - ) or hyphens across both Atlas and AtlasWeb repositories. All packaging builds and pytest suites are green.)
+- Prior same day: **Interactive Demo Update completed.** Updated the AtlasWeb app simulator to match all features shipped in the main app. Integrated Browse categories/buckets, News tab, Health checks + pacnew merging, Flatpak permission toggles, dynamic Theme/Accent presets, DetailModal tabs, Transaction previews, and PKGBUILD script inspection. Green build + Typecheck passing.
 - Prior same day: **First stable `atlas-pm` published to the AUR.** The release was cut
 (`v0.14.0` tagged + pushed, tarball sha256 pinned, `.SRCINFO` regenerated) and CI now **auto-publishes
 the stable `atlas-pm`** to the AUR, mirroring the `atlas-pm-git` workflow (commit `9a00817`). Vatteck

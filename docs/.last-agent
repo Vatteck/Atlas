@@ -1,5 +1,5 @@
 session: antigravity-2026-06-26
-timestamp: 2026-06-26T14:34:00Z
+timestamp: 2026-06-27T02:07:00Z
 branch: master
-last_commit: f5ad878d33c15000c847f08021095662eec6a607
-summary: Updated the interactive demo (AppSimulator) in AtlasWeb with dynamic theme presets, Browse/News/Health/Permissions tabs, and preflight check/detail/PKGBUILD modals.
+last_commit: 895c31db5ee5f02bf77c47f1189e44be32bad253
+summary: Replaced user-facing em dashes with spaced hyphens in desktop app webview index.html and main.js to avoid triggering users.
