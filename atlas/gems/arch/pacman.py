@@ -2,10 +2,27 @@ import logging
 import os
 import re
 import shutil
+import threading
 import traceback
 from io import StringIO
 from threading import Thread
 from typing import List, Set, Tuple, Dict, Iterable, Optional, Any, Pattern, Collection
+
+_cache_provided_local = None
+_cache_provided_remote = None
+_cache_installed_names = None
+_cache_explicit_names = None
+_cache_lock = threading.Lock()
+
+
+def clear_caches():
+    global _cache_provided_local, _cache_provided_remote, _cache_installed_names, _cache_explicit_names
+    with _cache_lock:
+        _cache_provided_local = None
+        _cache_provided_remote = None
+        _cache_installed_names = None
+        _cache_explicit_names = None
+
 
 from colorama import Fore
 
@@ -610,7 +627,15 @@ def _fill_provided_map(key: str, val: str, output: Dict[str, Set[str]]):
 
 
 def map_provided(remote: bool = False, pkgs: Iterable[str] = None) -> Optional[Dict[str, Set[str]]]:
-    output = run_cmd(f"pacman -{'S' if remote else 'Q'}i {' '.join(pkgs) if pkgs else ''}")
+    if pkgs:
+        output = run_cmd(f"pacman -{'S' if remote else 'Q'}i {' '.join(pkgs)}")
+    else:
+        global _cache_provided_local, _cache_provided_remote
+        with _cache_lock:
+            cache = _cache_provided_remote if remote else _cache_provided_local
+            if cache is not None:
+                return cache
+        output = run_cmd(f"pacman -{'S' if remote else 'Q'}i")
 
     if output:
         provided_map = {}
@@ -660,6 +685,13 @@ def map_provided(remote: bool = False, pkgs: Iterable[str] = None) -> Optional[D
 
                             if word_split[0] != word:
                                 _fill_provided_map(word_split[0], latest_name, provided_map)
+
+        if not pkgs:
+            with _cache_lock:
+                if remote:
+                    _cache_provided_remote = provided_map
+                else:
+                    _cache_provided_local = provided_map
 
         return provided_map
 
@@ -1066,15 +1098,33 @@ def map_replaces(names: Iterable[str], remote: bool = False) -> Dict[str, Set[st
 
 
 def list_installed_names() -> Set[str]:
+    global _cache_installed_names
+    with _cache_lock:
+        if _cache_installed_names is not None:
+            return _cache_installed_names
+
     output = run_cmd('pacman -Qq', print_error=False)
-    return {name.strip() for name in output.split('\n') if name} if output else set()
+    res = {name.strip() for name in output.split('\n') if name} if output else set()
+
+    with _cache_lock:
+        _cache_installed_names = res
+    return res
 
 
 def list_explicit_names() -> Set[str]:
     """Packages the user installed explicitly (``pacman -Qeq``) — the roots a dependency was pulled in
     for. Empty set on any failure."""
+    global _cache_explicit_names
+    with _cache_lock:
+        if _cache_explicit_names is not None:
+            return _cache_explicit_names
+
     output = run_cmd('pacman -Qeq', print_error=False)
-    return {name.strip() for name in output.split('\n') if name} if output else set()
+    res = {name.strip() for name in output.split('\n') if name} if output else set()
+
+    with _cache_lock:
+        _cache_explicit_names = res
+    return res
 
 
 def find_explicit_roots(name: str, required_by_fn=None, explicit: Optional[Set[str]] = None,
