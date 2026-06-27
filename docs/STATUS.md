@@ -5,8 +5,9 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-06-27 (**Cache clearing integration.** Integrated pacman.clear_caches() calls across all database synchronization, package installation, package uninstallation, package upgrade, and system upgrade transactions. Verified all pytest suites pass successfully.)
-- Prior: **Em dashes replaced.** Found and replaced all user-facing em dashes (—) with spaced hyphens ( - ) or hyphens across both Atlas and AtlasWeb repositories. All packaging builds and pytest suites are green.
+**Last updated:** 2026-06-27 (**Cache invalidation tests.** Implemented `PacmanCacheInvalidationTest` to verify that pacman cache invalidation triggers occur during database synchronization, installation, uninstallation, package upgrades, package removals, system upgrades, and worker operations. Verified all 737 tests pass.)
+- Prior: **Cache clearing integration.** Integrated calls to `pacman.clear_caches()` across all database synchronization, package installation, package uninstallation, package upgrade, and system upgrade transactions. Verified all pytest suites pass successfully.
+- Prior same day: **Em dashes replaced.** Found and replaced all user-facing em dashes (—) with spaced hyphens ( - ) or hyphens across both Atlas and AtlasWeb repositories. All packaging builds and pytest suites are green.
 - Prior same day: **Interactive Demo Update completed.** Updated the AtlasWeb app simulator to match all features shipped in the main app. Integrated Browse categories/buckets, News tab, Health checks + pacnew merging, Flatpak permission toggles, dynamic Theme/Accent presets, DetailModal tabs, Transaction previews, and PKGBUILD script inspection. Green build + Typecheck passing.
 - Prior same day: **First stable `atlas-pm` published to the AUR.** The release was cut
 (`v0.14.0` tagged + pushed, tarball sha256 pinned, `.SRCINFO` regenerated) and CI now **auto-publishes
@@ -242,6 +243,10 @@ re-add a native extension without a measured win. Details in the historical
 ---
 
 ## Done
+
+- **Cache invalidation tests (2026-06-27).** Implemented unit tests in `tests/gems/arch/test_pacman_cache_invalidation.py` to cover cache invalidation behavior.
+  - Added `PacmanCacheInvalidationTest` to mock and assert `pacman.clear_caches()` gets called under successful conditions (and not on failure) for `_sync_databases`, `install`, `_uninstall_pkgs`, `_upgrade_repo_pkgs`, `_remove_transaction_packages`, `upgrade_system`, and `SyncDatabases` worker thread execution.
+  - Verification: 737/737 unit tests pass successfully.
 
 - **Cache clearing integration (2026-06-27).** Integrated calls to `pacman.clear_caches()` across all database synchronization, package installation, package uninstallation, package upgrade, and system upgrade transactions.
   - Added cache-clearing hooks in `_sync_databases`, `sync_databases`, and `SyncDatabases` worker run upon successful database updates.
