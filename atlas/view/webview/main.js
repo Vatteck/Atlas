@@ -72,7 +72,7 @@ function buildThemeRow() {
     const opts = THEME_PALETTES.map(p =>
         `<option value="${p}" ${cur === p ? 'selected' : ''}>${THEME_LABELS[p] || p}</option>`).join('');
     return `
-        <label class="settings-row" title="Color theme — applies immediately">
+        <label class="settings-row" title="Color theme - applies immediately">
             <span class="settings-row-label">Theme</span>
             <select id="settings-theme" class="styled-select">${opts}</select>
         </label>`;
@@ -85,7 +85,7 @@ function buildAccentRow() {
                  title="${a.charAt(0).toUpperCase() + a.slice(1)}" aria-label="${a} accent"
                  style="--swatch:${ACCENT_SWATCHES[a]}"></button>`).join('');
     return `
-        <div class="settings-row" title="Highlight color — applies immediately">
+        <div class="settings-row" title="Highlight color - applies immediately">
             <span class="settings-row-label">Accent color</span>
             <div class="accent-swatches" id="settings-accent">${dots}</div>
         </div>`;
@@ -587,15 +587,15 @@ function summarizeFailure(log) {
     if (has('signature from', 'unknown trust', 'invalid or corrupted package (pgp', 'could not be looked up', 'corrupted (pgp', 'marginal trust'))
         return { title: 'PGP signature / keyring problem', hint: 'A package signature couldn’t be verified. Update the keyring (e.g. archlinux-keyring) and retry.' };
     if (has('failed retrieving file', ' 404', 'could not resolve host', 'connection timed out', 'unable to connect', 'temporary failure in name resolution', 'failed to download'))
-        return { title: 'Download failed', hint: 'A file couldn’t be fetched — a mirror may be down or you’re offline. Refresh mirrors / check your connection and retry.' };
+        return { title: 'Download failed', hint: 'A file couldn’t be fetched - a mirror may be down or you’re offline. Refresh mirrors / check your connection and retry.' };
     if (has('conflicting files', 'exists in filesystem'))
-        return { title: 'File conflict', hint: 'A package would overwrite files owned by another. The log lists the files — resolve the conflict before retrying.' };
+        return { title: 'File conflict', hint: 'A package would overwrite files owned by another. The log lists the files - resolve the conflict before retrying.' };
     if (has('conflicting packages', 'are in conflict'))
         return { title: 'Package conflict', hint: 'Two packages conflict and can’t be installed together (see the log).' };
     if (has('unable to satisfy dependency', 'could not find all required packages', 'target not found', 'breaks dependency', 'cannot resolve'))
         return { title: 'Dependency problem', hint: 'A required dependency couldn’t be found or satisfied (see the log).' };
     if (has('==> error', 'build failed', 'a failure occurred in build', 'error: makepkg'))
-        return { title: 'Build failed', hint: 'The AUR package failed to build — see the log for the makepkg/compiler error.' };
+        return { title: 'Build failed', hint: 'The AUR package failed to build - see the log for the makepkg/compiler error.' };
     return { title: 'The operation failed', hint: 'See the raw log below for details.' };
 }
 
@@ -965,7 +965,7 @@ function renderPkgbuildReview(review) {
     }
     const s = review.summary || {};
     const banner = (s.warn || s.info)
-        ? `<div class="review-banner ${s.warn ? 'warn' : 'info'}">⚠ ${s.warn || 0} line${s.warn === 1 ? '' : 's'} worth a look${s.info ? ` · ${s.info} minor` : ''} — a hint, not a safety check</div>`
+        ? `<div class="review-banner ${s.warn ? 'warn' : 'info'}">⚠ ${s.warn || 0} line${s.warn === 1 ? '' : 's'} worth a look${s.info ? ` · ${s.info} minor` : ''} - a hint, not a safety check</div>`
         : '';
 
     let maintHtml = '';
@@ -973,7 +973,7 @@ function renderPkgbuildReview(review) {
     if (mc) {
         const oldM = escapeHtml(mc.old || 'unknown');
         const newM = mc.new ? escapeHtml(mc.new) : '<em>orphaned (no maintainer)</em>';
-        maintHtml = `<div class="review-banner warn">⚠ Maintainer changed since you installed: <strong>${oldM} → ${newM}</strong>. The package changed hands — worth a look before updating.</div>`;
+        maintHtml = `<div class="review-banner warn">⚠ Maintainer changed since you installed: <strong>${oldM} → ${newM}</strong>. The package changed hands - worth a look before updating.</div>`;
     }
 
     let diffHtml = '';
@@ -1118,7 +1118,7 @@ function buildTransactionPreviewHTML(data) {
 
     if (data.aur_risk && data.aur_risk.score !== undefined) {
         const tierLabel = { trusted: 'Trusted', caution: 'Caution', risk: 'Risk' }[data.aur_risk.tier] || data.aur_risk.tier;
-        html += `<div class="txp-risk-indicator risk-${escapeHtml(data.aur_risk.tier)}" title="Composite AUR trust score — heuristic only, not a safety check">
+        html += `<div class="txp-risk-indicator risk-${escapeHtml(data.aur_risk.tier)}" title="Composite AUR trust score - heuristic only, not a safety check">
             <span class="material-symbols-outlined">shield</span>
             <span class="txp-risk-text">Reputation: ${data.aur_risk.score}/100 · ${escapeHtml(tierLabel)}</span>
         </div>`;
@@ -1339,13 +1339,13 @@ function buildUpdateAllPreviewData(updates, extras) {
     if (counts.flatpak) parts.push(`Flatpak: ${counts.flatpak}`);
     if (counts.other) parts.push(`Other: ${counts.other}`);
     if (parts.length) data.notes.push(parts.join(' · '));
-    if (counts.aur) data.notes.push('AUR packages are rebuilt from source — their download size and build time are not included above.');
+    if (counts.aur) data.notes.push('AUR packages are rebuilt from source - their download size and build time are not included above.');
     if (sizedCount > 0 && sizedCount < n) data.notes.push('Download size shown covers only the packages that report one.');
 
     const newsCount = extras.news_count || 0;
     if (newsCount > 0) {
         data.warnings.push({ level: 'warn', title: `${newsCount} unread Arch news item${newsCount === 1 ? '' : 's'}`,
-            detail: "Published since your last sync — review before upgrading (shown next)." });
+            detail: "Published since your last sync - review before upgrading (shown next)." });
     }
     const pacnewCount = extras.pacnew_count || 0;
     if (pacnewCount > 0) {
@@ -1365,7 +1365,7 @@ function buildUpdateAllPreviewData(updates, extras) {
                 .map(p => p.name);
             if (riskyNames.length) {
                 data.warnings.push({ level: 'warn', title: `${riskyNames.length} package${riskyNames.length === 1 ? '' : 's'} with a low reputation score`,
-                    detail: `${riskyNames.join(', ')} — low AUR votes/age, orphaned, or a recent maintainer change. Worth a look before updating.` });
+                    detail: `${riskyNames.join(', ')} - low AUR votes/age, orphaned, or a recent maintainer change. Worth a look before updating.` });
             }
         }
     }
@@ -1532,7 +1532,7 @@ function sourceBadges(group, activeIdx) {
         }
         // Build variant rides in the chip (sourcePillHTML); no redundant "· source/binary" word.
         const votesStr = (typeof pkg.votes === 'number') ? ` · ▲${pkg.votes}` : '';
-        let out = `<span class="tag aur" title="AUR — community-maintained, less vetted than the official repo. Build: ${escapeHtml(aurVariant(pkg.name).label)}">${sourcePillHTML(pkg)}${escapeHtml(votesStr)}</span>`;
+        let out = `<span class="tag aur" title="AUR - community-maintained, less vetted than the official repo. Build: ${escapeHtml(aurVariant(pkg.name).label)}">${sourcePillHTML(pkg)}${escapeHtml(votesStr)}</span>`;
         if (pkg.out_of_date) out += `<span class="tag ood" title="Flagged out-of-date on the AUR">out of date</span>`;
         return out;
     }
@@ -1586,8 +1586,8 @@ function buildSourceCompareHTML(group) {
     if (sources.length < 2) return '';
     const rows = sources.map(s => {
         const t = normalizeType(s.type);
-        const ver = s.version ? `v${escapeHtml(s.version)}` : '—';
-        const size = s.size ? formatBytes(s.size) : (s.download_size ? formatBytes(s.download_size) : '—');
+        const ver = s.version ? `v${escapeHtml(s.version)}` : '-';
+        const size = s.size ? formatBytes(s.size) : (s.download_size ? formatBytes(s.download_size) : '-');
         const note = sourceCompareNote(s.type, s.name);
         const action = s.installed
             ? `<span class="srccmp-installed">✓ Installed</span>`
@@ -1603,12 +1603,12 @@ function buildSourceCompareHTML(group) {
     // When ≥2 of the options are AUR build variants, spell out what -bin / -git / source mean.
     const aurVariantCount = sources.filter(s => normalizeType(s.type) === 'aur').length;
     const guideline = aurVariantCount >= 2
-        ? `<p class="srccmp-guideline"><strong>AUR builds:</strong> <code>-bin</code> installs a prebuilt binary (fast, no compiling — trust the packager); <code>-git</code> builds the latest commit (newest, can be unstable); the plain name builds the released source.</p>`
+        ? `<p class="srccmp-guideline"><strong>AUR builds:</strong> <code>-bin</code> installs a prebuilt binary (fast, no compiling - trust the packager); <code>-git</code> builds the latest commit (newest, can be unstable); the plain name builds the released source.</p>`
         : '';
     return `<div class="srccmp">
         <div class="srccmp-head">Available from ${sources.length} sources</div>
         <div class="srccmp-table">${rows}</div>
-        <p class="srccmp-hint">Each source is packaged independently — pick where to install from.</p>
+        <p class="srccmp-hint">Each source is packaged independently - pick where to install from.</p>
         ${guideline}
     </div>`;
 }
@@ -1620,20 +1620,20 @@ function buildSourceCompareHTML(group) {
 function whySourceHint(type, opts = {}) {
     const t = normalizeType(type);
     if (t === 'arch' || t === 'arch_repo') {
-        return { text: 'From the official Arch repositories — built and signed by Arch maintainers.', level: 'safe' };
+        return { text: 'From the official Arch repositories - built and signed by Arch maintainers.', level: 'safe' };
     }
     if (t === 'aur') {
-        return { text: 'From the AUR — community-submitted and not vetted by Arch. Atlas scans the PKGBUILD before building; review it.', level: 'warn' };
+        return { text: 'From the AUR - community-submitted and not vetted by Arch. Atlas scans the PKGBUILD before building; review it.', level: 'warn' };
     }
     if (t === 'flatpak') {
         const lic = opts.free_license === true ? ' Open-source license.'
                   : opts.free_license === false ? ' Proprietary license.' : '';
-        if (opts.verified === true) return { text: 'Verified on Flathub — published by the app’s own developer.' + lic, level: 'safe' };
-        if (opts.verified === false) return { text: 'Community-packaged on Flathub — not verified as published by the app’s developer.' + lic, level: 'info' };
-        return { text: 'Distributed via Flathub — sandboxed and cross-distro.' + lic, level: 'info' };
+        if (opts.verified === true) return { text: 'Verified on Flathub - published by the app’s own developer.' + lic, level: 'safe' };
+        if (opts.verified === false) return { text: 'Community-packaged on Flathub - not verified as published by the app’s developer.' + lic, level: 'info' };
+        return { text: 'Distributed via Flathub - sandboxed and cross-distro.' + lic, level: 'info' };
     }
-    if (t === 'appimage') return { text: 'A self-contained AppImage — portable but not sandboxed; trust the source.', level: 'info' };
-    if (t === 'snap') return { text: 'From the Snap Store (Canonical) — sandboxed.', level: 'info' };
+    if (t === 'appimage') return { text: 'A self-contained AppImage - portable but not sandboxed; trust the source.', level: 'info' };
+    if (t === 'snap') return { text: 'From the Snap Store (Canonical) - sandboxed.', level: 'info' };
     return { text: '', level: 'info' };
 }
 
