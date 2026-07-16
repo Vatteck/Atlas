@@ -4365,7 +4365,6 @@ async function renderPacnewCenter() {
         return;
     }
 
-    const hasMirrorlist = files.some(f => f.replace(/\.pac(new|save)$/, '').split('/').pop() === 'mirrorlist');
     const rows = files.map((f) => {
         const r = pacnewRisk(f);
         // Apply (overwrite) is hidden for mirrorlist — its .pacnew is the stock all-commented
@@ -4394,7 +4393,6 @@ async function renderPacnewCenter() {
         <p class="settings-help">Review the diff, then <strong>Discard</strong> to keep your config or <strong>Apply</strong> to take the new default. For a line-by-line merge, open <code>pacdiff</code> in a terminal. Atlas never auto-merges.</p>
         <div class="pacnew-global">
             <button class="btn btn-outline" id="pacnew-pacdiff">Open pacdiff in a terminal</button>
-            ${hasMirrorlist ? '<button class="btn btn-outline" id="pacnew-regen">Regenerate mirror list</button>' : ''}
         </div>
         <div class="pacnew-list">${rows}</div>
     </div>`;
@@ -4405,8 +4403,6 @@ async function renderPacnewCenter() {
         const r = await pyApiCall('launch_pacdiff');
         if (r) showToast('pacdiff', 'Opened pacdiff in a terminal — merge the files there', 'info');
     });
-    const rg = document.getElementById('pacnew-regen');
-    if (rg) rg.addEventListener('click', () => regenerateMirrors(rg));
     packagesGrid.querySelectorAll('.pacnew-copy-btn').forEach(b => b.addEventListener('click', () => copyText(b.dataset.path)));
     packagesGrid.querySelectorAll('.pacnew-diff-btn').forEach(b => b.addEventListener('click', () => togglePacnewDiff(b)));
     packagesGrid.querySelectorAll('.pacnew-discard-btn').forEach(b => b.addEventListener('click', () => resolvePacnew(b.dataset.path, 'discard')));
@@ -5120,16 +5116,26 @@ function setSavedMirrorOptions(opts) {
     try { localStorage.setItem('atlas_mirror_opts', JSON.stringify(opts)); } catch (e) { /* ignore */ }
 }
 
-// Regenerate /etc/pacman.d/mirrorlist (reflector/rate-mirrors via the root broker). Shared by the
-// .pacnew mirrorlist caution and the Settings → Mirrors button. `options` (reflector only) chooses
-// country/protocols/sort; omitted callers keep the default command.
+// Regenerate /etc/pacman.d/mirrorlist (reflector/rate-mirrors via the root broker). Only called
+// from intentional contexts (System Health, Settings → Mirrors). Always confirms before running
+// — the preview command is shown and the user is told a backup will be saved. After success,
+// caller should re-render to pick up the new backup status.
 async function regenerateMirrors(btnEl, options) {
+    // Show the exact command that will run before asking for confirmation.
+    const prev = await pyApiCall('preview_mirror_command', options);
+    const cmdPreview = (prev && prev.command) ? `\n\nCommand: ${prev.command}` : '';
+    const msg = `This will overwrite /etc/pacman.d/mirrorlist with freshly-ranked mirrors. A backup will be saved at /etc/pacman.d/mirrorlist.atlas.bak in case you need to restore.${cmdPreview}`;
+    const ok = await pyApiCall('prompt_confirmation', 'Regenerate mirror list?', msg, 'Regenerate', 'Cancel');
+    if (!(ok && ok[0])) {
+        showToast('Mirrors', 'Mirror regeneration cancelled', 'info');
+        return;
+    }
     if (btnEl) btnEl.classList.add('loading');
     showToast('Mirrors', 'Regenerating the mirror list — this can take up to a minute…', 'info');
     const r = await pyApiCall('regenerate_mirrorlist', options);  // null on error (toast already shown)
     if (btnEl) btnEl.classList.remove('loading');
     if (r && r.status === 'ok') {
-        showToast('Mirrors', `Mirror list regenerated via ${r.tool || 'reflector'} — run a sync to refresh`, 'success');
+        showToast('Mirrors', `Mirror list regenerated via ${r.tool || 'reflector'} — a backup was saved.`, 'success');
     } else if (r && r.status === 'cancelled') {
         showToast('Mirrors', 'Mirror regeneration cancelled', 'info');
     }
@@ -5169,7 +5175,6 @@ async function renderUpdatesNotice() {
             <div class="config-notice-actions">
                 <button class="btn btn-outline" id="pacnew-review-btn">Review config files</button>
                 <button class="btn btn-outline" id="pacdiff-btn">Open pacdiff in a terminal</button>
-                ${hasMirrorlist ? '<button class="btn btn-outline" id="regen-mirrors-btn">Regenerate mirror list</button>' : ''}
             </div>
         </div>`;
     const reviewBtn = document.getElementById('pacnew-review-btn');
@@ -5179,8 +5184,6 @@ async function renderUpdatesNotice() {
         const r = await pyApiCall('launch_pacdiff');  // null on error (toast already shown)
         if (r) showToast('pacdiff', 'Opened pacdiff in a terminal — merge the files there', 'info');
     });
-    const regenBtn = document.getElementById('regen-mirrors-btn');
-    if (regenBtn) regenBtn.addEventListener('click', () => regenerateMirrors(regenBtn));
     el.querySelectorAll('.notice-discard-btn').forEach(b => b.addEventListener('click', () => resolvePacnew(b.dataset.path, 'discard', renderUpdatesNotice)));
     el.querySelectorAll('.notice-apply-btn').forEach(b => b.addEventListener('click', () => resolvePacnew(b.dataset.path, 'apply', renderUpdatesNotice)));
 }
@@ -5491,6 +5494,7 @@ async function renderSettings() {
     const savedMirrorOpts = getSavedMirrorOptions();
     const mirror = arch.available ? (await pyApiCall('get_mirror_status', savedMirrorOpts) || {}) : {};
     if (epoch !== navEpoch) return;  // user navigated away during the mirror fetch
+    const mirrorBackup = arch.available ? (await pyApiCall('get_mirrorlist_backup_status') || {}) : {};
     const mirrorWhen = mirror.last_modified_iso ? new Date(mirror.last_modified_iso).toLocaleString() : null;
     const mirrorSummary = (mirror.count)
         ? `<div class="mirror-summary">
@@ -5500,10 +5504,14 @@ async function renderSettings() {
         : '';
     const mirrorCmd = mirror.command
         ? `<p class="settings-help">Runs: <code id="mirror-cmd-preview">${escapeHtml(mirror.command)}</code></p>` : '';
+    const backupLine = (mirrorBackup && mirrorBackup.exists)
+        ? `<div class="mirror-backup"><p class="settings-help">📦 A pre-regeneration backup is available (taken ${escapeHtml(mirrorBackup.age_minutes)} min ago). <button class="btn btn-outline btn-small" id="settings-restore-mirrors-btn">Restore backup</button></p></div>`
+        : '';
     const mirrorsSection = arch.available ? `
         <section class="settings-section">
             <h3>Mirrors</h3>
             ${mirrorSummary}
+            ${backupLine}
             <p class="settings-help">Rebuild <code>/etc/pacman.d/mirrorlist</code> with the fastest mirrors${arch.mirror_tool ? ` (via <code>${escapeHtml(arch.mirror_tool)}</code>)` : ''}. Takes up to a minute. ${arch.mirror_tool ? '' : '<strong>Install <code>reflector</code> to enable this.</strong>'}</p>
             ${buildMirrorOptionsHTML(mirror)}
             ${mirrorCmd}
@@ -5570,6 +5578,18 @@ async function renderSettings() {
     if (regenMirrorsBtn) regenMirrorsBtn.addEventListener('click', async () => {
         await regenerateMirrors(regenMirrorsBtn, mirror.options ? readMirrorOptionsFromDOM() : undefined);
         if (currentView === 'settings') renderSettings();  // refresh the mirror summary
+    });
+    const restoreMirrorsBtn = document.getElementById('settings-restore-mirrors-btn');
+    if (restoreMirrorsBtn) restoreMirrorsBtn.addEventListener('click', async () => {
+        restoreMirrorsBtn.classList.add('loading');
+        const r = await pyApiCall('restore_mirrorlist_backup');
+        restoreMirrorsBtn.classList.remove('loading');
+        if (r && r.status === 'ok') {
+            showToast('Mirrors', 'Mirror list restored from backup', 'success');
+            if (currentView === 'settings') renderSettings();
+        } else if (r && r.status === 'cancelled') {
+            showToast('Mirrors', 'Restore cancelled', 'info');
+        }
     });
     const copyMirrorCmdBtn = document.getElementById('settings-copy-mirror-cmd-btn');
     if (copyMirrorCmdBtn) copyMirrorCmdBtn.addEventListener('click', () => {

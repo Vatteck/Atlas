@@ -1,5 +1,20 @@
-session: antigravity-2026-06-27
-timestamp: 2026-06-27T02:39:00Z
-branch: master
-last_commit: 829eb15844595483ecd41eb879d9b3dff1b63c3d
-summary: Implemented PacmanCacheInvalidationTest covering pacman cache invalidation triggers.
+# .last-agent — integrity checkpoint for the next AI coding agent
+
+**Agent:** Hermes (deepseek-v4-pro) — 2026-07-16
+**Branch:** master
+**Last commit:** (about to be committed below)
+
+## Summary
+
+Mirrorlist regeneration safety pass. Removed the "Regenerate mirror list" button from
+the .pacnew config-review center and Updates notice — it was nuking CachyOS (and other
+derivative) mirrors by running `reflector`/`rate-mirrors arch`, which generate upstream
+Arch mirrors. Mirror regeneration is now confined to Settings → Mirrors, where it
+belongs.
+
+Added automatic backup before every regeneration (to
+`/etc/pacman.d/mirrorlist.atlas.bak`) and a "Restore backup" button in Settings →
+Mirrors. Regeneration now shows a confirmation dialog with the exact command preview
+before running.
+
+**Verification:** 737 tests passed, JS contracts green.

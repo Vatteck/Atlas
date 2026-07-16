@@ -67,6 +67,7 @@ class AtlasApi:
 
     PACMAN_CACHE_DIR = '/var/cache/pacman/pkg'
     MIRRORLIST_PATH = '/etc/pacman.d/mirrorlist'
+    MIRRORLIST_BACKUP_PATH = '/etc/pacman.d/mirrorlist.atlas.bak'
     ARCH_NEWS_URL = 'https://archlinux.org/feeds/news/'
 
     # Browse-by-category buckets for the Discovery view. The shipped categories.txt uses many
@@ -1624,6 +1625,60 @@ class AtlasApi:
             return ['rate-mirrors', '--allow-root', '--save=/etc/pacman.d/mirrorlist', 'arch']
         return None
 
+    def backup_mirrorlist(self) -> dict:
+        """Copy the current mirrorlist to a safe backup before regeneration.
+        Idempotent — each regeneration overwrites the same backup, so only the last
+        pre-regeneration state is preserved."""
+        try:
+            import shutil
+            if os.path.isfile(self.MIRRORLIST_PATH):
+                shutil.copy2(self.MIRRORLIST_PATH, self.MIRRORLIST_BACKUP_PATH)
+                self.logger.info(f"Mirrorlist backed up to {self.MIRRORLIST_BACKUP_PATH}")
+                return {'status': 'ok'}
+            return {'status': 'ok', 'message': 'No mirrorlist to back up'}
+        except Exception as e:
+            self.logger.error(f"backup_mirrorlist failed: {e}")
+            return {'status': 'error', 'message': str(e)}
+
+    def restore_mirrorlist_backup(self) -> dict:
+        """Restore the mirrorlist from the Atlas backup. Needs root (the file lives
+        under /etc). Returns the diff so the frontend can show what changed."""
+        try:
+            import shutil
+            if not os.path.isfile(self.MIRRORLIST_BACKUP_PATH):
+                return {'status': 'error', 'message': 'No backup found — it may have been cleaned up.'}
+            pwd = self.ensure_root_password()
+            if pwd is None:
+                return {'status': 'cancelled'}
+            proc = new_root_subprocess(
+                ['cp', self.MIRRORLIST_BACKUP_PATH, self.MIRRORLIST_PATH],
+                root_password=pwd)
+            _, err = proc.communicate()
+            if proc.returncode != 0:
+                msg = (err or b'').decode(errors='replace').strip() or 'could not restore backup'
+                self.logger.error(f"restore_mirrorlist_backup: {msg}")
+                return {'status': 'error', 'message': msg[:300]}
+            self.logger.info("Mirrorlist restored from Atlas backup")
+            return {'status': 'ok'}
+        except Exception as e:
+            self.logger.error(f"restore_mirrorlist_backup failed: {e}")
+            return {'status': 'error', 'message': str(e)}
+
+    def get_mirrorlist_backup_status(self) -> dict:
+        """Check whether an Atlas mirrorlist backup exists and how old it is.
+        Read-only — no root needed (stat only)."""
+        try:
+            if os.path.isfile(self.MIRRORLIST_BACKUP_PATH):
+                from datetime import datetime, timezone
+                mtime = os.path.getmtime(self.MIRRORLIST_BACKUP_PATH)
+                age_seconds = (datetime.now(timezone.utc) - datetime.fromtimestamp(mtime, tz=timezone.utc)).total_seconds()
+                return {'status': 'ok', 'exists': True,
+                        'age_minutes': round(age_seconds / 60),
+                        'path': self.MIRRORLIST_BACKUP_PATH}
+            return {'status': 'ok', 'exists': False}
+        except Exception as e:
+            return {'status': 'error', 'message': str(e)}
+
     def preview_mirror_command(self, options=None) -> dict:
         """Cheap (no file read) preview of the exact regen command for the given options — drives the
         live command preview as the user changes selectors. Fails open (no tool → command None)."""
@@ -1638,13 +1693,20 @@ class AtlasApi:
         """Regenerate the Arch mirror list (/etc/pacman.d/mirrorlist) with reflector/rate-mirrors.
         Needs root. The safe alternative to merging a mirrorlist.pacnew (which wipes your servers).
         Can take up to a minute (it speed-tests mirrors). `options` (reflector only) chooses
-        country/protocols/sort."""
+        country/protocols/sort. Backs up the current mirrorlist before overwriting."""
         cmd = self._mirror_regen_cmd(options)
         if not cmd:
             return {'status': 'error', 'message': 'No mirror tool found — install "reflector" (or rate-mirrors).'}
         pwd = self.ensure_root_password()
         if pwd is None:
             return {'status': 'cancelled'}
+        # Back up the current mirrorlist before regenerating — fail-open: if the backup
+        # fails, we still proceed (better to have new mirrors than to block on a backup
+        # error), but log the failure.
+        try:
+            self.backup_mirrorlist()
+        except Exception as e:
+            self.logger.warning(f"Mirrorlist backup before regeneration failed: {e}")
         try:
             self.logger.info(f"Regenerating mirrorlist: {' '.join(cmd)}")
             proc = new_root_subprocess(cmd, root_password=pwd)

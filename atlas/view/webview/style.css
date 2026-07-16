@@ -3014,6 +3014,7 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
 .mirror-summary { margin-bottom: 10px; }
 .mirror-stat { font-size: 13px; color: var(--text-primary); }
 .mirror-hosts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.mirror-backup { margin: 6px 0 10px; }
 .mirror-options { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; margin: 4px 0 10px; }
 .mirror-opt { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-secondary); }
 .mirror-opt .styled-select { max-width: 220px; }
