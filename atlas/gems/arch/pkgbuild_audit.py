@@ -225,7 +225,8 @@ _RULES = [
      'or tee -a — injects code that runs on every shell start (extends '
      'shell_function_inject which catches >> appends).',
      # Catches single > (not >>), tee -a.  shell_function_inject already covers >>.
-     re.compile(r'(?:>(?!>)|\btee\s+-a)\s*["\']?'
+     # The (?:^|[^>]) prefix prevents matching the second > in a >> redirect.
+     re.compile(r'(?:^|[^>])(?:>(?!>)|\btee\s+-a)\s*["\']?'
                 r'\S*\.(?:bashrc|zshrc|bash_profile|profile)\b', re.I).search),
 
     ('host_tamper', WARN,

