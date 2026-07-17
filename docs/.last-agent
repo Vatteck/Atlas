@@ -6,15 +6,14 @@
 
 ## Summary
 
-Mirrorlist regeneration safety pass. Removed the "Regenerate mirror list" button from
-the .pacnew config-review center and Updates notice — it was nuking CachyOS (and other
-derivative) mirrors by running `reflector`/`rate-mirrors arch`, which generate upstream
-Arch mirrors. Mirror regeneration is now confined to Settings → Mirrors, where it
-belongs.
+AUR dependency tree visualization (Task 3 of the AUR security heuristics plan).
+Added `_build_dep_tree()` to the API — batch-resolves AUR info for all
+direct dependencies, colors by source (repo/AUR) and warnings (orphaned, out of date),
+recurses one level for AUR deps' own deps. Injected as `dep_tree` into the install
+preview payload alongside existing flat dep lists.
 
-Added automatic backup before every regeneration (to
-`/etc/pacman.d/mirrorlist.atlas.bak`) and a "Restore backup" button in Settings →
-Mirrors. Regeneration now shows a confirmation dialog with the exact command preview
-before running.
+Frontend: `renderDepTree()` replaces the flat chip accordion for AUR installs with
+a collapsible color-coded tree. Green = repo, amber = AUR clean, red = AUR with
+warnings. Inline source badges and warning labels. JS contract test added.
 
 **Verification:** 737 tests passed, JS contracts green.

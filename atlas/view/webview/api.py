@@ -2506,6 +2506,100 @@ class AtlasApi:
         except Exception as e:
             self.logger.debug(f"preview: AUR risk scoring failed for {pkg.name}: {e}")
 
+        # Dependency tree — what gets pulled in, color-coded by source and warnings.
+        # Depth-limited to 2 (direct deps + their deps) to keep the modal fast and
+        # scannable. Fails open: a null tree just means the flat list renders instead.
+        try:
+            data['dep_tree'] = self._build_dep_tree(pkg, aur_client, depth=2)
+        except Exception as e:
+            self.logger.debug(f"preview: dep tree build failed for {pkg.name}: {e}")
+
+    def _build_dep_tree(self, pkg, aur_client=None, depth: int = 2) -> list:
+        """Resolve a dependency tree for the transaction preview modal. Each node is
+        {name, source, warnings:[{label,level}], deps:[...]}. Depth-limited and capped
+        at 20 direct deps / 10 sub-deps per branch to keep the tree scannable. Fails
+        open — returns [] on any error so the flat list still renders."""
+        from atlas.gems.arch import pacman
+
+        name = pkg.name
+        ptype = self._preview_ptype(pkg)
+        repo = (getattr(pkg, 'repository', None) or '').lower()
+
+        # --- Get direct dep names ---
+        dep_names = []
+        if repo == 'aur' or ptype == 'aur':
+            if aur_client is not None:
+                try:
+                    infos = aur_client.get_info((name,))
+                    info = (infos[0] if infos else {}) or {}
+                    dep_names = list(set(info.get('Depends') or []))
+                except Exception:
+                    pass
+        else:
+            try:
+                info = (pacman.map_updates_data([name]) or {}).get(name) or {}
+                dep_names = list(set(info.get('d') or []))
+            except Exception:
+                pass
+
+        if not dep_names:
+            return []
+
+        # --- Batch-resolve AUR info for all dep names ---
+        dep_names = dep_names[:20]  # cap
+        aur_info_map = {}
+        if aur_client is not None:
+            try:
+                infos = aur_client.get_info(tuple(dep_names))
+                for info in (infos or []):
+                    if info and info.get('Name'):
+                        aur_info_map[info['Name']] = info
+            except Exception:
+                pass
+
+        # --- Build level-1 nodes ---
+        def _warnings_for(dep_name, aur_info):
+            w = []
+            if aur_info:
+                if aur_info.get('Maintainer') is None:
+                    w.append({'label': 'Orphaned', 'level': 'warn'})
+                if aur_info.get('OutOfDate'):
+                    w.append({'label': 'Out of date', 'level': 'warn'})
+            return w
+
+        def _child_deps(dep_name, aur_info, sub_depth):
+            if sub_depth <= 0 or not aur_info:
+                return []
+            child_names = list(set(aur_info.get('Depends') or []))[:10]
+            if not child_names:
+                return []
+            # Resolve which children are AUR
+            child_aur = {}
+            if aur_client is not None:
+                try:
+                    child_infos = aur_client.get_info(tuple(child_names))
+                    for ci in (child_infos or []):
+                        if ci and ci.get('Name'):
+                            child_aur[ci['Name']] = ci
+                except Exception:
+                    pass
+            return [{'name': cn, 'source': 'aur' if cn in child_aur else 'arch_repo',
+                     'warnings': _warnings_for(cn, child_aur.get(cn)), 'deps': []}
+                    for cn in child_names]
+
+        nodes = []
+        for dn in dep_names:
+            ai = aur_info_map.get(dn)
+            src = 'aur' if ai else 'arch_repo'
+            nodes.append({
+                'name': dn,
+                'source': src,
+                'warnings': _warnings_for(dn, ai),
+                'deps': _child_deps(dn, ai, depth - 1),
+            })
+
+        return nodes
+
     def _preview_flatpak(self, pkg, data: dict) -> None:
         app_id = getattr(pkg, 'id', None)
         flatpak_man = self._manager_by_gem('flatpak')

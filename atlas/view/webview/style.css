@@ -3076,6 +3076,26 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
 .txp-notes { display: flex; flex-direction: column; gap: 4px; }
 .txp-note { font-size: 12px; color: var(--text-secondary); }
 
+/* Dependency tree (AUR install preview) */
+.dep-tree-node { display: flex; align-items: center; gap: 6px; padding: 3px 0;
+    font-size: 13px; line-height: 1.5; border-left: 2px solid transparent; }
+.dep-tree-node.repo { color: var(--color-success); border-left-color: var(--color-success); }
+.dep-tree-node.aur-clean { color: var(--text-primary); border-left-color: var(--text-secondary); }
+.dep-tree-node.aur-danger { color: var(--status-danger); border-left-color: var(--status-danger); }
+.dep-tree-name { font-family: ui-monospace, "Cascadia Code", Menlo, monospace; font-weight: 600; }
+.dep-tree-indent { display: inline-block; min-width: 1px; }
+.dep-tree-toggle { cursor: pointer; user-select: none; font-size: 11px; color: var(--text-secondary);
+    min-width: 14px; text-align: center; }
+.dep-tree-toggle:hover { color: var(--text-primary); }
+.dep-tree-source { font-size: 10px; padding: 1px 5px; border-radius: 4px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .03em; }
+.dep-tree-source.repo { background: rgba(34, 197, 94, 0.15); color: var(--color-success); }
+.dep-tree-source.aur { background: rgba(245, 158, 11, 0.15); color: var(--status-warning); }
+.dep-tree-warn { font-size: 10px; padding: 1px 5px; border-radius: 4px; font-weight: 600; }
+.dep-tree-warn-warn { background: rgba(245, 158, 11, 0.18); color: var(--status-warning); }
+.dep-tree-warn-info { background: rgba(100, 116, 139, 0.15); color: var(--text-secondary); }
+.dep-tree-children { margin-left: 20px; border-left: 1px solid var(--border-color); padding-left: 4px; }
+
 /* Update-All source chooser */
 .txp-sources { display: flex; flex-direction: column; gap: 6px; padding: 12px;
     border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-surface); }

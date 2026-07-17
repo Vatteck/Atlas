@@ -1608,6 +1608,35 @@ async function testPkgbuildMetaOnlyLinksSafeHttpUrls() {
   assert.ok(!html.includes('<img src=x'), 'source text remains escaped');
 }
 
+async function testRenderDepTree() {
+  const { hooks } = loadMainJs({});
+  // Empty tree
+  assert.strictEqual(hooks.renderDepTree([]), '', 'empty tree returns empty string');
+  assert.strictEqual(hooks.renderDepTree(null), '', 'null tree returns empty string');
+
+  // Repo-only tree
+  const repoOnly = [{ name: 'gtk3', source: 'arch_repo', warnings: [], deps: [] }];
+  const repoHtml = hooks.renderDepTree(repoOnly);
+  assert.ok(repoHtml.includes('dep-tree-node repo'), 'repo node has repo class');
+  assert.ok(repoHtml.includes('gtk3'), 'shows package name');
+  assert.ok(repoHtml.includes('dep-tree-source repo'), 'shows repo badge');
+
+  // AUR with warnings
+  const aurWarn = [{ name: 'atomic-lockfile', source: 'aur', warnings: [{ label: 'Orphaned', level: 'warn' }], deps: [] }];
+  const aurHtml = hooks.renderDepTree(aurWarn);
+  assert.ok(aurHtml.includes('dep-tree-node aur-danger'), 'AUR with warnings gets danger class');
+  assert.ok(aurHtml.includes('Orphaned'), 'shows warning badge');
+  assert.ok(aurHtml.includes('dep-tree-source aur'), 'shows AUR badge');
+
+  // Tree with children
+  const withKids = [{ name: 'parent', source: 'aur', warnings: [],
+    deps: [{ name: 'child', source: 'arch_repo', warnings: [], deps: [] }] }];
+  const kidsHtml = hooks.renderDepTree(withKids);
+  assert.ok(kidsHtml.includes('dep-tree-children'), 'renders children container');
+  assert.ok(kidsHtml.includes('child'), 'shows child name');
+  assert.ok(kidsHtml.includes('dep-tree-toggle'), 'has collapse toggle');
+}
+
 async function testStripProgressBarAndPercent() {
   const { hooks } = loadMainJs({});
   // Flatpak-style textual progress bar (block glyphs) is stripped; the meaningful text stays.
@@ -1827,6 +1856,7 @@ function testPermsListEnsuresIconObserver() {
     testBuildMirrorOptionsHTML,
     testPkgbuildViewerBuilders,
     testPkgbuildMetaOnlyLinksSafeHttpUrls,
+    testRenderDepTree,
     testSummarizeFailureCategories,
     testPickActivityText,
     testStripProgressBarAndPercent,
