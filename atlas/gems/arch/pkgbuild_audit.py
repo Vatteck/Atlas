@@ -9,7 +9,7 @@ Rules are plain pattern matchers (no model, no network). Each is tuned to avoid 
 cases (e.g. `rm -rf "$srcdir"`, `depends=('curl')`, hex checksums) so the signal stays useful.
 """
 import re
-from typing import Callable, List, Dict
+from typing import Callable, Dict, List, Optional
 
 DISCLAIMER = ("Heuristic hints only — NOT a safety check. A clean result does not mean the package "
               "is safe; these patterns are easily evaded and can be false alarms. Read the PKGBUILD.")
@@ -202,6 +202,40 @@ _RULES = [
     ('ld_preload', WARN,
      'LD_PRELOAD / /etc/ld.so.preload — library injection used by rootkits and keyloggers.',
      re.compile(r'\bLD_PRELOAD=|/etc/ld\.so\.preload\b').search),
+
+    # --- aur-audit adapted rules (MIT-licensed, 2026-07-16) --- #
+    # Source: aur-audit detection categories — independent implementation.
+    ('pipe_eval_remote', WARN,
+     'Pipes a remote URL into a shell via process substitution — runs remote code '
+     'unconditionally (the Atomic Arch delivery mechanism).',
+     # Matches: bash <(curl ...), sh <(wget -qO- ...), zsh <(curl ...), etc.
+     re.compile(r'(?:ba|z|da|k)?sh\s+<\s*\(\s*(?:curl|wget)', re.I).search),
+
+    ('systemd_unit_install', WARN,
+     'Writes a systemd .service or .timer unit file to an absolute system path — '
+     'install hooks with root privileges can create persistent services.',
+     # Matches: install/cp/mv writing a .service/.timer to /etc/systemd/system or
+     # /usr/lib/systemd/system (or user/). Does NOT fire on $pkgdir-prefixed paths.
+     re.compile(r'\b(?:install|cp|mv)\s+[^/]*\s+["\']?'
+                r'(/(?:etc/systemd/system|usr/lib/systemd/(?:system|user))/'
+                r'[^\s"\']+\.(?:service|timer)\b)', re.I).search),
+
+    ('shell_rc_write', WARN,
+     'Writes to a shell init file (.bashrc, .zshrc, .profile, bash_profile) via > '
+     'or tee -a — injects code that runs on every shell start (extends '
+     'shell_function_inject which catches >> appends).',
+     # Catches single > (not >>), tee -a.  shell_function_inject already covers >>.
+     re.compile(r'(?:>(?!>)|\btee\s+-a)\s*["\']?'
+                r'\S*\.(?:bashrc|zshrc|bash_profile|profile)\b', re.I).search),
+
+    ('host_tamper', WARN,
+     'Writes to an absolute system path outside build/install directories — '
+     'package installs should confine writes to $pkgdir.',
+     # Matches: install/cp/mv writing directly to /usr, /etc, /var, /opt, /boot, /root.
+     # Does NOT fire when the destination carries a $pkgdir/$srcdir prefix (those
+     # start with $/", not /, so the path group won't capture).
+     re.compile(r'\b(?:install|cp|mv)\s+[^/]*\s+["\']?'
+                r'(/(?:usr|etc|var|opt|boot|root)/[^\s"\']+)', re.I).search),
 ]
 
 
@@ -213,6 +247,12 @@ _RULES = [
 # Honesty rule: only record `added`/`source` we genuinely know.
 _KS_AUR_SOURCE = 'ks-aur-scanner rule categories (mapped to MITRE ATT&CK techniques), 2026-06-16'
 _ATOMIC_ARCH_SOURCE = 'Atomic Arch (June 2026) AUR supply-chain campaign'
+_AUR_AUDIT_SOURCE = 'aur-audit detection categories (MIT-licensed), 2026-07-16'
+_IOC_SOURCE = ('Atomic Arch (June 2026) AUR supply-chain campaign — '
+               'community IOC data (lenucksi/aur-malware-check, ks-aur-scanner)')
+
+_IOC_RULE_ID = 'known_ioc'
+_ioc_data: Optional[Dict] = None  # lazy-loaded via _ensure_ioc_data()
 _STRUCTURAL_SOURCE = 'structural/semantic checks (docs/plans/2026-06-17-audit-structural-checks.md)'
 
 _RULE_META: Dict[str, Dict] = {
@@ -245,6 +285,15 @@ _RULE_META: Dict[str, Dict] = {
 
     # Cross-file (.SRCINFO↔PKGBUILD) divergence, 2026-06-17.
     'srcinfo_source_divergence': {'kind': EVERGREEN, 'added': '2026-06-17', 'source': _STRUCTURAL_SOURCE},
+
+    # IOC database (known-malicious artifacts), 2026-07-16.
+    'known_ioc': {'kind': CAMPAIGN, 'added': '2026-07', 'source': _IOC_SOURCE},
+
+    # aur-audit adapted rules (MIT-licensed), 2026-07-16.
+    'pipe_eval_remote': {'kind': EVERGREEN, 'added': '2026-07-16', 'source': _AUR_AUDIT_SOURCE},
+    'systemd_unit_install': {'kind': EVERGREEN, 'added': '2026-07-16', 'source': _AUR_AUDIT_SOURCE},
+    'shell_rc_write': {'kind': EVERGREEN, 'added': '2026-07-16', 'source': _AUR_AUDIT_SOURCE},
+    'host_tamper': {'kind': EVERGREEN, 'added': '2026-07-16', 'source': _AUR_AUDIT_SOURCE},
 }
 
 
@@ -508,7 +557,74 @@ def all_rule_ids() -> set:
     return ({rule_id for rule_id, *_ in _RULES}
             | {rule_id for rule_id, *_ in _STRUCTURAL}
             | {SRCINFO_DIVERGENCE_RULE}
+            | {_IOC_RULE_ID}
             | {rule_id for rule_id, *_ in _EXTERNAL_RULES})
+
+
+# --- IOC database (known-malicious artifacts) ---------------------------------------------------
+# A local JSON file of indicators of compromise (known-bad package names, npm/bun packages,
+# file artifacts, C2 domains, attack accounts). Loaded lazily so the file is only read when
+# scan() is actually called — no fs hit at import time.
+# See docs/plans/2026-07-16-ioc-database.md.
+
+def _ensure_ioc_data():
+    """Lazy-load the IOC database once (module-level singleton). Never raises."""
+    global _ioc_data
+    if _ioc_data is None:
+        _ioc_data = _load_ioc_data()
+
+
+def _load_ioc_data(path: Optional[str] = None) -> Dict:
+    """Load the malware IOC database from the bundled data file. Falls back to an empty
+    entries dict on any error — a missing or corrupted IOC file never breaks the scan."""
+    import json, os
+    if path is None:
+        path = os.path.join(os.path.dirname(__file__), 'data', 'malware_ioc.json')
+    try:
+        with open(path, encoding='utf-8') as fh:
+            return json.load(fh)
+    except Exception:
+        return {'entries': {}}
+
+
+def _check_ioc(text: str, ioc_data: Dict) -> List[Dict]:
+    """Flag lines that match known-malicious indicators from the IOC database.
+    Matches are case-insensitive on the full line text (not just word boundaries)
+    so that embedded references — e.g. npm install commands, source=() URLs,
+    file paths — are all caught."""
+    entries = ioc_data.get('entries', {})
+    if not entries:
+        return []
+
+    # Build a flat list of (category, escaped string) for regex scanning.
+    ioc_patterns: List[tuple] = []
+    for category, values in entries.items():
+        for val in values:
+            if isinstance(val, str) and val:
+                ioc_patterns.append((category, re.escape(val)))
+
+    if not ioc_patterns:
+        return []
+
+    findings: List[Dict] = []
+    for idx, raw in enumerate(text.splitlines(), start=1):
+        stripped = raw.strip()
+        if not stripped or stripped.startswith('#'):
+            continue
+        for category, pattern in ioc_patterns:
+            try:
+                if re.search(pattern, raw, re.I):
+                    findings.append({
+                        'line_no': idx, 'line': stripped,
+                        'rule': _IOC_RULE_ID, 'severity': WARN,
+                        'why': (f'Known-malicious indicator '
+                                f'from the June 2026 Atomic Arch campaign: '
+                                f'{category} matches "{pattern}"'),
+                        'meta': rule_metadata(_IOC_RULE_ID),
+                    })
+            except Exception:
+                continue  # a bad pattern must never break the scan
+    return findings
 
 
 # --- External rules-pack (local, validated, fail-closed) ----------------------------------------
@@ -529,7 +645,8 @@ def _bundled_rule_ids() -> set:
     """Rule ids defined in code (bundled) — a pack rule may not shadow any of these."""
     return ({rule_id for rule_id, *_ in _RULES}
             | {rule_id for rule_id, *_ in _STRUCTURAL}
-            | {SRCINFO_DIVERGENCE_RULE})
+            | {SRCINFO_DIVERGENCE_RULE}
+            | {_IOC_RULE_ID})
 
 
 def _validate_rule(raw, bundled: set, seen: set):
@@ -672,6 +789,14 @@ def scan(text: str) -> List[Dict]:
                                  'meta': rule_metadata(rule_id)})
         except Exception:
             continue  # a bad structural check must never break the scan
+
+    # IOC check (if the database loaded successfully)
+    try:
+        _ensure_ioc_data()
+        if _ioc_data:
+            findings.extend(_check_ioc(text, _ioc_data))
+    except Exception:
+        pass  # an IOC load failure must never break the scan
 
     findings.sort(key=lambda f: f['line_no'])
     return findings

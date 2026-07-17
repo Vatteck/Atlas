@@ -1039,6 +1039,72 @@ class AtlasApi:
             self.logger.error(f"get_dashboard_summary failed: {e}")
             return {'status': 'error', 'message': str(e)}
 
+    # ---- Audit rule-health rescan ----
+    # Runs in a background thread (it fetches N PKGBUILDs from the AUR).
+    # Cached per-session; callers read the last result with get_audit_rescan_result().
+
+    _audit_rescan_result = None  # {report, sampled_at_iso, sample_size, error}
+
+    def get_audit_rescan_result(self) -> dict:
+        """Return the last cached audit-rule-health scan, or empty if never run."""
+        if self._audit_rescan_result:
+            return {'status': 'ok', 'data': self._audit_rescan_result}
+        return {'status': 'ok', 'data': None}
+
+    def start_audit_rescan(self, sample_size: int = 80) -> dict:
+        """Sample `sample_size` live AUR PKGBUILDs and build a rule-fire-rate report.
+        Runs on the shared executor so the UI stays responsive. Returns immediately
+        with the cached previous result (or 'started' if no cache exists)."""
+        if self._audit_rescan_result:
+            return {'status': 'ok', 'data': self._audit_rescan_result,
+                    'note': 'Showing the last scan; a new one has been started.'}
+
+        def _run():
+            try:
+                from datetime import datetime, timezone
+                import random, os
+                from atlas.gems.arch import audit_rescan
+                from atlas.gems.arch.__init__ import ARCH_CACHE_DIR as _ARCH_CACHE_DIR
+
+                idx_path = os.path.join(_ARCH_CACHE_DIR, 'aur', 'index.txt')
+                names = []
+                if os.path.isfile(idx_path):
+                    with open(idx_path, encoding='utf-8', errors='ignore') as f:
+                        names = [line.strip() for line in f if line.strip()]
+                if not names:
+                    self._audit_rescan_result = {'error': 'AUR index is empty — sync packages first.',
+                                                  'sampled_at_iso': datetime.now(timezone.utc).isoformat(),
+                                                  'sample_size': 0, 'report': None}
+                    return
+
+                arch_man = self._manager_by_gem('arch')
+                if arch_man is None or not hasattr(arch_man, 'fetch_pkgbuild'):
+                    self._audit_rescan_result = {'error': 'Arch manager not available.',
+                                                  'sampled_at_iso': datetime.now(timezone.utc).isoformat(),
+                                                  'sample_size': 0, 'report': None}
+                    return
+
+                fetch = arch_man.fetch_pkgbuild
+                samples = audit_rescan.collect_samples(names, fetch, sample=sample_size, rng=random)
+                counts, total = audit_rescan.aggregate_fire_counts(samples)
+                report = audit_rescan.build_report(counts, total)
+
+                self._audit_rescan_result = {
+                    'report': report,
+                    'sampled_at_iso': datetime.now(timezone.utc).isoformat(),
+                    'sample_size': sample_size,
+                    'error': None if total else 'All PKGBUILD fetches failed — the AUR may be unreachable.',
+                }
+            except Exception as e:
+                self.logger.error(f"audit_rescan background scan failed: {e}")
+                from datetime import datetime, timezone
+                self._audit_rescan_result = {'error': str(e),
+                                              'sampled_at_iso': datetime.now(timezone.utc).isoformat(),
+                                              'sample_size': sample_size, 'report': None}
+
+        self._executor.submit(_run)
+        return {'status': 'ok', 'data': None, 'note': 'Scan started — check back in a few seconds.'}
+
     def get_system_health(self) -> dict:
         """Package-management health checks for the System Health page. Cheap signals run
         concurrently and fail open per field (a failed probe → None), so the page always renders.

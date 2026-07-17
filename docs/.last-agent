@@ -6,14 +6,19 @@
 
 ## Summary
 
-AUR dependency tree visualization (Task 3 of the AUR security heuristics plan).
-Added `_build_dep_tree()` to the API — batch-resolves AUR info for all
-direct dependencies, colors by source (repo/AUR) and warnings (orphaned, out of date),
-recurses one level for AUR deps' own deps. Injected as `dep_tree` into the install
-preview payload alongside existing flat dep lists.
+Two features shipped this session:
 
-Frontend: `renderDepTree()` replaces the flat chip accordion for AUR installs with
-a collapsible color-coded tree. Green = repo, amber = AUR clean, red = AUR with
-warnings. Inline source badges and warning labels. JS contract test added.
+1. **Mirrorlist regeneration safety** — removed regenerate from pacnew center,
+   added automatic backup/restore, confirmation dialog.
 
-**Verification:** 737 tests passed, JS contracts green.
+2. **Dependency tree visualization** — color-coded recursive tree in AUR install
+   preview modal (Task 3 of AUR security plan).
+
+3. **Audit rule-health dashboard** — new System Health card that can run a
+   background rescan of live AUR PKGBUILDs and surface noisy/stale rules.
+   Uses existing audit_rescan.py module. Scan runs on the shared executor
+   thread pool; results are cached per session.
+
+**Verification:** 757 tests passed, JS contracts green.
+
+**In progress:** Two subagents running in parallel (IOC database + aur-audit rules).

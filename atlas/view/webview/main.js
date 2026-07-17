@@ -4157,6 +4157,35 @@ async function handleMaintenanceAction(action, refresh) {
 // ===================== System Health (the "Arch cockpit") =====================
 // Pure mapping of the get_system_health payload → ordered cards. Status/tone logic lives here so
 // it's unit-tested in the Node VM harness. See docs/plans/2026-06-04-system-health.md.
+
+// Audit rule-health card — fetched separately from the main health payload (the rescan is
+// potentially long-running). Renders after the standard checks.
+function buildAuditHealthCard(ar) {
+    if (!ar) {
+        return '<div class="health-card tone-info"><div class="health-head"><span class="health-icon">🔬</span><span class="health-title">PKGBUILD Audit Rules</span><span class="health-status">Not run</span></div><div class="health-detail">Sample live AUR packages to surface noisy rules (firing too often) and stale rules (never firing).</div><button class="health-action" data-health-action="audit-rescan">Run sample scan</button></div>';
+    }
+    if (ar.error) {
+        return '<div class="health-card tone-info"><div class="health-head"><span class="health-icon">🔬</span><span class="health-title">PKGBUILD Audit Rules</span><span class="health-status">Error</span></div><div class="health-detail">' + escapeHtml(ar.error) + '</div><button class="health-action" data-health-action="audit-rescan">Retry scan</button></div>';
+    }
+    const r = ar.report;
+    if (!r || !r.total) {
+        return '<div class="health-card tone-info"><div class="health-head"><span class="health-icon">🔬</span><span class="health-title">PKGBUILD Audit Rules</span><span class="health-status">No data</span></div><div class="health-detail">The last scan did not return results. The AUR may be unreachable.</div><button class="health-action" data-health-action="audit-rescan">Retry scan</button></div>';
+    }
+    const fpCount = (r.fp_drift || []).length;
+    const nfCount = (r.never_fired || []).length;
+    const total = r.total;
+    let tone = 'ok', status = 'Healthy';
+    if (fpCount > 5) { tone = 'warn'; status = fpCount + ' noisy'; }
+    if (nfCount > 15) { tone = 'warn'; status = nfCount + ' silent'; }
+    if (fpCount > 10 || nfCount > 25) { tone = 'danger'; status = 'Review'; }
+    const detail = total + ' PKGBUILDs scanned · ' + r.rules.length + ' rules active · ' + fpCount + ' noisy (>50% fire), ' + nfCount + ' never fired.';
+    const more = fpCount ? 'Noisy rules: ' + r.fp_drift.map(function(x) { return x.rule + ' (' + Math.round(x.pct*100) + '%)'; }).join(', ') : '';
+    var html = '<div class="health-card tone-' + tone + '"><div class="health-head"><span class="health-icon">🔬</span><span class="health-title">PKGBUILD Audit Rules</span><span class="health-status">' + escapeHtml(status) + '</span></div><div class="health-detail">' + escapeHtml(detail) + '</div>';
+    if (more) html += '<details class="health-more"><summary>Noisy rules</summary><div class="health-more-body">' + escapeHtml(more) + '</div></details>';
+    html += '<button class="health-action" data-health-action="audit-rescan">Rescan</button></div>';
+    return html;
+}
+
 function systemHealthChecks(data) {
     const d = data || {};
     const checks = [];
@@ -4273,6 +4302,7 @@ function runHealthAction(actionId, btn) {
         case 'orphans': handleMaintenanceAction(actionId, renderSystemHealth); break;
         case 'remove-lock': removePacmanLock(btn); break;
         case 'aur-index': refreshAurIndex(btn); break;
+        case 'audit-rescan': startAuditRescan(btn); break;
     }
 }
 
@@ -4295,6 +4325,22 @@ async function refreshAurIndex(btn) {
     if (!r) return;
     showToast('AUR index', 'AUR package index refreshed', 'success');
     renderSystemHealth();
+}
+
+async function startAuditRescan(btn) {
+    if (btn) btn.classList.add('loading');
+    showToast('Audit rules', 'Sampling live AUR PKGBUILDs — this can take a moment…', 'info');
+    const r = await pyApiCall('start_audit_rescan', 80);  // null on error (toasted)
+    if (btn) btn.classList.remove('loading');
+    if (!r) return;
+    // If we got a cached result back immediately, show it. Otherwise, poll once after a short delay.
+    if (r.note) showToast('Audit rules', r.note, 'info');
+    if (r.data) {
+        renderSystemHealth();
+    } else {
+        // Scan just started — refresh after a few seconds to pick up results.
+        setTimeout(() => { if (currentView === 'health') renderSystemHealth(); }, 4000);
+    }
 }
 
 async function renderSystemHealth() {
@@ -4322,7 +4368,13 @@ async function renderSystemHealth() {
                 ? `<button class="health-action" data-health-action="${escapeHtml(c.actionId)}">${escapeHtml(c.actionLabel)}</button>`
                 : ''}
         </div>`).join('');
-    packagesGrid.innerHTML = `<div class="health-page"><div class="browse-header">System health</div><div class="health-grid">${cards}</div></div>`;
+    // Fetch the audit rule-health rescan result separately (it may still be running).
+    let auditCard = '';
+    try {
+        const ar = await pyApiCall('get_audit_rescan_result');
+        auditCard = buildAuditHealthCard(ar);
+    } catch (e) { /* omit on error */ }
+    packagesGrid.innerHTML = `<div class="health-page"><div class="browse-header">System health</div><div class="health-grid">${cards}${auditCard}</div></div>`;
     packagesGrid.querySelectorAll('.health-action').forEach(btn => {
         btn.addEventListener('click', () => runHealthAction(btn.dataset.healthAction, btn));
     });

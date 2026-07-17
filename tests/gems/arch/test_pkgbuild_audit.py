@@ -425,12 +425,13 @@ class RuleMetadataTest(unittest.TestCase):
         self.assertTrue(derived['source'])
 
     def test_counts_add_up(self):
-        # 2 campaign rules; 17 ks-aur-scanner + 2 structural + 1 divergence = 20 evergreen.
+        # 3 campaign rules (npm_install_unknown, temp_upload_service, known_ioc);
+        # 17 ks-aur-scanner + 2 structural + 1 divergence + 4 aur-audit = 24 evergreen.
         campaign = [r for r, m in audit._RULE_META.items() if m['kind'] == audit.CAMPAIGN]
         evergreen_recorded = [r for r, m in audit._RULE_META.items() if m['kind'] == audit.EVERGREEN]
-        self.assertEqual(len(campaign), 2)
-        self.assertEqual(len(evergreen_recorded), 20)
-        self.assertEqual(len(audit._RULE_META), 22)
+        self.assertEqual(len(campaign), 3)
+        self.assertEqual(len(evergreen_recorded), 24)
+        self.assertEqual(len(audit._RULE_META), 27)
 
 
 class ExternalRulePackTest(unittest.TestCase):
