@@ -1,18 +1,21 @@
 # .last-agent — integrity checkpoint for the next AI coding agent
 
-**Agent:** Hermes (deepseek-v4-pro) — 2026-07-16
+**Agent:** Claude Fable 5 (claude-fable-5) — 2026-07-17
 **Branch:** master
-**Last commit:** 31d17cf031ecc5bf34e1576491efe6950e1ce437
+**Last commit:** 0f2d767a5ef362a22dc3f3ed1db32bb5c0428cee (plus the docs commit carrying
+this baton)
 
 ## Summary
 
-AUR audit detection rules (Task 2 of the AUR security heuristics plan). Added 4 new
-aur-audit-adapted detection rules to the PKGBUILD scanner (`pkgbuild_audit.py`):
-`pipe_eval_remote` (bash <(curl ...)), `systemd_unit_install` (writing .service/.timer
-to absolute systemd paths), `shell_rc_write` (> or tee -a to shell init files, extending
-`shell_function_inject`), and `host_tamper` (install/cp writing to absolute system paths
-outside $pkgdir). Each rule has metadata in `_RULE_META` with EVERGREEN kind and
-aur-audit source attribution. Test class `AurAuditRuleTest` with 8 test methods
-(positive + negative cases per rule). Plan: docs/plans/2026-07-16-aur-audit-rules.md.
+UX cleanup of the .pacnew review flow (frontend-only: main.js, style.css, JS contract
+test). The Updates-view config notice is now a compact one-line banner (count + Review
+button); all detail/warnings/per-file actions live only in the .pacnew center. The
+center's mirrorlist row swaps the "Do not overwrite" prose for an "Open Mirror settings"
+navigation button + "Keep your mirrors" label — deliberately navigation, not an inline
+regen button, per docs/plans/2026-07-16-mirrorlist-regeneration-safety.md. Unused
+config-notice CSS pruned. Also corrected stale docs found on arrival: the previous baton
+recorded 31d17cf, but 68a7bd1 (TOCTOU-safe AUR install) and the 0.15.0 release (a49cb4b)
+had landed undocumented; STATUS.md's Version line was stale at 0.14.0 → now 0.15.0.
 
-**Verification:** 330 tests passed (including corpus), benign corpus clean.
+**Verification:** all 765 tests pass (pytest incl. JS contract suite). The new banner and
+mirrorlist row still need a GUI eyeball.
