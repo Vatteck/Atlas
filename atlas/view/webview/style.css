@@ -903,24 +903,32 @@ body {
     vertical-align: middle;
 }
 
-/* Terminal Panel (Task 2) */
+/* Terminal dialog — a centered floating modal (was a right sidepane; the overlay always blocked
+   navigation, but the sidepane made the app look usable behind it — the dialog says honestly
+   that the operation owns the screen until it's done). Same DOM/ids as before. */
 .terminal-panel {
     position: fixed;
-    top: 0;
-    right: 0;
-    width: 480px;
-    height: 100vh;
+    top: 50%;
+    left: 50%;
+    width: min(720px, 94vw);
+    height: min(72vh, 680px);
     background: var(--bg-surface);
-    border-left: 1px solid var(--border-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     z-index: 200;
-    transform: translateX(100%);
-    transition: transform var(--transition-smooth);
-    box-shadow: -8px 0 32px rgba(0,0,0,0.4);
+    transform: translate(-50%, -48%) scale(0.98);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform var(--transition-smooth), opacity var(--transition-smooth);
+    box-shadow: 0 24px 64px rgba(0,0,0,0.5);
 }
 .terminal-panel:not(.hidden) {
-    transform: translateX(0);
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+    pointer-events: auto;
 }
 .terminal-overlay {
     position: fixed;
@@ -973,10 +981,21 @@ body {
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
     font-size: 12px;
     line-height: 1.6;
-    color: #a8ff78;
+    color: #c9d1d9;
     background: #0d1117;
 }
 .terminal-output .line { display: block; word-break: break-all; }
+/* Log-line highlighting (highlightLogLine) — colors mirror what pacman/makepkg print in a real
+   color terminal, on the fixed dark log background (theme-independent by design). */
+.tlog-error  { color: #ff7b72; font-weight: 600; }
+.tlog-warn   { color: #ffa657; font-weight: 600; }
+.tlog-header { color: #7ee787; font-weight: 600; }  /* makepkg ==> */
+.tlog-notice { color: #79c0ff; font-weight: 600; }  /* pacman ::  */
+.tlog-step   { color: #a5d6ff; }                    /* makepkg -> */
+.tlog-url    { color: #58a6ff; text-decoration: underline; }
+.tlog-path   { color: #d2a8ff; }
+.tlog-pkg    { color: #7ee787; }
+.tlog-num    { color: #f2cc60; }
 .terminal-footer {
     padding: 12px 20px;
     border-top: 1px solid var(--border-color);

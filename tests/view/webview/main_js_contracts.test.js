@@ -1131,6 +1131,30 @@ async function testSummarizeFailureCategories() {
   assert.strictEqual(hooks.summarizeFailure('   '), null, 'whitespace log → null');
 }
 
+async function testHighlightLogLine() {
+  const { hooks } = loadMainJs({});
+  const h = hooks.highlightLogLine;
+  // line-level classes mirror the real tools' terminal colors
+  assert.ok(h('==> ERROR: A failure occurred in build().').startsWith('<span class="tlog-error">'));
+  assert.ok(h('==> WARNING: Package contains reference to $srcdir').startsWith('<span class="tlog-warn">'));
+  assert.ok(h('==> Making package: yay 12.3.5-1').startsWith('<span class="tlog-header">'));
+  assert.ok(h(':: Proceed with installation? [Y/n]').startsWith('<span class="tlog-notice">'));
+  assert.ok(h('error: target not found: nosuchpkg').startsWith('<span class="tlog-error">'));
+  assert.ok(h('warning: dependency cycle detected:').startsWith('<span class="tlog-warn">'));
+  assert.ok(h('  -> Downloading sources...').startsWith('<span class="tlog-step">'));
+  // inline tokens on neutral lines
+  assert.ok(h('downloading from https://mirror.example.org/core.db').includes('<span class="tlog-url">https://mirror.example.org/core.db</span>'));
+  assert.ok(h('installing to /usr/share/atlas').includes('<span class="tlog-path">/usr/share/atlas</span>'));
+  assert.ok(h('upgrading firefox-128.0-1').includes('<span class="tlog-pkg">firefox-128.0-1</span>'));
+  assert.ok(h('Total Download Size: 42.7 MiB (87%)').includes('tlog-num'));
+  // input is escaped (never raw HTML), including inside classified lines
+  assert.ok(!h('error: <script>alert(1)</script>').includes('<script>'));
+  assert.ok(h('a <b> & c').includes('&lt;b&gt;'));
+  // null/empty safe
+  assert.strictEqual(h(''), '');
+  assert.strictEqual(h(null), '');
+}
+
 async function testPickActivityText() {
   const { hooks } = loadMainJs({});
   // substatus wins when present
@@ -1862,6 +1886,7 @@ function testPermsListEnsuresIconObserver() {
     testPkgbuildMetaOnlyLinksSafeHttpUrls,
     testRenderDepTree,
     testSummarizeFailureCategories,
+    testHighlightLogLine,
     testPickActivityText,
     testStripProgressBarAndPercent,
     testTerminalFlowRunsWithoutError,

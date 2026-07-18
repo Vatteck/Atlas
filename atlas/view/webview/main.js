@@ -628,6 +628,37 @@ function pickActivityText({ substatus, status, lastLine } = {}) {
         || stripProgressBar(lastLine) || 'Working…';
 }
 
+// Pure: highlight one raw log line as HTML (input escaped). Regex-based, no external lib —
+// same approach as highlightBashLine. Line classes mirror what pacman/makepkg print in a real
+// color terminal (:: bold blue, ==> bold green, ERROR bold red, …); neutral lines get
+// whitespace-token inline highlighting (URLs, paths, versions, sizes) — tokenizing on
+// whitespace keeps replacements from overlapping each other's inserted markup.
+function highlightLogLine(line) {
+    line = String(line == null ? '' : line);
+    if (/^==> ERROR/i.test(line)) return `<span class="tlog-error">${escapeHtml(line)}</span>`;
+    if (/^==> WARNING/i.test(line)) return `<span class="tlog-warn">${escapeHtml(line)}</span>`;
+    if (/^==>/.test(line)) return `<span class="tlog-header">${escapeHtml(line)}</span>`;
+    if (/^::/.test(line)) return `<span class="tlog-notice">${escapeHtml(line)}</span>`;
+    if (/^\s*(error|failed)[: ]/i.test(line)) return `<span class="tlog-error">${escapeHtml(line)}</span>`;
+    if (/^\s*warning[: ]/i.test(line)) return `<span class="tlog-warn">${escapeHtml(line)}</span>`;
+    const step = /^\s*->\s?/.test(line);
+    const tokenClass = (t) => {
+        if (/^(https?|ftp):\/\/\S+$/i.test(t)) return 'tlog-url';
+        if (/^\/[^\s]+$/.test(t)) return 'tlog-path';
+        if (/^[a-z][\w@.+-]*-\d[\w.:+~]*(-\d+)?$/.test(t)) return 'tlog-pkg';   // name-1.2.3-1
+        if (/^\(?\d+(\.\d+)*([%)]|\/\d+\)?)?$/.test(t)) return 'tlog-num';      // 42, 3.14, 87%, (3/12)
+        if (/^\d[\w.:+~-]*$/.test(t)) return 'tlog-num';                        // versions: 1:2.3-4
+        if (/^[KMGT]i?B(\/s)?$/i.test(t)) return 'tlog-num';                    // size units
+        return null;
+    };
+    const body = line.split(/(\s+)/).map(t => {
+        if (!t || /^\s+$/.test(t)) return escapeHtml(t);
+        const cls = tokenClass(t);
+        return cls ? `<span class="${cls}">${escapeHtml(t)}</span>` : escapeHtml(t);
+    }).join('');
+    return step ? `<span class="tlog-step">${body}</span>` : body;
+}
+
 let terminalLogBuffer = '';
 let terminalActivity = { substatus: '', status: '', lastLine: '' };
 
@@ -685,7 +716,7 @@ window.terminalAppend = (line) => {
     const output = document.getElementById('terminal-output');
     const lineEl = document.createElement('span');
     lineEl.className = 'line';
-    lineEl.textContent = line;
+    lineEl.innerHTML = highlightLogLine(line);  // pure, escapes its own input
     output.appendChild(lineEl);
     output.scrollTop = output.scrollHeight;
 };
@@ -6812,6 +6843,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildPkgbuildDiffHTML,
         safeExternalUrl,
         summarizeFailure,
+        highlightLogLine,
         pickActivityText,
         stripProgressBar,
         extractPercent,

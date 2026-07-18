@@ -5,7 +5,18 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-07-17 (**Compact Updates config-notice + friendlier .pacnew center.** Vatteck flagged
+**Last updated:** 2026-07-17 (**Terminal → centered dialog + log syntax highlighting.** Two Vatteck requests.
+(1) The transaction terminal's flat-green log is now syntax-highlighted: new pure `highlightLogLine` (main.js,
+modeled on `highlightBashLine` — regex, escapes its own input, no external lib) with line classes mirroring the
+real tools' terminal colors (pacman `::` bold blue, makepkg `==>` bold green / `->` blue, ERROR bold red,
+warning amber) plus whitespace-token inline highlights (URLs, paths, `name-1.2.3-1` pkg tokens,
+versions/sizes/percentages); default text went green → neutral `#c9d1d9`. Copy-log stays raw. (2) The terminal
+moved from a 480px right sidepane to a **centered floating dialog** (CSS-only, same DOM/ids): the overlay
+always blocked navigation, but the sidepane made the app look navigable behind it — the dialog states the
+modality honestly. `min(720px, 94vw) × min(72vh, 680px)`, fade+scale open. Plan:
+[plans/2026-07-17-terminal-highlight-popup.md]. JS contract test `testHighlightLogLine` added; suite 765 +
+JS green. **Needs a GUI eyeball** — run an install/uninstall and check the dialog + colors.)
+- Prior same day: (**Compact Updates config-notice + friendlier .pacnew center.** Vatteck flagged
 the Updates-view `.pacnew` notice as messy/unfriendly after the mirrorlist-safety changes ("don't do this, do
 that"). The notice (`renderUpdatesNotice`) is now a one-line banner — count + one **Review** button into the
 .pacnew center; the explainer paragraph, mirrorlist warning paragraph, per-file Discard/Apply buttons, and
@@ -263,6 +274,27 @@ re-add a native extension without a measured win. Details in the historical
 ---
 
 ## Done
+
+- **Terminal → centered dialog + log syntax highlighting (2026-07-17).** Vatteck asked for prettier
+  log output and floated moving the terminal off the sidepane; both shipped. **(1) Highlighting:** pure
+  `highlightLogLine(line)` (main.js, next to the other terminal helpers), same idiom as
+  `highlightBashLine` — regex-based, escapes its own input, no external library (offline WebKitGTK).
+  Whole-line classes mirror what the tools print in a real color terminal: `tlog-error` (`==> ERROR:` /
+  leading `error:`/`failed:`, bold red), `tlog-warn` (bold amber), `tlog-header` (makepkg `==>`, bold
+  green), `tlog-notice` (pacman `::`, bold blue), `tlog-step` (`->`, blue). Neutral/step lines get
+  inline tokens — URL / absolute path / `name-1.2.3-1` package / versions/sizes/percentages/`(n/m)` —
+  classified per whitespace token so replacements can't overlap each other's markup. Default log text
+  went from flat green `#a8ff78` to neutral `#c9d1d9`; palette is GitHub-dark-ish on the fixed `#0d1117`
+  log background (deliberately theme-independent). `terminalAppend` now sets `innerHTML` from the
+  highlighter; `terminalLogBuffer`/Copy-log stays raw text. **(2) Dialog:** the panel is now a centered
+  floating modal (`min(720px, 94vw) × min(72vh, 680px)`, rounded, fade+scale) instead of a right
+  sidepane — CSS-only, same DOM/ids/watcher protocol, so it's trivial to revert. Rationale: the
+  overlay already made operations modal; the sidepane visually promised navigation that was (rightly)
+  blocked. Tests: `testHighlightLogLine` (line classes, inline tokens, escaping, null-safety); suite
+  **765** + JS green. Plan:
+  [plans/2026-07-17-terminal-highlight-popup.md](plans/2026-07-17-terminal-highlight-popup.md).
+  **Needs a GUI eyeball**: run an install and check the dialog shape, open/close animation, and colors
+  (esp. an AUR build for makepkg headers and a failure for the red path).
 
 - **Compact Updates config-notice + friendlier .pacnew center (2026-07-17).** UX pass on the `.pacnew`
   review flow after Vatteck flagged the Updates notice as messy ("don't do this, do that"). The notice
