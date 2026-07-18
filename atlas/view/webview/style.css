@@ -2941,9 +2941,9 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
     border-radius: var(--radius-md);
     padding: 14px 16px;
 }
-.pacnew-item.tone-danger { border-left-color: var(--status-danger); }
-.pacnew-item.tone-warn   { border-left-color: var(--status-warning); }
-.pacnew-item.tone-info   { border-left-color: var(--accent-color); }
+/* info rows keep the neutral base border — accent/danger edges made every row look like an
+   alarm (especially under red-ish accent themes); only system-critical files get color */
+.pacnew-item.tone-warn { border-left-color: var(--status-warning); }
 .pacnew-row { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
 .pacnew-path { font-size: 13px; color: var(--text-primary); word-break: break-all; }
 .pacnew-risk {
@@ -2951,8 +2951,7 @@ body.density-dense .attention-card { min-height: 0; padding: 14px 16px; }
     font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
     padding: 3px 8px; border-radius: 999px;
 }
-.pacnew-item.tone-danger .pacnew-risk { color: var(--status-danger);  background: rgba(239, 68, 68, 0.15); }
-.pacnew-item.tone-warn   .pacnew-risk { color: var(--status-warning); background: rgba(245, 158, 11, 0.15); }
+.pacnew-item.tone-warn .pacnew-risk { color: var(--status-warning); background: rgba(245, 158, 11, 0.15); }
 .pacnew-item.tone-info   .pacnew-risk { color: var(--text-secondary); background: var(--bg-surface-hover); }
 .pacnew-note { font-size: 12.5px; color: var(--text-secondary); margin-top: 4px; }
 .pacnew-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

@@ -15,7 +15,11 @@ mislead anyone). In the center, the mirrorlist row's "Do not overwrite" prose be
 2026-07-16-mirrorlist-regeneration-safety: regeneration stays confined to Settings → Mirrors because
 reflector/rate-mirrors write upstream-Arch mirrors, a footgun on derivatives like CachyOS) + a softened
 "Keep your mirrors" label/note. Unused `config-notice-*` CSS pruned. JS contract test for the mirrorlist note
-updated. All 765 tests pass. **Needs a GUI eyeball** (banner + mirrorlist row). Also fixed stale docs found on
+updated. All 765 tests pass. **Needs a GUI eyeball** (banner + mirrorlist row). Follow-up same day after a GUI
+eyeball by Vatteck: the mirrorlist row was still shouting (red border + "KEEP YOUR MIRRORS" badge) despite every
+action on it now being safe — demoted to the info tone with a "Safe to discard" label; and `tone-info` rows no
+longer take the accent color for their left border (under a red accent theme every row looked like an alarm) —
+only `warn` (system-critical files) keeps a colored edge. Also fixed stale docs found on
 arrival: `.last-agent` recorded `31d17cf` but `68a7bd1` (TOCTOU-safe AUR install) and the **0.15.0 release**
 (`a49cb4b`) had landed undocumented — Version line below corrected to 0.15.0.)
 - Prior (2026-07-16): (**4 new aur-audit detection rules.** Added `pipe_eval_remote`, `systemd_unit_install`, `shell_rc_write`, and `host_tamper` to the PKGBUILD audit scanner — adapted from aur-audit's detection categories (MIT-licensed, independent implementation). The 4 rules catch process-substitution shell injection (Atomic Arch delivery mechanism), systemd unit file writes to absolute paths, shell rc file overwrites (> and tee -a, extending the existing `shell_function_inject` rule), and writes to absolute system paths outside $pkgdir. Each rule has metadata with aur-audit source provenance. `AurAuditRuleTest` class added with 8 test methods. Plan: [docs/plans/2026-07-16-aur-audit-rules.md]. All 330 tests pass, benign corpus clean. Part of [docs/plans/2026-06-21-aur-security-heuristics.md] Task 2.)
@@ -274,8 +278,14 @@ re-add a native extension without a measured win. Details in the historical
   regeneration to Settings → Mirrors (reflector/rate-mirrors write upstream-Arch mirrors — a footgun on
   derivatives like CachyOS). Pruned the now-unused `config-notice-*` CSS (list/file/warn/actions rules);
   `.config-notice` is now a flex one-liner. Contract test for the mirrorlist note updated (steers to
-  discard / Mirror settings). Suite **765** green. **Needs a GUI eyeball**: Updates banner, the center's
-  mirrorlist row, and the Open Mirror settings navigation.
+  discard / Mirror settings). Suite **765** green. **Follow-up after Vatteck's GUI eyeball (same day):**
+  the mirrorlist row still drew maximum attention (danger tone: red border + red "KEEP YOUR MIRRORS"
+  badge) even though, with Apply gone, every action left on it is safe — `pacnewRisk` now returns
+  `info` + "Safe to discard" for mirrorlist (the danger level has no producers and its CSS was pruned).
+  Also, `tone-info` rows used `--accent-color` for the left border, so under a red-ish accent theme
+  *every* row read as an alarm — info rows now keep the neutral base border; only `warn`
+  (system-critical: sudoers/fstab/pacman.conf/…) gets an amber edge. Contract test asserts the new
+  level/label. **Still needs a GUI eyeball**: Updates banner + the calmed-down center.
 
 - **4 new aur-audit detection rules (2026-07-16).** Task 2 of the AUR security heuristics plan. Added `pipe_eval_remote` (bash <(curl ...) — Atomic Arch delivery mechanism), `systemd_unit_install` (writing .service/.timer to absolute systemd paths), `shell_rc_write` (> and tee -a to shell init files, extending `shell_function_inject`), and `host_tamper` (install/cp writing to absolute system paths outside $pkgdir). Each rule is EVERGREEN with aur-audit source attribution in `_RULE_META`. Test class `AurAuditRuleTest` with 8 test methods (positive + negative per rule). All 330 tests pass, benign corpus clean. Files: `atlas/gems/arch/pkgbuild_audit.py` (+4 rules, +4 meta entries, +1 source string), `tests/gems/arch/test_pkgbuild_audit.py` (+1 test class, updated count test). Plan: [docs/plans/2026-07-16-aur-audit-rules.md](docs/plans/2026-07-16-aur-audit-rules.md).
 

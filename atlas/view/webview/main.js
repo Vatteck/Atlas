@@ -4386,7 +4386,9 @@ async function renderSystemHealth() {
 function pacnewRisk(path) {
     const base = (path || '').replace(/\.pac(new|save)$/, '');
     const name = base.split('/').pop();
-    if (name === 'mirrorlist') return { level: 'danger', label: 'Keep your mirrors',
+    // info, not danger: the risky action (Apply) doesn't exist for mirrorlist — every action
+    // left on its row is safe, so there's nothing for the styling to warn about.
+    if (name === 'mirrorlist') return { level: 'info', label: 'Safe to discard',
         note: 'This .pacnew is the stock mirror list with every server commented out. Discard it, or get fresh servers from Mirror settings first.' };
     const critical = new Set(['pacman.conf', 'sudoers', 'fstab', 'crypttab', 'mkinitcpio.conf',
         'passwd', 'shadow', 'group', 'gshadow', 'hosts', 'resolv.conf', 'locale.gen', 'nsswitch.conf']);

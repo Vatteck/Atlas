@@ -804,7 +804,9 @@ async function testSystemHealthChecks() {
 
 async function testPacnewRisk() {
   const { hooks } = loadMainJs({});
-  assert.strictEqual(hooks.pacnewRisk('/etc/pacman.d/mirrorlist.pacnew').level, 'danger');
+  // mirrorlist is info, not danger — Apply doesn't exist for it, so nothing on its row is risky
+  assert.strictEqual(hooks.pacnewRisk('/etc/pacman.d/mirrorlist.pacnew').level, 'info');
+  assert.strictEqual(hooks.pacnewRisk('/etc/pacman.d/mirrorlist.pacnew').label, 'Safe to discard');
   assert.strictEqual(hooks.pacnewRisk('/etc/pacman.conf.pacnew').level, 'warn');
   assert.strictEqual(hooks.pacnewRisk('/etc/sudoers.d/wheel.pacnew').level, 'warn');
   assert.strictEqual(hooks.pacnewRisk('/etc/foobar.conf.pacnew').level, 'info');
