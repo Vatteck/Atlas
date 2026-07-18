@@ -202,9 +202,16 @@ indexing, fine after" — reproduced with a fresh `HOME`: **cold first-run pytho
 (steady 253). Root cause found and **fixed**: `pacman.map_desktop_files` buffered `pacman -Ql <every
 package>` (46 MB / ~690k lines here; hundreds of MB on big installs) as one string during the first-run
 disk-cache warm-up — now streamed line-by-line (`+3` tests). **Measured: cold peak 528.7 → 451.7 MB.**
-Remaining cold-start transient: up to three concurrent full `read_installed` passes (GUI updates read +
-installed read + pre-cacher's own) — coalescing them is the next candidate, needs its own plan (see
-[plans/2026-07-17-memory-baseline.md](plans/2026-07-17-memory-baseline.md)).
+Follow-up shipped: **in-flight coalescing of concurrent full `read_installed` calls** in
+`GenericSoftwareManager` (leader/follower, concurrent-dedup only — no cache/TTL; typed reads bypass;
+`ATLAS_NO_READ_COALESCING=1` kill switch; 5 tests). Honest tally: **no measured memory delta** (cold peak
+452–454 vs 451.7; warm identical with/without) because the GUI overlap is timing-dependent and today's
+runs were sequential — kept as a cheap guard for the overlap class that did occur in the original cold
+log. The remaining cold-start pair is **structural**: the GUI's arch read waits on the pre-cacher's
+disk-cache task while the pre-cacher runs its own read as the cache's data source — merging those is an
+arch-gem redesign with circular-wait risk; needs its own plan. See
+[plans/2026-07-17-coalesce-read-installed.md](plans/2026-07-17-coalesce-read-installed.md) and
+[plans/2026-07-17-memory-baseline.md](plans/2026-07-17-memory-baseline.md).
 
 ## Prior focus
 

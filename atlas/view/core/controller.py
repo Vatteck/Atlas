@@ -1,8 +1,9 @@
+import os
 import shutil
 import time
 import traceback
 from subprocess import Popen, STDOUT
-from threading import Thread, Lock
+from threading import Thread, Lock, Event
 from typing import List, Set, Type, Tuple, Dict, Optional, Generator, Callable
 
 from atlas.api.abstract.controller import SoftwareManager, SearchResult, ApplicationContext, UpgradeRequirements, \
@@ -57,6 +58,8 @@ class GenericSoftwareManager(SoftwareManager, SettingsController):
         self._action_reset: Optional[CustomSoftwareAction] = None
         self._dynamic_extra_actions: Optional[Dict[CustomSoftwareAction, Callable[[dict], bool]]] = None
         self.force_suggestions = force_suggestions
+        self._full_read_lock = Lock()
+        self._full_read_flight: Optional[dict] = None
 
     @property
     def dynamic_extra_actions(self) -> Dict[CustomSoftwareAction, Callable[[dict], bool]]:
@@ -229,6 +232,42 @@ class GenericSoftwareManager(SoftwareManager, SettingsController):
         output.append(man_res)
 
     def read_installed(self, disk_loader: DiskCacheLoader = None, limit: int = -1, only_apps: bool = False, pkg_types: Set[Type[SoftwarePackage]] = None, internet_available: bool = None) -> SearchResult:
+        # Coalesce concurrent full reads (every api.py caller passes no arguments): the first
+        # caller becomes the leader and runs the real read; callers arriving while it runs wait
+        # and share its SearchResult instead of spawning a duplicate pass (per-gem threads +
+        # pacman/checkupdates subprocesses + AUR RPC). At startup up to three full passes used
+        # to run at once — a real chunk of the cold-start memory peak and 5-30 s of duplicate
+        # work on warm starts. Concurrent dedup only: the in-flight slot is cleared before the
+        # event fires, so any call arriving after completion always reads fresh. Typed reads
+        # (pkg_types) bypass. See docs/plans/2026-07-17-coalesce-read-installed.md.
+        if pkg_types or os.environ.get('ATLAS_NO_READ_COALESCING') == '1':
+            return self._read_installed_now(disk_loader, limit, only_apps, pkg_types, internet_available)
+
+        with self._full_read_lock:
+            flight = self._full_read_flight
+            leader = flight is None
+            if leader:
+                flight = {'event': Event(), 'result': None, 'error': None}
+                self._full_read_flight = flight
+
+        if not leader:
+            flight['event'].wait()
+            if flight['error'] is not None:
+                raise flight['error']
+            return flight['result']
+
+        try:
+            flight['result'] = self._read_installed_now(disk_loader, limit, only_apps, pkg_types, internet_available)
+            return flight['result']
+        except BaseException as e:
+            flight['error'] = e
+            raise
+        finally:
+            with self._full_read_lock:
+                self._full_read_flight = None
+            flight['event'].set()
+
+    def _read_installed_now(self, disk_loader: DiskCacheLoader = None, limit: int = -1, only_apps: bool = False, pkg_types: Set[Type[SoftwarePackage]] = None, internet_available: bool = None) -> SearchResult:
         ti = time.time()
         self._wait_to_be_ready()
 
