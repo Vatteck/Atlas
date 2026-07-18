@@ -22,8 +22,9 @@ referenced an undefined `--color-success` (so the green repo coding never render
 fell back to white), rows were double-indented (inline indent span *plus* the children container margin), and
 every row carried a noisy "repo" chip. Rebuilt: colored dot per row (green repo / amber AUR / red
 AUR-with-warnings, real `--status-*` vars), chips only on AUR rows, single container-driven indentation,
-caret-alignment spacer, and a dot legend under the tree. `testRenderDepTree` updated. **Dep tree + banner
-gutters need a GUI eyeball.**)
+caret-alignment spacer, and a dot legend under the tree. `testRenderDepTree` updated. **GUI-verified by
+Vatteck 2026-07-17** — banner gutters, dep tree, and the calmed .pacnew center all confirmed good; nothing
+from the 2026-07-17 UX work is awaiting an eyeball.)
 - Prior same day: (**Compact Updates config-notice + friendlier .pacnew center.** Vatteck flagged
 the Updates-view `.pacnew` notice as messy/unfriendly after the mirrorlist-safety changes ("don't do this, do
 that"). The notice (`renderUpdatesNotice`) is now a one-line banner — count + one **Review** button into the
@@ -344,8 +345,7 @@ re-add a native extension without a measured win. Details in the historical
   blocked. Tests: `testHighlightLogLine` (line classes, inline tokens, escaping, null-safety); suite
   **765** + JS green. Plan:
   [plans/2026-07-17-terminal-highlight-popup.md](plans/2026-07-17-terminal-highlight-popup.md).
-  **Needs a GUI eyeball**: run an install and check the dialog shape, open/close animation, and colors
-  (esp. an AUR build for makepkg headers and a failure for the red path).
+  **GUI-verified by Vatteck 2026-07-17** — highlighting and the floating dialog both approved.
 
 - **Compact Updates config-notice + friendlier .pacnew center (2026-07-17).** UX pass on the `.pacnew`
   review flow after Vatteck flagged the Updates notice as messy ("don't do this, do that"). The notice
@@ -368,7 +368,7 @@ re-add a native extension without a measured win. Details in the historical
   Also, `tone-info` rows used `--accent-color` for the left border, so under a red-ish accent theme
   *every* row read as an alarm — info rows now keep the neutral base border; only `warn`
   (system-critical: sudoers/fstab/pacman.conf/…) gets an amber edge. Contract test asserts the new
-  level/label. **Still needs a GUI eyeball**: Updates banner + the calmed-down center.
+  level/label. **GUI-verified by Vatteck 2026-07-17** (banner + calmed center both look good).
 
 - **4 new aur-audit detection rules (2026-07-16).** Task 2 of the AUR security heuristics plan. Added `pipe_eval_remote` (bash <(curl ...) — Atomic Arch delivery mechanism), `systemd_unit_install` (writing .service/.timer to absolute systemd paths), `shell_rc_write` (> and tee -a to shell init files, extending `shell_function_inject`), and `host_tamper` (install/cp writing to absolute system paths outside $pkgdir). Each rule is EVERGREEN with aur-audit source attribution in `_RULE_META`. Test class `AurAuditRuleTest` with 8 test methods (positive + negative per rule). All 330 tests pass, benign corpus clean. Files: `atlas/gems/arch/pkgbuild_audit.py` (+4 rules, +4 meta entries, +1 source string), `tests/gems/arch/test_pkgbuild_audit.py` (+1 test class, updated count test). Plan: [docs/plans/2026-07-16-aur-audit-rules.md](docs/plans/2026-07-16-aur-audit-rules.md).
 

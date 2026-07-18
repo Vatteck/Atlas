@@ -56,5 +56,7 @@ release.sh run (tag v0.16.0 pushed, tarball sha256 pinned, .SRCINFO regenerated)
 recipe pushed; CI "Publish stable to AUR" succeeded and the AUR shows **atlas-pm
 0.16.0-1** (RPC-verified). Everything is pushed to origin/master.
 
-**Verification:** all 773 tests pass. GUI eyeballs still wanted: banner gutters, rebuilt
-dep tree (AUR install/update preview), calmed .pacnew center.
+**Verification:** all 773 tests pass. **All of this session's UI work is GUI-verified by
+Vatteck (2026-07-17)**: terminal highlighting + floating dialog, compact Updates banner
+(gutters), rebuilt dependency tree, and the calmed .pacnew center. No pending eyeballs
+from this session.
