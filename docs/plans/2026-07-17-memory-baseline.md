@@ -46,6 +46,32 @@ not an unbounded leak. Worth re-checking in a long-lived GUI session.
 - **MALLOC_ARENA_MAX=2 made it worse**: 93.5 MB vs 79.1 baseline.
 - **malloc_trim(0)**: reclaimed ~1 MB. Not worth wiring in.
 
+## Cold first-run spike — root-caused and fixed (same day)
+
+The one real report (indirect, n=1): "took up all their RAM while loading in and doing
+the initial indexing, fine after that." Reproduced with a fresh `HOME` (no atlaspm
+config/cache/AUR index): on a **cold first run the python process peaked at 529 MB RSS**
+(steady state 253 MB), with concurrent ~48 MB pacman children — a transient tree total
+near 550–700 MB. Warm runs never showed it (all earlier numbers were warm).
+
+Root cause: the first-run disk-cache warm-up (`ArchDiskCacheUpdater` →
+`disk.write_several` → `pacman.map_desktop_files`) ran `pacman -Ql <every package>`
+through `run_cmd`, buffering the **complete file list of every installed package as one
+string** — 46 MB / ~690k lines on this box (hundreds of MB on texlive-class installs),
+plus the decode copy, to extract a few hundred `.desktop` lines. All while the GUI's own
+startup `read_installed` calls ran concurrently.
+
+Fix: `map_desktop_files` now streams the output line-by-line via `new_subprocess`
+(`atlas/gems/arch/pacman.py`), keeping only matches. **Measured: cold-run python peak
+528.7 → 451.7 MB (−77 MB); peak tree sample 548 → 492 MB.** Steady state unchanged
+(~420 MB total PSS), as expected. `pacman -Qi` (the other full-dump) is only 1.9 MB —
+no other whale buffer at startup.
+
+Remaining transient (~200 MB over steady): at startup, up to three full `read_installed`
+passes run concurrently — the GUI's updates read, its installed read, and the
+pre-cacher's own read (`worker.py:311`). Coalescing/staggering those is the next
+candidate, but it's orchestration surgery — needs its own plan.
+
 ## Candidate levers (none implemented — pending direction)
 
 1. **Get the actual reports.** 400–460 MB PSS is Electron-class but not runaway; a

@@ -355,3 +355,58 @@ Provides        : None
         self.assertEqual(res1, res3)
         run_cmd.assert_not_called()
 
+
+
+class MapDesktopFilesTest(TestCase):
+    """map_desktop_files streams `pacman -Ql` line by line (the full output over every
+    installed package is tens of MB — buffering it drove the cold-start memory spike,
+    see docs/plans/2026-07-17-memory-baseline.md)."""
+
+    class _FakeStdout:
+        """Like a Popen stdout pipe: its own context manager, iterable by line."""
+        def __init__(self, lines):
+            self._lines = lines
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def __iter__(self):
+            return iter(self._lines)
+
+    @classmethod
+    def _proc_with_lines(cls, lines):
+        proc = Mock()
+        proc.stdout = cls._FakeStdout(lines)
+        proc.wait = Mock(return_value=0)
+        return proc
+
+    @patch(f'{__app_name__}.gems.arch.pacman.new_subprocess')
+    def test_map_desktop_files__maps_only_desktop_lines(self, new_subprocess: Mock):
+        new_subprocess.return_value = self._proc_with_lines([
+            b'firefox /usr/bin/firefox\n',
+            b'firefox /usr/share/applications/firefox.desktop\n',
+            b'zlib /usr/lib/libz.so\n',
+            b'gimp /usr/share/applications/gimp.desktop\n',
+            b'gimp /usr/share/applications/gimp-extra.desktop\n',
+        ])
+        res = pacman.map_desktop_files('firefox', 'zlib', 'gimp')
+        new_subprocess.assert_called_once_with(['pacman', '-Ql', 'firefox', 'zlib', 'gimp'])
+        self.assertEqual({'firefox': ['/usr/share/applications/firefox.desktop'],
+                          'gimp': ['/usr/share/applications/gimp.desktop',
+                                   '/usr/share/applications/gimp-extra.desktop']}, res)
+
+    @patch(f'{__app_name__}.gems.arch.pacman.new_subprocess')
+    def test_map_desktop_files__no_args_no_subprocess(self, new_subprocess: Mock):
+        self.assertEqual({}, pacman.map_desktop_files())
+        new_subprocess.assert_not_called()
+
+    @patch(f'{__app_name__}.gems.arch.pacman.new_subprocess')
+    def test_map_desktop_files__undecodable_bytes_do_not_crash(self, new_subprocess: Mock):
+        new_subprocess.return_value = self._proc_with_lines([
+            b'bad \xff\xfe line\n',
+            b'ok /usr/share/applications/ok.desktop\n',
+        ])
+        self.assertEqual({'ok': ['/usr/share/applications/ok.desktop']}, pacman.map_desktop_files('ok', 'bad'))

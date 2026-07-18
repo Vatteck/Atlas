@@ -197,8 +197,14 @@ pywebview window already costs ~200 MB PSS, so that's the architecture floor; At
 modest (76–79 MB after the first `read_installed` of 2177 pkgs, peak ~98). Measured dead ends (don't
 re-try): tracemalloc inflates RSS ~3×, `MALLOC_ARENA_MAX=2` made it *worse*, `malloc_trim` reclaims ~1 MB.
 Slow decelerating creep on repeated refreshes (77→93 MB over 5) — looks like cache fill, worth a
-long-session re-check. **Next step: get the actual user reports** (numbers/setup) before picking a lever —
-candidates ranked in the plan doc.
+long-session re-check. **Update, same day:** the one real report was "ate all the RAM during initial
+indexing, fine after" — reproduced with a fresh `HOME`: **cold first-run python peak was 529 MB RSS**
+(steady 253). Root cause found and **fixed**: `pacman.map_desktop_files` buffered `pacman -Ql <every
+package>` (46 MB / ~690k lines here; hundreds of MB on big installs) as one string during the first-run
+disk-cache warm-up — now streamed line-by-line (`+3` tests). **Measured: cold peak 528.7 → 451.7 MB.**
+Remaining cold-start transient: up to three concurrent full `read_installed` passes (GUI updates read +
+installed read + pre-cacher's own) — coalescing them is the next candidate, needs its own plan (see
+[plans/2026-07-17-memory-baseline.md](plans/2026-07-17-memory-baseline.md)).
 
 ## Prior focus
 

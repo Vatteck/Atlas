@@ -224,13 +224,18 @@ def map_desktop_files(*pkgnames) -> Dict[str, List[str]]:
     res = {}
 
     if pkgnames:
-        output = run_cmd('pacman -Ql {}'.format(' '.join(pkgnames)), print_error=False)
-
-        if output:
-            for match in RE_DESKTOP_FILES.findall(output):
-                pkgfiles = res.get(match[0], [])
-                res[match[0]] = pkgfiles
-                pkgfiles.append(match[1])
+        # Streamed line-by-line instead of buffering the whole output: `pacman -Ql` over every
+        # installed package is tens of MB (46 MB / ~690k lines on the dev box) to find a few
+        # hundred .desktop lines, and it runs during the first-run disk-cache warm-up — buffering
+        # it was the biggest single driver of the cold-start memory spike
+        # (docs/plans/2026-07-17-memory-baseline.md).
+        proc = new_subprocess(['pacman', '-Ql', *pkgnames])
+        with proc.stdout:
+            for output in proc.stdout:
+                match = RE_DESKTOP_FILES.search(output.decode(errors='replace'))
+                if match:
+                    res.setdefault(match.group(1), []).append(match.group(2))
+        proc.wait()
 
     return res
 
