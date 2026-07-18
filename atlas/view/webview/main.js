@@ -1107,25 +1107,27 @@ document.getElementById('news-gate-modal').addEventListener('keydown', (e) => {
 // See docs/plans/2026-06-04-transaction-preview.md.
 // ---- Dependency tree renderer (AUR install preview) ----
 // Renders a recursive tree of {name, source, warnings:[{label,level}], deps:[...]}.
-// Color: green (repo) / amber (AUR, clean) / red (AUR with warnings).
-// Subtrees with children are collapsible. Inline warning badges for orphaned/out-of-date.
-function renderDepTree(nodes, depth = 0) {
+// Row = caret/spacer + colored dot + mono name + chips. The dot carries the source color
+// (green repo / amber AUR / red AUR-with-warnings); only AUR rows get a chip — labeling every
+// repo row was noise. Nesting comes from the .dep-tree-children container alone (no per-node
+// indent spans). Subtrees with children are collapsible.
+function renderDepTree(nodes) {
     if (!nodes || !nodes.length) return '';
     return nodes.map(node => {
         const isAur = node.source === 'aur';
         const hasWarnings = node.warnings && node.warnings.length > 0;
         const hasChildren = node.deps && node.deps.length > 0;
         const cssClass = isAur ? (hasWarnings ? 'aur-danger' : 'aur-clean') : 'repo';
-        const sourceBadge = isAur ? '<span class="dep-tree-source aur">AUR</span>'
-                                  : '<span class="dep-tree-source repo">repo</span>';
+        const sourceBadge = isAur ? '<span class="dep-tree-source aur">AUR</span>' : '';
         const warnBadges = (node.warnings || []).map(w =>
             `<span class="dep-tree-warn dep-tree-warn-${escapeHtml(w.level)}" title="${escapeHtml(w.label)}">${escapeHtml(w.label)}</span>`
         ).join('');
-        const indent = depth > 0 ? `<span class="dep-tree-indent" style="padding-left:${depth * 20}px"></span>` : '';
-        const toggleIcon = hasChildren ? `<span class="dep-tree-toggle" onclick="this.parentElement.parentElement.querySelector('.dep-tree-children').classList.toggle('hidden');this.textContent=this.textContent==='▸'?'▾':'▸'">▾</span>` : '';
-        let html = `<div class="dep-tree-node ${cssClass}">${indent}${toggleIcon}<span class="dep-tree-name">${escapeHtml(node.name)}</span> ${sourceBadge}${warnBadges}</div>`;
+        // Spacer keeps dots/names aligned between rows with and without a caret.
+        const toggleIcon = hasChildren ? `<span class="dep-tree-toggle" onclick="this.parentElement.parentElement.querySelector('.dep-tree-children').classList.toggle('hidden');this.textContent=this.textContent==='▸'?'▾':'▸'">▾</span>`
+                                       : '<span class="dep-tree-toggle-spacer"></span>';
+        let html = `<div class="dep-tree-node ${cssClass}">${toggleIcon}<span class="dep-tree-dot"></span><span class="dep-tree-name">${escapeHtml(node.name)}</span>${sourceBadge}${warnBadges}</div>`;
         if (hasChildren) {
-            html += `<div class="dep-tree-children">${renderDepTree(node.deps, depth + 1)}</div>`;
+            html += `<div class="dep-tree-children">${renderDepTree(node.deps)}</div>`;
         }
         return html;
     }).join('');
@@ -1220,7 +1222,12 @@ function buildTransactionPreviewHTML(data) {
         // Visual dependency tree — replaces the flat chip list for AUR installs where
         // we want the user to see what's getting pulled in, color-coded by risk.
         const treeHtml = renderDepTree(depTree);
-        html += `<details class="txp-accordion" open><summary>Dependency tree (${depTree.length} direct)</summary><div class="txp-acc-body">${treeHtml}</div></details>`;
+        const treeLegend = `<div class="dep-tree-legend">
+            <span class="dep-tree-legend-item repo">official repo</span>
+            <span class="dep-tree-legend-item aur">AUR</span>
+            <span class="dep-tree-legend-item warn">AUR with warnings</span>
+        </div>`;
+        html += `<details class="txp-accordion" open><summary>Dependency tree (${depTree.length} direct)</summary><div class="txp-acc-body">${treeHtml}${treeLegend}</div></details>`;
     } else if (direct.length || optional.length) {
         html += `<details class="txp-accordion"><summary>Dependencies (${direct.length} required${optional.length ? `, ${optional.length} optional` : ''})</summary><div class="txp-acc-body">`;
         if (direct.length) {

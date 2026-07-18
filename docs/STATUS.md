@@ -15,7 +15,15 @@ moved from a 480px right sidepane to a **centered floating dialog** (CSS-only, s
 always blocked navigation, but the sidepane made the app look navigable behind it — the dialog states the
 modality honestly. `min(720px, 94vw) × min(72vh, 680px)`, fade+scale open. Plan:
 [plans/2026-07-17-terminal-highlight-popup.md]. JS contract test `testHighlightLogLine` added; suite 765 +
-JS green. **Needs a GUI eyeball** — run an install/uninstall and check the dialog + colors.)
+JS green. GUI-verified by Vatteck same day — highlighting + dialog both approved. Two follow-up polish fixes
+from that eyeball: (1) the compact Updates config-notice ran full-bleed (`.content` has no horizontal padding)
+— it now carries the grid's 24px gutter; (2) the install-preview **dependency tree looked broken**: its CSS
+referenced an undefined `--color-success` (so the green repo coding never rendered — the per-row border stubs
+fell back to white), rows were double-indented (inline indent span *plus* the children container margin), and
+every row carried a noisy "repo" chip. Rebuilt: colored dot per row (green repo / amber AUR / red
+AUR-with-warnings, real `--status-*` vars), chips only on AUR rows, single container-driven indentation,
+caret-alignment spacer, and a dot legend under the tree. `testRenderDepTree` updated. **Dep tree + banner
+gutters need a GUI eyeball.**)
 - Prior same day: (**Compact Updates config-notice + friendlier .pacnew center.** Vatteck flagged
 the Updates-view `.pacnew` notice as messy/unfriendly after the mirrorlist-safety changes ("don't do this, do
 that"). The notice (`renderUpdatesNotice`) is now a one-line banner — count + one **Review** button into the
@@ -274,6 +282,22 @@ re-add a native extension without a measured win. Details in the historical
 ---
 
 ## Done
+
+- **Updates-banner gutters + dependency-tree rebuild (2026-07-17).** Two polish fixes from Vatteck's GUI
+  eyeball of the terminal work. **(1)** The compact config-notice banner touched the sidebar and right
+  edge: `#updates-notice` sits directly in `.content`, which has no horizontal padding (the packages-grid
+  brings its own 24px) — `.config-notice` now carries `margin: 24px 24px 0` to match the grid gutter.
+  **(2)** The install-preview dependency tree (shipped `74a8c18`) "looked like crap" for concrete
+  reasons: its CSS colored rows with `var(--color-success)`, **a variable that doesn't exist** (the
+  palette defines `--status-success`), so the green repo coding never rendered and each row's 2px
+  border-left stub fell back to `currentColor` — the stray white bars in the screenshot; rows were
+  double-indented (a per-node inline indent span on top of `.dep-tree-children`'s margin); and every
+  repo row carried an uppercase "REPO" chip (pure noise). Rebuilt `renderDepTree` + CSS: each row is
+  caret/spacer + a colored dot (green repo / amber AUR / red AUR-with-warnings, real `--status-*` vars)
+  + mono name; chips only on AUR rows; warning badges unchanged; nesting comes from the children
+  container alone; a dot legend ("official repo / AUR / AUR with warnings") sits under the tree.
+  `testRenderDepTree` updated (dot present, no repo chip). Suite **765** + JS **59** green. **Needs a
+  GUI eyeball** (any AUR install/update preview).
 
 - **Terminal → centered dialog + log syntax highlighting (2026-07-17).** Vatteck asked for prettier
   log output and floated moving the terminal off the sidepane; both shipped. **(1) Highlighting:** pure

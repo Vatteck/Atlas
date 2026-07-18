@@ -1647,7 +1647,8 @@ async function testRenderDepTree() {
   const repoHtml = hooks.renderDepTree(repoOnly);
   assert.ok(repoHtml.includes('dep-tree-node repo'), 'repo node has repo class');
   assert.ok(repoHtml.includes('gtk3'), 'shows package name');
-  assert.ok(repoHtml.includes('dep-tree-source repo'), 'shows repo badge');
+  assert.ok(repoHtml.includes('dep-tree-dot'), 'has the color dot');
+  assert.ok(!repoHtml.includes('dep-tree-source'), 'repo rows carry no chip — the dot is the coding');
 
   // AUR with warnings
   const aurWarn = [{ name: 'atomic-lockfile', source: 'aur', warnings: [{ label: 'Orphaned', level: 'warn' }], deps: [] }];
