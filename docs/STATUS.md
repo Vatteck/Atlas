@@ -189,6 +189,19 @@ go stale)
 
 ## Current focus
 
+**Startup memory investigation (2026-07-17, in progress — measurement done, no code changed yet).**
+User reports of high RAM at startup. Full baseline measured and recorded in
+[plans/2026-07-17-memory-baseline.md](plans/2026-07-17-memory-baseline.md): the whole app is
+**~400–460 MB PSS** (python UI process 218–234, WebKit renderer ~150, network process 33); an *empty*
+pywebview window already costs ~200 MB PSS, so that's the architecture floor; Atlas's backend itself is
+modest (76–79 MB after the first `read_installed` of 2177 pkgs, peak ~98). Measured dead ends (don't
+re-try): tracemalloc inflates RSS ~3×, `MALLOC_ARENA_MAX=2` made it *worse*, `malloc_trim` reclaims ~1 MB.
+Slow decelerating creep on repeated refreshes (77→93 MB over 5) — looks like cache fill, worth a
+long-session re-check. **Next step: get the actual user reports** (numbers/setup) before picking a lever —
+candidates ranked in the plan doc.
+
+## Prior focus
+
 **The GUI verification sweep is now CLEARED (2026-06-18).** Walking the full queue on a real desktop
 caught one real defect — a blank-page bug (stranded scroll on the `.content` container blanking short
 views after a tall scrolled one; fixed + GUI-verified, see Done log) — and confirmed every other surface
