@@ -5,7 +5,20 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-07-16 (**4 new aur-audit detection rules.** Added `pipe_eval_remote`, `systemd_unit_install`, `shell_rc_write`, and `host_tamper` to the PKGBUILD audit scanner — adapted from aur-audit's detection categories (MIT-licensed, independent implementation). The 4 rules catch process-substitution shell injection (Atomic Arch delivery mechanism), systemd unit file writes to absolute paths, shell rc file overwrites (> and tee -a, extending the existing `shell_function_inject` rule), and writes to absolute system paths outside $pkgdir. Each rule has metadata with aur-audit source provenance. `AurAuditRuleTest` class added with 8 test methods. Plan: [docs/plans/2026-07-16-aur-audit-rules.md]. All 330 tests pass, benign corpus clean. Part of [docs/plans/2026-06-21-aur-security-heuristics.md] Task 2.)
+**Last updated:** 2026-07-17 (**Compact Updates config-notice + friendlier .pacnew center.** Vatteck flagged
+the Updates-view `.pacnew` notice as messy/unfriendly after the mirrorlist-safety changes ("don't do this, do
+that"). The notice (`renderUpdatesNotice`) is now a one-line banner — count + one **Review** button into the
+.pacnew center; the explainer paragraph, mirrorlist warning paragraph, per-file Discard/Apply buttons, and
+pacdiff button were removed from it (all still exist in the center; a banner with no destructive buttons can't
+mislead anyone). In the center, the mirrorlist row's "Do not overwrite" prose became a positive affordance: an
+**Open Mirror settings** button (navigation only — deliberately *not* an inline regen button, honoring plan
+2026-07-16-mirrorlist-regeneration-safety: regeneration stays confined to Settings → Mirrors because
+reflector/rate-mirrors write upstream-Arch mirrors, a footgun on derivatives like CachyOS) + a softened
+"Keep your mirrors" label/note. Unused `config-notice-*` CSS pruned. JS contract test for the mirrorlist note
+updated. All 765 tests pass. **Needs a GUI eyeball** (banner + mirrorlist row). Also fixed stale docs found on
+arrival: `.last-agent` recorded `31d17cf` but `68a7bd1` (TOCTOU-safe AUR install) and the **0.15.0 release**
+(`a49cb4b`) had landed undocumented — Version line below corrected to 0.15.0.)
+- Prior (2026-07-16): (**4 new aur-audit detection rules.** Added `pipe_eval_remote`, `systemd_unit_install`, `shell_rc_write`, and `host_tamper` to the PKGBUILD audit scanner — adapted from aur-audit's detection categories (MIT-licensed, independent implementation). The 4 rules catch process-substitution shell injection (Atomic Arch delivery mechanism), systemd unit file writes to absolute paths, shell rc file overwrites (> and tee -a, extending the existing `shell_function_inject` rule), and writes to absolute system paths outside $pkgdir. Each rule has metadata with aur-audit source provenance. `AurAuditRuleTest` class added with 8 test methods. Plan: [docs/plans/2026-07-16-aur-audit-rules.md]. All 330 tests pass, benign corpus clean. Part of [docs/plans/2026-06-21-aur-security-heuristics.md] Task 2.)
 - Prior same day: **Dependency tree visualization.** Added a recursive dependency tree to the AUR install preview modal. Direct deps + their deps (depth 2) are shown as a color-coded tree: green (repo), amber (AUR, clean), red (AUR with warnings like orphaned/out-of-date). Nodes with children are collapsible. Replaces the flat chip list for AUR installs. Backend: `_build_dep_tree()` batches AUR `get_info` calls to resolve source types and warnings. Frontend: `renderDepTree()` with CSS tree styling. JS contract test added. All 757 tests pass. Plan: [docs/plans/2026-06-21-aur-security-heuristics.md].)
 - Prior same day: **Mirrorlist regeneration safety.** Removed the "Regenerate mirror list" button from the .pacnew config-review center and Updates notice — mirror regeneration now only lives in Settings → Mirrors. Every regeneration now automatically backs up the current mirrorlist to `/etc/pacman.d/mirrorlist.atlas.bak` before overwriting, and the Settings page shows a "Restore backup" button when a backup exists. Regeneration always prompts for confirmation with the exact command preview. Plan: [docs/plans/2026-07-16-mirrorlist-regeneration-safety.md]. Verified all 757 tests pass.
 - Prior: **Cache invalidation tests.** Implemented `PacmanCacheInvalidationTest` to verify that pacman cache invalidation triggers occur during database synchronization, installation, uninstallation, package upgrades, package removals, system upgrades, and worker operations. Verified all 737 tests pass.
@@ -139,8 +152,8 @@ PKGBUILD surfaced on the Overview caution banner, comments moved into Details; A
 fixed (was computed from an unpopulated pkg object) + made legible with a clickable breakdown and
 votes/popularity badges (from GUI eyeballs); competitive-research Theme 4 (AUR request throttle) shipped,
 Theme 3 (auth-readiness) dropped as N/A to Atlas's root model — see Done log)
-**Version:** 0.14.0 (tagged + published; `atlas-pm-git` auto-published; the stable **`atlas-pm`** AUR
-package is now **registered + live at 0.14.0**, auto-published by CI)
+**Version:** 0.15.0 (tagged + released `a49cb4b`; both AUR packages auto-published by CI — corrected
+2026-07-17, this line had gone stale at 0.14.0 while the 0.15.0 release commit sat undocumented)
 **Working branch:** `master` in this checkout (all recent work — launch optimization, theme options +
 persistence, the scalable-SVG KDE icon fix — landed + pushed to `origin/master`; suite **720** + JS (CI now runs JS + packaging guards);
 CI green across Python 3.10–3.14); app work normally lands on `master` (run `git branch` before acting — branch names in docs
@@ -246,6 +259,23 @@ re-add a native extension without a measured win. Details in the historical
 ---
 
 ## Done
+
+- **Compact Updates config-notice + friendlier .pacnew center (2026-07-17).** UX pass on the `.pacnew`
+  review flow after Vatteck flagged the Updates notice as messy ("don't do this, do that"). The notice
+  (`renderUpdatesNotice`, main.js) shrank from a five-layer warning block (title + explainer + mirrorlist
+  warning + per-file Discard/Apply rows + two footer buttons) to a one-line banner: count + a single
+  **Review** button into the .pacnew center. Safety is unchanged — it was never the prose doing the work:
+  Apply-for-mirrorlist stays hidden in the center and hard-blocked in `apply_pacnew`, and a banner with no
+  destructive buttons can't lead anyone into overwriting mirrors. In the center, the mirrorlist row now
+  shows an **Open Mirror settings** navigation button in the Apply slot plus a softened "Keep your mirrors"
+  label ("Do not overwrite" prose → positive affordance). Deliberately navigation-only: an inline
+  "Regenerate mirrors" button was considered and rejected because plan
+  [2026-07-16-mirrorlist-regeneration-safety](plans/2026-07-16-mirrorlist-regeneration-safety.md) confines
+  regeneration to Settings → Mirrors (reflector/rate-mirrors write upstream-Arch mirrors — a footgun on
+  derivatives like CachyOS). Pruned the now-unused `config-notice-*` CSS (list/file/warn/actions rules);
+  `.config-notice` is now a flex one-liner. Contract test for the mirrorlist note updated (steers to
+  discard / Mirror settings). Suite **765** green. **Needs a GUI eyeball**: Updates banner, the center's
+  mirrorlist row, and the Open Mirror settings navigation.
 
 - **4 new aur-audit detection rules (2026-07-16).** Task 2 of the AUR security heuristics plan. Added `pipe_eval_remote` (bash <(curl ...) — Atomic Arch delivery mechanism), `systemd_unit_install` (writing .service/.timer to absolute systemd paths), `shell_rc_write` (> and tee -a to shell init files, extending `shell_function_inject`), and `host_tamper` (install/cp writing to absolute system paths outside $pkgdir). Each rule is EVERGREEN with aur-audit source attribution in `_RULE_META`. Test class `AurAuditRuleTest` with 8 test methods (positive + negative per rule). All 330 tests pass, benign corpus clean. Files: `atlas/gems/arch/pkgbuild_audit.py` (+4 rules, +4 meta entries, +1 source string), `tests/gems/arch/test_pkgbuild_audit.py` (+1 test class, updated count test). Plan: [docs/plans/2026-07-16-aur-audit-rules.md](docs/plans/2026-07-16-aur-audit-rules.md).
 

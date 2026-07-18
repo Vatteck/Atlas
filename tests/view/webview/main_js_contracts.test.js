@@ -809,8 +809,10 @@ async function testPacnewRisk() {
   assert.strictEqual(hooks.pacnewRisk('/etc/sudoers.d/wheel.pacnew').level, 'warn');
   assert.strictEqual(hooks.pacnewRisk('/etc/foobar.conf.pacnew').level, 'info');
   assert.strictEqual(hooks.pacnewRisk('/etc/default/grub.pacsave').level, 'info');
-  // mirrorlist note steers away from overwriting
-  assert.ok(/regenerate/i.test(hooks.pacnewRisk('/etc/pacman.d/mirrorlist.pacnew').note));
+  // mirrorlist note steers to discarding / Mirror settings, never to overwriting
+  const ml = hooks.pacnewRisk('/etc/pacman.d/mirrorlist.pacnew');
+  assert.ok(/discard/i.test(ml.note));
+  assert.ok(/mirror settings/i.test(ml.note));
 }
 
 async function testStaleUtilityRenderDoesNotClobber() {

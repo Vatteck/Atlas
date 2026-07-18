@@ -4386,8 +4386,8 @@ async function renderSystemHealth() {
 function pacnewRisk(path) {
     const base = (path || '').replace(/\.pac(new|save)$/, '');
     const name = base.split('/').pop();
-    if (name === 'mirrorlist') return { level: 'danger', label: 'Do not overwrite',
-        note: 'Overwriting this with the .pacnew wipes your mirror servers — regenerate it instead.' };
+    if (name === 'mirrorlist') return { level: 'danger', label: 'Keep your mirrors',
+        note: 'This .pacnew is the stock mirror list with every server commented out. Discard it, or get fresh servers from Mirror settings first.' };
     const critical = new Set(['pacman.conf', 'sudoers', 'fstab', 'crypttab', 'mkinitcpio.conf',
         'passwd', 'shadow', 'group', 'gshadow', 'hosts', 'resolv.conf', 'locale.gen', 'nsswitch.conf']);
     if (critical.has(name) || base.includes('/sudoers.d/')) return { level: 'warn',
@@ -4451,10 +4451,14 @@ async function renderPacnewCenter() {
 
     const rows = files.map((f) => {
         const r = pacnewRisk(f);
-        // Apply (overwrite) is hidden for mirrorlist — its .pacnew is the stock all-commented
-        // list, so applying it wipes your servers (regenerate instead). Backend also blocks it.
+        // mirrorlist gets a link to Settings → Mirrors instead of Apply — its .pacnew is the stock
+        // all-commented list, so applying it wipes your servers (backend blocks apply_pacnew too).
+        // Deliberately navigation, not an inline regen button: regeneration lives only in Settings
+        // (plan 2026-07-16-mirrorlist-regeneration-safety — reflector/rate-mirrors write upstream
+        // Arch mirrors, a footgun on derivatives like CachyOS).
         const isMirrorlist = f.replace(/\.pac(new|save)$/, '').split('/').pop() === 'mirrorlist';
-        const applyBtn = isMirrorlist ? ''
+        const applyBtn = isMirrorlist
+            ? `<button class="btn btn-outline btn-small pacnew-mirror-settings-btn">Open Mirror settings</button>`
             : `<button class="btn btn-outline btn-small pacnew-apply-btn" data-path="${escapeHtml(f)}">Apply (overwrite)</button>`;
         return `<div class="pacnew-item tone-${r.level}">
             <div class="pacnew-row">
@@ -4487,16 +4491,16 @@ async function renderPacnewCenter() {
         const r = await pyApiCall('launch_pacdiff');
         if (r) showToast('pacdiff', 'Opened pacdiff in a terminal — merge the files there', 'info');
     });
+    packagesGrid.querySelectorAll('.pacnew-mirror-settings-btn').forEach(b => b.addEventListener('click', () => activateView('settings')));
     packagesGrid.querySelectorAll('.pacnew-copy-btn').forEach(b => b.addEventListener('click', () => copyText(b.dataset.path)));
     packagesGrid.querySelectorAll('.pacnew-diff-btn').forEach(b => b.addEventListener('click', () => togglePacnewDiff(b)));
     packagesGrid.querySelectorAll('.pacnew-discard-btn').forEach(b => b.addEventListener('click', () => resolvePacnew(b.dataset.path, 'discard')));
     packagesGrid.querySelectorAll('.pacnew-apply-btn').forEach(b => b.addEventListener('click', () => resolvePacnew(b.dataset.path, 'apply')));
 }
 
-// Per-file resolution from the .pacnew center or the Updates notice: 'discard' (rm the .pacnew,
-// keep your config) or 'apply' (overwrite your config with the new default). Both confirm, then run
-// as root and refresh via `onDone` (the center re-renders itself; the notice re-renders itself).
-// mirrorlist has no Apply button (backend blocks it too).
+// Per-file resolution from the .pacnew center: 'discard' (rm the .pacnew, keep your config) or
+// 'apply' (overwrite your config with the new default). Both confirm, then run as root and
+// refresh via `onDone`. mirrorlist has no Apply button (backend blocks it too).
 async function resolvePacnew(path, mode, onDone = renderPacnewCenter) {
     const critical = pacnewRisk(path).level !== 'info';
     const isApply = mode === 'apply';
@@ -5226,50 +5230,21 @@ async function regenerateMirrors(btnEl, options) {
 }
 
 // Notice on the Updates view: .pacnew/.pacsave config files pacman left for manual review.
+// Deliberately compact — one sentence, one button. All detail, warnings, and per-file actions
+// live in the .pacnew center; a banner with no destructive buttons can't lead anyone into
+// overwriting their mirrorlist.
 async function renderUpdatesNotice() {
     const el = document.getElementById('updates-notice');
     if (!el) return;
     const res = await pyApiCall('get_pacnew_files');  // unwrapped {files, count} or null
     if (!res || !res.count) { el.innerHTML = ''; return; }
-    // Each file gets the same in-app actions as the .pacnew center: Discard (keep your config) and
-    // Apply (overwrite). Apply is omitted for mirrorlist (its .pacnew wipes your servers).
-    const list = res.files.map(f => {
-        const isMl = f.replace(/\.pac(new|save)$/, '').split('/').pop() === 'mirrorlist';
-        const applyBtn = isMl ? ''
-            : `<button class="btn btn-outline btn-small notice-apply-btn" data-path="${escapeHtml(f)}">Apply (overwrite)</button>`;
-        return `<li class="config-notice-file">
-            <code>${escapeHtml(f)}</code>
-            <span class="config-notice-file-actions">
-                ${applyBtn}
-                <button class="btn btn-outline btn-small notice-discard-btn" data-path="${escapeHtml(f)}">Discard .pacnew</button>
-            </span>
-        </li>`;
-    }).join('');
-    // mirrorlist is the classic pacdiff footgun: overwriting it with the stock .pacnew wipes your
-    // mirror servers. Call it out specifically so people don't blindly merge it.
-    const hasMirrorlist = (res.files || []).some(f => f === '/etc/pacman.d/mirrorlist' || f.endsWith('/mirrorlist.pacnew'));
-    const mirrorlistCaution = hasMirrorlist ? `
-            <p class="config-notice-warn">⚠ <code>/etc/pacman.d/mirrorlist</code> is listed — <strong>do not overwrite it with pacdiff</strong>. The <code>.pacnew</code> is the stock all-commented list; merging it wipes your mirror servers. Instead, regenerate it (<code>reflector</code> / <code>rate-mirrors</code>) or just discard the <code>.pacnew</code>.</p>` : '';
     el.innerHTML = `
         <div class="config-notice">
-            <div class="config-notice-title">⚠ ${escapeHtml(res.count)} configuration file${res.count > 1 ? 's' : ''} need review</div>
-            <p class="config-notice-body">These <code>.pacnew</code>/<code>.pacsave</code> files were installed alongside updates and may need merging with your current config. <strong>Discard</strong> keeps your config, <strong>Apply</strong> takes the new default; for a line-by-line merge or a diff, use <em>Review config files</em> or <code>pacdiff</code>.</p>
-            ${mirrorlistCaution}
-            <ul class="config-notice-list">${list}</ul>
-            <div class="config-notice-actions">
-                <button class="btn btn-outline" id="pacnew-review-btn">Review config files</button>
-                <button class="btn btn-outline" id="pacdiff-btn">Open pacdiff in a terminal</button>
-            </div>
+            <span class="config-notice-text">📝 ${res.count} config file${res.count > 1 ? 's are' : ' is'} waiting for review. Updates left new default configs next to yours.</span>
+            <button class="btn btn-outline btn-small" id="pacnew-review-btn">Review</button>
         </div>`;
     const reviewBtn = document.getElementById('pacnew-review-btn');
     if (reviewBtn) reviewBtn.addEventListener('click', () => openPacnewCenter());
-    const pacdiffBtn = document.getElementById('pacdiff-btn');
-    if (pacdiffBtn) pacdiffBtn.addEventListener('click', async () => {
-        const r = await pyApiCall('launch_pacdiff');  // null on error (toast already shown)
-        if (r) showToast('pacdiff', 'Opened pacdiff in a terminal — merge the files there', 'info');
-    });
-    el.querySelectorAll('.notice-discard-btn').forEach(b => b.addEventListener('click', () => resolvePacnew(b.dataset.path, 'discard', renderUpdatesNotice)));
-    el.querySelectorAll('.notice-apply-btn').forEach(b => b.addEventListener('click', () => resolvePacnew(b.dataset.path, 'apply', renderUpdatesNotice)));
 }
 
 // Action Handlers
