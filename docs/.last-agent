@@ -2,7 +2,7 @@
 
 **Agent:** Claude Fable 5 (claude-fable-5) — 2026-07-17
 **Branch:** master
-**Last commit:** 0f2d767a5ef362a22dc3f3ed1db32bb5c0428cee (plus the docs commit carrying
+**Last commit:** d30a71fbac04ef5da19e4cee1a7b25e8a44ca4ee (plus the docs commit carrying
 this baton)
 
 ## Summary
@@ -17,5 +17,10 @@ config-notice CSS pruned. Also corrected stale docs found on arrival: the previo
 recorded 31d17cf, but 68a7bd1 (TOCTOU-safe AUR install) and the 0.15.0 release (a49cb4b)
 had landed undocumented; STATUS.md's Version line was stale at 0.14.0 → now 0.15.0.
 
-**Verification:** all 765 tests pass (pytest incl. JS contract suite). The new banner and
-mirrorlist row still need a GUI eyeball.
+Follow-up after Vatteck's GUI eyeball: the mirrorlist row still shouted (danger tone)
+despite every remaining action being safe — pacnewRisk now returns info + "Safe to
+discard" for it (danger level removed with its CSS), and tone-info rows keep the neutral
+base border instead of the accent color (red accents made every row look like an alarm).
+
+**Verification:** all 765 tests pass (pytest incl. JS contract suite). The compact
+Updates banner + the calmed .pacnew center still want a final GUI eyeball.
