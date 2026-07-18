@@ -120,13 +120,13 @@ atlas-cli                # CLI
 
 ---
 
-## 🆕 What's new in 0.14.0
+## 🆕 What's new in 0.16.0
 
-- ⚡ **~30% faster launch** — window-first startup with a branded splash
-- 🎨 **Themes & accents** — five presets + accent-color picker
-- 💾 **Preferences persist** — theme, density, view/sort survive a restart (they were silently resetting before)
-- 🖼️ **Crisp KDE app icon** — scalable SVG; no more generic "map" fallback
-- 📦 **Stable AUR package** — `atlas-pm` is now registered and CI-published alongside `atlas-pm-git`
+- 🖥️ **Pretty transaction terminal** — syntax-highlighted pacman/makepkg output in a centered dialog
+- 🧠 **First-run memory spike fixed** — initial indexing no longer buffers your whole file database
+- 🧘 **Calmer config-file review** — one-line notice, "Safe to discard" mirrorlist handling
+- 🌳 **Readable dependency tree** — dot-coded repo/AUR/warning rows with a legend
+- 🛡️ **0.15.0's AUR vetting** — TOCTOU-safe installs, aur-audit rules, IOC database
 
 *Full history in [CHANGELOG.md](CHANGELOG.md).*
 

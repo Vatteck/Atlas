@@ -8,6 +8,57 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 > Entries from `0.11.0` on are Atlas; `0.10.7` and earlier are inherited bauh history (the
 > fork point — `__version__` was never bumped between then and the first Atlas release).
 
+## [0.16.0] 2026-07-17
+Polish and performance: a prettier transaction terminal, a calmer config-file review flow, and a
+serious cut to the first-run memory spike.
+
+### Added
+- **Terminal syntax highlighting.** Install/update/uninstall logs are now color-coded the way the
+  real tools print them — pacman `::` notices, makepkg `==>` headers and `->` steps, errors and
+  warnings, plus URLs, paths, package names, and sizes on ordinary lines.
+- **Dependency-tree legend.** The AUR install preview's tree now uses colored dots (green = official
+  repo, amber = AUR, red = AUR with warnings) with a legend, chips only where they matter.
+
+### Changed
+- **The transaction terminal is a centered dialog** instead of a right sidepane. The operation always
+  blocked navigation; now the UI says so honestly.
+- **Config-file review is calmer.** The Updates screen shows a one-line banner with a single Review
+  button (all detail and actions live in the review center). The mirrorlist row is labeled "Safe to
+  discard" with an "Open Mirror settings" shortcut instead of warning prose, and only system-critical
+  files carry a colored edge.
+- **Concurrent full package reads now share one pass** (leader/follower), so simultaneous refresh
+  triggers can't duplicate 5–30 s of subprocess and AUR work. `ATLAS_NO_READ_COALESCING=1` restores
+  independent reads.
+
+### Fixed
+- **First-run memory spike.** The initial disk-cache warm-up buffered the full file list of every
+  installed package (`pacman -Ql`, tens–hundreds of MB) as one string; it now streams line-by-line.
+  Measured on the dev box: cold-start python peak 529 → 452 MB.
+- The Updates banner no longer runs edge-to-edge, and the dependency tree's repo-coloring actually
+  renders (it referenced an undefined CSS variable and showed broken white bars).
+
+## [0.15.0] 2026-07-17
+*(Backfilled — this release originally shipped without a changelog entry.)* Security-focused:
+deeper AUR install vetting and safer config-file handling.
+
+### Added
+- **TOCTOU-safe AUR installs.** If a PKGBUILD changed between your review and the actual install,
+  Atlas detects the swap and re-surfaces the findings before building.
+- **Stronger PKGBUILD audit.** Four new detection rules adapted from aur-audit (piped remote
+  execution, systemd unit drops, shell-rc overwrites, host-path tampering), an IOC database, and an
+  `atlas-cli audit-scan` rule-health dashboard.
+- **Color-coded dependency tree** in the AUR install preview (direct deps + depth 2).
+- **In-app `.pacnew` resolution.** Discard (keep your config) or Apply (take the new default)
+  per file from the config-review center — Apply is hidden and backend-blocked for the mirrorlist
+  (whose `.pacnew` would wipe your mirror servers).
+
+### Changed
+- **Mirrorlist regeneration hardened.** Every regeneration backs up the current mirrorlist first
+  (with a Restore button in Settings → Mirrors), always confirms with the exact command, and lives
+  only in Settings — not in the config-review flow.
+- **Faster repeated queries.** Thread-safe caching for pacman database lookups, invalidated after
+  every install/uninstall/upgrade/sync.
+
 ## [0.14.0] 2026-06-21
 Faster, prettier, and more personal. Atlas starts noticeably quicker, lets you theme it, and finally
 remembers your preferences between launches.
