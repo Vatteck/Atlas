@@ -2,7 +2,7 @@
 
 **Agent:** Claude Fable 5 (claude-fable-5) — 2026-07-17
 **Branch:** master
-**Last commit:** d30a71fbac04ef5da19e4cee1a7b25e8a44ca4ee (plus the docs commit carrying
+**Last commit:** 0ce641641e79552aacde70f255127a84bfc37a51 (plus the docs commit carrying
 this baton)
 
 ## Summary
@@ -22,5 +22,12 @@ despite every remaining action being safe — pacnewRisk now returns info + "Saf
 discard" for it (danger level removed with its CSS), and tone-info rows keep the neutral
 base border instead of the accent color (red accents made every row look like an alarm).
 
-**Verification:** all 765 tests pass (pytest incl. JS contract suite). The compact
-Updates banner + the calmed .pacnew center still want a final GUI eyeball.
+Then (same session): the transaction terminal got log syntax highlighting (pure
+highlightLogLine in main.js; tlog-* classes mirroring pacman/makepkg terminal colors;
+contract-tested) and moved from a right sidepane to a centered floating dialog (CSS-only,
+same DOM/ids/watcher protocol). Plan: docs/plans/2026-07-17-terminal-highlight-popup.md.
+
+**Verification:** all 765 tests pass (pytest incl. JS contract suite; testHighlightLogLine
+confirmed running under node). GUI eyeballs wanted: the compact Updates banner, the calmed
+.pacnew center, and especially the new terminal dialog (run an install — ideally an AUR
+build and a failure — to see the colors and the open/close animation).
