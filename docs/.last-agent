@@ -2,7 +2,7 @@
 
 **Agent:** Claude Fable 5 (claude-fable-5) — 2026-07-17
 **Branch:** master
-**Last commit:** 641e10a354dcd929ae76d35717844b55b7ae40cc (plus the docs commit carrying
+**Last commit:** c8d32935f4a923d1ae3ee83716a329b40c3b57bd (plus the docs commit carrying
 this baton)
 
 ## Summary
@@ -34,6 +34,15 @@ install-preview dependency tree was visually broken — its CSS used an undefine
 double-indented, and every repo row had a noisy chip. Rebuilt as dot-coded rows (real
 --status-* vars) + AUR-only chips + a legend; testRenderDepTree updated.
 
-**Verification:** all 765 tests pass (pytest incl. JS contract suite, 59 JS tests). GUI
-eyeballs wanted: the banner gutters and the rebuilt dep tree (any AUR install/update
-preview); the calmed .pacnew center is still unverified too.
+Then: startup-memory investigation (user report: "ate all RAM during initial indexing,
+fine after"). Full baseline measured + recorded in
+docs/plans/2026-07-17-memory-baseline.md — read it before touching memory (it records
+dead ends: tracemalloc inflates RSS 3×, MALLOC_ARENA_MAX=2 is *worse*, malloc_trim ~1 MB).
+Root cause found + fixed: map_desktop_files buffered `pacman -Ql <all pkgs>` (46 MB
+here) as one string during the first-run disk-cache warm-up; now streamed
+(atlas/gems/arch/pacman.py, +3 tests). Measured cold-run python peak 528.7 → 451.7 MB.
+Next candidate (unstarted, needs a plan): coalesce the up-to-three concurrent full
+read_installed passes at cold startup (GUI updates + installed reads + pre-cacher's own).
+
+**Verification:** all 768 tests pass. GUI eyeballs still wanted: banner gutters, rebuilt
+dep tree (AUR install/update preview), calmed .pacnew center.
