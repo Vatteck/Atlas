@@ -2129,11 +2129,25 @@ class ArchManager(SoftwareManager, SettingsController):
         except Exception as e:
             self.logger.warning(f"Could not read '{pkgbuild_path}' for audit: {e}")
 
-        findings = list(pkgbuild_audit.scan(new_text))
+        # Per-file text + findings ride along in the review payload so the modal can show
+        # the actual code it asks the user to read (no new I/O — the text is already here).
+        # The size cap only defends the JS bridge against a pathological/adversarial file.
+        max_file_chars = 400_000
+        files = []
+
+        def _scan_file(name: str, text: str) -> list:
+            file_findings = list(pkgbuild_audit.scan(text))
+            if text:
+                if len(text) > max_file_chars:
+                    text = text[:max_file_chars] + '\n… (truncated for review)'
+                files.append({'name': name, 'text': text, 'findings': file_findings})
+            return file_findings
+
+        findings = list(_scan_file('PKGBUILD', new_text))  # copy: extend() must not leak into the file entry
         for path in sorted(glob.glob(f'{context.project_dir}/*.install')):
             try:
                 with open(path) as f:
-                    findings.extend(pkgbuild_audit.scan(f.read()))
+                    findings.extend(_scan_file(os.path.basename(path), f.read()))
             except Exception as e:
                 self.logger.warning(f"Could not audit '{path}': {e}")
         warns = [f for f in findings if f['severity'] == pkgbuild_audit.WARN]
@@ -2170,6 +2184,7 @@ class ArchManager(SoftwareManager, SettingsController):
             'diff': diff_data,
             'findings': findings,
             'maintainer_change': maintainer_change,
+            'files': files,
         }
         body = (f"Review what {context.name} will run before building. {pkgbuild_audit.DISCLAIMER}")
 

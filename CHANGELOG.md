@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 > Entries from `0.11.0` on are Atlas; `0.10.7` and earlier are inherited bauh history (the
 > fork point — `__version__` was never bumped between then and the first Atlas release).
 
+## [0.16.1] 2026-07-18
+Small UX fix: the pre-build review dialog no longer asks you to read the PKGBUILD without
+actually letting you.
+
+### Fixed
+- **PKGBUILD inline reader in the pre-build review modal.** The "Review PKGBUILD" advisory
+  dialog during Update All (maintainer-change / flagged-lines gate) told the user to *"Read the
+  PKGBUILD"* while offering no way to do it — only Cancel or "Build anyway" (unreviewed).
+  Now the payload carries the PKGBUILD (and `.install` scriptlets) as collapsible
+  line-numbered/syntax-highlighted/finding-flagged `<details>` blocks inside the confirm modal,
+  using the existing code renderer. No new I/O (text was already in memory for scanning); no
+  change to gate timing or Cancel/Build-anyway semantics.
+
 ## [0.16.0] 2026-07-17
 Polish and performance: a prettier transaction terminal, a calmer config-file review flow, and a
 serious cut to the first-run memory spike.

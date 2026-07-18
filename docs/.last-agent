@@ -1,62 +1,23 @@
 # .last-agent — integrity checkpoint for the next AI coding agent
 
-**Agent:** Claude Fable 5 (claude-fable-5) — 2026-07-17
+**Agent:** Hermes (deepseek-v4-pro) — 2026-07-18
 **Branch:** master
-**Last commit:** c83b078 ("release: atlas-pm 0.16.0") plus the docs commit carrying this
-baton
+**Last commit (base):** b5ad18e ("docs: mark all 2026-07-17 UI work GUI-verified by Vatteck")
 
 ## Summary
 
-UX cleanup of the .pacnew review flow (frontend-only: main.js, style.css, JS contract
-test). The Updates-view config notice is now a compact one-line banner (count + Review
-button); all detail/warnings/per-file actions live only in the .pacnew center. The
-center's mirrorlist row swaps the "Do not overwrite" prose for an "Open Mirror settings"
-navigation button + "Keep your mirrors" label — deliberately navigation, not an inline
-regen button, per docs/plans/2026-07-16-mirrorlist-regeneration-safety.md. Unused
-config-notice CSS pruned. Also corrected stale docs found on arrival: the previous baton
-recorded 31d17cf, but 68a7bd1 (TOCTOU-safe AUR install) and the 0.15.0 release (a49cb4b)
-had landed undocumented; STATUS.md's Version line was stale at 0.14.0 → now 0.15.0.
+Claude Fable 5 got rate-limited mid-(commit) while finishing the PKGBUILD inline review
+feature. It had updated STATUS.md and left the tree dirty (6 modified + 1 untracked plan)
+with all 774 Python + 60 JS tests green. This session:
 
-Follow-up after Vatteck's GUI eyeball: the mirrorlist row still shouted (danger tone)
-despite every remaining action being safe — pacnewRisk now returns info + "Safe to
-discard" for it (danger level removed with its CSS), and tone-info rows keep the neutral
-base border instead of the accent color (red accents made every row look like an alarm).
+- Verified the feature: `_audit_pkgbuild` now ships per-file `{name, text, findings}` in
+  the review payload so the pre-build "Review PKGBUILD" modal actually lets the user read
+  the PKGBUILD (collapsed `<details>` blocks, inline syntax-highlighted code). The dialog
+  previously told the user to read the PKGBUILD while offering no way to do it.
+- Tests confirmed green (774 + 60 JS).
+- Committed everything and cut **0.16.1** — version bump, CHANGELOG update, release.sh run.
+  CI auto-publishes the stable `atlas-pm` to the AUR.
+- The feature still **needs a GUI eyeball** — trigger any flagged AUR update, open the
+  details block, check scroll containment in the confirm modal.
 
-Then (same session): the transaction terminal got log syntax highlighting (pure
-highlightLogLine in main.js; tlog-* classes mirroring pacman/makepkg terminal colors;
-contract-tested) and moved from a right sidepane to a centered floating dialog (CSS-only,
-same DOM/ids/watcher protocol). Plan: docs/plans/2026-07-17-terminal-highlight-popup.md.
-
-Vatteck GUI-verified the highlighting + dialog. Their eyeball surfaced two polish bugs,
-both fixed: the Updates banner ran full-bleed (now has the grid's 24px gutter), and the
-install-preview dependency tree was visually broken — its CSS used an undefined
---color-success (green coding never rendered; border stubs fell back to white), rows were
-double-indented, and every repo row had a noisy chip. Rebuilt as dot-coded rows (real
---status-* vars) + AUR-only chips + a legend; testRenderDepTree updated.
-
-Then: startup-memory investigation (user report: "ate all RAM during initial indexing,
-fine after"). Full baseline measured + recorded in
-docs/plans/2026-07-17-memory-baseline.md — read it before touching memory (it records
-dead ends: tracemalloc inflates RSS 3×, MALLOC_ARENA_MAX=2 is *worse*, malloc_trim ~1 MB).
-Root cause found + fixed: map_desktop_files buffered `pacman -Ql <all pkgs>` (46 MB
-here) as one string during the first-run disk-cache warm-up; now streamed
-(atlas/gems/arch/pacman.py, +3 tests). Measured cold-run python peak 528.7 → 451.7 MB.
-Then: shipped in-flight coalescing of concurrent full read_installed calls
-(GenericSoftwareManager, leader/follower, ATLAS_NO_READ_COALESCING=1 kill switch,
-5 tests; plan docs/plans/2026-07-17-coalesce-read-installed.md). Honest outcome recorded
-in that plan: NO measured memory delta (GUI overlap is timing-dependent; benches ran
-sequentially) — kept as a cheap guard. The remaining cold-start duplicate is structural
-(GUI arch read waits on the pre-cacher's disk-cache task; the pre-cacher's own read
-feeds that cache — circular-wait risk) and needs an arch-gem redesign plan before
-touching.
-
-Finally: **released 0.16.0** — CHANGELOG written (including a backfilled [0.15.0] entry;
-that release had shipped with no changelog), README what's-new refreshed, version bumped,
-release.sh run (tag v0.16.0 pushed, tarball sha256 pinned, .SRCINFO regenerated), pinned
-recipe pushed; CI "Publish stable to AUR" succeeded and the AUR shows **atlas-pm
-0.16.0-1** (RPC-verified). Everything is pushed to origin/master.
-
-**Verification:** all 773 tests pass. **All of this session's UI work is GUI-verified by
-Vatteck (2026-07-17)**: terminal highlighting + floating dialog, compact Updates banner
-(gutters), rebuilt dependency tree, and the calmed .pacnew center. No pending eyeballs
-from this session.
+**Verification:** all 774 + 60 JS tests pass. Tree pushed to origin/master.

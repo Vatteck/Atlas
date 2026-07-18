@@ -76,6 +76,26 @@ class AuditGateTest(unittest.TestCase):
         self.assertTrue(self.mgr._audit_pkgbuild(ctx))
         ctx.watcher.request_confirmation.assert_called_once()
 
+    def test_review_payload_carries_file_texts(self):
+        # The modal says "read the PKGBUILD" — the payload must carry the text so it can be
+        # read in place (each scanned file, with its own findings attributed to it).
+        self._write_pkgbuild(NASTY)
+        scriptlet = 'post_install() { echo "$K" >> ~/.ssh/authorized_keys; }\n'
+        with open(os.path.join(self.tmp, 'foo.install'), 'w') as f:
+            f.write(scriptlet)
+        ctx = self._ctx(confirm=True)
+        self.assertTrue(self.mgr._audit_pkgbuild(ctx))
+        review = ctx.watcher.request_confirmation.call_args.kwargs['review']
+        by_name = {f['name']: f for f in review['files']}
+        self.assertEqual({'PKGBUILD', 'foo.install'}, set(by_name))
+        self.assertEqual(NASTY, by_name['PKGBUILD']['text'])
+        self.assertEqual(scriptlet, by_name['foo.install']['text'])
+        self.assertTrue(by_name['PKGBUILD']['findings'])      # the curl|bash line
+        self.assertTrue(by_name['foo.install']['findings'])   # the authorized_keys line
+        # merged findings list still carries both files' findings
+        self.assertEqual(len(review['findings']),
+                         len(by_name['PKGBUILD']['findings']) + len(by_name['foo.install']['findings']))
+
     def test_missing_pkgbuild_does_not_block(self):
         ctx = self._ctx()  # no PKGBUILD written
         self.assertTrue(self.mgr._audit_pkgbuild(ctx))

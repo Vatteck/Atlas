@@ -1024,7 +1024,20 @@ function renderPkgbuildReview(review) {
         findHtml = `<h4 class="review-h">Lines worth a look</h4><ul class="review-findings">${items}</ul>`;
     }
 
-    host.innerHTML = maintHtml + banner + diffHtml + findHtml;
+    // The actual files (PKGBUILD + .install scriptlets), collapsed — so "read the PKGBUILD"
+    // is one click away instead of requiring the user to cancel and hunt the package down.
+    let filesHtml = '';
+    (review.files || []).forEach((f, i) => {
+        if (!f || !f.text) return;
+        const lineCount = String(f.text).split('\n').length;
+        filesHtml += `
+            <details class="review-pkgb-file">
+                <summary>Read <span class="review-pkgb-name">${escapeHtml(f.name || 'PKGBUILD')}</span> · ${lineCount} lines</summary>
+                <div class="pkgbuild-code review-code">${buildPkgbuildCodeHTML(f.text, f.findings, `crv-${i}-line-`)}</div>
+            </details>`;
+    });
+
+    host.innerHTML = maintHtml + banner + diffHtml + findHtml + filesHtml;
     host.style.display = 'block';
     if (content) content.classList.add('has-review');
 }
@@ -2164,7 +2177,9 @@ function buildPkgbuildFindingsHTML(findings) {
 }
 
 // Line-numbered, syntax-highlighted code. Flagged lines get a severity class + an id to scroll to.
-function buildPkgbuildCodeHTML(text, findings) {
+// idPrefix keeps line-anchor ids unique when the same renderer appears in two modals.
+function buildPkgbuildCodeHTML(text, findings, idPrefix) {
+    idPrefix = idPrefix || 'pkgb-line-';
     const lines = String(text == null ? '' : text).split('\n');
     // Worst severity per line number (warn beats info).
     const sev = {};
@@ -2175,7 +2190,7 @@ function buildPkgbuildCodeHTML(text, findings) {
     const rows = lines.map((ln, idx) => {
         const no = idx + 1;
         const cls = sev[no] ? ` flagged sev-${escapeHtml(sev[no])}` : '';
-        return `<div class="pkgb-line${cls}" id="pkgb-line-${no}">` +
+        return `<div class="pkgb-line${cls}" id="${idPrefix}${no}">` +
             `<span class="pkgb-ln">${no}</span>` +
             `<span class="pkgb-code">${highlightBashLine(ln)}</span></div>`;
     }).join('');
@@ -6845,6 +6860,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildPkgbuildFindingsHTML,
         findingProvenanceHTML,
         buildPkgbuildCodeHTML,
+        renderPkgbuildReview,
         buildPkgbuildTabsHTML,
         buildPkgbuildViews,
         buildPkgbuildDiffHTML,

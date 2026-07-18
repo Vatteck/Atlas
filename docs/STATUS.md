@@ -5,7 +5,22 @@
 > every session that changes code (see AGENTS.md §7). Keep it short and current — when an
 > item is stale, fix it or delete it.
 
-**Last updated:** 2026-07-17 (**Terminal → centered dialog + log syntax highlighting.** Two Vatteck requests.
+**Last updated:** 2026-07-18 (**Read the PKGBUILD inside the pre-build review modal.** Vatteck GUI report
+(with screenshot): during **Update All**, the advisory "Review PKGBUILD" confirmation (maintainer-change /
+flagged-lines / diff gate from `ArchManager._audit_pkgbuild`) told the user to *"Read the PKGBUILD"* while
+offering **no way to do it** — only Cancel (aborts that package's build; you'd have to hunt the package down
+later and use the detail-view viewer) or "Build anyway" (proceed unreviewed). Root cause: `_audit_pkgbuild`
+reads the PKGBUILD + `.install` scriptlets to scan them but the `review` payload never carried the text. Fix:
+the payload now ships per-file `{name, text, findings}` entries (`files`; no new I/O — text was already in
+memory; 400k-char truncation guard for pathological files), and `renderPkgbuildReview` renders each as a
+collapsed `<details>` "Read PKGBUILD · N lines" block using the existing `buildPkgbuildCodeHTML`
+line-numbered/highlighted/finding-flagged renderer (new optional `idPrefix` param avoids line-anchor id
+collisions with the PKGBUILD-viewer modal). Cancel/Build-anyway semantics unchanged. Tests:
+`test_review_payload_carries_file_texts` (which caught a list-aliasing bug in the first cut — `.install`
+findings leaked into the PKGBUILD file entry) + JS `testRenderPkgbuildReviewInlineFiles`. Suite **774** + JS
+**60** green. Plan: [plans/2026-07-18-review-pkgbuild-inline.md]. **Needs a GUI eyeball** — any flagged AUR
+update (open the details block, check scroll containment in the confirm modal).)
+- Prior (2026-07-17): (**Terminal → centered dialog + log syntax highlighting.** Two Vatteck requests.
 (1) The transaction terminal's flat-green log is now syntax-highlighted: new pure `highlightLogLine` (main.js,
 modeled on `highlightBashLine` — regex, escapes its own input, no external lib) with line classes mirroring the
 real tools' terminal colors (pacman `::` bold blue, makepkg `==>` bold green / `->` blue, ERROR bold red,
@@ -310,6 +325,23 @@ re-add a native extension without a measured win. Details in the historical
 ---
 
 ## Done
+
+- **Read the PKGBUILD inside the pre-build review modal (2026-07-18).** Vatteck reported (screenshot)
+  that the mid-Update-All "Review PKGBUILD" advisory dialog asks the user to read the PKGBUILD but
+  provides no way to — Cancel aborts that package's build (recovering means hunting the package down in
+  the UI later), "Build anyway" proceeds unreviewed. `_audit_pkgbuild` (gems/arch/controller.py) already
+  had the PKGBUILD + `.install` texts in memory for scanning; the `review` payload now carries them as
+  `files: [{name, text, findings}]` (per-file findings attribution; 400k-char truncation guard), and
+  `renderPkgbuildReview` (main.js) renders each file as a collapsed `<details class="review-pkgb-file">`
+  reader — line-numbered, bash-highlighted, finding-flagged via the existing `buildPkgbuildCodeHTML`
+  (which gained an optional `idPrefix` so its line-anchor ids can't collide with the PKGBUILD-viewer
+  modal's). Code block scroll-contained at 320px inside the confirm modal. Gate timing and
+  Cancel/Build-anyway semantics untouched. Tests: `test_review_payload_carries_file_texts` (caught a
+  real list-aliasing bug: the merged findings list was the same object as the PKGBUILD entry's, so
+  `.install` findings leaked in — now copied) + JS `testRenderPkgbuildReviewInlineFiles` (files render,
+  flagged lines, prefix ids, no-files/null payloads unchanged). Suite **774** + JS **60** green. Plan:
+  [plans/2026-07-18-review-pkgbuild-inline.md](plans/2026-07-18-review-pkgbuild-inline.md). **Needs a
+  GUI eyeball** (trigger any flagged AUR update; check the details block opens/scrolls inside the modal).
 
 - **Updates-banner gutters + dependency-tree rebuild (2026-07-17).** Two polish fixes from Vatteck's GUI
   eyeball of the terminal work. **(1)** The compact config-notice banner touched the sidebar and right

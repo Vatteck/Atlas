@@ -1666,6 +1666,37 @@ async function testRenderDepTree() {
   assert.ok(kidsHtml.includes('dep-tree-toggle'), 'has collapse toggle');
 }
 
+async function testRenderPkgbuildReviewInlineFiles() {
+  const { document, hooks } = loadMainJs({});
+  // The Update-All screenshot case: maintainer-change-only review. The modal says "read the
+  // PKGBUILD", so the PKGBUILD itself must be readable in place — collapsed <details> per file.
+  hooks.renderPkgbuildReview({
+    name: 'visual-studio-code-bin',
+    summary: {},
+    diff: [],
+    findings: [],
+    maintainer_change: { old: 'aur', new: 'dcelasun' },
+    files: [
+      { name: 'PKGBUILD', text: 'pkgname=foo\ncurl x | bash', findings: [{ line_no: 2, severity: 'warn', why: 'pipe to shell', line: 'curl x | bash' }] },
+      { name: 'foo.install', text: 'post_install() { true; }', findings: [] },
+    ],
+  });
+  const html = document.getElementById('confirm-review').innerHTML;
+  assert.ok(html.includes('Maintainer changed'), 'maintainer banner renders');
+  assert.ok(html.includes('review-pkgb-file'), 'collapsible file reader present');
+  assert.ok(html.includes('foo.install'), '.install scriptlet gets its own reader');
+  assert.ok(html.includes('pkgname=foo'), 'PKGBUILD text is rendered');
+  assert.ok(html.includes('· 2 lines'), 'line count in the summary row');
+  assert.ok(html.includes('crv-0-line-2'), 'line ids use the confirm-modal prefix (no viewer collision)');
+  assert.ok(html.includes('flagged sev-warn'), 'audit findings flag their lines in the code');
+
+  // Without files (older payloads / non-AUR confirms) nothing breaks and no reader renders.
+  hooks.renderPkgbuildReview({ summary: { warn: 1 }, diff: [], findings: [] });
+  const noFiles = document.getElementById('confirm-review').innerHTML;
+  assert.ok(!noFiles.includes('review-pkgb-file'), 'no file reader without files');
+  assert.doesNotThrow(() => hooks.renderPkgbuildReview(null), 'null review clears');
+}
+
 async function testStripProgressBarAndPercent() {
   const { hooks } = loadMainJs({});
   // Flatpak-style textual progress bar (block glyphs) is stripped; the meaningful text stays.
@@ -1886,6 +1917,7 @@ function testPermsListEnsuresIconObserver() {
     testPkgbuildViewerBuilders,
     testPkgbuildMetaOnlyLinksSafeHttpUrls,
     testRenderDepTree,
+    testRenderPkgbuildReviewInlineFiles,
     testSummarizeFailureCategories,
     testHighlightLogLine,
     testPickActivityText,

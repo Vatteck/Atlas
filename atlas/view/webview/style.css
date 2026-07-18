@@ -1235,6 +1235,14 @@ body {
 .finding-line { display: inline-block; min-width: 34px; margin-right: 8px; font-family: ui-monospace, monospace; font-size: 12px; font-weight: 700; color: var(--text-secondary); }
 .finding-code { display: block; margin-top: 4px; font-family: ui-monospace, monospace; font-size: 12px; color: var(--text-secondary); white-space: pre-wrap; word-break: break-all; }
 
+/* Collapsed full-file readers (PKGBUILD + .install) inside the review block */
+.review-pkgb-file { margin-top: 8px; border: 1px solid var(--border-color); border-radius: var(--radius-md, 8px); background: var(--bg-surface); }
+.review-pkgb-file summary { padding: 9px 12px; font-size: 13px; font-weight: 500; color: var(--text-primary); cursor: pointer; user-select: none; }
+.review-pkgb-file summary:hover { background: var(--bg-surface-hover); }
+.review-pkgb-file[open] summary { border-bottom: 1px solid var(--border-color); }
+.review-pkgb-name { font-family: ui-monospace, "Cascadia Code", Menlo, monospace; }
+.review-pkgb-file .review-code { max-height: 320px; border: none; border-radius: 0 0 var(--radius-md, 8px) var(--radius-md, 8px); }
+
 /* ---- PKGBUILD viewer (first-class AUR build-recipe reader) ---- */
 .detail-section-hint { margin: 0 0 12px; font-size: 13px; color: var(--text-secondary); }
 /* Above the other modals (z 300) so it stacks on top when opened from the install preview. */
