@@ -175,8 +175,9 @@ PKGBUILD surfaced on the Overview caution banner, comments moved into Details; A
 fixed (was computed from an unpopulated pkg object) + made legible with a clickable breakdown and
 votes/popularity badges (from GUI eyeballs); competitive-research Theme 4 (AUR request throttle) shipped,
 Theme 3 (auth-readiness) dropped as N/A to Atlas's root model — see Done log)
-**Version:** 0.15.0 (tagged + released `a49cb4b`; both AUR packages auto-published by CI — corrected
-2026-07-17, this line had gone stale at 0.14.0 while the 0.15.0 release commit sat undocumented)
+**Version:** 0.16.0 (released 2026-07-17: tag `v0.16.0`, release commit `c83b078`; CI "Publish stable
+to AUR" green and **AUR-verified live at 0.16.0-1** via RPC. The CHANGELOG now includes a backfilled
+`[0.15.0]` entry — that release had shipped without one.)
 **Working branch:** `master` in this checkout (all recent work — launch optimization, theme options +
 persistence, the scalable-SVG KDE icon fix — landed + pushed to `origin/master`; suite **720** + JS (CI now runs JS + packaging guards);
 CI green across Python 3.10–3.14); app work normally lands on `master` (run `git branch` before acting — branch names in docs

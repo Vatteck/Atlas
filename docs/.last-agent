@@ -2,8 +2,8 @@
 
 **Agent:** Claude Fable 5 (claude-fable-5) — 2026-07-17
 **Branch:** master
-**Last commit:** 6ca53ab3fc109561528979901e513f98bb954201 (plus the docs commit carrying
-this baton)
+**Last commit:** c83b078 ("release: atlas-pm 0.16.0") plus the docs commit carrying this
+baton
 
 ## Summary
 
@@ -49,6 +49,12 @@ sequentially) — kept as a cheap guard. The remaining cold-start duplicate is s
 (GUI arch read waits on the pre-cacher's disk-cache task; the pre-cacher's own read
 feeds that cache — circular-wait risk) and needs an arch-gem redesign plan before
 touching.
+
+Finally: **released 0.16.0** — CHANGELOG written (including a backfilled [0.15.0] entry;
+that release had shipped with no changelog), README what's-new refreshed, version bumped,
+release.sh run (tag v0.16.0 pushed, tarball sha256 pinned, .SRCINFO regenerated), pinned
+recipe pushed; CI "Publish stable to AUR" succeeded and the AUR shows **atlas-pm
+0.16.0-1** (RPC-verified). Everything is pushed to origin/master.
 
 **Verification:** all 773 tests pass. GUI eyeballs still wanted: banner gutters, rebuilt
 dep tree (AUR install/update preview), calmed .pacnew center.
