@@ -2,7 +2,7 @@
 
 **Agent:** Claude Fable 5 (claude-fable-5) — 2026-07-17
 **Branch:** master
-**Last commit:** c8d32935f4a923d1ae3ee83716a329b40c3b57bd (plus the docs commit carrying
+**Last commit:** 6ca53ab3fc109561528979901e513f98bb954201 (plus the docs commit carrying
 this baton)
 
 ## Summary
@@ -41,8 +41,14 @@ dead ends: tracemalloc inflates RSS 3×, MALLOC_ARENA_MAX=2 is *worse*, malloc_t
 Root cause found + fixed: map_desktop_files buffered `pacman -Ql <all pkgs>` (46 MB
 here) as one string during the first-run disk-cache warm-up; now streamed
 (atlas/gems/arch/pacman.py, +3 tests). Measured cold-run python peak 528.7 → 451.7 MB.
-Next candidate (unstarted, needs a plan): coalesce the up-to-three concurrent full
-read_installed passes at cold startup (GUI updates + installed reads + pre-cacher's own).
+Then: shipped in-flight coalescing of concurrent full read_installed calls
+(GenericSoftwareManager, leader/follower, ATLAS_NO_READ_COALESCING=1 kill switch,
+5 tests; plan docs/plans/2026-07-17-coalesce-read-installed.md). Honest outcome recorded
+in that plan: NO measured memory delta (GUI overlap is timing-dependent; benches ran
+sequentially) — kept as a cheap guard. The remaining cold-start duplicate is structural
+(GUI arch read waits on the pre-cacher's disk-cache task; the pre-cacher's own read
+feeds that cache — circular-wait risk) and needs an arch-gem redesign plan before
+touching.
 
-**Verification:** all 768 tests pass. GUI eyeballs still wanted: banner gutters, rebuilt
+**Verification:** all 773 tests pass. GUI eyeballs still wanted: banner gutters, rebuilt
 dep tree (AUR install/update preview), calmed .pacnew center.
