@@ -1,23 +1,34 @@
 # .last-agent — integrity checkpoint for the next AI coding agent
 
-**Agent:** Hermes (deepseek-v4-pro) — 2026-07-18
+**Agent:** Claude Opus 5 — 2026-08-01
 **Branch:** master
-**Last commit (base):** b5ad18e ("docs: mark all 2026-07-17 UI work GUI-verified by Vatteck")
+**Last commit (base):** 2efbe53 ("docs: bump STATUS.md version to 0.16.1")
 
 ## Summary
 
-Claude Fable 5 got rate-limited mid-(commit) while finishing the PKGBUILD inline review
-feature. It had updated STATUS.md and left the tree dirty (6 modified + 1 untracked plan)
-with all 774 Python + 60 JS tests green. This session:
+Vatteck returned after a ~2-week gap and asked for a project-state review plus a direction.
+Review found **no drift** — docs matched the tree, 774 Python + 60 JS tests green, CI green,
+0.16.1 live on the AUR, the BACKLOG feature menu drained, and the 5-task AUR security
+heuristics plan fully shipped.
 
-- Verified the feature: `_audit_pkgbuild` now ships per-file `{name, text, findings}` in
-  the review payload so the pre-build "Review PKGBUILD" modal actually lets the user read
-  the PKGBUILD (collapsed `<details>` blocks, inline syntax-highlighted code). The dialog
-  previously told the user to read the PKGBUILD while offering no way to do it.
-- Tests confirmed green (774 + 60 JS).
-- Committed everything and cut **0.16.1** — version bump, CHANGELOG update, release.sh run.
-  CI auto-publishes the stable `atlas-pm` to the AUR.
-- The feature still **needs a GUI eyeball** — trigger any flagged AUR update, open the
-  details block, check scroll containment in the confirm modal.
+Direction chosen: **0.17 — "verify and show," not "add."** Rationale is in the STATUS.md
+decision log. This session did step 1 (debt cut), docs only:
 
-**Verification:** all 774 + 60 JS tests pass. Tree pushed to origin/master.
+- **Split STATUS.md** (2,379 lines / 94 KB — it no longer fit an agent's read budget) into a
+  215-line live baton + new **`docs/HISTORY.md`** (Done log, retired gotchas, Rust/Qt-era
+  decision log). AGENTS.md §1 now says HISTORY.md is *not* required reading.
+- **Fixed a real doc bug:** the large-files gotcha named `view/core/controller.py` at "~192 KB";
+  it is actually **32 KB**. The 220 KB file is `gems/arch/controller.py`, and the two largest
+  files (`main.js` 340 KB, `api.py` 184 KB) were unlisted. Corrected in STATUS.md + AGENTS.md §8.
+- Deleted two fully-merged dead local branches (`feat/webview-polish-sprint-1`, `-2`).
+- Removed ~120 MB of regenerable `makepkg` artifacts under `linux_dist/arch/` (src/, pkg/,
+  built `.pkg.tar.zst`, tarballs). Both `.SRCINFO` files and all tracked sources untouched.
+
+**Verification:** 774 Python + 60 JS tests pass after the change; `git status` shows only the
+intended doc edits. No app code touched.
+
+**Next agent:** STATUS.md "Next" #1 is the one outstanding GUI eyeball — 0.16.1's PKGBUILD
+inline reader shipped and released without ever being looked at. Then screenshots + repo
+positioning (#2), then a render-level test harness (#3). Remote branches
+`origin/feat/webview-polish-sprint-2` and the two `origin/claude/*` branches are also fully
+merged (0 ahead of master) but were left alone — deleting remote refs needs Vatteck's call.

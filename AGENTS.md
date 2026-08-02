@@ -28,6 +28,12 @@ here. Read it top to bottom before writing code — it keeps you on the project'
 Do not start coding until you've read 1–6. If the user's request conflicts with the live
 baton or backlog, say so and ask — don't silently go off-plan.
 
+**Not required reading:** [`docs/HISTORY.md`](docs/HISTORY.md) is the archived Done log —
+everything Atlas has shipped, plus retired gotchas and the Rust/Qt-era decision log. STATUS.md
+was split on 2026-08-01 when it hit 2,379 lines and stopped fitting in a read budget. **Search
+HISTORY.md, don't read it top to bottom**, and only to answer "when/why did we ship X?" or
+"have we tried Y before?". Keep STATUS.md under ~200 lines — archive again when it grows.
+
 ---
 
 ## 2. What Atlas is (the 30-second version)
@@ -141,7 +147,10 @@ Tracked in more detail in `docs/STATUS.md`:
 - **WebKitGTK has no native JS dialogs.** `window.prompt/confirm/alert` no-op; everything
   is HTML modals that block a pywebview worker thread on a `threading.Event` and resolve
   via `js_api` callbacks. Never reintroduce a `window.*` dialog.
-- **Large files — read in sections:** `view/core/controller.py` (~192 KB), `gems/arch/
-  controller.py`, `updates.py` (~42 KB), `pacman.py` (~38 KB).
+- **Large files — read in sections** (sizes verified 2026-08-01): `view/webview/main.js`
+  (340 KB), `gems/arch/controller.py` (220 KB), `view/webview/api.py` (184 KB),
+  `view/webview/style.css` (120 KB), `gems/arch/pacman.py` (48 KB), `gems/arch/updates.py`
+  (44 KB). *(`view/core/controller.py` is only 32 KB — older docs misidentified it as the
+  192 KB file.)*
 - **Settings are webview-native.** The GUI uses `AtlasApi.get_app_settings`/
   `save_app_settings`, *not* the old Qt-era `GenericSettingsManager` tree.
