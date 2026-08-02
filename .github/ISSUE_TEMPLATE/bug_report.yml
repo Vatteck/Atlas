@@ -1,0 +1,106 @@
+name: Bug report
+description: Something in Atlas is broken, wrong, or confusing.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing. Atlas is a solo side project, so a report with the log and
+        `--self-check` output attached is worth about ten without.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what you got instead.
+      placeholder: |
+        1. Opened the Updates page
+        2. Clicked "Update All"
+        3. Expected the preview modal; got a blank page
+    validations:
+      required: true
+
+  - type: textarea
+    id: self-check
+    attributes:
+      label: Output of `atlas --self-check`
+      description: >
+        This prints your desktop, display server, and detected tools. Paste the whole thing —
+        it saves a round-trip of "which DE are you on?" questions.
+      render: shell
+      placeholder: $ atlas --self-check
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant lines from the debug log
+      description: >
+        Atlas writes a rotating log to `~/.cache/atlaspm/logs/atlas.log` on **every** run — you
+        do not need to re-run with `--logs` to get it. A clean run is INFO-only, so paste any
+        WARNING/ERROR lines and any traceback from around the time it broke.
+
+
+        Note: some log lines can include package names and file paths from your system. Skim
+        before pasting if that matters to you.
+      render: shell
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Atlas version
+      description: From `pacman -Qi atlas-pm` / `atlas-pm-git`, or the Settings page.
+      placeholder: "0.16.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-source
+    attributes:
+      label: How did you install Atlas?
+      options:
+        - atlas-pm (stable, AUR)
+        - atlas-pm-git (bleeding edge, AUR)
+        - From source (pip install -e .)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: distro
+    attributes:
+      label: Distribution
+      description: >
+        Arch, or a derivative? Derivatives matter — CachyOS/EndeavourOS/Garuda ship their own
+        mirrors and repos, which changes mirrorlist and update behaviour.
+      placeholder: "CachyOS (Arch derivative)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: package-source
+    attributes:
+      label: Which package source was involved?
+      description: Skip if it is not about a specific package.
+      multiple: true
+      options:
+        - Official Arch repos
+        - AUR
+        - Flatpak
+        - AppImage
+        - Not source-specific / the app itself
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: >
+        If it is a visual or layout bug, a screenshot is usually faster than describing it.
+        Drag the image into this box.
+    validations:
+      required: false

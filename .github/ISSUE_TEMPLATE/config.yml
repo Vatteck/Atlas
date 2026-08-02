@@ -1,0 +1,15 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Feature ideas and the roadmap
+    url: https://github.com/Vatteck/atlas/blob/master/docs/BACKLOG.md
+    about: >
+      Atlas has an opinionated roadmap and an explicit list of things it deliberately will not
+      build (AI recommendations, a YaST-style control center, automatic .pacnew merging). Please
+      skim BACKLOG.md before requesting a feature — it may already be planned, shipped, or a
+      documented non-goal.
+  - name: Security issue in a specific AUR package
+    url: https://aur.archlinux.org/
+    about: >
+      Atlas's PKGBUILD audit is advisory. If you have found an actually malicious AUR package,
+      report it to the AUR maintainers/Arch security team, not here. Do open an issue here if
+      Atlas failed to flag it, or flagged something benign (false positives are bugs too).
