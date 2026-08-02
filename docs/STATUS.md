@@ -47,11 +47,20 @@ Step 1 (doc/repo debt) is done — see Done below. Steps 2–3 are in Next.
    real desktop and confirmed good. **Nothing is currently awaiting a GUI eyeball.**
 2. **Refresh the screenshots.** All five `docs/screenshots/*.png` are from 2026-06-02 and predate
    themes/accents, the floating terminal + log highlighting, the dependency tree, the calmed
-   `.pacnew` center, and the PKGBUILD reader. Shot list: `dashboard.png`, `apppanel.png` (source
-   switcher), `details.png`, `diskpage.png`, `terminal.png` — the last especially, since the
-   terminal is now a centered dialog with syntax-highlighted output, not the flat-green sidepane
-   the current image shows. *(The repo description and issue template halves of this step are
-   done — see Done.)*
+   `.pacnew` center, and the PKGBUILD reader. `terminal.png` especially — it still shows the
+   flat-green sidepane, which no longer exists.
+
+   **Tooling is ready:** `tools/capture-screenshots.sh` (DEVELOPMENT.md §8). Start Atlas, run it,
+   navigate to each view and press Enter — it floats/sizes the window to a consistent 1280×800,
+   raises it so nothing overlaps, squares off Hyprland's rounded corners, crops to the window rect
+   and writes to `docs/screenshots/`. Needs a GUI session, so it's Vatteck's to run.
+
+   *Deliberately not automated with a headless browser:* the UI would run (there's a clean
+   `pyApiCall` seam with a `mockApi` fallback), but Chromium is not WebKitGTK and Atlas's bug
+   history is full of WebKit-specific rendering failures — README images from an engine no user
+   runs would be a subtle lie. Fixture-driven headless rendering belongs in Next #3, where its
+   value is regression testing, not marketing images. *(The repo description and issue template
+   halves of this step are done — see Done.)*
 3. **Then pick a real engineering thread** with fresh eyes. Leading candidate: a **render-level test
    harness** for the `main.js` view renderers, since that is exactly where every recent defect lived
    and where the current tests are blind. Alternative: the paused cold-start work below.

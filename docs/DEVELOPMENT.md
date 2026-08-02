@@ -140,3 +140,29 @@ environment-dependent behaviour CI can't cover (KDE vs GNOME, tray, terminals, m
 `atlas --self-check` prints the runtime environment (desktop, display server, detected tools) to
 make that pass deterministic. CI itself now includes an **Arch — tests + package build** job that
 runs the suite on real Arch and verifies the wheel build + install layout.
+
+---
+
+## 8. Re-shooting the README screenshots
+
+`docs/screenshots/*.png` are captured from the **real WebKitGTK window**, not a browser — Atlas
+has a history of WebKit-specific rendering bugs (the 4-value `contain-intrinsic-size` older
+WebKitGTK silently dropped, `backdrop-filter` compositing), so a Chromium screenshot can look
+right while the app looks wrong.
+
+```bash
+tools/capture-screenshots.sh --list      # what each shot should show
+tools/capture-screenshots.sh             # walk all five
+tools/capture-screenshots.sh terminal    # re-shoot just one
+```
+
+Start Atlas first (`atlas --logs`); the script waits for the window. You navigate to each view
+and press Enter — it handles the rest: floats and sizes the window to a consistent 1280×800
+(override with `ATLAS_SHOT_WIDTH`/`ATLAS_SHOT_HEIGHT`), raises and focuses it so nothing overlaps
+the capture, squares off Hyprland's rounded corners (which would otherwise let the desktop bleed
+into the image corners), crops to the exact window rect, and writes straight to
+`docs/screenshots/<name>.png`. It hands focus back to your terminal between shots, and restores
+your rounding and tiling state on exit.
+
+**Hyprland-specific** (needs `grim`, `hyprctl`, `jq`) — it's a dev tool, not shipped in the
+package. On another compositor, capture by hand at a consistent size instead.
