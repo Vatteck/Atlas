@@ -141,9 +141,9 @@ Full record in [HISTORY.md](HISTORY.md). Only the last few entries live here.
   `review` payload now carries the PKGBUILD + `.install` texts as `files: [{name, text, findings}]`
   and `renderPkgbuildReview` renders each as a collapsed, line-numbered, syntax-highlighted
   `<details>` reader. Suite 774 + JS 60. **GUI-verified by Vatteck 2026-08-01.**
-- **Updates-banner gutters + dependency-tree rebuild (2026-07-17).** GUI-verified.
-- **Terminal → centered dialog + log syntax highlighting (2026-07-17).** GUI-verified.
-- **Compact Updates config-notice + friendlier `.pacnew` center (2026-07-17).** GUI-verified.
+- *(2026-07-17 and earlier — Updates-banner gutters, the dependency-tree rebuild, the terminal
+  dialog + log highlighting, the calmed `.pacnew` center — all GUI-verified and archived in
+  [HISTORY.md](HISTORY.md).)*
 
 ---
 
