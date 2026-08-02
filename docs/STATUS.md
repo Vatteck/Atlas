@@ -41,17 +41,17 @@ Step 1 (doc/repo debt) is done — see Done below. Steps 2–3 are in Next.
 
 ## Next
 
-1. **GUI eyeball — the one outstanding item.** 0.16.1's headline feature, the **PKGBUILD inline
-   reader in the pre-build review modal**, shipped and released *without ever being looked at*.
-   Trigger any flagged AUR update (maintainer-change / flagged-lines gate), open the collapsed
-   "Read PKGBUILD" `<details>` block, and check it scroll-contains inside the confirm modal.
-   Plan: [plans/2026-07-18-review-pkgbuild-inline.md](plans/2026-07-18-review-pkgbuild-inline.md).
-   Softer, older items in the same pass: **boot splash visuals** and **theme-preset / accent-color
-   contrast** across cards/modals/banners/code blocks.
-2. **Refresh the public face.** Re-shoot all five `docs/screenshots/*.png` against the current UI;
-   fix the GitHub repo description, which still leads with "AppImage, Arch/AUR, Flatpak, Snap, Web"
-   and contradicts the Arch-focused positioning (Snap/Debian/Web are off by default); add a minimal
-   issue template (issues are enabled, none filed, no template).
+1. ~~**GUI eyeball — the one outstanding item.**~~ ✅ **CLEARED 2026-08-01 by Vatteck.** 0.16.1's
+   PKGBUILD inline reader in the pre-build review modal (which shipped and released without ever
+   being looked at), plus the boot splash and theme-preset/accent contrast, were all walked on the
+   real desktop and confirmed good. **Nothing is currently awaiting a GUI eyeball.**
+2. **Refresh the screenshots.** All five `docs/screenshots/*.png` are from 2026-06-02 and predate
+   themes/accents, the floating terminal + log highlighting, the dependency tree, the calmed
+   `.pacnew` center, and the PKGBUILD reader. Shot list: `dashboard.png`, `apppanel.png` (source
+   switcher), `details.png`, `diskpage.png`, `terminal.png` — the last especially, since the
+   terminal is now a centered dialog with syntax-highlighted output, not the flat-green sidepane
+   the current image shows. *(The repo description and issue template halves of this step are
+   done — see Done.)*
 3. **Then pick a real engineering thread** with fresh eyes. Leading candidate: a **render-level test
    harness** for the `main.js` view renderers, since that is exactly where every recent defect lived
    and where the current tests are blind. Alternative: the paused cold-start work below.
@@ -89,11 +89,21 @@ Full record in [HISTORY.md](HISTORY.md). Only the last few entries live here.
   220 KB file is `gems/arch/controller.py`, and the two genuinely largest files (`main.js` 340 KB,
   `api.py` 184 KB) were not listed at all. Corrected here and in AGENTS.md §8. No app-code change;
   suite unaffected (774 + 60).
+- **Public-face cleanup (2026-08-01).** Added a **bug-report issue template** (`.github/ISSUE_TEMPLATE/`)
+  — issues were enabled with no template, so reports arrived without the two things that make an
+  Atlas bug diagnosable: `~/.cache/atlaspm/logs/atlas.log` and `atlas --self-check` output. The form
+  front-loads both, plus install source, distribution (derivatives change mirrorlist/update
+  behaviour), and package source; `config.yml` points feature ideas at BACKLOG's non-goals and
+  redirects "this AUR package is malicious" to the AUR while keeping audit false positives/negatives
+  on-topic. Also **fixed the GitHub repo description**, which led with "AppImage, Arch/AUR, Flatpak,
+  Snap, Web" — burying Arch and advertising three sources that are off by default — and **deleted
+  three fully-merged remote branches** (`feat/webview-polish-sprint-2`, two `claude/*`; all 0 commits
+  ahead of master). Screenshots are the remaining half of this step — see Next #2.
 - **Read the PKGBUILD inside the pre-build review modal (2026-07-18).** The mid-Update-All "Review
   PKGBUILD" advisory dialog told the user to read the PKGBUILD while offering no way to. The
   `review` payload now carries the PKGBUILD + `.install` texts as `files: [{name, text, findings}]`
   and `renderPkgbuildReview` renders each as a collapsed, line-numbered, syntax-highlighted
-  `<details>` reader. Suite 774 + JS 60. **Still needs a GUI eyeball — see Next #1.**
+  `<details>` reader. Suite 774 + JS 60. **GUI-verified by Vatteck 2026-08-01.**
 - **Updates-banner gutters + dependency-tree rebuild (2026-07-17).** GUI-verified.
 - **Terminal → centered dialog + log syntax highlighting (2026-07-17).** GUI-verified.
 - **Compact Updates config-notice + friendlier `.pacnew` center (2026-07-17).** GUI-verified.

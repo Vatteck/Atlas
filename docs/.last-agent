@@ -27,8 +27,21 @@ decision log. This session did step 1 (debt cut), docs only:
 **Verification:** 774 Python + 60 JS tests pass after the change; `git status` shows only the
 intended doc edits. No app code touched.
 
-**Next agent:** STATUS.md "Next" #1 is the one outstanding GUI eyeball — 0.16.1's PKGBUILD
-inline reader shipped and released without ever being looked at. Then screenshots + repo
-positioning (#2), then a render-level test harness (#3). Remote branches
-`origin/feat/webview-polish-sprint-2` and the two `origin/claude/*` branches are also fully
-merged (0 ahead of master) but were left alone — deleting remote refs needs Vatteck's call.
+Then, same day, with Vatteck's go-ahead:
+
+- **GUI eyeball CLEARED.** Vatteck walked 0.16.1's PKGBUILD inline reader, the boot splash, and
+  the theme-preset/accent contrast on the real desktop — all good. **Nothing is currently
+  awaiting a GUI eyeball.**
+- Added a **bug-report issue template** (`.github/ISSUE_TEMPLATE/`) that front-loads the debug
+  log + `atlas --self-check` output.
+- **Fixed the GitHub repo description** (it led with "AppImage, Arch/AUR, Flatpak, Snap, Web" —
+  burying Arch, advertising three off-by-default sources).
+- **Deleted three fully-merged remote branches** (`feat/webview-polish-sprint-2`, two
+  `claude/*`), each re-confirmed at 0 commits ahead of master first. `origin` is now
+  master-only.
+
+**Next agent:** STATUS.md "Next" #2 — re-shoot the five `docs/screenshots/*.png`, which are from
+2026-06-02 and predate themes/accents, the floating terminal, the dep tree, and the calmed
+`.pacnew` center. Needs a GUI session, so it is Vatteck's. Then #3: a render-level test harness
+for the `main.js` view renderers (where every recent defect actually lived and the suite is
+blind), or the paused cold-start memory thread.
