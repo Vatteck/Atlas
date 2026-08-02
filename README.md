@@ -128,13 +128,15 @@ atlas-cli                # CLI
 
 ---
 
-## 🆕 What's new in 0.16.0
+## 🆕 What's new in 0.16.1
 
+- 📖 **Read the PKGBUILD without leaving the dialog** — the pre-build review gate used to tell you
+  to read the build recipe while offering no way to; it's now inline and collapsible
 - 🖥️ **Pretty transaction terminal** — syntax-highlighted pacman/makepkg output in a centered dialog
 - 🧠 **First-run memory spike fixed** — initial indexing no longer buffers your whole file database
 - 🧘 **Calmer config-file review** — one-line notice, "Safe to discard" mirrorlist handling
 - 🌳 **Readable dependency tree** — dot-coded repo/AUR/warning rows with a legend
-- 🛡️ **0.15.0's AUR vetting** — TOCTOU-safe installs, aur-audit rules, IOC database
+- 🛡️ **AUR vetting** — TOCTOU-safe installs, aur-audit rules, IOC database
 
 *Full history in [CHANGELOG.md](CHANGELOG.md).*
 
