@@ -131,6 +131,14 @@ a tagged tarball with a **pinned** sha256, not `master`); CI then auto-publishes
 It runs the test suite, tags `vX.Y.Z` + pushes the tag (GitHub only generates the tarball once
 the tag exists), pins the tarball's sha256 into `release/PKGBUILD`, regenerates `release/.SRCINFO`,
 and prints the commit + AUR-publish commands. Without `--publish` it touches nothing on the AUR.
+
+Pushing the tag also fires **`.github/workflows/github-release.yml`**, which creates a GitHub
+Release whose body is that version's `CHANGELOG.md` section. It uses the `gh` CLI and the built-in
+`GITHUB_TOKEN` — no third-party action, no extra secret — and does **not** touch the AUR pipeline
+(the stable PKGBUILD pins GitHub's auto-generated tag tarball, which exists with or without a
+Release). If the tag has no CHANGELOG entry it falls back to master's copy, then to a generic body,
+warning either way rather than failing — a release that shipped before its entry was written (as
+`0.15.0` did) still gets usable notes. `workflow_dispatch` takes a tag name, for backfilling.
 Bump `atlas/__init__.py`'s `__version__` (and tidy `CHANGELOG.md`) before releasing. For a
 packaging-only re-release of the same version, bump `pkgrel` by hand — the script leaves it alone
 unless the version changed.

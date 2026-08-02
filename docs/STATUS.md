@@ -98,6 +98,28 @@ Full record in [HISTORY.md](HISTORY.md). Only the last few entries live here.
   220 KB file is `gems/arch/controller.py`, and the two genuinely largest files (`main.js` 340 KB,
   `api.py` 184 KB) were not listed at all. Corrected here and in AGENTS.md §8. No app-code change;
   suite unaffected (774 + 60).
+- **Screenshots + release plumbing (2026-08-01).** Re-shot all five `docs/screenshots/*.png` from the
+  real WebKitGTK window via the new `tools/capture-screenshots.sh` (DEVELOPMENT.md §8), uniform
+  1280×800. Known nits tracked, not blocking: the hero greets by a real first name and shows a
+  failed transaction; `details.png` showcases the source-comparison panel with an icon-less package
+  and an empty Flatpak version.
+
+  Also **fixed the misleading `atlas-pm-git` badge**: shields.io reads the `pkgver` frozen in the
+  AUR's `.SRCINFO`, and the `-git` publish workflow only fires on `linux_dist/arch/PKGBUILD` changes
+  (last touched 2026-06-21), so the README claimed the bleeding-edge package was three releases
+  *behind* stable. `pkgver()` recomputes at build time, so installers always got HEAD — only the
+  label was stale. Badge now carries no version, and the install section explains `paru -Sua --devel`.
+  **Deliberately not fixed by auto-republishing `.SRCINFO`** — that fights the Arch VCS convention,
+  spams the AUR with metadata-only commits, and adds a standing scheduled job holding an SSH key,
+  to replicate what `--devel` already does.
+
+  And added **`.github/workflows/github-release.yml`**: five tags existed with **zero GitHub
+  Releases**. A `v*` tag push now cuts a Release from that version's CHANGELOG section, via the `gh`
+  CLI + built-in `GITHUB_TOKEN` (no third-party action, no new secret). Falls back to master's
+  CHANGELOG when the tag predates its entry — dry-run against all 7 tags found `v0.15.0` is exactly
+  that case. Does not touch the AUR pipeline. **Backfilling Releases for the 5 existing tags is
+  still open** (`workflow_dispatch` takes a tag name) — deferred because it would publish five
+  releases at once and notify watchers.
 - **Public-face cleanup (2026-08-01).** Added a **bug-report issue template** (`.github/ISSUE_TEMPLATE/`)
   — issues were enabled with no template, so reports arrived without the two things that make an
   Atlas bug diagnosable: `~/.cache/atlaspm/logs/atlas.log` and `atlas --self-check` output. The form

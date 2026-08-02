@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Vatteck/atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/Vatteck/atlas/actions/workflows/ci.yml)
 [![AUR](https://img.shields.io/aur/version/atlas-pm?label=atlas-pm&color=1793d1)](https://aur.archlinux.org/packages/atlas-pm)
-[![AUR](https://img.shields.io/aur/version/atlas-pm-git?label=atlas-pm-git&color=1793d1)](https://aur.archlinux.org/packages/atlas-pm-git)
+[![AUR](https://img.shields.io/badge/AUR-atlas--pm--git-1793d1)](https://aur.archlinux.org/packages/atlas-pm-git)
 [![License](https://img.shields.io/badge/license-zlib%2Flibpng-green)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
 
@@ -91,6 +91,14 @@ Most Arch package manager GUIs fall into two camps — **terminal wrappers with 
 yay -S atlas-pm          # stable release
 yay -S atlas-pm-git      # bleeding-edge (HEAD)
 atlas                    # launch
+```
+
+`atlas-pm-git` builds from `master`, so installing or rebuilding it always gets the latest
+commit. Like every VCS package, though, its *published* AUR version string only changes when
+the PKGBUILD does — so a normal `yay -Sua` won't notice new commits. To pick them up:
+
+```bash
+paru -Sua --devel        # or: yay -Sua --devel
 ```
 
 ### From source

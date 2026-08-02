@@ -1,0 +1,121 @@
+name: GitHub Release
+
+# Create a GitHub Release whenever a vX.Y.Z tag is pushed, with the matching CHANGELOG.md
+# section as the release notes. `release.sh` already tags and pushes, so the release flow
+# is unchanged — this just fills the Releases tab, which was empty despite five tags.
+#
+# No third-party action and no new secret: the gh CLI is preinstalled on ubuntu-latest and
+# the built-in GITHUB_TOKEN is enough (contents: write).
+#
+# This does NOT affect the AUR pipeline. The stable atlas-pm PKGBUILD pins the sha256 of
+# GitHub's auto-generated tag tarball, which exists with or without a Release — creating one
+# does not alter or replace it.
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to create a Release for (e.g. v0.15.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: github-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Create release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve the tag
+        id: tag
+        # The dispatch input goes through env, not ${{ }} interpolation into the script —
+        # never let a user-supplied string become shell source.
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            tag="$INPUT_TAG"
+          else
+            tag="${GITHUB_REF#refs/tags/}"
+          fi
+          case "$tag" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::'$tag' is not a vX.Y.Z tag."; exit 1 ;;
+          esac
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        with:
+          # Check out the tag itself, so we read the CHANGELOG as it was at release time.
+          ref: ${{ steps.tag.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Extract the CHANGELOG section
+        id: notes
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          # Everything between "## [X.Y.Z]" and the next "## [" header, trimmed of blank
+          # leading/trailing lines.
+          section() {
+            awk -v ver="$VERSION" '
+              $0 ~ "^## \\[" ver "\\]" { found=1; next }
+              found && /^## \[/ { exit }
+              found { print }
+            ' | sed -e '/./,$!d' | tac | sed -e '/./,$!d' | tac
+          }
+
+          section < CHANGELOG.md > notes.md
+
+          # A release can ship before its CHANGELOG entry is written — v0.15.0 did, and the
+          # entry was backfilled onto master afterwards. So if the tag has nothing, look at
+          # master before giving up.
+          if [ ! -s notes.md ]; then
+            echo "No '## [$VERSION]' section at $TAG — checking master."
+            if git fetch --depth=1 origin master >/dev/null 2>&1 \
+               && git show FETCH_HEAD:CHANGELOG.md 2>/dev/null | section > notes.md \
+               && [ -s notes.md ]; then
+              echo "::notice::Release notes for $TAG came from master's CHANGELOG (the tag predates the entry)."
+            fi
+          fi
+
+          if [ ! -s notes.md ]; then
+            # Don't fail the job — the tag is already public, and a release with a thin body
+            # beats no release at all. Surface it as a warning so it gets noticed.
+            echo "::warning::No '## [$VERSION]' section in CHANGELOG.md at $TAG or on master — using a fallback body."
+            echo "See [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/master/CHANGELOG.md) for details." > notes.md
+          fi
+
+          echo "--- release notes ---"
+          cat notes.md
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — updating its notes."
+            gh release edit "$TAG" --notes-file notes.md
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --notes-file notes.md \
+              --verify-tag
+          fi
+          echo "Release: $(gh release view "$TAG" --json url -q .url)" >> "$GITHUB_STEP_SUMMARY"
