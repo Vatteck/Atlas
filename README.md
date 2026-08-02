@@ -4,7 +4,7 @@
 [![AUR](https://img.shields.io/aur/version/atlas-pm?label=atlas-pm&color=1793d1)](https://aur.archlinux.org/packages/atlas-pm)
 [![AUR](https://img.shields.io/badge/AUR-atlas--pm--git-1793d1)](https://aur.archlinux.org/packages/atlas-pm-git)
 [![License](https://img.shields.io/badge/license-zlib%2Flibpng-green)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 
 <div align="center">
 

@@ -32,7 +32,7 @@ setup(
     long_description=DESCRIPTION,
     author=AUTHOR,
     author_email=AUTHOR_EMAIL,
-    python_requires=">=3.9",
+    python_requires=">=3.10",
     url=URL,
     packages=find_packages(exclude=["tests.*", "tests"]),
     package_data={NAME: ["view/resources/locale/*", "view/resources/img/*", "view/resources/style/*", 'view/resources/style/*/img/*', "gems/*/resources/img/*", "gems/*/resources/locale/*", "desktop/*", "view/webview/*"]},
@@ -49,11 +49,11 @@ setup(
     classifiers=[
         'Topic :: Utilities',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
-        'Programming Language :: Python :: 3.13'
+        'Programming Language :: Python :: 3.13',
+        'Programming Language :: Python :: 3.14'
     ],
     zip_safe=False
 )

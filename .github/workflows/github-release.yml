@@ -26,7 +26,11 @@ permissions:
   contents: write
 
 concurrency:
-  group: github-release-${{ github.ref }}
+  # Key on the tag, not github.ref: for workflow_dispatch every run has ref=refs/heads/master,
+  # so a shared group makes back-to-back backfills displace each other out of the queue (only
+  # one run may sit pending, and cancel-in-progress:false cancels the *queued* one, not the
+  # running one). Per-tag groups let independent tags proceed in parallel.
+  group: github-release-${{ inputs.tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
