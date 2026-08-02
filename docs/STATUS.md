@@ -116,10 +116,16 @@ Full record in [HISTORY.md](HISTORY.md). Only the last few entries live here.
   And added **`.github/workflows/github-release.yml`**: five tags existed with **zero GitHub
   Releases**. A `v*` tag push now cuts a Release from that version's CHANGELOG section, via the `gh`
   CLI + built-in `GITHUB_TOKEN` (no third-party action, no new secret). Falls back to master's
-  CHANGELOG when the tag predates its entry — dry-run against all 7 tags found `v0.15.0` is exactly
-  that case. Does not touch the AUR pipeline. **Backfilling Releases for the 5 existing tags is
-  still open** (`workflow_dispatch` takes a tag name) — deferred because it would publish five
-  releases at once and notify watchers.
+  CHANGELOG when the tag predates its entry. Does not touch the AUR pipeline. **All 7 tags
+  (v0.11.0–v0.16.1) were backfilled** and every release has real notes (12–62 lines); `v0.15.0`
+  exercised the master-fallback for real — it shipped without a CHANGELOG entry and the entry was
+  backfilled later.
+
+  Also **dropped the inherited Python 3.9 claim.** It was never measured — the fork point declared
+  `>=3.5`, it was bumped to 3.9 without evidence, and CI has only ever tested 3.10–3.14. All 159
+  modules check clean against 3.9 *grammar* and use no 3.10+ stdlib APIs, so 3.9 probably does
+  work — but it's untested, EOL since 2025-10, and Arch ships 3.13/3.14. `setup.py`,
+  `pyproject.toml` and the README badge now claim **3.10+**, and both classifier lists gained 3.14.
 - **Public-face cleanup (2026-08-01).** Added a **bug-report issue template** (`.github/ISSUE_TEMPLATE/`)
   — issues were enabled with no template, so reports arrived without the two things that make an
   Atlas bug diagnosable: `~/.cache/atlaspm/logs/atlas.log` and `atlas --self-check` output. The form
@@ -194,6 +200,18 @@ Live traps only. Retired ones are in [HISTORY.md](HISTORY.md#retired-gotchas-res
   the native pacman info parser hit only ~1.2× (PyO3 result-marshalling dominates when returning many
   dicts) and was reverted; only `map_srcinfo` (~2×, one compact dict) had the right shape. Weigh
   CPU-vs-I/O **and result size** before any native path. (AGENTS.md §3.2 + ROADMAP.)
+- **`atlas-pm-git`'s AUR version string is *supposed* to look stale.** shields.io and the AUR page
+  read the `pkgver` frozen in `.SRCINFO`; `pkgver()` recomputes at build time, so installers always
+  get HEAD. The `-git` publish workflow only fires on `linux_dist/arch/PKGBUILD` changes, so the
+  published label freezes between PKGBUILD edits. **Don't "fix" this with a scheduled `.SRCINFO`
+  re-publish** — it fights the Arch VCS convention, spams the AUR with metadata-only commits, and
+  adds a standing job holding an SSH key. `paru -Sua --devel` is the supported answer, and the
+  README now says so.
+- **GitHub Actions `concurrency` + `workflow_dispatch`:** `github.ref` is `refs/heads/<branch>` for
+  *every* dispatch, so keying a concurrency group on it puts unrelated dispatches in one group.
+  Only one run may sit pending per group, and `cancel-in-progress: false` cancels the **queued**
+  run, not the running one — so back-to-back dispatches silently displace each other. Cost us 4 of
+  7 backfill runs. Key on the meaningful input instead (`inputs.tag || github.ref`).
 - **To see new `atlas-files` suggestions immediately:** `rm ~/.cache/atlaspm/*/suggestions.*`. The
   app reads the **`main`** branch of [Vatteck/atlas-files](https://github.com/Vatteck/atlas-files).
 - **Debugging the GUI:** Atlas writes a persistent rotating log to `~/.cache/atlaspm/logs/atlas.log`
