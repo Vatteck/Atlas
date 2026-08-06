@@ -14,6 +14,7 @@
 #   ./linux_dist/arch/release.sh                 # version from atlas/__init__.py
 #   ./linux_dist/arch/release.sh 0.13.0          # explicit version
 #   ./linux_dist/arch/release.sh --skip-tests    # skip the pytest gate
+#   ./linux_dist/arch/release.sh --skip-docs-check   # skip the README/CHANGELOG gate
 #   ./linux_dist/arch/release.sh --publish       # also sync + push the atlas-pm AUR repo
 #
 # Env:
@@ -34,13 +35,15 @@ AUR_DIR="${ATLAS_AUR_DIR_RELEASE:-$HOME/Projects/$PKG}"
 
 VERSION=""
 SKIP_TESTS=0
+SKIP_DOCS=0
 PUBLISH=0
 for arg in "$@"; do
     case "$arg" in
-        --skip-tests) SKIP_TESTS=1 ;;
-        --publish)    PUBLISH=1 ;;
-        -*)           echo "error: unknown flag '$arg'" >&2; exit 2 ;;
-        *)            VERSION="$arg" ;;
+        --skip-tests)      SKIP_TESTS=1 ;;
+        --skip-docs-check) SKIP_DOCS=1 ;;
+        --publish)         PUBLISH=1 ;;
+        -*)                echo "error: unknown flag '$arg'" >&2; exit 2 ;;
+        *)                 VERSION="$arg" ;;
     esac
 done
 
@@ -66,6 +69,35 @@ git -C "$REPO_ROOT" diff --quiet && git -C "$REPO_ROOT" diff --cached --quiet \
 git -C "$REPO_ROOT" fetch --quiet origin
 [[ "$(git -C "$REPO_ROOT" rev-parse HEAD)" == "$(git -C "$REPO_ROOT" rev-parse origin/master)" ]] \
     || { echo "error: local master != origin/master — push/pull first" >&2; exit 1; }
+
+# --- 1b. Docs freshness ---------------------------------------------------------------------
+# Both of these have drifted silently before: the README's What's-new section sat a full version
+# behind (0.16.1 shipped headlining 0.16.0), and 0.15.0 shipped with no CHANGELOG entry at all —
+# it had to be backfilled onto master later, which the GitHub Release workflow now works around.
+# Catch it here, while it's still a one-line fix; once the tag is pushed it isn't.
+if [[ "$SKIP_DOCS" -eq 0 ]]; then
+    echo "==> Checking README + CHANGELOG mention $VERSION"
+    docs_err=0
+
+    README_VER="$(sed -n "s/^## .*What's new in \([0-9]\+\.[0-9]\+\.[0-9]\+\).*/\1/p" \
+                  "$REPO_ROOT/README.md" | head -1)"
+    if [[ "$README_VER" != "$VERSION" ]]; then
+        echo "error: README.md What's-new section says '${README_VER:-<no section found>}', expected $VERSION" >&2
+        docs_err=1
+    fi
+
+    # Fixed-string match: the version's dots would otherwise be regex wildcards.
+    if ! grep -qF "## [$VERSION]" "$REPO_ROOT/CHANGELOG.md"; then
+        echo "error: CHANGELOG.md has no '## [$VERSION]' section" >&2
+        docs_err=1
+    fi
+
+    if [[ "$docs_err" -ne 0 ]]; then
+        echo "       Fix the docs and re-run, or pass --skip-docs-check to override." >&2
+        exit 1
+    fi
+    echo "    ok — both current"
+fi
 
 # --- 2. Tests -------------------------------------------------------------------------------
 if [[ "$SKIP_TESTS" -eq 0 ]]; then

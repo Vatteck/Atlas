@@ -124,9 +124,16 @@ wanting stability, not HEAD). Its recipe lives at `linux_dist/arch/release/PKGBU
 a tagged tarball with a **pinned** sha256, not `master`); CI then auto-publishes it.
 
 ```bash
-./linux_dist/arch/release.sh            # version from atlas/__init__.py (or pass 0.13.0)
-./linux_dist/arch/release.sh --publish  # also sync + push the atlas-pm AUR repo
+./linux_dist/arch/release.sh                    # version from atlas/__init__.py (or pass 0.13.0)
+./linux_dist/arch/release.sh --publish          # also sync + push the atlas-pm AUR repo
+./linux_dist/arch/release.sh --skip-docs-check  # override the README/CHANGELOG gate
 ```
+
+Before tagging it checks that **README.md's "What's new in X.Y.Z" heading and a
+`## [X.Y.Z]` CHANGELOG section both exist for the version being released**, and refuses
+otherwise. Both have drifted silently before — 0.16.1 shipped with the README still headlining
+0.16.0, and 0.15.0 shipped with no CHANGELOG entry at all (it had to be backfilled onto master
+later). The gate runs *before* the tag push, while it's still a one-line fix.
 
 It runs the test suite, tags `vX.Y.Z` + pushes the tag (GitHub only generates the tarball once
 the tag exists), pins the tarball's sha256 into `release/PKGBUILD`, regenerates `release/.SRCINFO`,
