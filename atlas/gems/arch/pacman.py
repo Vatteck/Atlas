@@ -618,8 +618,13 @@ def get_installed_size(pkgs: List[str]) -> Dict[str, float]:  # bytes
     return _map_pkg_sizes(output, RE_INSTALLED_SIZE) if output else {}
 
 
-def upgrade_system(root_password: Optional[str]) -> SimpleProcess:
-    return SimpleProcess(cmd=['pacman', '-Syyu', '--noconfirm'], root_password=root_password)
+def upgrade_system(root_password: Optional[str], ignored: Optional[Iterable[str]] = None) -> SimpleProcess:
+    cmd = ['pacman', '-Syyu', '--noconfirm']
+
+    if ignored:
+        cmd.extend('--ignore={}'.format(p) for p in ignored)
+
+    return SimpleProcess(cmd=cmd, root_password=root_password)
 
 
 def _fill_provided_map(key: str, val: str, output: Dict[str, Set[str]]):
@@ -833,7 +838,7 @@ def map_updates_data(pkgs: Iterable[str], files: bool = False, description: bool
         return res
 
 
-def upgrade_several(pkgnames: Iterable[str], root_password: Optional[str], overwrite_conflicting_files: bool = False, skip_dependency_checks: bool = False) -> SimpleProcess:
+def upgrade_several(pkgnames: Iterable[str], root_password: Optional[str], overwrite_conflicting_files: bool = False, skip_dependency_checks: bool = False, ignored: Optional[Iterable[str]] = None) -> SimpleProcess:
     cmd = ['pacman', '-S', *pkgnames, '--noconfirm']
 
     if overwrite_conflicting_files:
@@ -841,6 +846,9 @@ def upgrade_several(pkgnames: Iterable[str], root_password: Optional[str], overw
 
     if skip_dependency_checks:
         cmd.append('-dd')
+
+    if ignored:
+        cmd.extend('--ignore={}'.format(p) for p in ignored)
 
     return SimpleProcess(cmd=cmd,
                          root_password=root_password,
@@ -1015,6 +1023,30 @@ def _map_qi_set_field(field: str, names: Iterable[str] = None, remote: bool = Fa
 def map_required_by(names: Iterable[str] = None, remote: bool = False) -> Dict[str, Set[str]]:
     """Packages that hard-depend on each given package (``Required By`` in ``pacman -Qi``)."""
     return _map_qi_set_field('Required By', names, remote)
+
+
+def map_owners(paths: Iterable[str]) -> Dict[str, Optional[str]]:
+    """Map absolute file paths to the installed package that owns them (``pacman -Qo``).
+
+    Paths not owned by any installed package map to ``None``. One batched call;
+    error lines (e.g. ``error: No package owns ...``) are skipped via
+    ``ignore_return_code`` so the successful entries still parse.
+    """
+    res: Dict[str, Optional[str]] = {path: None for path in paths}
+
+    if not paths:
+        return res
+
+    output = run_cmd('pacman -Qo {}'.format(' '.join(paths)), ignore_return_code=True, print_error=False)
+
+    if output:
+        for line in output.split('\n'):
+            match = re.match(r'^(.+) is owned by (\S+)', line.strip())
+
+            if match:
+                res[match.group(1).strip()] = match.group(2)
+
+    return res
 
 
 def map_optional_for(names: Iterable[str] = None) -> Dict[str, Set[str]]:

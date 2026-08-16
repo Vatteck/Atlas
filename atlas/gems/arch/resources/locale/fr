@@ -314,3 +314,7 @@ gem.arch.info=Paquets logiciels disponibles pour les distributions basées sur A
 gem.arch.label=Arch
 gem.arch.type.arch_repo.label=Arch - Dépôt
 gem.arch.type.aur.label=Arch - AUR
+arch.update_summary.held=Retenu (mise à jour ignorée)
+arch.upgrade.error.conflicting_files.vendored=Certains paquets contiennent des fichiers appartenant à d'autres paquets installés : {}. Cela signifie généralement que le paquet intègre des fichiers qu'il devrait déclarer comme dépendances. Retenir les paquets indiqués et poursuivre la mise à jour sans eux ?
+arch.upgrade.conflicting_files.hold=Retenir les paquets et continuer
+arch.upgrade.error.remove_refused=La mise à jour a été annulée : {} ne peut pas être supprimé car il est toujours requis par les paquets installés : {}.

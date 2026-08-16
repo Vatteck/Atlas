@@ -8,12 +8,13 @@
 > move it to [HISTORY.md](HISTORY.md) (the full shipped record) or delete it. If this file
 > passes ~200 lines, it has stopped doing its job — archive again.
 
-**Last updated:** 2026-08-01
+**Last updated:** 2026-08-16
 **Version:** 0.16.1 (released 2026-07-18, tag `v0.16.1`, release commit `c8b9c37`; CI
 auto-published to the AUR). Both AUR packages live: stable **`atlas-pm`** + bleeding-edge
-**`atlas-pm-git`**.
+**`atlas-pm-git`**. Next: **0.16.2** (upgrade-pipeline safety, plan
+[2026-08-16-upgrade-pipeline-safety.md](plans/2026-08-16-upgrade-pipeline-safety.md), implemented, not yet released).
 **Branch:** `master` (= `origin/master`). Always run `git branch` rather than trusting this line.
-**Health:** 774 Python tests + 60 JS contract tests green; CI green across Python 3.10–3.14.
+**Health:** 776 Python tests + 60 JS contract tests green; CI green across Python 3.10–3.14.
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)**. Everything already shipped is in
 > **[HISTORY.md](HISTORY.md)** and **[CHANGELOG.md](../CHANGELOG.md)** — don't re-read those to
@@ -87,6 +88,29 @@ Measured and partly fixed; **do not restart the measurement work**, it is all in
 ## Done (recent)
 
 Full record in [HISTORY.md](HISTORY.md). Only the last few entries live here.
+
+- **Upgrade-pipeline safety — walk the user through bazaar-class problems (2026-08-16).**
+  The 2026-08-16 incident (Atlas's scripted upgrade `-R -dd`'d `qemu-full` + `qemu-block-gluster`,
+  then died on the upstream bazaar 0.9.4-1 file conflict, leaving the system un-upgraded) is fixed
+  at the design level, per [plan 2026-08-16-upgrade-pipeline-safety.md](plans/2026-08-16-upgrade-pipeline-safety.md):
+  1. **No more unconditional `-R -dd`.** `_remove_transaction_packages` validates removal targets
+     against live reverse deps (`map_required_by`) minus the transaction's own removals and the
+     packages the `-S` step replaces; unprotected dependents abort the upgrade with a clear message
+     (fail-closed). Removals now run plain `-R`.
+  2. **Conflict loop reordered + mutual skip.** The conflicts→`to_remove` loop runs before mutual
+     handling, and mutual pairs where one side is already scheduled for removal no longer strand
+     the survivor in `cannot_upgrade` (the removal resolves the conflict — that was the
+     `qemu-desktop`→`qemu-full` case).
+  3. **Hold/`--ignore` support (the bazaar walk-through).** New `ignored_packages: []` config
+     default; `upgrade_several`/`upgrade_system` append `--ignore=<pkg>`; `summarize` moves held
+     packages into `cannot_upgrade` with reason "Held (ignored upgrade)"; the conflicting-files
+     dialog now parses `exists in filesystem (owned by X)`, and when the owner is a *different*
+     installed package (vendored files, the bazaar/libdex signature) it offers **"Hold packages and
+     continue"** — persist the holds, re-run the upgrade without them, never `--overwrite=*`.
+     Non-vendored conflicts keep the existing proceed/stop dialog.
+  4. Also: `ArchConfigManager` default, `map_owners()` helper for `pacman -Qo` on the conflicted
+     paths, i18n keys in all 10 locales, 2 new planner tests. Suite now **776 Python + 60 JS**. Not
+     yet GUI-verified (needs a real conflict to exercise the dialog — unit-tested only).
 
 - **Doc + repo debt cut (2026-08-01).** Re-entry after a 2-week gap cost more than the work would
   have: STATUS.md had reached **2,379 lines / 94 KB** and no longer fit in an agent's read budget.

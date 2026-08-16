@@ -5,7 +5,7 @@ from atlas import __app_name__
 from atlas.api.abstract.controller import UpgradeRequirement
 from atlas.gems.arch.dependencies import DependenciesAnalyser
 from atlas.gems.arch.model import ArchPackage
-from atlas.gems.arch.updates import UpdatesSummarizer
+from atlas.gems.arch.updates import UpdatesSummarizer, UpdateRequirementsContext
 from atlas.view.util.translation import I18n
 
 
@@ -75,6 +75,78 @@ class UpdatesSummarizerGetUpgradeRequirementsTest(TestCase):
         self.assertFalse(res.to_remove)
         self.assertFalse(res.to_install)
         self.assertEqual([UpgradeRequirement(pkg=pkg_a, required_size=1, extra_size=0)], res.to_upgrade)
+
+    @patch(f"{__app_name__}.gems.arch.updates.pacman")
+    def test__should_keep_upgrade_when_mutual_conflict_resolved_by_removal(self, pacman: Mock):
+        """
+        A and B are both installed and upgradable and their new versions conflict with each other,
+        but B is already scheduled for removal (e.g. it is being replaced by the transaction).
+        The removal resolves the conflict, so A must stay in the upgrade set.
+        """
+        pkg_a = ArchPackage(name="A", version="1.0.0-1", latest_version="1.1.0-1", repository="community")
+        pkg_b = ArchPackage(name="B", version="1.0.0-1", latest_version="1.1.0-1", repository="community")
+
+        context = UpdateRequirementsContext(to_update={"A": pkg_a, "B": pkg_b},
+                                            repo_to_update={"A": pkg_a, "B": pkg_b},
+                                            aur_to_update={},
+                                            repo_to_install={},
+                                            aur_to_install={},
+                                            to_install={},
+                                            pkgs_data={"A": {'d': set(), 'c': {"B"}, 'p': {}},
+                                                       "B": {'d': set(), 'c': {"A"}, 'p': {}}},
+                                            cannot_upgrade={},
+                                            to_remove={"B": UpgradeRequirement(pkg_b, "being replaced")},
+                                            installed={"A": "1.0.0-1", "B": "1.0.0-1"},
+                                            provided_map={"A": {"A"}, "B": {"B"}},
+                                            aur_index=set(),
+                                            arch_config=self.config_,
+                                            remote_provided_map={},
+                                            remote_repo_map={},
+                                            root_password=None,
+                                            aur_supported=True)
+
+        conflicts = {"A": "B", "B": "A"}
+
+        self.summarizer._handle_mutual_conflicts({"B": "A"}, conflicts, context)
+
+        self.assertIn("A", context.to_update)
+        self.assertIn("A", context.pkgs_data)
+        self.assertNotIn("A", context.to_remove)
+        self.assertNotIn("A", context.cannot_upgrade)
+        self.assertEqual({}, conflicts)
+
+    @patch(f"{__app_name__}.gems.arch.updates.pacman")
+    def test__should_move_ignored_packages_to_cannot_upgrade(self, pacman: Mock):
+        """
+        Packages listed in the 'ignored_packages' config (held) must not be proposed for upgrade;
+        they surface in cannot_upgrade with the held reason.
+        """
+        pkg_a = ArchPackage(name="A", version="1.0.0-1", latest_version="1.1.0-1", repository="community")
+
+        pacman.map_provided.side_effect = [{"A": {"A"}},  # remote provided
+                                           {"A": {"A"}}   # provided
+                                           ]
+        pacman.map_repositories.return_value = {"A": pkg_a.repository}
+        pacman.map_updates_data.return_value = {"A": {'ds': 1,
+                                                      's': 1,
+                                                      'v': pkg_a.latest_version,
+                                                      'c': set(),
+                                                      'p': {"A": {"A"}},
+                                                      'd': set(),
+                                                      'r': "community",
+                                                      'des': pkg_a.name}}
+        pacman.map_installed.return_value = {"A": pkg_a.version}
+        pacman.get_installed_size.return_value = {"A": 1}
+        pacman.map_required_by.return_value = {"A": set()}
+
+        self.deps_analyser.map_missing_deps.return_value = list()
+        self.deps_analyser.map_all_required_by.return_value = set()
+
+        res = self.summarizer.summarize(pkgs=[pkg_a], root_password=None,
+                                        arch_config={**self.config_, 'ignored_packages': ['A']})
+
+        self.assertFalse(res.to_upgrade)
+        self.assertEqual([UpgradeRequirement(pkg=pkg_a, reason='arch.update_summary.held')], res.cannot_upgrade)
 
     @patch(f"{__app_name__}.gems.arch.updates.pacman")
     def test__should_return_installed_to_remove_when_conflict_with_installed_version_matches(self, pacman: Mock):

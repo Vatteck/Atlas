@@ -314,3 +314,7 @@ gem.arch.info=适用于基于 Arch Linux 的发行版的软件包
 gem.arch.label=Arch
 gem.arch.type.arch_repo.label=Arch - 仓库
 gem.arch.type.aur.label=Arch - AUR
+arch.update_summary.held=已保留（忽略升级）
+arch.upgrade.error.conflicting_files.vendored=某些软件包包含了属于其他已安装软件包的文件：{}。这通常意味着该软件包捆绑了本应声明为依赖的文件。是否保留列出的软件包并继续升级？
+arch.upgrade.conflicting_files.hold=保留软件包并继续
+arch.upgrade.error.remove_refused=升级已取消：无法移除 {}，因为已安装的软件包仍需要它们：{}。

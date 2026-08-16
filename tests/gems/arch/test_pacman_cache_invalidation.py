@@ -168,6 +168,8 @@ class PacmanCacheInvalidationTest(unittest.TestCase):
         mgr.logger = Mock()
         mgr.i18n = MagicMock()
         mgr.categories = {}
+        mgr.configman = Mock()
+        mgr.configman.get_config.return_value = {}
 
         handler = MagicMock()
         handler.handle_simple.return_value = (True, 'output')
@@ -198,6 +200,8 @@ class PacmanCacheInvalidationTest(unittest.TestCase):
         mgr = ArchManager.__new__(ArchManager)
         mgr.logger = Mock()
         mgr.i18n = MagicMock()
+        mgr.configman = Mock()
+        mgr.configman.get_config.return_value = {}
 
         handler = MagicMock()
         handler.handle_simple.return_value = (False, 'error')
@@ -261,6 +265,8 @@ class PacmanCacheInvalidationTest(unittest.TestCase):
         mgr.i18n = MagicMock()
         mgr.context = MagicMock()
         mgr.context.internet_checker.is_available.return_value = True
+        mgr.configman = Mock()
+        mgr.configman.get_config.return_value = {}
 
         pkg = MagicMock()
         pkg.repository = 'extra'
@@ -288,6 +294,8 @@ class PacmanCacheInvalidationTest(unittest.TestCase):
         mgr.logger = Mock()
         mgr.i18n = MagicMock()
         mgr.context = MagicMock()
+        mgr.configman = Mock()
+        mgr.configman.get_config.return_value = {}
         mgr.context.internet_checker.is_available.return_value = True
 
         pkg = MagicMock()

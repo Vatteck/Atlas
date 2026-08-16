@@ -1,47 +1,54 @@
 # .last-agent — integrity checkpoint for the next AI coding agent
 
-**Agent:** Claude Opus 5 — 2026-08-01
+**Agent:** Hermes (deepseek-v4-flash) — 2026-08-16
 **Branch:** master
-**Last commit (base):** 2efbe53 ("docs: bump STATUS.md version to 0.16.1")
+**Last commit (base):** b2ff778 ("release: gate on README + CHANGELOG being current for the version")
 
 ## Summary
 
-Vatteck returned after a ~2-week gap and asked for a project-state review plus a direction.
-Review found **no drift** — docs matched the tree, 774 Python + 60 JS tests green, CI green,
-0.16.1 live on the AUR, the BACKLOG feature menu drained, and the 5-task AUR security
-heuristics plan fully shipped.
+Implemented the **upgrade-pipeline safety plan** (docs/plans/2026-08-16-upgrade-pipeline-safety.md,
+Status: Implemented, target **0.16.2**) — the fix for the 2026-08-16 incident where Atlas's
+scripted upgrade `-R -dd`'d `qemu-full`/`qemu-block-gluster` and then died on the upstream
+bazaar 0.9.4-1 ↔ libdex file conflict. Three design fixes:
 
-Direction chosen: **0.17 — "verify and show," not "add."** Rationale is in the STATUS.md
-decision log. This session did step 1 (debt cut), docs only:
+1. **No unconditional `-dd` removals.** `controller.py::_remove_transaction_packages` now
+   validates against `pacman.map_required_by` minus the transaction's own removal set minus the
+   `-S` covered set (new `covered` param); unprotected dependents → fail-closed error dialog,
+   upgrade aborted. Removals run plain `-R` (`skip_checks=False`).
+2. **Mutual-conflict skip.** `updates.py::_handle_mutual_conflicts` skips pairs where one side is
+   already in `to_remove` and clears their conflict entries (the qemu-desktop→qemu-full case).
+3. **Hold/`--ignore` support (bazaar walk-through).** `ignored_packages: []` config default
+   (config.py); `upgrade_several`/`upgrade_system` accept `ignored` → `--ignore=<pkg>` (pacman.py);
+   `summarize()` moves held pkgs to `cannot_upgrade` with reason "Held (ignored upgrade)"
+   (`__filter_ignored_packages`); `_upgrade_repo_pkgs` filters held pkgs at entry + passes `ignored`
+   to `-S`; the conflicting-files dialog parses `exists in filesystem (owned by X)` via new
+   `_map_conflicting_file_details` + `pacman.map_owners`, and for vendored files (owner ≠ incoming)
+   offers **Hold packages and continue** → persists holds, re-runs the upgrade without them.
+   Non-vendored conflicts keep the original proceed/stop dialog. Never offers `--overwrite=*`.
 
-- **Split STATUS.md** (2,379 lines / 94 KB — it no longer fit an agent's read budget) into a
-  215-line live baton + new **`docs/HISTORY.md`** (Done log, retired gotchas, Rust/Qt-era
-  decision log). AGENTS.md §1 now says HISTORY.md is *not* required reading.
-- **Fixed a real doc bug:** the large-files gotcha named `view/core/controller.py` at "~192 KB";
-  it is actually **32 KB**. The 220 KB file is `gems/arch/controller.py`, and the two largest
-  files (`main.js` 340 KB, `api.py` 184 KB) were unlisted. Corrected in STATUS.md + AGENTS.md §8.
-- Deleted two fully-merged dead local branches (`feat/webview-polish-sprint-1`, `-2`).
-- Removed ~120 MB of regenerable `makepkg` artifacts under `linux_dist/arch/` (src/, pkg/,
-  built `.pkg.tar.zst`, tarballs). Both `.SRCINFO` files and all tracked sources untouched.
+Also: i18n keys added to all 10 locales (`arch.update_summary.held`,
+`arch.upgrade.error.conflicting_files.vendored`, `arch.upgrade.conflicting_files.hold`,
+`arch.upgrade.error.remove_refused`); 2 new tests in tests/gems/arch/test_updates.py;
+4 cache-invalidation tests stubbed with `mgr.configman`.
 
-**Verification:** 774 Python + 60 JS tests pass after the change; `git status` shows only the
-intended doc edits. No app code touched.
+**Verification:** 776 Python tests (774 old + 2 new) + 60 JS contract tests
+(`node --test tests/view/webview/main_js_contracts.test.js`) all green.
 
-Then, same day, with Vatteck's go-ahead:
+## Known gaps / next steps
 
-- **GUI eyeball CLEARED.** Vatteck walked 0.16.1's PKGBUILD inline reader, the boot splash, and
-  the theme-preset/accent contrast on the real desktop — all good. **Nothing is currently
-  awaiting a GUI eyeball.**
-- Added a **bug-report issue template** (`.github/ISSUE_TEMPLATE/`) that front-loads the debug
-  log + `atlas --self-check` output.
-- **Fixed the GitHub repo description** (it led with "AppImage, Arch/AUR, Flatpak, Snap, Web" —
-  burying Arch, advertising three off-by-default sources).
-- **Deleted three fully-merged remote branches** (`feat/webview-polish-sprint-2`, two
-  `claude/*`), each re-confirmed at 0 commits ahead of master first. `origin` is now
-  master-only.
+- **Not GUI-verified.** The vendored-conflict dialog path is unit-tested but needs a real
+  conflict to eyeball (recreate: install bazaar 0.9.4-1 scenario, or fake a conflict via a
+  pacman.conf hold + conflicting package). User-facing strings in all 10 locales were written by
+  translation, not native speakers — worth a skim.
+- `upgrade_several`'s `-dd` append (for skip_dependency_checks) remains — that's the user-explicit
+  escape hatch, unchanged by design.
+- `_remove_transaction_packages` validation runs on the *summarized* removal set; the to-remove
+  cascade in updates.py (596-676) already sweeps dependents, so legit plans pass.
 
-**Next agent:** STATUS.md "Next" #2 — re-shoot the five `docs/screenshots/*.png`, which are from
-2026-06-02 and predate themes/accents, the floating terminal, the dep tree, and the calmed
-`.pacnew` center. Needs a GUI session, so it is Vatteck's. Then #3: a render-level test harness
-for the `main.js` view renderers (where every recent defect actually lived and the suite is
-blind), or the paused cold-start memory thread.
+## Unrelated housekeeping still open (from the incident forensics, ZephyrOS host)
+
+- oscdriver/opensuperclone-git r334 DKMS doesn't build on kernel 7.1.8-1-cachyos (getgeo API
+  change). User hasn't chosen: ignore / wait upstream / local patch + dkms build.
+- Orphan sweep `sudo pacman -Rns $(pacman -Qtdq)` prescribed but not run (glusterfs joins it).
+- bazaar 0.9.4-1 rebuild watchdog (cron watching `pacman -Si bazaar`) — offer still open.
+- Reboot ZephyrOS when convenient (kernel + glibc + nvidia swapped).

@@ -316,3 +316,7 @@ gem.arch.info=Software packages available for distributions based on Arch Linux
 gem.arch.label=Arch
 gem.arch.type.arch_repo.label=Arch - Dipòsit
 gem.arch.type.aur.label=Arch - AUR
+arch.update_summary.held=Mantingut (actualització ignorada)
+arch.upgrade.error.conflicting_files.vendored=Alguns paquets inclouen fitxers que pertanyen a altres paquets instal·lats: {}. Això sol significar que el paquet inclou fitxers que hauria de declarar com a dependències. Voleu retenir els paquets indicats i continuar l'actualització sense ells?
+arch.upgrade.conflicting_files.hold=Retenir els paquets i continuar
+arch.upgrade.error.remove_refused=L'actualització s'ha cancel·lat: {} no es pot eliminar perquè encara és requerit pels paquets instal·lats: {}.

@@ -250,6 +250,11 @@ class UpdatesSummarizer:
     def _handle_mutual_conflicts(self, mutual_conflicts: Dict[str, str], all_conflicts: Dict[str, str],
                                  context: UpdateRequirementsContext):
         for pkg1, pkg2 in mutual_conflicts.items():
+            if pkg1 in context.to_remove or pkg2 in context.to_remove:
+                # The conflict is resolved by a planned removal (e.g. a package being replaced by
+                # the transaction); keep the other side in the upgrade set.
+                continue
+
             pkg1_to_install = pkg1 in context.to_install
             pkg2_to_install = pkg2 in context.to_install
 
@@ -264,6 +269,19 @@ class UpdatesSummarizer:
 
         # removing conflicting packages from the packages selected to upgrade
         for pkg1, pkg2 in mutual_conflicts.items():
+            if pkg1 in context.to_remove or pkg2 in context.to_remove:
+                # conflict resolved by removal: clear the conflict entries only, so the removal
+                # pass does not double-schedule the survivor (its data stays loaded)
+                for pkg_name in (pkg1, pkg2):
+                    pkg_data = context.pkgs_data.get(pkg_name)
+
+                    if pkg_data and pkg_data.get('c'):
+                        for c in pkg_data['c']:
+                            if c in all_conflicts:
+                                del all_conflicts[c]
+
+                continue
+
             for pkg_name in (pkg1, pkg2):
                 if pkg_name in context.pkgs_data:
                     if context.pkgs_data[pkg_name].get('c'):
@@ -557,6 +575,8 @@ class UpdatesSummarizer:
         if context.to_remove:
             self.__update_context_based_on_to_remove(context)
 
+        self.__filter_ignored_packages(context)
+
         if context.to_update:
             installed_sizes = pacman.get_installed_size(list(context.to_update.keys()))
 
@@ -589,6 +609,38 @@ class UpdatesSummarizer:
 
         res.context['data'] = context.pkgs_data
         return res
+
+    def __filter_ignored_packages(self, context: UpdateRequirementsContext):
+        held = {name for name in (context.arch_config.get('ignored_packages') or [])}
+
+        if not held:
+            return
+
+        for name in held:
+            if name in context.to_update:
+                pkg = context.to_update[name]
+                context.cannot_upgrade[name] = UpgradeRequirement(pkg, self.i18n['arch.update_summary.held'])
+                del context.to_update[name]
+
+                if name in context.repo_to_update:
+                    del context.repo_to_update[name]
+                else:
+                    del context.aur_to_update[name]
+
+                if name in context.pkgs_data:
+                    del context.pkgs_data[name]
+            elif name in context.to_install:
+                pkg = context.to_install[name]
+                context.cannot_upgrade[name] = UpgradeRequirement(pkg, self.i18n['arch.update_summary.held'])
+                del context.to_install[name]
+
+                if name in context.repo_to_install:
+                    del context.repo_to_install[name]
+                else:
+                    del context.aur_to_install[name]
+
+                if name in context.pkgs_data:
+                    del context.pkgs_data[name]
 
     def __update_context_based_on_to_remove(self, context: UpdateRequirementsContext):
         # filtering all package to synchronization from the transaction context

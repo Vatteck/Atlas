@@ -225,6 +225,7 @@ class ArchManager(SoftwareManager, SettingsController):
         self._custom_actions: Optional[Dict[str, CustomSoftwareAction]] = None
         self.index_aur = None
         self.re_file_conflict = re.compile(r'[\w\d\-_.]+:')
+        self.re_conflicting_file = re.compile(r'^([\w\d\-_.]+): (.+?) exists in filesystem(?: \(owned by (.+)\))?$')
         self.disk_cache_updater = disk_cache_updater
         self.pkgbuilder_user: Optional[str] = f'{__app_name__}-aur' if context.root_user else None
         self._suggestions_downloader: Optional[RepositorySuggestionsDownloader] = None
@@ -937,6 +938,41 @@ class ArchManager(SoftwareManager, SettingsController):
         else:
             return [TextComponent(output)]
 
+    def _map_conflicting_file_details(self, output: str) -> List[Tuple[str, str, Optional[str]]]:
+        """Parse pacman 'conflicting files' output into (incoming_package, path, owner) tuples.
+
+        The owner is read from the error line when pacman reports it; files without
+        an owner on the line are resolved with a single batched ``pacman -Qo`` call
+        (``None`` when not owned by any installed package).
+        """
+        details = []
+        lines = output.split('\n')
+        started = False
+
+        for line in lines:
+            stripped = line.strip()
+
+            if stripped.lower().startswith('error: failed to commit transaction (conflicting files)'):
+                started = True
+                continue
+
+            if started and stripped:
+                match = self.re_conflicting_file.match(stripped)
+
+                if match:
+                    details.append((match.group(1), match.group(2), match.group(3)))
+
+        missing = [path for _, path, owner in details if not owner]
+
+        if missing:
+            owners = pacman.map_owners(missing)
+
+            for idx, (incoming, path, owner) in enumerate(details):
+                if not owner:
+                    details[idx] = (incoming, path, owners.get(path))
+
+        return details
+
     def list_related(self, pkgs: Collection[str], all_pkgs: Collection[str], data: Dict[str, dict], related: Set[str], provided_map: Dict[str, Set[str]]) -> Set[str]:
         related.update(pkgs)
 
@@ -977,6 +1013,18 @@ class ArchManager(SoftwareManager, SettingsController):
                            check_syncfirst: bool = True, skip_dependency_checks: bool = False) -> bool:
         self.logger.info("Total packages to upgrade: {}".format(len(to_upgrade)))
 
+        arch_config = self.configman.get_config()
+        ignored = {p for p in (arch_config.get('ignored_packages') or [])}
+
+        if ignored:
+            skipped = [p for p in to_upgrade if p in ignored]
+
+            if skipped:
+                for pkg in skipped:
+                    self.logger.info("Skipping ignored package: {}".format(pkg))
+
+                to_upgrade = [p for p in to_upgrade if p not in ignored]
+
         to_sync_first = None
         if check_syncfirst:
             to_sync_first = [p for p in pacman.get_packages_to_sync_first() if p.endswith('-keyring') and p in to_upgrade]
@@ -1015,7 +1063,7 @@ class ArchManager(SoftwareManager, SettingsController):
                 self._show_upgrade_download_failed(handler.watcher)
                 return False
 
-        if to_remove and not self._remove_transaction_packages(to_remove, handler, root_password):
+        if to_remove and not self._remove_transaction_packages(to_remove, handler, root_password, covered={*to_upgrade}):
             return False
 
         if not to_upgrade_remaining:
@@ -1032,7 +1080,8 @@ class ArchManager(SoftwareManager, SettingsController):
             success, upgrade_output = handler.handle_simple(pacman.upgrade_several(pkgnames=to_upgrade_remaining,
                                                                                    root_password=root_password,
                                                                                    overwrite_conflicting_files=overwrite_files,
-                                                                                   skip_dependency_checks=skip_dependency_checks),
+                                                                                   skip_dependency_checks=skip_dependency_checks,
+                                                                                   ignored=sorted(ignored)),
                                                             output_handler=output_handler.handle)
             handler.watcher.change_substatus('')
 
@@ -1055,6 +1104,55 @@ class ArchManager(SoftwareManager, SettingsController):
                 disk.write_several(pkgs=pkg_map, overwrite=True, maintainer=None)
                 return True
             elif 'conflicting files' in upgrade_output:
+                if not overwrite_files:
+                    details = self._map_conflicting_file_details(upgrade_output)
+                    vendored = {(incoming, owner) for incoming, _, owner in details
+                                if owner and owner != incoming}
+
+                    if vendored:
+                        pkgs = sorted({incoming for incoming, _ in vendored})
+                        owner_desc = ', '.join('{} (owned by {})'.format(incoming, owner)
+                                               for incoming, owner in sorted(vendored))
+
+                        if not handler.watcher.request_confirmation(title=self.i18n['warning'].capitalize(),
+                                                                    body=self.i18n['arch.upgrade.error.conflicting_files.vendored'].format(owner_desc),
+                                                                    deny_label=self.i18n['arch.upgrade.conflicting_files.hold'],
+                                                                    confirmation_label=self.i18n['arch.upgrade.conflicting_files.stop'],
+                                                                    components=self._map_conflicting_file(upgrade_output)):
+                            arch_config = self.configman.get_config()
+                            ignored = list(arch_config.get('ignored_packages') or [])
+                            changed = False
+
+                            for pkg in pkgs:
+                                if pkg not in ignored:
+                                    ignored.append(pkg)
+                                    changed = True
+
+                            if changed:
+                                arch_config['ignored_packages'] = ignored
+                                self.configman.save_config(arch_config)
+
+                            self.logger.warning(
+                                "Holding packages due to vendored file conflict: {}".format(', '.join(pkgs)))
+
+                            return self._upgrade_repo_pkgs(to_upgrade=to_upgrade_remaining,
+                                                           handler=handler,
+                                                           root_password=root_password,
+                                                           overwrite_files=False,
+                                                           status_handler=output_handler,
+                                                           multithread_download=multithread_download,
+                                                           download=False,
+                                                           check_syncfirst=False,
+                                                           pkgs_data=pkgs_data,
+                                                           to_remove=None,
+                                                           sizes=sizes,
+                                                           skip_dependency_checks=skip_dependency_checks)
+                        else:
+                            output_handler.stop_working()
+                            output_handler.join()
+                            handler.watcher.print("Aborted by the user")
+                            return False
+
                 if not handler.watcher.request_confirmation(title=self.i18n['warning'].capitalize(),
                                                             body=self.i18n['arch.upgrade.error.conflicting_files'] + ':',
                                                             deny_label=self.i18n['arch.upgrade.conflicting_files.proceed'],
@@ -1113,7 +1211,24 @@ class ArchManager(SoftwareManager, SettingsController):
             traceback.print_exc()
             return False
 
-    def _remove_transaction_packages(self, to_remove: Set[str], handler: ProcessHandler, root_password: Optional[str]) -> bool:
+    def _remove_transaction_packages(self, to_remove: Set[str], handler: ProcessHandler, root_password: Optional[str],
+                                     covered: Optional[Set[str]] = None) -> bool:
+        covered = covered if covered else set()
+
+        # Fail closed: never remove a package that installed packages still require, unless the
+        # dependent is itself being removed or replaced by this transaction (covered).
+        required_by = pacman.map_required_by(to_remove)
+        unprotected = {dependent for reqs in required_by.values() for dependent in reqs} - to_remove - covered
+
+        if unprotected:
+            self.logger.error("Refusing to remove {}: still required by {}".format(', '.join(sorted(to_remove)),
+                                                                                   ', '.join(sorted(unprotected))))
+            handler.watcher.show_message(title=self.i18n['error'].capitalize(),
+                                         body=self.i18n['arch.upgrade.error.remove_refused'].format(
+                                             ', '.join(sorted(to_remove)), ', '.join(sorted(unprotected))),
+                                         type_=MessageType.ERROR)
+            return False
+
         output_handler = TransactionStatusHandler(watcher=handler.watcher,
                                                   i18n=self.i18n,
                                                   names=set(),
@@ -1123,7 +1238,7 @@ class ArchManager(SoftwareManager, SettingsController):
         try:
             success, _ = handler.handle_simple(pacman.remove_several(pkgnames=to_remove,
                                                                      root_password=root_password,
-                                                                     skip_checks=True),
+                                                                     skip_checks=False),
                                                output_handler=output_handler.handle)
 
             if not success:
@@ -3619,7 +3734,10 @@ class ArchManager(SoftwareManager, SettingsController):
         if self._is_database_locked(handler, root_password):
             return False
 
-        success, output = handler.handle_simple(pacman.upgrade_system(root_password))
+        arch_config = self.configman.get_config()
+        ignored = [p for p in (arch_config.get('ignored_packages') or [])]
+
+        success, output = handler.handle_simple(pacman.upgrade_system(root_password, ignored=ignored))
 
         if not success or 'error:' in output:
             watcher.show_message(title=self.i18n['arch.custom_action.upgrade_system'],

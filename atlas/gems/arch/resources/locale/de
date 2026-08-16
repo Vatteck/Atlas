@@ -314,3 +314,7 @@ gem.arch.info=Verfügbare Softwarepakete für Distributionen, die auf Arch Linux
 gem.arch.label=Arch
 gem.arch.type.arch_repo.label=Arch - Repository
 gem.arch.type.aur.label=Arch - AUR
+arch.update_summary.held=Zurückgehalten (Update ignoriert)
+arch.upgrade.error.conflicting_files.vendored=Einige Pakete enthalten Dateien, die zu anderen installierten Paketen gehören: {}. Das bedeutet meist, dass das Paket Dateien bündelt, die es stattdessen als Abhängigkeit deklarieren sollte. Die genannten Pakete zurückhalten und die Aktualisierung ohne sie fortsetzen?
+arch.upgrade.conflicting_files.hold=Pakete zurückhalten und fortfahren
+arch.upgrade.error.remove_refused=Die Aktualisierung wurde abgebrochen: {} kann nicht entfernt werden, da es weiterhin von installierten Paketen benötigt wird: {}.

@@ -34,6 +34,7 @@ class ArchConfigManager(YAMLConfigManager):
                 'aur_remove_build_dir': True,
                 'aur_build_only_chosen': True,
                 'check_dependency_breakage': True,
+                'ignored_packages': [],
                 'suggest_unneeded_uninstall': False,
                 'suggest_optdep_uninstall': False,
                 "suggest_optdep_select": True,
