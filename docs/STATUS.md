@@ -97,10 +97,14 @@ Full record in [HISTORY.md](HISTORY.md). Only the last few entries live here.
      against live reverse deps (`map_required_by`) minus the transaction's own removals and the
      packages the `-S` step replaces; unprotected dependents abort the upgrade with a clear message
      (fail-closed). Removals now run plain `-R`.
-  2. **Conflict loop reordered + mutual skip.** The conflicts→`to_remove` loop runs before mutual
-     handling, and mutual pairs where one side is already scheduled for removal no longer strand
-     the survivor in `cannot_upgrade` (the removal resolves the conflict — that was the
-     `qemu-desktop`→`qemu-full` case).
+  2. **Mutual-conflict skip (no reorder).** `_handle_mutual_conflicts` skips pairs where one side
+     is already scheduled for removal — the survivor stays upgradable (the removal resolves the
+     conflict — that was the `qemu-desktop`→`qemu-full` case). Mutual handling still runs before
+     the conflicts→`to_remove` loop within a pass, so the skip covers pairs whose removal side was
+     scheduled earlier (to-update pass → to-install pass). **Known gap:** a mutual pair first
+     detected in the same pass with neither side pre-scheduled strands both in `cannot_upgrade`
+     (honest and visible; auto-removing both was judged too aggressive). Locked by
+     `test__should_strand_both_sides_when_mutual_conflict_unresolved`.
   3. **Hold/`--ignore` support (the bazaar walk-through).** New `ignored_packages: []` config
      default; `upgrade_several`/`upgrade_system` append `--ignore=<pkg>`; `summarize` moves held
      packages into `cannot_upgrade` with reason "Held (ignored upgrade)"; the conflicting-files

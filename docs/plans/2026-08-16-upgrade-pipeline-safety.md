@@ -44,9 +44,18 @@ Root causes, each verified against live metadata and `/var/log/pacman.log`:
    - New caller param `covered` = the to-upgrade set (dependents that the
      transaction itself replaces).
 2. **Don't strand upgrades on removal-resolved conflicts** (`updates.py`):
-   - Run the conflicts→`to_remove` loop *before* mutual handling, and skip
-     mutual handling for pairs where one side is already scheduled for removal
-     (the removal resolves the conflict; pacman does the same in-transaction).
+   - Skip mutual handling for pairs where one side is already scheduled for
+     removal — the removal resolves the conflict, and the survivor stays in the
+     upgrade set (pacman does the same in-transaction).
+     `_handle_mutual_conflicts` clears the pair's conflict entries so the
+     survivor is not double-scheduled later.
+   - Mechanism note (as shipped): mutual handling still runs before the
+     conflicts→`to_remove` loop *within a pass*; the skip fires for pairs whose
+     removal side an earlier pass already scheduled (the qemu shape: removals
+     decided in the to-update pass, the mutual pair formed in the to-install
+     pass). A mutual pair first detected in the same pass with neither side
+     pre-scheduled strands both → `cannot_upgrade` (visible in the plan) — a
+     deliberate conservative choice, listed as a known gap in STATUS.md.
 3. **Hold support (`--ignore`)**, the bazaar walk-through:
    - New config default `ignored_packages: []` (persisted via existing
      configman; GUI-visible in the settings file).
@@ -69,7 +78,7 @@ Root causes, each verified against live metadata and `/var/log/pacman.log`:
    `arch.upgrade.conflicting_files.hold`, `arch.upgrade.error.remove_refused`.
 5. **Tests** (`tests/gems/arch/test_updates.py`): mutual-conflict pair where one
    side is already in `to_remove` stays upgradable; held packages surface in
-   `cannot_upgrade`. Full 774-test suite must stay green.
+   `cannot_upgrade`. Full 776-test suite must stay green.
 
 ## Non-goals
 
@@ -82,7 +91,7 @@ Root causes, each verified against live metadata and `/var/log/pacman.log`:
 
 ## Verification
 
-- `python -m unittest` (774 tests) green.
+- `venv/bin/python -m pytest` (776 tests) green.
 - Manual: `pacman -S --noconfirm --ask=4 bazaar` dry check not needed —
   behavior verified via unit tests + the 16:47 incident replay reasoning in
   the plan review.
