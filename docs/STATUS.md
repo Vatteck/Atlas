@@ -14,7 +14,7 @@ auto-published to the AUR). Both AUR packages live: stable **`atlas-pm`** + blee
 **`atlas-pm-git`**. Next: **0.16.2** (upgrade-pipeline safety, plan
 [2026-08-16-upgrade-pipeline-safety.md](plans/2026-08-16-upgrade-pipeline-safety.md), implemented, not yet released).
 **Branch:** `master` (= `origin/master`). Always run `git branch` rather than trusting this line.
-**Health:** 776 Python tests + 60 JS contract tests green; CI green across Python 3.10–3.14.
+**Health:** 777 Python tests + 60 JS contract tests green; CI green across Python 3.10–3.14.
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)**. Everything already shipped is in
 > **[HISTORY.md](HISTORY.md)** and **[CHANGELOG.md](../CHANGELOG.md)** — don't re-read those to
@@ -113,7 +113,7 @@ Full record in [HISTORY.md](HISTORY.md). Only the last few entries live here.
      continue"** — persist the holds, re-run the upgrade without them, never `--overwrite=*`.
      Non-vendored conflicts keep the existing proceed/stop dialog.
   4. Also: `ArchConfigManager` default, `map_owners()` helper for `pacman -Qo` on the conflicted
-     paths, i18n keys in all 10 locales, 2 new planner tests. Suite now **776 Python + 60 JS**. Not
+     paths, i18n keys in all 10 locales, 2 new planner tests. Suite now **777 Python + 60 JS**. Not
      yet GUI-verified (needs a real conflict to exercise the dialog — unit-tested only).
 
 - **Doc + repo debt cut (2026-08-01).** Re-entry after a 2-week gap cost more than the work would

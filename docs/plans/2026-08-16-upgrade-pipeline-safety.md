@@ -91,7 +91,7 @@ Root causes, each verified against live metadata and `/var/log/pacman.log`:
 
 ## Verification
 
-- `venv/bin/python -m pytest` (776 tests) green.
+- `venv/bin/python -m pytest` (777 tests) green.
 - Manual: `pacman -S --noconfirm --ask=4 bazaar` dry check not needed —
   behavior verified via unit tests + the 16:47 incident replay reasoning in
   the plan review.
