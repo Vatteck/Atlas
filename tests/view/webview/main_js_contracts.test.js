@@ -838,6 +838,34 @@ async function testStaleUtilityRenderDoesNotClobber() {
   assert.ok(!html.includes('No installed Flatpaks'), 'stale Permissions render did not clobber');
 }
 
+async function testSettingsUpgradeHoldsRender() {
+  // Upgrade holds surface: held packages render as removable chips only when the Arch gem is
+  // available; without Arch the section must not render at all.
+  const { document, hooks } = loadMainJs({
+    get_app_settings: async () => ({ types: [], flatpak_available: false, general: {},
+                                     tray: {}, arch: { available: true, ignored_packages: ['bazaar', 'libdex'] } }),
+    get_mirror_status: async () => ({}),
+    get_mirrorlist_backup_status: async () => ({}),
+  });
+  hooks.activateView('settings');
+  await flushPromises();
+
+  const html = document.getElementById('packages-grid').innerHTML;
+  assert.ok(html.includes('Upgrade holds'), 'holds section rendered');
+  assert.ok(html.includes('data-hold="bazaar"'), 'held package rendered as chip');
+  assert.ok(html.includes('data-hold="libdex"'), 'second held package rendered');
+  assert.ok(!html.includes('settings-hold-empty'), 'empty-state hidden when holds exist');
+
+  const noArch = loadMainJs({
+    get_app_settings: async () => ({ types: [], flatpak_available: false, general: {},
+                                     tray: {}, arch: { available: false } }),
+  });
+  noArch.hooks.activateView('settings');
+  await flushPromises();
+  const noArchHtml = noArch.document.getElementById('packages-grid').innerHTML;
+  assert.ok(!noArchHtml.includes('Upgrade holds'), 'holds section absent when Arch unavailable');
+}
+
 async function testRefreshCurrentViewRespectsUtilityViews() {
   // Regression: after an operation on a utility view (e.g. orphan cleanup on Health), refreshing
   // must re-render that view, not fall through to app suggestions.
@@ -1889,6 +1917,7 @@ function testPermsListEnsuresIconObserver() {
     testSystemHealthChecks,
     testPacnewRisk,
     testStaleUtilityRenderDoesNotClobber,
+    testSettingsUpgradeHoldsRender,
     testRefreshCurrentViewRespectsUtilityViews,
     testAttentionCenterFailsOpenOnNullSummary,
     testTransactionPreviewRendersAllSections,

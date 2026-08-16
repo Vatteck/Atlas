@@ -3062,11 +3062,13 @@ class AtlasApi:
             arch_check_pkgbuild = True
             arch_build_chroot = False
             arch_chroot_available = False
+            arch_ignored_packages = []
             if arch_man is not None:
                 try:
                     aconf = arch_man.configman.get_config()
                     arch_check_pkgbuild = bool(aconf.get('aur_check_pkgbuild', True))
                     arch_build_chroot = bool(aconf.get('aur_build_chroot', False))
+                    arch_ignored_packages = list(aconf.get('ignored_packages') or [])
                 except Exception:
                     arch_check_pkgbuild = True
                 try:
@@ -3099,6 +3101,7 @@ class AtlasApi:
                     'build_chroot': arch_build_chroot,
                     'chroot_available': arch_chroot_available,
                     'mirror_tool': (self._mirror_regen_cmd() or [None])[0],
+                    'ignored_packages': arch_ignored_packages,
                 },
             }}
         except Exception as e:
@@ -3165,7 +3168,8 @@ class AtlasApi:
                     flatpak_man.configman.save_config(fconf)
 
             arch = settings.get('arch')
-            if isinstance(arch, dict) and ('check_pkgbuild' in arch or 'build_chroot' in arch):
+            if isinstance(arch, dict) and ('check_pkgbuild' in arch or 'build_chroot' in arch
+                                           or 'ignored_packages' in arch):
                 arch_man = self._manager_by_gem('arch')
                 if arch_man is not None:
                     aconf = arch_man.configman.get_config()
@@ -3173,6 +3177,12 @@ class AtlasApi:
                         aconf['aur_check_pkgbuild'] = bool(arch['check_pkgbuild'])
                     if 'build_chroot' in arch:
                         aconf['aur_build_chroot'] = bool(arch['build_chroot'])
+                    if 'ignored_packages' in arch:
+                        held = arch['ignored_packages']
+                        if not isinstance(held, list):
+                            held = []
+                        cleaned = sorted({n.strip() for n in held if isinstance(n, str) and n.strip()})
+                        aconf['ignored_packages'] = cleaned
                     arch_man.configman.save_config(aconf)
 
             return {'status': 'ok'}

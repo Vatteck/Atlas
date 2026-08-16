@@ -5635,6 +5635,24 @@ async function renderSettings() {
             </div>
         </section>` : '';
 
+    const heldPkgs = arch.ignored_packages || [];
+    const holdsSection = arch.available ? `
+        <section class="settings-section">
+            <h3>Upgrade holds</h3>
+            <p class="settings-help">Held packages are skipped by “Update all” (passed to pacman as <code>--ignore</code>) until you remove them here — the escape hatch for broken upstream builds like the <code>bazaar</code>/<code>libdex</code> file conflict.</p>
+            <div id="settings-holds-list" class="settings-holds-list">
+                ${heldPkgs.length ? heldPkgs.map(n => `
+                <div class="settings-hold" data-hold="${escapeHtml(n)}">
+                    <code>${escapeHtml(n)}</code>
+                    <button class="btn btn-outline btn-small settings-hold-remove" title="Remove hold" type="button">✕ Remove</button>
+                </div>`).join('') : '<p class="settings-hold-empty">No held packages.</p>'}
+            </div>
+            <div class="settings-hold-add">
+                <input type="text" id="settings-hold-name" class="styled-input" placeholder="Package name" maxlength="64" spellcheck="false">
+                <button id="settings-hold-add-btn" class="btn btn-outline" type="button">Hold package</button>
+            </div>
+        </section>` : '';
+
     packagesGrid.innerHTML = `
         <div class="settings-page">
             <section class="settings-section">
@@ -5650,6 +5668,7 @@ async function renderSettings() {
             ${appearanceSection}
             ${traySection}
             ${archSection}
+            ${holdsSection}
             ${mirrorsSection}
             <section class="settings-section">
                 <h3>Backup</h3>
@@ -5722,6 +5741,38 @@ async function renderSettings() {
     const densitySel = document.getElementById('settings-density');
     if (densitySel) densitySel.addEventListener('change', () => setDensity(densitySel.value));
 
+    // Upgrade holds: mutate rows locally; the Save button persists them via 'arch.ignored_packages'.
+    const holdsListEl = document.getElementById('settings-holds-list');
+    const holdNameEl = document.getElementById('settings-hold-name');
+    const holdAddBtn = document.getElementById('settings-hold-add-btn');
+    if (holdsListEl && holdNameEl && holdAddBtn) {
+        const addHold = () => {
+            const name = holdNameEl.value.trim();
+            if (!name) return;
+            if (!/^[A-Za-z0-9@._+:-]+$/.test(name)) {
+                showToast('Hold package', `'${name}' is not a valid package name`, 'error');
+                return;
+            }
+            if ([...holdsListEl.querySelectorAll('.settings-hold')].some(el => el.dataset.hold === name)) {
+                holdNameEl.value = '';
+                return;  // already held
+            }
+            const empty = holdsListEl.querySelector('.settings-hold-empty');
+            if (empty) empty.remove();
+            const row = document.createElement('div');
+            row.className = 'settings-hold';
+            row.dataset.hold = name;
+            row.innerHTML = `<code>${escapeHtml(name)}</code><button class="btn btn-outline btn-small settings-hold-remove" title="Remove hold" type="button">✕ Remove</button>`;
+            row.querySelector('.settings-hold-remove').addEventListener('click', () => row.remove());
+            holdsListEl.appendChild(row);
+            holdNameEl.value = '';
+        };
+        holdAddBtn.addEventListener('click', addHold);
+        holdNameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') addHold(); });
+        holdsListEl.querySelectorAll('.settings-hold-remove').forEach(btn =>
+            btn.addEventListener('click', () => btn.closest('.settings-hold').remove()));
+    }
+
     const themeSel = document.getElementById('settings-theme');
     if (themeSel) themeSel.addEventListener('change', () => setTheme(themeSel.value));
 
@@ -5768,6 +5819,11 @@ async function saveSettings() {
     packagesGrid.querySelectorAll('input[data-arch-key]').forEach(el => {
         arch[el.getAttribute('data-arch-key')] = el.checked;
     });
+    const holdsListEl = document.getElementById('settings-holds-list');
+    if (holdsListEl) {
+        arch.ignored_packages = [...holdsListEl.querySelectorAll('.settings-hold')]
+            .map(el => el.dataset.hold).filter(Boolean);
+    }
     if (Object.keys(arch).length) payload.arch = arch;
 
     const res = await pyApiCall('save_app_settings', payload);

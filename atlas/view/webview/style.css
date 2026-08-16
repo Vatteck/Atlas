@@ -1386,6 +1386,13 @@ body {
 .settings-row .styled-input { max-width: 120px; margin-left: auto; }
 .settings-note { font-size: 12px; color: var(--text-secondary); font-style: italic; }
 .settings-actions { margin-top: 4px; }
+.settings-holds-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.settings-hold { display: flex; align-items: center; gap: 10px; padding: 6px 10px; background: var(--bg-surface-hover); border: 1px solid var(--border-color); border-radius: 8px; }
+.settings-hold code { flex: 1; overflow-wrap: anywhere; }
+.settings-hold-remove { padding: 2px 10px; font-size: 12px; flex-shrink: 0; }
+.settings-hold-empty { font-size: 13px; color: var(--text-secondary); margin: 0; }
+.settings-hold-add { display: flex; gap: 8px; margin-top: 8px; }
+.settings-hold-add .styled-input { flex: 1; min-width: 0; }
 
 /* Floating Batch Bar (Task 5) */
 .batch-bar {

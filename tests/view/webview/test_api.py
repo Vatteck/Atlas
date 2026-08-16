@@ -703,7 +703,8 @@ class AppSettingsTest(unittest.TestCase):
             m.can_work.return_value = (can_work, None)
             return m
         self.arch = mk('arch', True, True)
-        self.arch.configman.get_config.return_value = {'aur_check_pkgbuild': True}
+        self.arch.configman.get_config.return_value = {'aur_check_pkgbuild': True,
+                                                        'ignored_packages': ['bazaar']}
         self.flatpak = mk('flatpak', True, True)
         self.flatpak.configman.get_config.return_value = {'installation_level': 'user'}
         self.manager.managers = [self.arch, self.flatpak]
@@ -791,6 +792,23 @@ class AppSettingsTest(unittest.TestCase):
         self.assertEqual('ok', res['status'])
         saved = self.arch.configman.save_config.call_args[0][0]
         self.assertFalse(saved['aur_check_pkgbuild'])
+
+    def test_get_app_settings_includes_ignored_packages(self):
+        data = self.api.get_app_settings()['data']
+        self.assertIn('ignored_packages', data['arch'])
+        self.assertEqual(['bazaar'], data['arch']['ignored_packages'])
+
+    def test_save_app_settings_persists_cleaned_ignored_packages(self):
+        res = self.api.save_app_settings({'arch': {'ignored_packages': ['bazaar', ' libdex ', '', 'bazaar']}})
+        self.assertEqual('ok', res['status'])
+        saved = self.arch.configman.save_config.call_args[0][0]
+        # trimmed, empties dropped, deduped, sorted
+        self.assertEqual(['bazaar', 'libdex'], saved['ignored_packages'])
+
+    def test_save_app_settings_arch_without_ignored_packages_leaves_holds_untouched(self):
+        self.api.save_app_settings({'arch': {'check_pkgbuild': False}})
+        saved = self.arch.configman.save_config.call_args[0][0]
+        self.assertEqual(['bazaar'], saved['ignored_packages'])
 
 
 class NotifyTest(unittest.TestCase):
