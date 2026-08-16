@@ -116,6 +116,50 @@ class UpdatesSummarizerGetUpgradeRequirementsTest(TestCase):
         self.assertEqual({}, conflicts)
 
     @patch(f"{__app_name__}.gems.arch.updates.pacman")
+    def test__should_strand_both_sides_when_mutual_conflict_unresolved(self, pacman: Mock):
+        """
+        A and B are both installed and upgradable, their new versions conflict with each
+        other, and neither side is already scheduled for removal. Mutual handling runs
+        before the conflicts->to_remove loop within a pass, so both sides land in
+        cannot_upgrade (visible and honest) instead of auto-removing two user-requested
+        upgrades. This locks the shipped behavior: the removal-resolved skip in
+        _handle_mutual_conflicts only fires when one side was scheduled by an earlier pass.
+        """
+        pkg_a = ArchPackage(name="A", version="1.0.0-1", latest_version="1.1.0-1", repository="community")
+        pkg_b = ArchPackage(name="B", version="1.0.0-1", latest_version="1.1.0-1", repository="community")
+
+        context = UpdateRequirementsContext(to_update={"A": pkg_a, "B": pkg_b},
+                                            repo_to_update={"A": pkg_a, "B": pkg_b},
+                                            aur_to_update={},
+                                            repo_to_install={},
+                                            aur_to_install={},
+                                            to_install={},
+                                            pkgs_data={"A": {'d': set(), 'c': {"B"}, 'p': {}},
+                                                       "B": {'d': set(), 'c': {"A"}, 'p': {}}},
+                                            cannot_upgrade={},
+                                            to_remove={},
+                                            installed={"A": "1.0.0-1", "B": "1.0.0-1"},
+                                            provided_map={"A": {"A"}, "B": {"B"}},
+                                            aur_index=set(),
+                                            arch_config=self.config_,
+                                            remote_provided_map={},
+                                            remote_repo_map={},
+                                            root_password=None,
+                                            aur_supported=True)
+
+        conflicts = {"A": "B", "B": "A"}
+
+        self.summarizer._handle_mutual_conflicts({"B": "A"}, conflicts, context)
+
+        self.assertEqual(set(context.cannot_upgrade.keys()), {"A", "B"})
+        self.assertNotIn("A", context.to_update)
+        self.assertNotIn("B", context.to_update)
+        self.assertEqual({}, context.to_remove)
+        self.assertEqual({}, conflicts)
+        self.assertNotIn("A", context.pkgs_data)
+        self.assertNotIn("B", context.pkgs_data)
+
+    @patch(f"{__app_name__}.gems.arch.updates.pacman")
     def test__should_move_ignored_packages_to_cannot_upgrade(self, pacman: Mock):
         """
         Packages listed in the 'ignored_packages' config (held) must not be proposed for upgrade;
