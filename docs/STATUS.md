@@ -12,9 +12,10 @@
 **Version:** 0.16.1 (released 2026-07-18, tag `v0.16.1`, release commit `c8b9c37`; CI
 auto-published to the AUR). Both AUR packages live: stable **`atlas-pm`** + bleeding-edge
 **`atlas-pm-git`**. Next: **0.16.2** (upgrade-pipeline safety, plan
-[2026-08-16-upgrade-pipeline-safety.md](plans/2026-08-16-upgrade-pipeline-safety.md), implemented, not yet released).
+[2026-08-16-upgrade-pipeline-safety.md](plans/2026-08-16-upgrade-pipeline-safety.md), implemented, not yet released;
+GUI holds surface follow-up also implemented — [2026-08-16-gui-upgrade-holds.md](plans/2026-08-16-gui-upgrade-holds.md)).
 **Branch:** `master` (= `origin/master`). Always run `git branch` rather than trusting this line.
-**Health:** 777 Python tests + 60 JS contract tests green; CI green across Python 3.10–3.14.
+**Health:** 780 Python tests + 61 JS contract tests green; CI green across Python 3.10–3.14.
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)**. Everything already shipped is in
 > **[HISTORY.md](HISTORY.md)** and **[CHANGELOG.md](../CHANGELOG.md)** — don't re-read those to
@@ -89,6 +90,18 @@ Measured and partly fixed; **do not restart the measurement work**, it is all in
 
 Full record in [HISTORY.md](HISTORY.md). Only the last few entries live here.
 
+- **GUI settings surface for upgrade holds (2026-08-16).** Follow-up to the upgrade-pipeline
+  safety work (its declared "UI follow-up later"): the Settings page now has an **Upgrade
+  holds** section (Arch gem only) — held packages render as removable chips, an add box takes a
+  package name (client-side validation, Enter works), and everything persists through the
+  existing Save button into `arch_config['ignored_packages']` via
+  `get_app_settings()`/`save_app_settings()` (api.py: settings arch block). Hold semantics
+  unchanged: held packages still appear as upgradable in scans and are skipped at summarize
+  ("Held (ignored upgrade)"), and pacman gets `--ignore=<pkg>`. Legacy per-package pin file
+  (`UPDATES_IGNORED_FILE`) untouched — separate coexisting surface. Plan:
+  [2026-08-16-gui-upgrade-holds.md](plans/2026-08-16-gui-upgrade-holds.md). Suite now
+  **780 Python + 61 JS**. Not yet GUI-verified live (manual pass: add bazaar in Settings →
+  Update all skips it → remove hold → proposed again).
 - **Upgrade-pipeline safety — walk the user through bazaar-class problems (2026-08-16).**
   The 2026-08-16 incident (Atlas's scripted upgrade `-R -dd`'d `qemu-full` + `qemu-block-gluster`,
   then died on the upstream bazaar 0.9.4-1 file conflict, leaving the system un-upgraded) is fixed

@@ -1,48 +1,47 @@
 # .last-agent — integrity checkpoint for the next AI coding agent
 
-**Agent:** Hermes (deepseek-v4-flash) — 2026-08-16 (review follow-up)
+**Agent:** Hermes (deepseek-v4-flash) — 2026-08-16 (GUI holds surface)
 **Branch:** master
-**Last commit (base):** 0ba2b88 ("docs(upgrade): describe mutual-conflict skip as shipped, not as a reorder")
+**Last commit (base):** 722c4a0 ("feat(settings): GUI surface for upgrade holds")
 
 ## Summary
 
-Review follow-up to the upgrade-pipeline safety plan (docs/plans/2026-08-16-upgrade-pipeline-safety.md,
-Status: Implemented, target **0.16.2**). The implementation commit `59fbe25` was verified against
-the code (all three fixes present, fail-closed removal gate correct, hold retry re-reads config,
-776→777 tests green). This session corrected the record — no engine code changed:
+Implemented the plan's declared UI follow-up: **Settings page → "Upgrade holds" section** for
+`arch_config['ignored_packages']` (plan `docs/plans/2026-08-16-gui-upgrade-holds.md`, Status:
+implemented). One commit `722c4a0` — 6 files, +183/−2:
 
-1. **Docs lied about change #2.** The plan, STATUS.md, and the skill reference
-   (`references/upgrade-pipeline-safety.md`) all claimed "the conflicts→`to_remove` loop runs
-   BEFORE mutual handling". The code never reorders: `_fill_conflicts` (updates.py:298-314) still
-   runs mutual handling first. What shipped is a skip-check in `_handle_mutual_conflicts`
-   (updates.py:252-256): skip pairs where one side is ALREADY in `to_remove`, clear their
-   conflict entries. It fires only cross-pass (removal scheduled in the to-update pass at
-   summarize:562, mutual pair formed in the to-install pass at updates.py:353) — the qemu shape.
-   All docs corrected to describe the shipped mechanism.
-2. **Same-pass strand locked as a known gap.** A mutual pair first detected in the same pass with
-   neither side pre-scheduled still strands both into `cannot_upgrade` (honest, visible).
-   Deliberate conservative choice — auto-removing both would drop two user-requested upgrades.
-   Locked by new test `test__should_strand_both_sides_when_mutual_conflict_unresolved`
-   (tests/gems/arch/test_updates.py), listed as a known gap in STATUS.md.
-3. **Stale counts fixed.** Plan verification said `python -m unittest` (774). Reality:
-   `venv/bin/python -m pytest` (777 with the new test). Skill baseline updated to 777.
+- `atlas/view/webview/api.py` — `get_app_settings()` returns `arch.ignored_packages`;
+  `save_app_settings()` accepts it (key widened to include `'ignored_packages'`), cleans
+  (`sorted({n.strip() for n in held if isinstance(n, str) and n.strip()})`), persists. Only
+  touched when present in the payload.
+- `atlas/view/webview/main.js` — holds section (chips with remove buttons, add box with
+  client-side validation `[A-Za-z0-9@._+:-]+`, Enter adds, duplicate-guard, empty state),
+  rendered only when `arch.available`; `saveSettings` collects rows into
+  `payload.arch.ignored_packages`.
+- `atlas/view/webview/style.css` — `.settings-holds-list/-hold/-hold-add` (existing tokens).
+- `tests/view/webview/test_api.py` — 3 new AppSettingsTest cases (get includes holds; save
+  cleans/sorts/persists; arch save without the key leaves holds untouched).
+- `tests/view/webview/main_js_contracts.test.js` — `testSettingsUpgradeHoldsRender` (chips
+  render; section absent without Arch).
 
-**Verification:** 777 Python tests + 60 JS contract tests (Python suite re-run this session;
-JS unchanged, not re-run).
+**Verification:** 780 Python tests + 61 JS contract tests, all green (both re-run this
+session). Suite count moved 777→780, JS 60→61 — docs and skill baseline updated.
 
 ## Known gaps / next steps
 
-- **Same-pass mutual-conflict stranding** (new, documented): mutual pair detected in a single
-  `_fill_conflicts` pass, neither side pre-scheduled → both to `cannot_upgrade`. Deliberate and
-  test-locked; revisit only if it bites in the wild.
-- **Not GUI-verified.** The vendored-conflict dialog path is unit-tested but needs a real
-  conflict to eyeball (recreate: install bazaar 0.9.4-1 scenario, or fake a conflict via a
-  pacman.conf hold + conflicting package). User-facing strings in all 10 locales were written by
-  translation, not native speakers — worth a skim.
-- `upgrade_several`'s `-dd` append (for skip_dependency_checks) remains — that's the user-explicit
-  escape hatch, unchanged by design.
-- `_remove_transaction_packages` validation runs on the *summarized* removal set; the to-remove
-  cascade in updates.py (596-676) already sweeps dependents, so legit plans pass.
+- **Holds GUI not eyeballed on a real box.** Manual pass (unit + contract tested only): add
+  `bazaar` in Settings → `Update all` skips it (`--ignore=bazaar`, reason "Held (ignored
+  upgrade)") → remove hold in Settings → proposed again. Same holds for the vendored-conflict
+  dialog (still needs a real conflict; recreate the bazaar 0.9.4-1 ↔ libdex scenario).
+- **Same-pass mutual-conflict stranding** (documented known gap, deliberate + test-locked):
+  a mutual pair first detected in one pass with neither side pre-scheduled strands both in
+  `cannot_upgrade`. Revisit only if it bites in the wild.
+- User-facing strings in all 10 locales (conflict dialog) were written by translation, not
+  native speakers — worth a skim.
+- `upgrade_several`'s `-dd` append (skip_dependency_checks) remains — user-explicit escape
+  hatch, unchanged by design.
+- `_remove_transaction_packages` validation runs on the *summarized* removal set; the
+  to-remove cascade in updates.py (596-676) already sweeps dependents, so legit plans pass.
 
 ## Unrelated housekeeping still open (from the incident forensics, ZephyrOS host)
 
