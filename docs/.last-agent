@@ -1,41 +1,40 @@
 # .last-agent — integrity checkpoint for the next AI coding agent
 
-**Agent:** Hermes (deepseek-v4-flash) — 2026-08-16
+**Agent:** Hermes (deepseek-v4-flash) — 2026-08-16 (review follow-up)
 **Branch:** master
-**Last commit (base):** b2ff778 ("release: gate on README + CHANGELOG being current for the version")
+**Last commit (base):** 0ba2b88 ("docs(upgrade): describe mutual-conflict skip as shipped, not as a reorder")
 
 ## Summary
 
-Implemented the **upgrade-pipeline safety plan** (docs/plans/2026-08-16-upgrade-pipeline-safety.md,
-Status: Implemented, target **0.16.2**) — the fix for the 2026-08-16 incident where Atlas's
-scripted upgrade `-R -dd`'d `qemu-full`/`qemu-block-gluster` and then died on the upstream
-bazaar 0.9.4-1 ↔ libdex file conflict. Three design fixes:
+Review follow-up to the upgrade-pipeline safety plan (docs/plans/2026-08-16-upgrade-pipeline-safety.md,
+Status: Implemented, target **0.16.2**). The implementation commit `59fbe25` was verified against
+the code (all three fixes present, fail-closed removal gate correct, hold retry re-reads config,
+776→777 tests green). This session corrected the record — no engine code changed:
 
-1. **No unconditional `-dd` removals.** `controller.py::_remove_transaction_packages` now
-   validates against `pacman.map_required_by` minus the transaction's own removal set minus the
-   `-S` covered set (new `covered` param); unprotected dependents → fail-closed error dialog,
-   upgrade aborted. Removals run plain `-R` (`skip_checks=False`).
-2. **Mutual-conflict skip.** `updates.py::_handle_mutual_conflicts` skips pairs where one side is
-   already in `to_remove` and clears their conflict entries (the qemu-desktop→qemu-full case).
-3. **Hold/`--ignore` support (bazaar walk-through).** `ignored_packages: []` config default
-   (config.py); `upgrade_several`/`upgrade_system` accept `ignored` → `--ignore=<pkg>` (pacman.py);
-   `summarize()` moves held pkgs to `cannot_upgrade` with reason "Held (ignored upgrade)"
-   (`__filter_ignored_packages`); `_upgrade_repo_pkgs` filters held pkgs at entry + passes `ignored`
-   to `-S`; the conflicting-files dialog parses `exists in filesystem (owned by X)` via new
-   `_map_conflicting_file_details` + `pacman.map_owners`, and for vendored files (owner ≠ incoming)
-   offers **Hold packages and continue** → persists holds, re-runs the upgrade without them.
-   Non-vendored conflicts keep the original proceed/stop dialog. Never offers `--overwrite=*`.
+1. **Docs lied about change #2.** The plan, STATUS.md, and the skill reference
+   (`references/upgrade-pipeline-safety.md`) all claimed "the conflicts→`to_remove` loop runs
+   BEFORE mutual handling". The code never reorders: `_fill_conflicts` (updates.py:298-314) still
+   runs mutual handling first. What shipped is a skip-check in `_handle_mutual_conflicts`
+   (updates.py:252-256): skip pairs where one side is ALREADY in `to_remove`, clear their
+   conflict entries. It fires only cross-pass (removal scheduled in the to-update pass at
+   summarize:562, mutual pair formed in the to-install pass at updates.py:353) — the qemu shape.
+   All docs corrected to describe the shipped mechanism.
+2. **Same-pass strand locked as a known gap.** A mutual pair first detected in the same pass with
+   neither side pre-scheduled still strands both into `cannot_upgrade` (honest, visible).
+   Deliberate conservative choice — auto-removing both would drop two user-requested upgrades.
+   Locked by new test `test__should_strand_both_sides_when_mutual_conflict_unresolved`
+   (tests/gems/arch/test_updates.py), listed as a known gap in STATUS.md.
+3. **Stale counts fixed.** Plan verification said `python -m unittest` (774). Reality:
+   `venv/bin/python -m pytest` (777 with the new test). Skill baseline updated to 777.
 
-Also: i18n keys added to all 10 locales (`arch.update_summary.held`,
-`arch.upgrade.error.conflicting_files.vendored`, `arch.upgrade.conflicting_files.hold`,
-`arch.upgrade.error.remove_refused`); 2 new tests in tests/gems/arch/test_updates.py;
-4 cache-invalidation tests stubbed with `mgr.configman`.
-
-**Verification:** 776 Python tests (774 old + 2 new) + 60 JS contract tests
-(`node --test tests/view/webview/main_js_contracts.test.js`) all green.
+**Verification:** 777 Python tests + 60 JS contract tests (Python suite re-run this session;
+JS unchanged, not re-run).
 
 ## Known gaps / next steps
 
+- **Same-pass mutual-conflict stranding** (new, documented): mutual pair detected in a single
+  `_fill_conflicts` pass, neither side pre-scheduled → both to `cannot_upgrade`. Deliberate and
+  test-locked; revisit only if it bites in the wild.
 - **Not GUI-verified.** The vendored-conflict dialog path is unit-tested but needs a real
   conflict to eyeball (recreate: install bazaar 0.9.4-1 scenario, or fake a conflict via a
   pacman.conf hold + conflicting package). User-facing strings in all 10 locales were written by
