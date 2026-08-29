@@ -1039,6 +1039,47 @@ async function testBuildUpdateAllPreviewData() {
   assert.ok(!allSafe.warnings.some(w => w.title.includes('low reputation')), 'no risk warning when nothing is risky');
 }
 
+function testUpdateAllOutcomeDistinguishesCancellationFromFailure() {
+  const { hooks } = loadMainJs({});
+  const cancelled = hooks.updateAllOutcome({
+    status: 'cancelled',
+    message: 'Authentication was cancelled or timed out. No updates were started.',
+  });
+  assert.strictEqual(cancelled.title, 'Update cancelled');
+  assert.strictEqual(cancelled.type, 'info');
+  assert.ok(cancelled.message.includes('No updates were started'));
+
+  const failed = hooks.updateAllOutcome({ status: 'ok', success: false });
+  assert.strictEqual(failed.title, 'Update failed');
+  assert.strictEqual(failed.type, 'error');
+  assert.ok(failed.message.includes('operation log'));
+}
+
+function testTimedOutDialogsCanBeDismissedWithoutSubmitting() {
+  let passwordSubmissions = 0;
+  let confirmationSubmissions = 0;
+  const { window, document } = loadMainJs({
+    submit_root_password: async () => { passwordSubmissions += 1; return { status: 'ok' }; },
+    submit_confirmation: async () => { confirmationSubmissions += 1; return { status: 'ok' }; },
+  });
+
+  const passwordModal = document.getElementById('password-modal');
+  passwordModal.classList.add('hidden');
+  window.showPasswordModal('Authenticate');
+  assert.ok(!passwordModal.classList.contains('hidden'), 'password prompt opens');
+  window.dismissPasswordModal();
+  assert.ok(passwordModal.classList.contains('hidden'), 'timed-out password prompt closes');
+
+  const confirmModal = document.getElementById('confirm-modal');
+  confirmModal.classList.add('hidden');
+  window.showConfirmModal({ title: 'Review PKGBUILD', message: 'Read it' });
+  assert.ok(!confirmModal.classList.contains('hidden'), 'confirmation opens');
+  window.dismissConfirmModal();
+  assert.ok(confirmModal.classList.contains('hidden'), 'timed-out confirmation closes');
+  assert.strictEqual(passwordSubmissions, 0, 'dismiss does not submit a stale password');
+  assert.strictEqual(confirmationSubmissions, 0, 'dismiss does not submit stale approval');
+}
+
 async function testBuildSourceCompareHTML() {
   const { hooks } = loadMainJs({});
   // single source → no panel
@@ -1141,6 +1182,7 @@ async function testCollapseByNameAcrossSources() {
 async function testSummarizeFailureCategories() {
   const { hooks } = loadMainJs({});
   const cases = [
+    ['Atlas: confirmation timed out (Review PKGBUILD). The pending operation was cancelled.', 'Waiting for approval timed out'],
     ['sudo: incorrect password attempt', 'Authentication failed'],
     ['error: key "ABC" could not be looked up remotely', 'PGP signature / keyring problem'],
     ['error: failed retrieving file \'core.db\' from mirror : The requested URL returned error: 404', 'Download failed'],
@@ -1928,6 +1970,8 @@ function testPermsListEnsuresIconObserver() {
     testTransactionPreviewActionLabelsSizeRow,
     testTransactionPreviewUpdateShowsVersionDelta,
     testBuildUpdateAllPreviewData,
+    testUpdateAllOutcomeDistinguishesCancellationFromFailure,
+    testTimedOutDialogsCanBeDismissedWithoutSubmitting,
     testBuildSourceCompareHTML,
     testCollapseByNameAcrossSources,
     testWhySourceHint,

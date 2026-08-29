@@ -231,6 +231,10 @@ class AtlasApi:
         # Long timeout so a forgotten prompt can't wedge the worker forever.
         if not self._pwd_event.wait(timeout=300):
             self.logger.warning("Root password prompt timed out")
+            try:
+                self.window.evaluate_js("dismissPasswordModal()")
+            except Exception as e:
+                self.logger.debug(f"Could not dismiss timed-out password modal: {e}")
             return None
 
         return self._pwd_submitted
@@ -327,6 +331,13 @@ class AtlasApi:
 
             if not self._confirm_event.wait(timeout=300):
                 self.logger.warning(f"Confirmation '{title}' timed out; defaulting to deny")
+                timeout_message = (f"Atlas: confirmation timed out ({title or 'Confirm'}). "
+                                   "The pending operation was cancelled.")
+                try:
+                    self.window.evaluate_js(
+                        f"dismissConfirmModal(); terminalAppend({json.dumps(timeout_message)})")
+                except Exception as e:
+                    self.logger.debug(f"Could not dismiss timed-out confirmation modal: {e}")
                 return False, None
 
             return self._confirm_result, self._confirm_selections
@@ -3338,8 +3349,6 @@ class AtlasApi:
     def update_all(self, exclude_sources: Optional[List[str]] = None) -> dict:
         try:
             self.logger.info(f"Update All triggered (excluding sources: {exclude_sources or 'none'})")
-            if self.window:
-                self.window.evaluate_js("terminalOpen('Checking for system updates...')")
 
             # Remember the source selection so it pre-fills next time (skip list — new sources
             # default ON). Best-effort: a persistence failure never blocks the upgrade.
@@ -3375,15 +3384,17 @@ class AtlasApi:
                 proceed, pwd = self.acquire_root_password(SoftwareAction.UPGRADE, pkg)
                 if not proceed:
                     self.logger.info("Update All cancelled (no root password)")
-                    if self.window:
-                        self.window.evaluate_js("terminalSetDone(false)")
-                    return {'status': 'cancelled'}
+                    return {
+                        'status': 'cancelled',
+                        'message': 'Authentication was cancelled or timed out. No updates were started.',
+                    }
                 if pwd is not None:
                     root_password = pwd
                     break
 
             self.logger.info(f"Found {len(upgradable)} packages to upgrade: {[p.name for p in upgradable]}")
             if self.window:
+                self.window.evaluate_js("terminalOpen('Updating system packages...')")
                 self.window.evaluate_js(f"terminalSetStatus('Upgrading {len(upgradable)} packages...')")
 
             reqs = self.manager.get_upgrade_requirements(upgradable, root_password=root_password, watcher=watcher)
@@ -3654,5 +3665,4 @@ class AtlasApi:
             if self.window:
                 self.window.evaluate_js("terminalSetDone(false)")
             return {'status': 'error', 'message': str(e)}
-
 

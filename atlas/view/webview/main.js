@@ -582,6 +582,8 @@ function summarizeFailure(log) {
     const t = (log || '').toLowerCase();
     if (!t.trim()) return null;
     const has = (...subs) => subs.some(s => t.includes(s));
+    if (has('confirmation timed out'))
+        return { title: 'Waiting for approval timed out', hint: 'Atlas cancelled the pending step because its confirmation dialog was not answered. Review it and retry.' };
     if (has('incorrect password', 'authentication failure', 'a password is required', 'sorry, try again'))
         return { title: 'Authentication failed', hint: 'The root password was rejected. Try again and re-enter it.' };
     if (has('signature from', 'unknown trust', 'invalid or corrupted package (pgp', 'could not be looked up', 'corrupted (pgp', 'marginal trust'))
@@ -846,6 +848,13 @@ function submitPassword(value) {
     pyApiCall('submit_root_password', value);
 }
 
+// Backend-only close path for a timed-out wait. This deliberately does not call back into Python:
+// the waiting thread has already aborted, so submitting here would be a stale response.
+window.dismissPasswordModal = () => {
+    passwordResolved = true;
+    document.getElementById('password-modal').classList.add('hidden');
+};
+
 window.showPasswordModal = (message) => {
     passwordResolved = false;
     const modal = document.getElementById('password-modal');
@@ -886,6 +895,12 @@ function resolveConfirm(value) {
     document.getElementById('confirm-modal').classList.add('hidden');
     pyApiCall('submit_confirmation', value, selections);
 }
+
+// Same timeout cleanup as the password modal: close the stale surface without accepting it.
+window.dismissConfirmModal = () => {
+    confirmResolved = true;
+    document.getElementById('confirm-modal').classList.add('hidden');
+};
 
 // Build the DOM for a serialized component and return its selection-reader closure.
 function renderConfirmComponent(comp, container) {
@@ -3858,6 +3873,24 @@ if (queueClearBtn) queueClearBtn.addEventListener('click', () => {
 const queueInstallAllBtn = document.getElementById('queue-install-all-btn');
 if (queueInstallAllBtn) queueInstallAllBtn.addEventListener('click', installQueuedPackages);
 
+function updateAllOutcome(result) {
+    if (result && result.status === 'cancelled') {
+        return {
+            title: 'Update cancelled',
+            message: result.message || 'Authentication was cancelled or timed out. No updates were started.',
+            type: 'info',
+        };
+    }
+    if (result && result.success) {
+        return { title: 'Success', message: 'System upgrade finished', type: 'success' };
+    }
+    return {
+        title: 'Update failed',
+        message: (result && (result.message || result.error)) || 'The update did not finish. Check the operation log for the exact cause.',
+        type: 'error',
+    };
+}
+
 updateAllBtn.addEventListener('click', async () => {
     if (operationInProgress) { showToast('Busy', 'Another operation is already running', 'warning'); return; }
 
@@ -3899,12 +3932,13 @@ updateAllBtn.addEventListener('click', async () => {
     }
 
     showToast('Updating All', 'Starting system packages upgrade...', 'info');
+    // Lock immediately: authentication now intentionally happens before the terminal opens, so
+    // terminalOpen() cannot be the first thing that prevents a second overlapping operation.
+    operationInProgress = true;
     const result = await pyApiCall('update_all', excludeSources);
-    if (result && result.success) {
-        showToast('Success', 'System upgrade finished', 'success');
-    } else {
-        showToast('Error', result ? result.error : 'Bulk upgrade failed', 'error');
-    }
+    operationInProgress = false;
+    const outcome = updateAllOutcome(result);
+    showToast(outcome.title, outcome.message, outcome.type);
     refreshUpdatesBadge();  // count should drop to ~0 after a full upgrade
 });
 
@@ -6885,6 +6919,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildTransactionPreviewHTML,
         renderDepTree,
         buildUpdateAllPreviewData,
+        updateAllOutcome,
         buildSourceCompareHTML,
         groupKey,
         stripBuildSuffix,

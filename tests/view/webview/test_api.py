@@ -896,6 +896,19 @@ class UpdateAllSourceSelectionTest(unittest.TestCase):
         self.api.update_all()
         self.assertEqual(2, len(self.captured['pkgs']))
 
+    def test_auth_cancellation_does_not_open_terminal_or_report_failure(self):
+        self._installed(self._pkg('repo-pkg', 'arch_repo'))
+        self.api.window = Mock()
+        self.api.acquire_root_password.return_value = (False, None)
+
+        res = self.api.update_all()
+
+        self.assertEqual('cancelled', res['status'])
+        self.assertIn('No updates were started', res['message'])
+        self.api.window.evaluate_js.assert_not_called()
+        self.manager.get_upgrade_requirements.assert_not_called()
+        self.manager.upgrade.assert_not_called()
+
     def test_get_prefs_defaults_to_empty(self):
         self.manager.configman.get_config.return_value = {}
         self.assertEqual([], self.api.get_update_all_prefs()['data']['exclude'])
@@ -1237,6 +1250,16 @@ class AtlasApiRootPasswordTest(unittest.TestCase):
         self.assertFalse(proceed)
         self.assertIsNone(pwd)
 
+    def test_password_timeout_dismisses_stale_modal(self):
+        with patch.object(self.api._pwd_event, 'wait', return_value=False):
+            pwd = self.api._prompt_root_password_once('Authenticate')
+
+        self.assertIsNone(pwd)
+        self.assertEqual(
+            ["showPasswordModal(\"Authenticate\")", "dismissPasswordModal()"],
+            [c.args[0] for c in self.api.window.evaluate_js.call_args_list],
+        )
+
 
 class AtlasApiDialogTest(unittest.TestCase):
     def setUp(self):
@@ -1280,6 +1303,17 @@ class AtlasApiDialogTest(unittest.TestCase):
             'T', 'body', components=[{'kind': 'multiselect', 'options': []}])
         self.assertTrue(confirmed)
         self.assertEqual([[0, 2]], selections)
+
+    def test_confirmation_timeout_closes_modal_and_explains_cancellation(self):
+        with patch.object(self.api._confirm_event, 'wait', return_value=False):
+            confirmed, selections = self.api.prompt_confirmation('Review PKGBUILD', 'Read it')
+
+        self.assertFalse(confirmed)
+        self.assertIsNone(selections)
+        timeout_js = self.api.window.evaluate_js.call_args_list[-1].args[0]
+        self.assertIn('dismissConfirmModal()', timeout_js)
+        self.assertIn('confirmation timed out', timeout_js)
+        self.assertIn('Review PKGBUILD', timeout_js)
 
     def test_message_blocks_until_ack(self):
         self._answer(self.api.submit_message_ack)
