@@ -582,8 +582,6 @@ function summarizeFailure(log) {
     const t = (log || '').toLowerCase();
     if (!t.trim()) return null;
     const has = (...subs) => subs.some(s => t.includes(s));
-    if (has('confirmation timed out'))
-        return { title: 'Waiting for approval timed out', hint: 'Atlas cancelled the pending step because its confirmation dialog was not answered. Review it and retry.' };
     if (has('incorrect password', 'authentication failure', 'a password is required', 'sorry, try again'))
         return { title: 'Authentication failed', hint: 'The root password was rejected. Try again and re-enter it.' };
     if (has('signature from', 'unknown trust', 'invalid or corrupted package (pgp', 'could not be looked up', 'corrupted (pgp', 'marginal trust'))
@@ -848,13 +846,6 @@ function submitPassword(value) {
     pyApiCall('submit_root_password', value);
 }
 
-// Backend-only close path for a timed-out wait. This deliberately does not call back into Python:
-// the waiting thread has already aborted, so submitting here would be a stale response.
-window.dismissPasswordModal = () => {
-    passwordResolved = true;
-    document.getElementById('password-modal').classList.add('hidden');
-};
-
 window.showPasswordModal = (message) => {
     passwordResolved = false;
     const modal = document.getElementById('password-modal');
@@ -895,12 +886,6 @@ function resolveConfirm(value) {
     document.getElementById('confirm-modal').classList.add('hidden');
     pyApiCall('submit_confirmation', value, selections);
 }
-
-// Same timeout cleanup as the password modal: close the stale surface without accepting it.
-window.dismissConfirmModal = () => {
-    confirmResolved = true;
-    document.getElementById('confirm-modal').classList.add('hidden');
-};
 
 // Build the DOM for a serialized component and return its selection-reader closure.
 function renderConfirmComponent(comp, container) {
@@ -5529,7 +5514,7 @@ if (refreshBtn) {
 // --- Settings page ---------------------------------------------------------
 const GENERAL_TOGGLES = [
     ['suggestions_enabled', 'Show app suggestions', 'Display recommended apps on the dashboard'],
-    ['system_notifications', 'System notifications', 'Notify when long operations finish'],
+    ['system_notifications', 'System notifications', 'Notify when operations finish or need your attention'],
     ['ask_for_reboot', 'Ask to reboot after updates', 'Prompt for a reboot when an update needs one'],
     ['download_icons', 'Download app icons', 'Fetch package icons (uses the network)'],
     ['store_root_password', 'Remember root password for the session', 'Avoid re-entering it for every privileged action'],

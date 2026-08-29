@@ -228,14 +228,14 @@ class AtlasApi:
             self.logger.error(f"Could not show password modal: {e}")
             return None
 
-        # Long timeout so a forgotten prompt can't wedge the worker forever.
-        if not self._pwd_event.wait(timeout=300):
-            self.logger.warning("Root password prompt timed out")
-            try:
-                self.window.evaluate_js("dismissPasswordModal()")
-            except Exception as e:
-                self.logger.debug(f"Could not dismiss timed-out password modal: {e}")
-            return None
+        attention_id = self._notify_attention('Authentication required')
+        try:
+            # A long AUR transaction may request input while Atlas is on another workspace.
+            # Wait for the modal's explicit Authenticate/Cancel answer; an arbitrary deadline
+            # turns "user did not see it yet" into a fake package failure.
+            self._pwd_event.wait()
+        finally:
+            self._clear_attention(attention_id)
 
         return self._pwd_submitted
 
@@ -329,16 +329,11 @@ class AtlasApi:
                 self.logger.error(f"Could not show confirmation modal: {e}")
                 return True, None
 
-            if not self._confirm_event.wait(timeout=300):
-                self.logger.warning(f"Confirmation '{title}' timed out; defaulting to deny")
-                timeout_message = (f"Atlas: confirmation timed out ({title or 'Confirm'}). "
-                                   "The pending operation was cancelled.")
-                try:
-                    self.window.evaluate_js(
-                        f"dismissConfirmModal(); terminalAppend({json.dumps(timeout_message)})")
-                except Exception as e:
-                    self.logger.debug(f"Could not dismiss timed-out confirmation modal: {e}")
-                return False, None
+            attention_id = self._notify_attention(title or 'Confirmation required')
+            try:
+                self._confirm_event.wait()
+            finally:
+                self._clear_attention(attention_id)
 
             return self._confirm_result, self._confirm_selections
 
@@ -360,8 +355,11 @@ class AtlasApi:
                 self.logger.error(f"Could not show message modal: {e}")
                 return
 
-            # Don't wedge a worker forever if the user never clicks OK.
-            self._message_event.wait(timeout=300)
+            attention_id = self._notify_attention(title or 'Message from Atlas')
+            try:
+                self._message_event.wait()
+            finally:
+                self._clear_attention(attention_id)
 
     def _prepare_manager(self):
         try:
@@ -3009,16 +3007,42 @@ class AtlasApi:
             self.logger.error(f"Could not open URL '{url}': {e}")
             return {'status': 'error', 'message': str(e)}
 
-    def _notify(self, message: str):
-        """Fire a desktop notification for a finished operation, if the user has enabled
-        system notifications. Never let a notification failure affect the operation."""
+    def _notify(self, message: str, **kwargs):
+        """Fire a desktop notification, if enabled. Never let it affect the operation."""
         try:
             if not self.manager.configman.get_config()['system']['notifications']:
                 return
             from atlas.view.util.util import notify_user
-            notify_user(message)
+            return notify_user(message, **kwargs)
         except Exception:
             self.logger.debug("Desktop notification failed", exc_info=True)
+
+    def _notify_attention(self, prompt_title: str):
+        """Make a blocking prompt visible across workspaces without stealing focus."""
+        label = prompt_title or 'Confirmation required'
+        if self.window:
+            try:
+                self.window.evaluate_js(
+                    f"terminalSetStatus({json.dumps(f'Waiting for your input: {label}')})")
+            except Exception:
+                self.logger.debug("Could not mark the terminal as waiting", exc_info=True)
+        return self._notify(
+            f'{label}. Atlas is paused until you answer. Open Atlas to continue.',
+            title='Atlas needs your attention', urgency='critical', expire_time=0,
+            print_id=True)
+
+    def _clear_attention(self, notification_id):
+        if self.window:
+            try:
+                self.window.evaluate_js("terminalSetStatus('Response received — continuing…')")
+            except Exception:
+                self.logger.debug("Could not clear the terminal waiting state", exc_info=True)
+        if notification_id is not None:
+            try:
+                from atlas.view.util.util import close_notification
+                close_notification(notification_id)
+            except Exception:
+                self.logger.debug("Could not close attention notification", exc_info=True)
 
     # ------------------------------------------------------------------ #
     # Settings (focused, webview-native — see plans/2026-06-01-webview-settings.md)
@@ -3665,4 +3689,3 @@ class AtlasApi:
             if self.window:
                 self.window.evaluate_js("terminalSetDone(false)")
             return {'status': 'error', 'message': str(e)}
-

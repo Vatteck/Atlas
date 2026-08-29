@@ -834,6 +834,30 @@ class NotifyTest(unittest.TestCase):
         # must not propagate — a notification failure can't break an operation
         self.api._notify('x')
 
+    @patch('atlas.view.util.util.notify_user', return_value=73)
+    def test_attention_notification_is_critical_and_names_prompt(self, mock_notify):
+        self.manager.configman.get_config.return_value = {'system': {'notifications': True}}
+        self.api.window = Mock()
+
+        notification_id = self.api._notify_attention('Review PKGBUILD')
+
+        self.assertEqual(73, notification_id)
+        mock_notify.assert_called_once_with(
+            'Review PKGBUILD. Atlas is paused until you answer. Open Atlas to continue.',
+            title='Atlas needs your attention', urgency='critical', expire_time=0,
+            print_id=True)
+        waiting_js = self.api.window.evaluate_js.call_args.args[0]
+        self.assertIn('Waiting for your input: Review PKGBUILD', waiting_js)
+
+    @patch('atlas.view.util.util.close_notification')
+    def test_clear_attention_closes_notification_and_resumes_status(self, mock_close):
+        self.api.window = Mock()
+
+        self.api._clear_attention(73)
+
+        mock_close.assert_called_once_with(73)
+        self.assertIn('Response received', self.api.window.evaluate_js.call_args.args[0])
+
 
 class UpdateAllSourceSelectionTest(unittest.TestCase):
     """Update All can skip whole sources (e.g. AUR) and remembers the skip list."""
@@ -1194,6 +1218,7 @@ class AtlasApiRootPasswordTest(unittest.TestCase):
         self.logger = Mock()
         self.api = AtlasApi(self.manager, self.logger)
         self.api.window = Mock()  # evaluate_js -> Mock, harmless
+        self.manager.configman.get_config.return_value = {'system': {'notifications': False}}
 
     def test_no_root_needed_returns_none_without_prompt(self):
         from atlas.api.abstract.controller import SoftwareAction
@@ -1250,15 +1275,15 @@ class AtlasApiRootPasswordTest(unittest.TestCase):
         self.assertFalse(proceed)
         self.assertIsNone(pwd)
 
-    def test_password_timeout_dismisses_stale_modal(self):
-        with patch.object(self.api._pwd_event, 'wait', return_value=False):
+    def test_password_prompt_waits_without_a_deadline(self):
+        def submit():
+            self.api.submit_root_password('secret')
+
+        with patch.object(self.api._pwd_event, 'wait', side_effect=submit) as wait:
             pwd = self.api._prompt_root_password_once('Authenticate')
 
-        self.assertIsNone(pwd)
-        self.assertEqual(
-            ["showPasswordModal(\"Authenticate\")", "dismissPasswordModal()"],
-            [c.args[0] for c in self.api.window.evaluate_js.call_args_list],
-        )
+        self.assertEqual('secret', pwd)
+        wait.assert_called_once_with()
 
 
 class AtlasApiDialogTest(unittest.TestCase):
@@ -1267,6 +1292,7 @@ class AtlasApiDialogTest(unittest.TestCase):
         self.logger = Mock()
         self.api = AtlasApi(self.manager, self.logger)
         self.api.window = Mock()
+        self.manager.configman.get_config.return_value = {'system': {'notifications': False}}
 
     def _answer(self, fn):
         import threading, time
@@ -1304,16 +1330,16 @@ class AtlasApiDialogTest(unittest.TestCase):
         self.assertTrue(confirmed)
         self.assertEqual([[0, 2]], selections)
 
-    def test_confirmation_timeout_closes_modal_and_explains_cancellation(self):
-        with patch.object(self.api._confirm_event, 'wait', return_value=False):
+    def test_confirmation_waits_without_a_deadline(self):
+        def deny():
+            self.api.submit_confirmation(False)
+
+        with patch.object(self.api._confirm_event, 'wait', side_effect=deny) as wait:
             confirmed, selections = self.api.prompt_confirmation('Review PKGBUILD', 'Read it')
 
         self.assertFalse(confirmed)
         self.assertIsNone(selections)
-        timeout_js = self.api.window.evaluate_js.call_args_list[-1].args[0]
-        self.assertIn('dismissConfirmModal()', timeout_js)
-        self.assertIn('confirmation timed out', timeout_js)
-        self.assertIn('Review PKGBUILD', timeout_js)
+        wait.assert_called_once_with()
 
     def test_message_blocks_until_ack(self):
         self._answer(self.api.submit_message_ack)

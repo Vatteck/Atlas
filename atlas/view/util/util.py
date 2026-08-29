@@ -3,7 +3,7 @@ import shutil
 import subprocess
 import sys
 import traceback
-from typing import List
+from typing import List, Optional
 
 from colorama import Fore
 
@@ -14,10 +14,44 @@ from atlas.commons.system import run_cmd
 from atlas.view.util import resource
 
 
-def notify_user(msg: str, icon_path: str = None):
+def notify_user(msg: str, icon_path: str = None, title: str = None,
+                urgency: str = None, expire_time: int = None,
+                print_id: bool = False) -> Optional[int]:
+    """Send an Atlas desktop notification without passing user/package text through a shell."""
     icon_id = icon_path or get_default_icon_path()
+    cmd = ['notify-send', '--app-name', __app_name__,
+           '--hint', 'string:desktop-entry:atlas-pm']
+    if icon_id:
+        cmd.extend(['--icon', icon_id])
+    if urgency:
+        cmd.extend(['--urgency', urgency])
+    if expire_time is not None:
+        cmd.extend(['--expire-time', str(max(0, int(expire_time)))])
+    if print_id:
+        cmd.append('--print-id')
+    cmd.append(title or msg)
+    if title:
+        cmd.append(msg)
 
-    os.system("notify-send -a {} {} '{}'".format(__app_name__, "-i {}".format(icon_id) if icon_id else '', msg))
+    result = subprocess.run(cmd, check=False, text=True,
+                            stdout=subprocess.PIPE if print_id else subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL)
+    if print_id and result.returncode == 0:
+        try:
+            return int((result.stdout or '').strip())
+        except ValueError:
+            pass
+    return None
+
+
+def close_notification(notification_id: Optional[int]):
+    """Replace a persistent attention notification with a 1 ms transient, effectively closing it."""
+    if notification_id is None:
+        return
+    subprocess.run(['notify-send', '--app-name', __app_name__,
+                    '--replace-id', str(int(notification_id)), '--expire-time', '1',
+                    '--transient', 'Atlas'],
+                   check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def get_default_icon_path() -> str:

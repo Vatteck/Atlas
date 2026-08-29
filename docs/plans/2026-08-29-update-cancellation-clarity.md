@@ -42,3 +42,11 @@ discovery all complete successfully, and there is no pacman database lock.
 - Verification: 783 Python tests and 63 JavaScript contract tests pass.
 - Not yet exercised through a real password/review timeout in WebKitGTK; the modal callbacks and
   backend timeout branches are contract-tested without waiting five minutes.
+
+## Follow-up decision (2026-08-29)
+
+The five-minute deadline itself is superseded by
+[operation attention notifications](2026-08-29-operation-attention-notifications.md): blocking
+password/review/message prompts now wait for an explicit answer and send a critical desktop
+notification instead of automatically cancelling. The distinct cancellation-vs-failure result
+and messaging from this plan remain in use for explicit Cancel/No actions.
