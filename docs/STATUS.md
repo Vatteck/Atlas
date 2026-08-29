@@ -8,14 +8,15 @@
 > move it to [HISTORY.md](HISTORY.md) (the full shipped record) or delete it. If this file
 > passes ~200 lines, it has stopped doing its job — archive again.
 
-**Last updated:** 2026-08-16
+**Last updated:** 2026-08-29
 **Version:** 0.16.1 (released 2026-07-18, tag `v0.16.1`, release commit `c8b9c37`; CI
 auto-published to the AUR). Both AUR packages live: stable **`atlas-pm`** + bleeding-edge
 **`atlas-pm-git`**. Next: **0.16.2** (upgrade-pipeline safety, plan
 [2026-08-16-upgrade-pipeline-safety.md](plans/2026-08-16-upgrade-pipeline-safety.md), implemented, not yet released;
-GUI holds surface follow-up also implemented — [2026-08-16-gui-upgrade-holds.md](plans/2026-08-16-gui-upgrade-holds.md)).
+GUI holds surface follow-up also implemented — [2026-08-16-gui-upgrade-holds.md](plans/2026-08-16-gui-upgrade-holds.md);
+update cancellation clarity implemented — [2026-08-29-update-cancellation-clarity.md](plans/2026-08-29-update-cancellation-clarity.md)).
 **Branch:** `master` (= `origin/master`). Always run `git branch` rather than trusting this line.
-**Health:** 780 Python tests + 61 JS contract tests green; CI green across Python 3.10–3.14.
+**Health:** 783 Python tests + 63 JS contract tests green; CI green across Python 3.10–3.14.
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)**. Everything already shipped is in
 > **[HISTORY.md](HISTORY.md)** and **[CHANGELOG.md](../CHANGELOG.md)** — don't re-read those to
@@ -90,6 +91,18 @@ Measured and partly fixed; **do not restart the measurement work**, it is all in
 
 Full record in [HISTORY.md](HISTORY.md). Only the last few entries live here.
 
+- **Update input timeouts are explicit cancellations (2026-08-29).** Live-log diagnosis found
+  that the latest Update All never reached pacman: its root-password prompt received no response
+  for five minutes, then the front-end mislabeled the backend's `cancelled` result as a generic
+  "Bulk upgrade failed." The previous run likewise stopped on a timed-out Google Chrome PKGBUILD
+  review. Update All now authenticates before opening the operation terminal, reports cancellation
+  separately from failure, closes password/confirmation modals when their backend wait expires,
+  and writes confirmation-timeout context into the terminal failure summary. Fail-closed behavior
+  and package commands are unchanged. Read-only host checks (`checkupdates`, `paru -Qua`, Flatpak
+  discovery) all succeed and there is no pacman lock. Plan:
+  [2026-08-29-update-cancellation-clarity.md](plans/2026-08-29-update-cancellation-clarity.md).
+  Suite now **783 Python + 63 JS**; not yet live-GUI timed-out (contract-tested without a 5-minute
+  wait). The installed stable package is still 0.16.1, so this needs the 0.16.2 release to reach it.
 - **GUI settings surface for upgrade holds (2026-08-16).** Follow-up to the upgrade-pipeline
   safety work (its declared "UI follow-up later"): the Settings page now has an **Upgrade
   holds** section (Arch gem only) — held packages render as removable chips, an add box takes a
@@ -192,6 +205,10 @@ Full record in [HISTORY.md](HISTORY.md). Only the last few entries live here.
 
 Live traps only. Retired ones are in [HISTORY.md](HISTORY.md#retired-gotchas-resolved-or-obsolete--kept-so-they-arent-re-derived).
 
+- **The dev box still runs stable Atlas 0.16.1.** The 0.16.2 upgrade-safety, holds UI, and update
+  cancellation fixes are on `master` but not in `/usr/bin/atlas` until 0.16.2 is released (or the
+  `atlas-pm-git` package is installed). Do not mistake a retry in 0.16.1 for verification of these
+  fixes.
 - **WebKitGTK has no `window.prompt`/`confirm`/`alert`.** They return `null`/no-op. **All dialogs
   are HTML modals** that block a pywebview worker thread on a `threading.Event` and resolve via
   `js_api` callbacks (`submit_root_password`, `submit_confirmation`, `submit_message_ack`). Never
