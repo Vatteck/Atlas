@@ -1,44 +1,46 @@
 # .last-agent — integrity checkpoint for the next AI coding agent
 
-**Agent:** Codex — 2026-08-29 (update cancellation clarity)
+**Agent:** Codex — 2026-08-29 (cross-workspace operation attention)
 **Branch:** master
-**Last commit (base):** ca6e156 ("fix(updates): explain input timeout cancellations")
+**Last commit (base):** 59b8ceb ("fix(updates): notify when operations need input")
 
 ## Summary
 
-Diagnosed the user's repeated Update All failures from the persistent live log. The newest run
-(2026-08-29 10:16) did not reach pacman: `_prompt_root_password_once` received no response for its
-five-minute timeout, `update_all` returned `status: cancelled`, and main.js mislabeled that as
-"Bulk upgrade failed." The prior 2026-08-26 run similarly stopped when the Google Chrome AUR
-PKGBUILD review timed out after five minutes. Read-only `checkupdates`, `paru -Qua`, and Flatpak
-update discovery all succeed; `/var/lib/pacman/db.lck` is absent. This is input-dialog/cancellation
-reporting, not a broken package-manager backend.
+Followed up the live-log diagnosis in `ca6e156`: a long AUR Update All can pause for a later
+PKGBUILD review while Atlas is on another Hyprland workspace/monitor, and the old five-minute
+deadline turned a missed prompt into a fake failure. User explicitly called out the long gaps and
+the lack of any cross-workspace attention signal.
 
-Commit `ca6e156` implements the focused plan
-`docs/plans/2026-08-29-update-cancellation-clarity.md`:
+Commit `59b8ceb` implements
+`docs/plans/2026-08-29-operation-attention-notifications.md`:
 
-- Update All authenticates before opening the operation terminal, so the password dialog is the
-  only blocking surface and no operation UI claims the update started before auth.
-- Auth cancellation/timeout returns a clear message stating no updates were started; the front-end
-  renders it as an informational cancellation instead of a generic failure.
-- Password and confirmation backend timeouts call JS-only dismiss hooks, preventing stale modals
-  from accepting input after their waiting operation has aborted.
-- Confirmation timeouts append an explicit terminal-log reason, and the failure summarizer turns it
-  into an actionable "Waiting for approval timed out" explanation.
-- The front-end locks the operation immediately while pre-terminal authentication is pending, so a
-  second package action cannot overlap.
+- Password, confirmation/PKGBUILD-review, and blocking-message prompts now wait for an explicit
+  Authenticate/Cancel/Yes/No/OK answer instead of auto-cancelling after five minutes. They remain
+  fail-closed and the app's existing controls are the cancellation path.
+- Every blocking prompt sends a critical persistent desktop notification: "Atlas needs your
+  attention," the prompt name, and "Atlas is paused until you answer." The notification carries
+  the `atlas-pm` desktop-entry hint, respects the existing System notifications toggle, returns a
+  notification ID, and is closed when the user answers.
+- The operation terminal shows `Waiting for your input: <prompt>` and switches to
+  `Response received — continuing…` after the answer.
+- Atlas deliberately does not steal focus or move itself across workspaces.
+- `notify_user` now constructs a `subprocess.run` argument list instead of interpolating package or
+  prompt text into `os.system`, and notification-command contracts cover quoting/IDs/closure.
+- Settings now says System notifications cover operations that finish **or need attention**.
 
-**Verification:** 783 Python tests + 63 JS contract tests green. The existing PyGObject deprecation
+The earlier cancellation-vs-failure behavior remains: explicit auth cancellation says no updates
+started and is not rendered as a package failure. The old plan records that its deadline/dismiss
+portion was superseded by the attention-notification plan.
+
+**Verification:** 787 Python tests + 62 JS contract tests green. The existing PyGObject deprecation
 warning and four intentional missing-mock console errors in the JS contract run remain non-failing.
 
 ## Known gaps / next steps
 
-- The timeout branches are unit/contract-tested without waiting five minutes, but not yet exercised
-  through a real WebKitGTK password or PKGBUILD-review timeout.
-- The dev box's `/usr/bin/atlas` is stable `atlas-pm 0.16.1-1`; this fix, the upgrade-pipeline safety
-  work, and GUI holds exist on `master` for 0.16.2. A live retry in 0.16.1 does not test the fix.
-- Immediate 0.16.1 workaround: keep Atlas focused after confirming Update All and answer the root
-  password / AUR review dialogs before their five-minute timeout. The package-manager state itself
-  is healthy, but many updates remain pending.
+- Live-smoke the critical notification on Hyprland: start the `master` build, trigger a blocking
+  prompt, switch workspaces, verify the alert appears/click associates with Atlas, answer the modal,
+  and verify the persistent notification disappears. Unit tests mock the notification daemon.
+- `/usr/bin/atlas` remains stable `atlas-pm 0.16.1-1`; none of the 2026-08-29 fixes are present there
+  until 0.16.2 is released or `atlas-pm-git` is installed.
 - 0.16.2 still needs normal release preparation (README/CHANGELOG entry + smoke pass); do not cut or
   publish it without the maintainer choosing to release.
