@@ -1,0 +1,16 @@
+{
+  "comment": "Shared cases for the package-name normalization rule: lowercase, then strip [\\s._-]. Asserted by tests/gems/arch/test_naming.py (normalize_pkg_name) and tests/view/webview/main_js_contracts.test.js (normalizeName). Both must agree. Build-method suffix stripping is NOT part of this rule and must not appear here.",
+  "cases": [
+    {"input": "google-chrome", "expected": "googlechrome"},
+    {"input": "Google Chrome", "expected": "googlechrome"},
+    {"input": "google_chrome", "expected": "googlechrome"},
+    {"input": "GOOGLE.CHROME", "expected": "googlechrome"},
+    {"input": "  Google  Chrome  ", "expected": "googlechrome"},
+    {"input": "visual-studio-code-bin", "expected": "visualstudiocodebin"},
+    {"input": "brave-bin", "expected": "bravebin"},
+    {"input": "Sublime Text", "expected": "sublimetext"},
+    {"input": "sublime-text", "expected": "sublimetext"},
+    {"input": "vlc", "expected": "vlc"},
+    {"input": "", "expected": ""}
+  ]
+}
