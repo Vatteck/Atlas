@@ -86,8 +86,15 @@ A single function, the Python counterpart of `groupKey`'s separator handling:
 def normalize_pkg_name(name: str) -> str:
     """Lowercase and strip separators so package names and user queries compare on
     equal terms: 'Google Chrome', 'google-chrome' and 'google_chrome' all -> 'googlechrome'.
-    Must stay in sync with groupKey() in view/webview/main.js."""
+    Must stay in sync with normalizeName() in view/webview/main.js."""
 ```
+
+**This is *not* the whole of `groupKey`.** `groupKey` is two operations: `stripBuildSuffix`
+then separator/case normalization. Only the second is shared. `normalize_pkg_name('brave-bin')`
+must be `bravebin`, not `brave` — a search for `brave-bin` has to keep finding `brave-bin`.
+`main.js` therefore extracts its separator/case step as `normalizeName()`, leaving
+`groupKey(name) === normalizeName(stripBuildSuffix(name))`. The cross-language fixture
+(§4) covers `normalizeName` only.
 
 Rule: lowercase, then remove all of `[\s._-]`.
 
@@ -101,15 +108,28 @@ constants. Not `commons/` until a second gem needs it. Both consumers (`worker.p
 
 ### 2. AUR index lookup
 
-`_fill_aur_search_results` normalizes the query once, before the loop, and compares against
-the index key. Index keys are already separator-stripped but not lowercased — normalize the
-key on read too rather than assuming, so a future index-format change cannot silently
-reintroduce the asymmetry.
+The matching itself moves into `naming.py` as a pure function over `(query, index)`, leaving
+`_fill_aur_search_results` to call it. `controller.py` is 220 KB; this logic is testable
+without an `aur_client` mock once it is a free function.
+
+```python
+def match_index_names(query: str, index: dict, limit: int = 25) -> Set[str]:
+    """Real AUR package names whose normalized index key contains the normalized query."""
+```
+
+Index keys are already separator-stripped but not lowercased — normalize the key on read too
+rather than assuming, so a future index-format change cannot silently reintroduce the
+asymmetry. The existing 25-result cap is preserved.
 
 ### 3. Installed matching
 
-`__fill_search_installed_and_matched` drops the `' ' not in query` guard and matches
-normalized-to-normalized.
+Same treatment: a pure function in `naming.py`, with the `' ' not in query` guard dropped
+because normalized-to-normalized matching makes it unnecessary.
+
+```python
+def match_installed_names(query: str, installed: Iterable[str]) -> Set[str]:
+    """Installed package names whose normalized name contains the normalized query."""
+```
 
 ### 4. Keeping the two languages honest
 
