@@ -14,8 +14,7 @@ def is_installed() -> bool:
 def uninstall_and_stream(app_name: str, root_password: Optional[str]) -> SimpleProcess:
     return SimpleProcess(cmd=('snap', 'remove', app_name),
                          root_password=root_password,
-                         lang=None,
-                         shell=True)
+                         lang=None)
 
 
 def install_and_stream(app_name: str, confinement: str, root_password: Optional[str], channel: Optional[str] = None) -> SimpleProcess:
@@ -28,13 +27,12 @@ def install_and_stream(app_name: str, confinement: str, root_password: Optional[
     if channel:
         install_cmd.append(f'--channel={channel}')
 
-    return SimpleProcess(install_cmd, root_password=root_password, shell=True, lang=None)
+    return SimpleProcess(install_cmd, root_password=root_password, lang=None)
 
 
 def downgrade_and_stream(app_name: str, root_password: Optional[str]) -> SimpleProcess:
     return SimpleProcess(cmd=('snap', 'revert', app_name),
                          root_password=root_password,
-                         shell=True,
                          lang=None)
 
 
@@ -46,8 +44,7 @@ def refresh_and_stream(app_name: str, root_password: Optional[str], channel: Opt
 
     return SimpleProcess(cmd=cmd,
                          root_password=root_password,
-                         lang=None,
-                         shell=True)
+                         lang=None)
 
 
 def run(cmd: str):

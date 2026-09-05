@@ -1375,8 +1375,7 @@ class ArchManager(SoftwareManager, SettingsController):
         all_uninstalled, _ = handler.handle_simple(SimpleProcess(cmd=cmd,
                                                                  root_password=root_password,
                                                                  error_phrases={'error: failed to prepare transaction',
-                                                                                'error: failed to commit transaction'},
-                                                                 shell=True),
+                                                                                'error: failed to commit transaction'}),
                                                    output_handler=status_handler.handle)
         status_handler.stop_working()
         status_handler.join()
@@ -4154,7 +4153,7 @@ class ArchManager(SoftwareManager, SettingsController):
             except KeyError:
                 self.logger.warning(f"Package builder user '{self.pkgbuilder_user}' does not exist")
                 self.logger.info(f"Adding the package builder user '{self.pkgbuilder_user}'")
-                added, output = handler.handle_simple(SimpleProcess(cmd=['useradd', self.pkgbuilder_user], shell=True))
+                added, output = handler.handle_simple(SimpleProcess(cmd=['useradd', self.pkgbuilder_user]))
 
                 if not added:
                     output_log = "Command output: {}".format(output.replace('\n', ' ') if output else '(no output)')

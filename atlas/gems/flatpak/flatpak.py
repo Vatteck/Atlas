@@ -195,20 +195,19 @@ def update(app_ref: str, installation: str, version: Tuple[str, ...], related: b
     if not deps:
         cmd.append('--no-deps')
 
-    return SimpleProcess(cmd=cmd, extra_paths={EXPORTS_PATH}, shell=True,
+    return SimpleProcess(cmd=cmd, extra_paths={EXPORTS_PATH},
                          lang=DEFAULT_LANG if version < VERSION_1_12 else None)
 
 
 def full_update(version: VERSION_1_12) -> SimpleProcess:
-    return SimpleProcess(cmd=('flatpak', 'update', '-y'), extra_paths={EXPORTS_PATH}, shell=True,
+    return SimpleProcess(cmd=('flatpak', 'update', '-y'), extra_paths={EXPORTS_PATH},
                          lang=DEFAULT_LANG if version < VERSION_1_12 else None)
 
 
 def uninstall(app_ref: str, installation: str, version: Tuple[str, ...]) -> SimpleProcess:
     return SimpleProcess(cmd=('flatpak', 'uninstall', app_ref, '-y', f'--{installation}'),
                          extra_paths={EXPORTS_PATH},
-                         lang=DEFAULT_LANG if version < VERSION_1_12 else None,
-                         shell=True)
+                         lang=DEFAULT_LANG if version < VERSION_1_12 else None)
 
 
 def _new_updates() -> Dict[str, Set[str]]:
@@ -447,8 +446,7 @@ def install(app_id: str, origin: str, installation: str, version: Tuple[str, ...
     return SimpleProcess(cmd=('flatpak', 'install', origin, app_id, '-y', f'--{installation}'),
                          extra_paths={EXPORTS_PATH},
                          lang=DEFAULT_LANG if version < VERSION_1_12 else None,
-                         wrong_error_phrases={'Warning'} if version < VERSION_1_12 else None,
-                         shell=True)
+                         wrong_error_phrases={'Warning'} if version < VERSION_1_12 else None)
 
 
 def set_default_remotes(installation: str, root_password: Optional[str] = None) -> SimpleProcess:

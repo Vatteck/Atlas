@@ -855,15 +855,13 @@ def upgrade_several(pkgnames: Iterable[str], root_password: Optional[str], overw
 
     return SimpleProcess(cmd=cmd,
                          root_password=root_password,
-                         error_phrases={'error: failed to prepare transaction', 'error: failed to commit transaction', 'error: target not found'},
-                         shell=True)
+                         error_phrases={'error: failed to prepare transaction', 'error: failed to commit transaction', 'error: target not found'})
 
 
 def download(root_password: Optional[str], *pkgnames: str) -> SimpleProcess:
     return SimpleProcess(cmd=['pacman', '-Swdd', *pkgnames, '--noconfirm', '--noprogressbar'],
                          root_password=root_password,
-                         error_phrases={'error: failed to prepare transaction', 'error: failed to commit transaction', 'error: target not found'},
-                         shell=True)
+                         error_phrases={'error: failed to prepare transaction', 'error: failed to commit transaction', 'error: target not found'})
 
 
 def remove_several(pkgnames: Iterable[str], root_password: Optional[str], skip_checks: bool = False) -> SimpleProcess:
@@ -872,7 +870,7 @@ def remove_several(pkgnames: Iterable[str], root_password: Optional[str], skip_c
     if skip_checks:
         cmd.append('-dd')
 
-    return SimpleProcess(cmd=cmd, root_password=root_password, wrong_error_phrases={'warning:'}, shell=True)
+    return SimpleProcess(cmd=cmd, root_password=root_password, wrong_error_phrases={'warning:'})
 
 
 def _map_optional_dep(line: str, not_installed: bool) -> Optional[Tuple[str, Optional[str]]]:

@@ -51,7 +51,7 @@ def build(pkgdir: str, optimize: bool, handler: ProcessHandler, custom_pkgbuild:
         else:
             handler.watcher.print(f'Custom optimized makepkg.conf ({CUSTOM_MAKEPKG_FILE}) not found')
 
-    return handler.handle_simple(SimpleProcess(cmd, cwd=pkgdir, shell=True, custom_user=custom_user))
+    return handler.handle_simple(SimpleProcess(cmd, cwd=pkgdir, custom_user=custom_user))
 
 
 def check(project_dir: str, optimize: bool, missing_deps: bool, handler: ProcessHandler,
@@ -74,7 +74,7 @@ def check(project_dir: str, optimize: bool, missing_deps: bool, handler: Process
         else:
             handler.watcher.print(f'Custom optimized makepkg.conf ({CUSTOM_MAKEPKG_FILE}) not found')
 
-    success, output = handler.handle_simple(SimpleProcess(cmd, cwd=project_dir, shell=True, custom_user=custom_user))
+    success, output = handler.handle_simple(SimpleProcess(cmd, cwd=project_dir, custom_user=custom_user))
 
     if missing_deps and 'Missing dependencies' in output:
         res['missing_deps'] = RE_DEPS_PATTERN.findall(output)

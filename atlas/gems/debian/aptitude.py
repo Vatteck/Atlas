@@ -130,11 +130,11 @@ class Aptitude:
 
     def upgrade(self, packages: Iterable[str], root_password: Optional[str]) -> SimpleProcess:
         cmd = self.gen_transaction_cmd('upgrade', packages).split(' ')
-        return SimpleProcess(cmd=cmd, shell=True, root_password=root_password, extra_env=self.vars_fixes,
+        return SimpleProcess(cmd=cmd, root_password=root_password, extra_env=self.vars_fixes,
                              preserve_env=self._preserve_env)
 
     def update(self, root_password: Optional[str]) -> SimpleProcess:
-        return SimpleProcess(('aptitude', 'update'), root_password=root_password, shell=True)
+        return SimpleProcess(('aptitude', 'update'), root_password=root_password)
 
     def simulate_installation(self, packages: Iterable[str]) -> Optional[DebianTransaction]:
         code, output = system.execute(self.gen_transaction_cmd('install', packages, simulate=True),
@@ -202,7 +202,7 @@ class Aptitude:
         yield from self.search(query=query, fill_size=fill_size)
 
     def remove(self, packages: Iterable[str], root_password: Optional[str], purge: bool = False) -> SimpleProcess:
-        return SimpleProcess(cmd=self.gen_remove_cmd(packages, purge).split(' '), shell=True,
+        return SimpleProcess(cmd=self.gen_remove_cmd(packages, purge).split(' '),
                              root_password=root_password, extra_env=self.vars_fixes, preserve_env=self._preserve_env)
 
     def read_installed_names(self) -> Generator[str, None, None]:
