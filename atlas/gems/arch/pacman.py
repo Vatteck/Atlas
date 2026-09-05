@@ -510,7 +510,10 @@ def get_build_date(pkgname: str) -> str:
 
 
 def search(words: str) -> Dict[str, dict]:
-    output = run_cmd('pacman -Ss ' + words, print_error=False)
+    # the query comes from the user's search box, so it is passed as argv elements (never a
+    # shell command line): pacman treats each whitespace-separated term as its own regex,
+    # which is what the shell's word-splitting used to produce.
+    output = run_cmd(['pacman', '-Ss', *words.split()], print_error=False)
 
     found = {}
     if output:

@@ -1,4 +1,5 @@
 import os
+import tempfile
 import warnings
 from unittest import TestCase
 from unittest.mock import patch, Mock
@@ -410,3 +411,45 @@ class MapDesktopFilesTest(TestCase):
             b'ok /usr/share/applications/ok.desktop\n',
         ])
         self.assertEqual({'ok': ['/usr/share/applications/ok.desktop']}, pacman.map_desktop_files('ok', 'bad'))
+
+
+class PacmanSearchTest(TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        warnings.filterwarnings('ignore', category=DeprecationWarning)
+
+    @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value='')
+    def test_search__query_is_passed_as_an_argument_list(self, run_cmd: Mock):
+        pacman.search('firefox')
+
+        run_cmd.assert_called_once_with(['pacman', '-Ss', 'firefox'], print_error=False)
+
+    @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value='')
+    def test_search__multi_word_query_becomes_one_argument_per_term(self, run_cmd: Mock):
+        pacman.search('firefox esr')
+
+        run_cmd.assert_called_once_with(['pacman', '-Ss', 'firefox', 'esr'], print_error=False)
+
+    @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value='')
+    def test_search__shell_metacharacters_stay_inside_a_single_argument(self, run_cmd: Mock):
+        pacman.search('firefox;touch /tmp/pwned')
+
+        run_cmd.assert_called_once_with(['pacman', '-Ss', 'firefox;touch', '/tmp/pwned'],
+                                        print_error=False)
+
+    def test_search__injected_command_in_the_query_is_never_executed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            canary = os.path.join(tmp, 'pwned')
+            pacman.search(f'atlas-no-such-package; touch {canary}')
+
+            self.assertFalse(os.path.exists(canary))
+
+    @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value="""core/firefox 1.0-1
+    A web browser
+""")
+    def test_search__parses_repository_name_and_version(self, run_cmd: Mock):
+        found = pacman.search('firefox')
+
+        self.assertEqual({'firefox': {'repository': 'core', 'version': '1.0-1',
+                                      'description': 'A web browser'}}, found)

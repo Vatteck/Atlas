@@ -5,7 +5,7 @@ import sys
 import time
 from io import StringIO
 from subprocess import PIPE
-from typing import List, Tuple, Set, Dict, Optional, Iterable, Union, IO, Any
+from typing import List, Tuple, Set, Dict, Optional, Iterable, Sequence, Union, IO, Any
 
 # default environment variables for subprocesses.
 from atlas.api.abstract.handler import ProcessWatcher
@@ -248,15 +248,22 @@ class ProcessHandler:
         return success, string_output
 
 
-def run_cmd(cmd: str, expected_code: int = 0, ignore_return_code: bool = False, print_error: bool = True,
-            cwd: str = '.', global_interpreter: bool = USE_GLOBAL_INTERPRETER, extra_paths: Set[str] = None,
-            custom_user: Optional[str] = None, lang: Optional[str] = DEFAULT_LANG) -> Optional[str]:
+def run_cmd(cmd: Union[str, Sequence[str]], expected_code: int = 0, ignore_return_code: bool = False,
+            print_error: bool = True, cwd: str = '.', global_interpreter: bool = USE_GLOBAL_INTERPRETER,
+            extra_paths: Set[str] = None, custom_user: Optional[str] = None,
+            lang: Optional[str] = DEFAULT_LANG) -> Optional[str]:
     """
     runs a given command and returns its default output
+
+    :param cmd: either a command line (run through a shell) or an argument list (run without a
+    shell). Prefer the argument list whenever any part of the command comes from user input:
+    its elements reach the process verbatim and can never be parsed as shell syntax.
     :return:
     """
+    shell = isinstance(cmd, str)
+
     args = {
-        "shell": True,
+        "shell": shell,
         "stdout": PIPE,
         "env": gen_env(global_interpreter=global_interpreter, lang=lang, extra_paths=extra_paths),
         'cwd': cwd
@@ -265,7 +272,11 @@ def run_cmd(cmd: str, expected_code: int = 0, ignore_return_code: bool = False, 
     if not print_error:
         args["stderr"] = subprocess.DEVNULL
 
-    final_cmd = f"runuser -u {custom_user} -- {cmd}" if custom_user else cmd
+    if custom_user:
+        final_cmd = f"runuser -u {custom_user} -- {cmd}" if shell else ['runuser', '-u', custom_user, '--', *cmd]
+    else:
+        final_cmd = cmd
+
     res = subprocess.run(final_cmd, **args)
 
     if ignore_return_code or res.returncode == expected_code:

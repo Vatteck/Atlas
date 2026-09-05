@@ -8,7 +8,7 @@
 > move it to [HISTORY.md](HISTORY.md) (the full shipped record) or delete it. If this file
 > passes ~200 lines, it has stopped doing its job — archive again.
 
-**Last updated:** 2026-08-29
+**Last updated:** 2026-09-05
 **Version:** 0.16.1 (released 2026-07-18, tag `v0.16.1`, release commit `c8b9c37`; CI
 auto-published to the AUR). Both AUR packages live: stable **`atlas-pm`** + bleeding-edge
 **`atlas-pm-git`**. Next: **0.16.2** (upgrade-pipeline safety, plan
@@ -18,7 +18,7 @@ update cancellation clarity + cross-workspace attention notifications implemente
 [2026-08-29-update-cancellation-clarity.md](plans/2026-08-29-update-cancellation-clarity.md),
 [2026-08-29-operation-attention-notifications.md](plans/2026-08-29-operation-attention-notifications.md)).
 **Branch:** `master` (= `origin/master`). Always run `git branch` rather than trusting this line.
-**Health:** 787 Python tests + 62 JS contract tests green; CI green across Python 3.10–3.14.
+**Health:** 796 Python tests + 62 JS contract tests green; CI green across Python 3.10–3.14.
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)**. Everything already shipped is in
 > **[HISTORY.md](HISTORY.md)** and **[CHANGELOG.md](../CHANGELOG.md)** — don't re-read those to
@@ -92,6 +92,22 @@ Measured and partly fixed; **do not restart the measurement work**, it is all in
 ## Done (recent)
 
 Full record in [HISTORY.md](HISTORY.md). Only the last few entries live here.
+
+- **The search box no longer reaches a shell (2026-09-05).** `pacman.search()` built a command
+  line by concatenation (`'pacman -Ss ' + words`) and `run_cmd` ran it with `shell=True`, so the
+  GUI search query was parsed by `/bin/sh`. The upstream `sanitize_command_input` is a **denylist**
+  and does not cover `;` or backticks — verified on the tree: searching
+  `firefox; touch /tmp/pwned` **created the file**. Real command execution as the desktop user,
+  reachable from the Search field, on a gem that is on by default.
+  `run_cmd` now accepts an argument list as well as a string (`Union[str, Sequence[str]]`; a
+  sequence sets `shell=False`, and `custom_user` builds `['runuser', '-u', u, '--', *cmd]`), and
+  `search()` passes `['pacman', '-Ss', *words.split()]`. Splitting is semantics-preserving —
+  verified against real pacman, `-Ss firefox esr` ANDs the two regexes exactly as the shell's
+  word-splitting used to. `sanitize_command_input` **stays** as defence in depth (it still strips
+  `-flags`, which argv execution would otherwise pass to pacman as options). 9 new tests, incl. a
+  canary that fails if an injected command ever runs again. Plan:
+  [2026-09-05-search-argv-execution.md](plans/2026-09-05-search-argv-execution.md). Suite now
+  **796 Python + 62 JS**. No GUI eyeball needed — search results are unchanged by construction.
 
 - **Long updates now announce and wait for required input (2026-08-29).** Live-log diagnosis found
   that the latest Update All never reached pacman: its root-password prompt received no response
@@ -208,6 +224,16 @@ Full record in [HISTORY.md](HISTORY.md). Only the last few entries live here.
 
 Live traps only. Retired ones are in [HISTORY.md](HISTORY.md#retired-gotchas-resolved-or-obsolete--kept-so-they-arent-re-derived).
 
+- **`flatpak.search` still interpolates the query into a shell command.**
+  `atlas/gems/flatpak/flatpak.py:366` does `run_cmd(f'flatpak search {word} --{installation}')`
+  with the *same* GUI query that the 2026-09-05 fix removed from the pacman path — same severity,
+  and Flatpak is a first-class source that is on by default. Left unfixed only because it was
+  outside that change's scope. **Convert it next**: `run_cmd` already takes an argument list, so
+  it is a one-line change plus tests. The same pattern (smaller surface — the values come from
+  pacman/AUR output rather than the search box) remains in most of `pacman.py`'s `run_cmd`
+  callers, and `view/webview/api.py` hand-quotes with `shlex.quote` at 545/1489/2245. Prefer the
+  sequence form of `run_cmd` over quoting in anything new. Audit in
+  [plans/2026-09-05-search-argv-execution.md](plans/2026-09-05-search-argv-execution.md).
 - **The dev box still runs stable Atlas 0.16.1.** The 0.16.2 upgrade-safety, holds UI, and update
   cancellation/attention fixes are on `master` but not in `/usr/bin/atlas` until 0.16.2 is released
   (or the `atlas-pm-git` package is installed). Do not mistake a retry in 0.16.1 for verification of
