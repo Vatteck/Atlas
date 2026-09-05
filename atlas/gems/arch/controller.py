@@ -39,7 +39,7 @@ from atlas.gems.arch import aur, pacman, message, confirmation, disk, git, \
     gpg, URL_CATEGORIES_FILE, CATEGORIES_FILE_PATH, CUSTOM_MAKEPKG_FILE, \
     get_icon_path, database, mirrors, sorting, cpu_manager, UPDATES_IGNORED_FILE, \
     ARCH_CONFIG_DIR, EDITABLE_PKGBUILDS_FILE, URL_GPG_SERVERS, rebuild_detector, makepkg, sshell, get_repo_icon_path, \
-    pkgbuild_audit, chroot
+    pkgbuild_audit, chroot, naming
 from atlas.gems.arch.aur import AURClient
 from atlas.gems.arch.config import get_build_dir, ArchConfigManager
 from atlas.gems.arch.confirmation import confirm_missing_deps
@@ -338,14 +338,7 @@ class ArchManager(SoftwareManager, SettingsController):
             aur_index = self.aur_client.read_local_index()
             if aur_index:
                 self.logger.info("Querying through the local AUR index")
-                to_query = set()
-                for norm_name, real_name in aur_index.items():
-                    if query in norm_name:
-                        to_query.add(real_name)
-
-                    if len(to_query) == 25:
-                        break
-
+                to_query = naming.match_index_names(query, aur_index)
                 pkgs_found = self.aur_client.get_info(to_query)
 
             tif = time.time()
@@ -364,8 +357,10 @@ class ArchManager(SoftwareManager, SettingsController):
         res['installed'] = installed
         res['installed_matches'] = matches
 
-        if installed and ' ' not in query:  # already filling some matches only based on the query
-            matches.update((name for name in installed if query in name))
+        # Both sides normalized, so a multi-word query ('google chrome') matches a
+        # hyphenated package name ('google-chrome'). The old raw-substring match could
+        # not, which is why this used to be skipped whenever the query held a space.
+        matches.update(naming.match_installed_names(query, installed))
 
     def search(self, words: str, disk_loader: DiskCacheLoader, limit: int = -1, is_url: bool = False) -> SearchResult:
         if is_url:
