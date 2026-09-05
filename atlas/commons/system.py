@@ -367,7 +367,7 @@ def run(cmd: List[str], success_code: int = 0, custom_user: Optional[str] = None
 
 
 def check_active_services(*names: str) -> Dict[str, bool]:
-    output = run_cmd('systemctl is-active {}'.format(' '.join(names)), print_error=False)
+    output = run_cmd(['systemctl', 'is-active', *names], print_error=False)
 
     if not output:
         return {n: False for n in names}
@@ -377,7 +377,7 @@ def check_active_services(*names: str) -> Dict[str, bool]:
 
 
 def check_enabled_services(*names: str) -> Dict[str, bool]:
-    output = run_cmd('systemctl is-enabled {}'.format(' '.join(names)), print_error=False)
+    output = run_cmd(['systemctl', 'is-enabled', *names], print_error=False)
 
     if not output:
         return {n: False for n in names}

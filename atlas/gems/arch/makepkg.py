@@ -12,12 +12,16 @@ RE_DEPS_PATTERN = re.compile(r'\n?\s+->\s(.+)\n')
 
 
 def gen_srcinfo(build_dir: str, custom_pkgbuild_path: Optional[str] = None, custom_user: Optional[str] = None) -> str:
-    cmd = f"makepkg --printsrcinfo{' -p {}'.format(custom_pkgbuild_path) if custom_pkgbuild_path else ''}"
+    cmd = ['makepkg', '--printsrcinfo']
+
+    if custom_pkgbuild_path:
+        cmd.extend(('-p', custom_pkgbuild_path))
+
     return system.run_cmd(cmd, cwd=build_dir, custom_user=custom_user)
 
 
 def update_srcinfo(project_dir: str, custom_user: Optional[str] = None) -> bool:
-    updated_src = system.run_cmd('makepkg --printsrcinfo', cwd=project_dir, custom_user=custom_user)
+    updated_src = system.run_cmd(['makepkg', '--printsrcinfo'], cwd=project_dir, custom_user=custom_user)
 
     if updated_src:
         return write_as_user(content=updated_src, file_path=f"{project_dir}/.SRCINFO", user=custom_user)
@@ -27,7 +31,11 @@ def update_srcinfo(project_dir: str, custom_user: Optional[str] = None) -> bool:
 
 def list_output_files(project_dir: str, custom_pkgbuild_path: Optional[str] = None,
                       custom_user: Optional[str] = None) -> Set[str]:
-    cmd = f"makepkg --packagelist{' -p {}'.format(custom_pkgbuild_path) if custom_pkgbuild_path else ''}"
+    cmd = ['makepkg', '--packagelist']
+
+    if custom_pkgbuild_path:
+        cmd.extend(('-p', custom_pkgbuild_path))
+
     output = system.run_cmd(cmd=cmd, print_error=False, cwd=project_dir, custom_user=custom_user)
 
     if output:

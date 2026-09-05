@@ -1860,7 +1860,7 @@ class ArchManager(SoftwareManager, SettingsController):
         try:
             Path(temp_dir).mkdir(parents=True)
             base_name = pkg.get_base_name()
-            run_cmd('git clone ' + URL_GIT.format(base_name), print_error=False, cwd=temp_dir)
+            run_cmd(['git', 'clone', URL_GIT.format(base_name)], print_error=False, cwd=temp_dir)
 
             clone_dir = f'{temp_dir}/{base_name}'
 
@@ -1896,7 +1896,7 @@ class ArchManager(SoftwareManager, SettingsController):
                                     '3_date': datetime.fromtimestamp(timestamp)})  # the number prefix is to ensure the rendering order
 
                     if idx + 1 < len(logs):
-                        if not run_cmd('git reset --hard ' + logs[idx + 1][0], cwd=clone_dir):
+                        if not run_cmd(['git', 'reset', '--hard', logs[idx + 1][0]], cwd=clone_dir):
                             break
 
                 return PackageHistory(pkg=pkg, history=history, pkg_status_idx=status_idx)
@@ -1960,7 +1960,8 @@ class ArchManager(SoftwareManager, SettingsController):
 
                     try:
                         filext = version_file.split('.')[-1]
-                        run_cmd('tar -C {} -I {} -xvf {} .PKGINFO'.format(extracted_dir, 'zstd' if filext == 'zst' else filext, version_file))
+                        run_cmd(['tar', '-C', extracted_dir, '-I', 'zstd' if filext == 'zst' else filext,
+                                 '-xvf', version_file, '.PKGINFO'])
                     except tarfile.ReadError:
                         if v == pkg.version:
                             cur_data['3_date'] = pacman.get_build_date(pkg.name)

@@ -91,14 +91,14 @@ class AurMetaTest(unittest.TestCase):
         data = self.api.get_aur_meta('antigravity')['data']
         self.assertEqual('2.0.11-1', data['latest_version'])
         self.assertTrue(data['update_available'])
-        mock_run.assert_called_once_with('vercmp 2.0.6-1 2.0.11-1', print_error=False)
+        mock_run.assert_called_once_with(['vercmp', '2.0.6-1', '2.0.11-1'], print_error=False)
 
     @patch('atlas.view.webview.api.run_cmd')
     def test_no_update_when_versions_equal(self, mock_run):
         mock_run.return_value = "0\n"
         self._setup(installed=True, version='2.0.11-1', latest='2.0.11-1')
         self.assertFalse(self.api.get_aur_meta('antigravity')['data']['update_available'])
-        mock_run.assert_called_once_with('vercmp 2.0.11-1 2.0.11-1', print_error=False)
+        mock_run.assert_called_once_with(['vercmp', '2.0.11-1', '2.0.11-1'], print_error=False)
 
     @patch('atlas.view.webview.api.run_cmd')
     def test_no_update_for_non_installed(self, mock_run):

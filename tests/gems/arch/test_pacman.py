@@ -40,7 +40,7 @@ Required By     : None
             """)
     def test_map_optional_deps__no_remote_and_not_installed__only_one_installed_with_description(self, run_cmd: Mock):
         res = pacman.map_optional_deps(('package-test',), remote=False, not_installed=True)
-        run_cmd.assert_called_once_with('pacman -Qi package-test')
+        run_cmd.assert_called_once_with(['pacman', '-Qi', 'package-test'])
         self.assertEqual({'package-test': {}}, res)
 
     @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value="""
@@ -53,7 +53,7 @@ Required By     : None
         """)
     def test_map_optional_deps__no_remote_and_not_installed__only_one_not_installed_with_description(self, run_cmd: Mock):
         res = pacman.map_optional_deps(('package-test',), remote=False, not_installed=True)
-        run_cmd.assert_called_once_with('pacman -Qi package-test')
+        run_cmd.assert_called_once_with(['pacman', '-Qi', 'package-test'])
         self.assertEqual({'package-test': {'lib32-vulkan-icd-loader': 'Vulkan support'}}, res)
 
     @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value="""
@@ -66,7 +66,7 @@ Required By     : None
             """)
     def test_map_optional_deps__no_remote_and_not_installed__only_one_not_installed_no_description(self, run_cmd: Mock):
         res = pacman.map_optional_deps(('package-test',), remote=False, not_installed=True)
-        run_cmd.assert_called_once_with('pacman -Qi package-test')
+        run_cmd.assert_called_once_with(['pacman', '-Qi', 'package-test'])
         self.assertEqual({'package-test': {'pipewire-alsa': ''}}, res)
 
     @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value="""
@@ -79,7 +79,7 @@ Required By     : None
                 """)
     def test_map_optional_deps__no_remote_and_not_installed__only_one_installed_no_description(self, run_cmd: Mock):
         res = pacman.map_optional_deps(('package-test',), remote=False, not_installed=True)
-        run_cmd.assert_called_once_with('pacman -Qi package-test')
+        run_cmd.assert_called_once_with(['pacman', '-Qi', 'package-test'])
         self.assertEqual({'package-test': {}}, res)
 
     @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value="""
@@ -95,7 +95,7 @@ Required By     : None
     """)
     def test_map_optional_deps__no_remote_and_not_installed__several(self, run_cmd: Mock):
         res = pacman.map_optional_deps(('package-test',), remote=False, not_installed=True)
-        run_cmd.assert_called_once_with('pacman -Qi package-test')
+        run_cmd.assert_called_once_with(['pacman', '-Qi', 'package-test'])
         self.assertEqual({'package-test': {'pipewire-alsa': '', 'pipewire': ''}}, res)
 
     # `pacman -Si <names>` prints one block per matching package. A package present in
@@ -294,7 +294,7 @@ class PacmanCacheTest(TestCase):
         # First call, should call run_cmd
         res1 = pacman.list_installed_names()
         self.assertEqual({"pkg1", "pkg2"}, res1)
-        run_cmd.assert_called_once_with('pacman -Qq', print_error=False)
+        run_cmd.assert_called_once_with(['pacman', '-Qq'], print_error=False)
 
         # Second call, should return cached value and not call run_cmd again
         run_cmd.reset_mock()
@@ -307,7 +307,7 @@ class PacmanCacheTest(TestCase):
         run_cmd.reset_mock()
         res3 = pacman.list_installed_names()
         self.assertEqual({"pkg1", "pkg2"}, res3)
-        run_cmd.assert_called_once_with('pacman -Qq', print_error=False)
+        run_cmd.assert_called_once_with(['pacman', '-Qq'], print_error=False)
 
     @patch(f'{__app_name__}.gems.arch.pacman.run_cmd')
     def test_list_explicit_names_caching(self, run_cmd: Mock):
@@ -315,7 +315,7 @@ class PacmanCacheTest(TestCase):
 
         res1 = pacman.list_explicit_names()
         self.assertEqual({"pkg1"}, res1)
-        run_cmd.assert_called_once_with('pacman -Qeq', print_error=False)
+        run_cmd.assert_called_once_with(['pacman', '-Qeq'], print_error=False)
 
         run_cmd.reset_mock()
         res2 = pacman.list_explicit_names()
@@ -332,7 +332,7 @@ Provides        : prov1  prov2
         # Full query, should query and cache (local)
         res1 = pacman.map_provided(remote=False, pkgs=None)
         self.assertIn("pkg1", res1)
-        run_cmd.assert_called_once_with('pacman -Qi')
+        run_cmd.assert_called_once_with(['pacman', '-Qi'])
 
         # Second full query, should hit cache
         run_cmd.reset_mock()
@@ -347,7 +347,7 @@ Version         : 2.0
 Provides        : None
 """
         res_specific = pacman.map_provided(remote=False, pkgs=["pkg2"])
-        run_cmd.assert_called_once_with('pacman -Qi pkg2')
+        run_cmd.assert_called_once_with(['pacman', '-Qi', 'pkg2'])
         self.assertIn("pkg2", res_specific)
 
         # Next full query should still hit cache and return original

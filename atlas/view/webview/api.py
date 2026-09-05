@@ -448,7 +448,7 @@ class AtlasApi:
             return self._icon_theme_name
         theme = None
         try:
-            out = run_cmd('gsettings get org.gnome.desktop.interface icon-theme',
+            out = run_cmd(['gsettings', 'get', 'org.gnome.desktop.interface', 'icon-theme'],
                           ignore_return_code=True, print_error=False)
             if out:
                 theme = out.strip().strip("'\"") or None
@@ -539,10 +539,9 @@ class AtlasApi:
     def _resolve_installed_icon(self, pkgname: str) -> str:
         """Find an installed package's icon (via its .desktop `Icon=`, then by package name) and
         return it as a base64 data URI, or '' if none found."""
-        import shlex
         names = []
         try:
-            out = run_cmd(f'pacman -Ql {shlex.quote(pkgname)}', ignore_return_code=True, print_error=False) or ''
+            out = run_cmd(['pacman', '-Ql', pkgname], ignore_return_code=True, print_error=False) or ''
             for line in out.splitlines():
                 line = line.strip()
                 if line.endswith('.desktop') and '/applications/' in line:
@@ -1239,7 +1238,7 @@ class AtlasApi:
                 return {'status': 'ok', 'removed': False}
             # The lock is legitimate while pacman is actually running — never remove it then.
             try:
-                running = run_cmd('pgrep -x pacman', print_error=False)
+                running = run_cmd(['pgrep', '-x', 'pacman'], print_error=False)
             except Exception:
                 running = None
             if running and running.strip():
@@ -1464,7 +1463,8 @@ class AtlasApi:
         """Find .pacnew/.pacsave config files left by pacman that need manual review.
         Lists by filename only (no content reads, no root). Read-only."""
         try:
-            out = run_cmd(r"find /etc /boot -type f \( -name '*.pacnew' -o -name '*.pacsave' \)",
+            out = run_cmd(['find', '/etc', '/boot', '-type', 'f',
+                          '(', '-name', '*.pacnew', '-o', '-name', '*.pacsave', ')'],
                           ignore_return_code=True, print_error=False)
             files = sorted(line.strip() for line in (out or '').split('\n') if line.strip())
             return {'status': 'ok', 'data': {'files': files, 'count': len(files)}}
@@ -1485,8 +1485,7 @@ class AtlasApi:
                 return {'status': 'ok', 'data': {'diff': '', 'truncated': False, 'readable': False}}
             if not os.access(base, os.R_OK) or not os.access(path, os.R_OK):
                 return {'status': 'ok', 'data': {'diff': '', 'truncated': False, 'readable': False}}
-            import shlex
-            out = run_cmd(f'diff -u {shlex.quote(base)} {shlex.quote(path)}',
+            out = run_cmd(['diff', '-u', base, path],
                           ignore_return_code=True, print_error=False) or ''
             lines = out.splitlines()
             truncated = len(lines) > 400
@@ -2242,7 +2241,7 @@ class AtlasApi:
             installed_v = getattr(pkg, 'version', None)
             if getattr(pkg, 'installed', False) and installed_v and latest:
                 try:
-                    out = run_cmd(f'vercmp {shlex.quote(installed_v)} {shlex.quote(latest)}', print_error=False)
+                    out = run_cmd(['vercmp', installed_v, latest], print_error=False)
                     update_available = out is not None and int(out.strip()) < 0
                 except (ValueError, AttributeError):
                     update_available = False

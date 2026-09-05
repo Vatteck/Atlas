@@ -77,7 +77,7 @@ def get_repositories(pkgs: Iterable[str]) -> dict:
 
 
 def get_info(pkg_name, remote: bool = False) -> str:
-    return run_cmd('pacman -{}i {}'.format('Q' if not remote else 'S', pkg_name), print_error=False)
+    return run_cmd(['pacman', f"-{'Q' if not remote else 'S'}i", pkg_name], print_error=False)
 
 
 def get_install_reason(pkg_name: str) -> Optional[str]:
@@ -128,7 +128,7 @@ def get_info_dict(pkg_name: str, remote: bool = False) -> Optional[dict]:
 
 
 def check_installed(pkg: str) -> bool:
-    res = run_cmd('pacman -Qq ' + pkg, print_error=False)
+    res = run_cmd(['pacman', '-Qq', pkg], print_error=False)
     return bool(res)
 
 
@@ -240,7 +240,7 @@ def map_desktop_files(*pkgnames) -> Dict[str, List[str]]:
 
 
 def list_installed_files(pkgname: str) -> List[str]:
-    installed_files = run_cmd('pacman -Qlq {}'.format(pkgname), print_error=False)
+    installed_files = run_cmd(['pacman', '-Qlq', pkgname], print_error=False)
 
     paths = []
 
@@ -348,7 +348,7 @@ def guess_repository(name: str) -> Tuple[str, str]:
         raise Exception("'name' cannot be None or blank")
 
     only_name = RE_DEP_OPERATORS.split(name)[0]
-    res = run_cmd('pacman -Ss {}'.format(only_name))
+    res = run_cmd(['pacman', '-Ss', only_name])
 
     if res:
         lines = res.split('\n')
@@ -431,14 +431,14 @@ def sync_databases(root_password: Optional[str], force: bool = False) -> SimpleP
 
 
 def get_version_for_not_installed(pkgname: str) -> str:
-    output = run_cmd('pacman -Ss {}'.format(pkgname), print_error=False)
+    output = run_cmd(['pacman', '-Ss', pkgname], print_error=False)
 
     if output:
         return output.split('\n')[0].split(' ')[1].strip()
 
 
 def map_repositories(pkgnames: Iterable[str] = None) -> Dict[str, str]:
-    info = run_cmd(f"pacman -Si {' '.join(pkgnames) if pkgnames else ''}", print_error=False, ignore_return_code=True)
+    info = run_cmd(['pacman', '-Si', *(pkgnames or ())], print_error=False, ignore_return_code=True)
     if info:
         repos = re.findall(r'(Name|Repository)\s*:\s*(.+)', info)
 
@@ -495,11 +495,11 @@ def list_repository_updates() -> Dict[str, str]:
     fresh = _checkupdates_updates()
     if fresh is not None:
         return fresh
-    return parse_repository_updates(run_cmd('pacman -Qu'))
+    return parse_repository_updates(run_cmd(['pacman', '-Qu']))
 
 
 def get_build_date(pkgname: str) -> str:
-    output = run_cmd('pacman -Qi {}'.format(pkgname))
+    output = run_cmd(['pacman', '-Qi', pkgname])
 
     if output:
         bdate_line = [l for l in output.split('\n') if l.startswith('Build Date')]
@@ -567,14 +567,14 @@ def sort_fastest_mirrors(root_password: Optional[str], limit: int) -> SimpleProc
 
 
 def list_mirror_countries() -> List[str]:
-    output = run_cmd('pacman-mirrors -l')
+    output = run_cmd(['pacman-mirrors', '-l'])
 
     if output:
         return [c for c in output.split('\n') if c]
 
 
 def get_current_mirror_countries() -> List[str]:
-    output = run_cmd('pacman-mirrors -lc').strip()
+    output = run_cmd(['pacman-mirrors', '-lc']).strip()
     return ['all'] if not output else [c for c in output.split('\n') if c]
 
 
@@ -606,17 +606,17 @@ def _map_pkg_sizes(output: str, size_re: Pattern) -> Dict[str, float]:  # bytes
 
 
 def map_update_sizes(pkgs: List[str]) -> Dict[str, float]:  # bytes:
-    output = run_cmd('pacman -Si {}'.format(' '.join(pkgs)))
+    output = run_cmd(['pacman', '-Si', *pkgs])
     return _map_pkg_sizes(output, RE_INSTALLED_SIZE) if output else {}
 
 
 def map_download_sizes(pkgs: List[str]) -> Dict[str, float]:  # bytes:
-    output = run_cmd('pacman -Si {}'.format(' '.join(pkgs)))
+    output = run_cmd(['pacman', '-Si', *pkgs])
     return _map_pkg_sizes(output, RE_DOWNLOAD_SIZE) if output else {}
 
 
 def get_installed_size(pkgs: List[str]) -> Dict[str, float]:  # bytes
-    output = run_cmd('pacman -Qi {}'.format(' '.join(pkgs)))
+    output = run_cmd(['pacman', '-Qi', *pkgs])
     return _map_pkg_sizes(output, RE_INSTALLED_SIZE) if output else {}
 
 
@@ -640,14 +640,14 @@ def _fill_provided_map(key: str, val: str, output: Dict[str, Set[str]]):
 
 def map_provided(remote: bool = False, pkgs: Iterable[str] = None) -> Optional[Dict[str, Set[str]]]:
     if pkgs:
-        output = run_cmd(f"pacman -{'S' if remote else 'Q'}i {' '.join(pkgs)}")
+        output = run_cmd(['pacman', f"-{'S' if remote else 'Q'}i", *pkgs])
     else:
         global _cache_provided_local, _cache_provided_remote
         with _cache_lock:
             cache = _cache_provided_remote if remote else _cache_provided_local
             if cache is not None:
                 return cache
-        output = run_cmd(f"pacman -{'S' if remote else 'Q'}i")
+        output = run_cmd(['pacman', f"-{'S' if remote else 'Q'}i"])
 
     if output:
         provided_map = {}
@@ -830,9 +830,9 @@ def _parse_info_output_py(output: str, description: bool = False) -> Dict[str, D
 def map_updates_data(pkgs: Iterable[str], files: bool = False, description: bool = False) -> Optional[Dict[str, Dict[str, object]]]:
     if pkgs:
         if files:
-            output = run_cmd('pacman -Qi -p {}'.format(' '.join(pkgs)))
+            output = run_cmd(['pacman', '-Qi', '-p', *pkgs])
         else:
-            output = run_cmd('pacman -Si {}'.format(' '.join(pkgs)))
+            output = run_cmd(['pacman', '-Si', *pkgs])
 
         res = {}
         if output:
@@ -883,7 +883,7 @@ def _map_optional_dep(line: str, not_installed: bool) -> Optional[Tuple[str, Opt
 
 
 def map_optional_deps(names: Iterable[str], remote: bool, not_installed: bool = False) -> Dict[str, Dict[str, str]]:
-    output = run_cmd('pacman -{}i {}'.format('S' if remote else 'Q', ' '.join(names)))
+    output = run_cmd(['pacman', f"-{'S' if remote else 'Q'}i", *names])
     res = {}
     if output:
         latest_name, deps = None, None
@@ -921,7 +921,7 @@ def map_optional_deps(names: Iterable[str], remote: bool, not_installed: bool = 
 
 
 def map_required_dependencies(*names: str) -> Dict[str, Set[str]]:
-    output = run_cmd('pacman -Qi {}'.format(' '.join(names) if names else ''))
+    output = run_cmd(['pacman', '-Qi', *(names or ())])
 
     if output:
         res = {}
@@ -983,7 +983,7 @@ def _map_qi_set_field(field: str, names: Iterable[str] = None, remote: bool = Fa
     """Map each package to the space-separated set under a ``pacman -Qi``/``-Sii`` list field
     (e.g. ``'Required By'``, ``'Optional For'``). ``'None'`` → empty set; values that wrap across
     indented continuation lines are folded in. Missing field → no entry for that package."""
-    output = run_cmd(f"pacman -{'Sii' if remote else 'Qi'} {' '.join(names) if names else ''}".strip(),
+    output = run_cmd(['pacman', f"-{'Sii' if remote else 'Qi'}", *(names or ())],
                      print_error=False)
 
     if output:
@@ -1037,7 +1037,7 @@ def map_owners(paths: Iterable[str]) -> Dict[str, Optional[str]]:
     if not paths:
         return res
 
-    output = run_cmd('pacman -Qo {}'.format(' '.join(paths)), ignore_return_code=True, print_error=False)
+    output = run_cmd(['pacman', '-Qo', *paths], ignore_return_code=True, print_error=False)
 
     if output:
         for line in output.split('\n'):
@@ -1057,7 +1057,7 @@ def map_optional_for(names: Iterable[str] = None) -> Dict[str, Set[str]]:
 
 
 def map_conflicts_with(names: Iterable[str], remote: bool) -> Dict[str, Dict[str, Set[str]]]:
-    output = run_cmd('pacman -{}i {}'.format('S' if remote else 'Q', ' '.join(names)))
+    output = run_cmd(['pacman', f"-{'S' if remote else 'Q'}i", *names])
 
     if output:
         res = {}
@@ -1102,7 +1102,7 @@ def map_conflicts_with(names: Iterable[str], remote: bool) -> Dict[str, Dict[str
 
 
 def map_replaces(names: Iterable[str], remote: bool = False) -> Dict[str, Set[str]]:
-    output = run_cmd('pacman -{}i {}'.format('S' if remote else 'Q', ' '.join(names)))
+    output = run_cmd(['pacman', f"-{'S' if remote else 'Q'}i", *names])
 
     if output:
         res = {}
@@ -1140,7 +1140,7 @@ def list_installed_names() -> Set[str]:
         if _cache_installed_names is not None:
             return _cache_installed_names
 
-    output = run_cmd('pacman -Qq', print_error=False)
+    output = run_cmd(['pacman', '-Qq'], print_error=False)
     res = {name.strip() for name in output.split('\n') if name} if output else set()
 
     with _cache_lock:
@@ -1156,7 +1156,7 @@ def list_explicit_names() -> Set[str]:
         if _cache_explicit_names is not None:
             return _cache_explicit_names
 
-    output = run_cmd('pacman -Qeq', print_error=False)
+    output = run_cmd(['pacman', '-Qeq'], print_error=False)
     res = {name.strip() for name in output.split('\n') if name} if output else set()
 
     with _cache_lock:
@@ -1224,7 +1224,7 @@ def get_packages_to_sync_first() -> Set[str]:
 
 
 def is_snapd_installed() -> bool:
-    return bool(run_cmd('pacman -Qq snapd', print_error=False))
+    return bool(run_cmd(['pacman', '-Qq', 'snapd'], print_error=False))
 
 
 def list_hard_requirements(name: str, logger: Optional[logging.Logger] = None,
@@ -1258,7 +1258,7 @@ def list_hard_requirements(name: str, logger: Optional[logging.Logger] = None,
 
 
 def list_post_uninstall_unneeded_packages(names: Set[str]) -> Set[str]:
-    output = run_cmd('pacman -Rss {} --print-format=%n'.format(' '.join(names)), print_error=False)
+    output = run_cmd(['pacman', '-Rss', *names, '--print-format=%n'], print_error=False)
 
     reqs = set()
     if output:
@@ -1273,7 +1273,7 @@ def list_post_uninstall_unneeded_packages(names: Set[str]) -> Set[str]:
 
 
 def find_one_match(name: str) -> Optional[str]:
-    output = run_cmd('pacman -Ssq {}'.format(name), print_error=False)
+    output = run_cmd(['pacman', '-Ssq', name], print_error=False)
 
     if output:
         matches = [l.strip() for l in output.split('\n') if l.strip()]
@@ -1283,7 +1283,7 @@ def find_one_match(name: str) -> Optional[str]:
 
 
 def map_available_packages() -> Optional[Dict[str, Any]]:
-    output = run_cmd('pacman -Sl')
+    output = run_cmd(['pacman', '-Sl'])
 
     if output:
         res = dict()
@@ -1307,7 +1307,7 @@ def list_orphans() -> Set[str]:
     """True removable orphans: packages installed as dependencies (-d) that nothing else
     requires (-t), i.e. `pacman -Qtdq`. (Not to be confused with an AUR package whose
     maintainer field is empty — that's a different, unrelated meaning of 'orphan'.)"""
-    output = run_cmd('pacman -Qtdq', print_error=False)
+    output = run_cmd(['pacman', '-Qtdq'], print_error=False)
 
     if not output:
         return set()
@@ -1316,7 +1316,7 @@ def list_orphans() -> Set[str]:
 
 
 def map_installed(pkgs: Optional[Collection[str]] = None) -> Optional[Dict[str, str]]:
-    output = run_cmd(f"pacman -Q {' '.join({*pkgs} if pkgs else '')}".strip(), print_error=False)
+    output = run_cmd(['pacman', '-Q', *({*pkgs} if pkgs else ())], print_error=False)
 
     if output:
         res = dict()
