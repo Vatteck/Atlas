@@ -1,42 +1,67 @@
 # .last-agent — integrity checkpoint for the next AI coding agent
 
-**Agent:** Claude Opus 5 — 2026-09-05 (search query argv execution)
+**Agent:** Claude Opus 5 — 2026-09-05 (shell-free command execution)
 **Branch:** claude/amazing-yalow-a5930c (worktree; branched from `master` at 0672603)
-**Last commit (base):** 501c524 ("fix(arch): pass the search query as argv, not shell text")
+**Last commit (base):** see `git log -1` — the sweep ends at the "docs: record shell-free
+execution handoff" commit, on top of 649d641.
 
 ## Summary
 
-Removed the shell from the package-search path, per
-`docs/plans/2026-09-05-search-argv-execution.md`.
+Two plans, one thread. Started as "convert `pacman.search` to argv"
+(`docs/plans/2026-09-05-search-argv-execution.md`); Vatteck then green-lit widening it
+("Atlas is all about security"), which became
+`docs/plans/2026-09-05-shell-free-execution.md`.
 
-`pacman.search()` built `'pacman -Ss ' + words` and `run_cmd` ran it with `shell=True`, so the GUI
-search box was parsed by /bin/sh. `sanitize_command_input` is a denylist and does not strip `;` or
-backticks — **verified on the tree, not assumed**: searching `firefox; touch <path>` created the
-file. Command execution as the desktop user from the Search field, on a default-on gem.
+**Atlas no longer runs any command it constructs through a shell.**
 
-- `run_cmd` now takes `Union[str, Sequence[str]]`. A sequence sets `shell=False` and is passed to
-  `subprocess.run` as argv; `custom_user` builds `['runuser', '-u', u, '--', *cmd]`. String
-  callers (~50 of them) behave exactly as before.
-- `search()` passes `['pacman', '-Ss', *words.split()]`. Splitting is semantics-preserving:
-  pacman ANDs whitespace-separated terms as separate regexes, which is what the shell's
-  word-splitting already produced (checked against real pacman: `-Ss firefox` → 235 hits,
-  `-Ss firefox esr` → only `firefox-esr-bin`; empty query lists everything, as before).
-- `sanitize_command_input` deliberately kept — it still strips leading `-flags`, which argv
-  execution would otherwise hand to pacman as options.
+Verified on the tree before fixing, not assumed:
 
-**Verification:** 796 Python tests (787 + 9 new) + 62 JS contract tests green. End-to-end against
-real pacman: the injection query now returns `{}` and creates nothing; result counts unchanged.
-The pre-existing PyGObject deprecation warning remains, non-failing.
+- `pacman.search` concatenated the GUI query into a `shell=True` command line.
+  `sanitize_command_input` is a denylist and does not cover `;` or backticks — searching
+  `firefox; touch <path>` **created the file**.
+- Worse, and systemic: **`SimpleProcess` accepted `shell=True` and implemented it as
+  `' '.join(cmd)`**. Callers passed correct argv lists and the helper flattened them back
+  into shell lines. That path covers install/remove/upgrade under `sudo -S`, interpolating
+  package names, `--ignore=<pkg>` and `--assume-installed=<provider>` — and provider/dep
+  strings come from AUR PKGBUILD/`.SRCINFO` fields, which are attacker-controlled.
+  `new_root_subprocess` had the same join.
+
+What changed:
+
+- `shell` **removed** from `SimpleProcess` and `new_root_subprocess` (not just defaulted
+  off — every call site already passed a proper argv list, so the footgun is gone).
+- `run_cmd` and `execute` accept `Union[str, Sequence[str]]`; a sequence runs without a
+  shell. All interpolating callers converted across pacman, flatpak, makepkg, git, sshell,
+  arch/controller, api.py, commons.
+- `flatpak.search` fixed — the same GUI query, default-on source.
+- `flatpak.run`, `snap.run`, `appimage.launch`, `rebuild_detector` converted to argv.
+- Dead `commons.system.notify_user` (an `os.system` `notify-send` line, zero callers)
+  deleted; the live notifier is `view.util.util.notify_user`, argv-based since 2026-08-29.
+- **`tests/test_no_shell_execution.py`** fails the build on any new `shell=True`/`os.system`
+  outside a documented allowlist. The guard was verified by introducing a violation and
+  watching it fail.
+
+**Verification:** 822 Python tests (787 + 35 new) + 62 JS contract tests green. Converted
+commands smoke-tested against the real pacman, flatpak, git, find, diff, vercmp, systemctl
+and mkdir on this box — search result counts unchanged, injection canaries never fire. The
+PyGObject deprecation warning remains, non-failing.
 
 ## Known gaps / next steps
 
-- **`flatpak.search` (`atlas/gems/flatpak/flatpak.py:366`) has the identical defect** with the same
-  GUI query on a default-on source: `run_cmd(f'flatpak search {word} --{installation}')`. Not fixed
-  here — outside the stated scope. It is now a one-line change plus tests since `run_cmd` takes a
-  sequence. **Do this next.**
-- Most other `pacman.py` `run_cmd` callers interpolate package names from pacman/AUR output (a
-  smaller surface, same pattern); `view/webview/api.py` hand-quotes with `shlex.quote` at 545,
-  1489, 2245. Prefer the sequence form over quoting in anything new. Full audit in the plan.
+- **Deliberately still shell-based, with reasons in `ALLOWED`** (`tests/test_no_shell_execution.py`)
+  and in STATUS.md: `arch`/`web`/`debian` `launch()` run a `.desktop` `Exec=` line, which is a
+  shell command line by specification. The **Debian gem's `aptitude.py` builds command strings**
+  rather than argv; it is off by default, Atlas is Arch-focused, and apt cannot be exercised here,
+  so it was reported rather than rewritten blind. **Convert it on a Debian box with a real apt.**
+- `sanitize_command_input` was deliberately kept. It is now load-bearing for a *different*
+  reason than before: it strips leading `-flags`, which argv execution would otherwise hand
+  to pacman as real options.
+- Nothing here needs a GUI eyeball — search results and package commands are unchanged by
+  construction and were smoke-tested — but it touches install/remove/upgrade, so it deserves
+  **one real Update All on a live system before 0.16.2 ships**.
+- STATUS.md was 384 lines after this entry; the 2026-08-16 and 2026-08-01 Done entries were
+  archived to HISTORY.md per AGENTS.md §1. It is now 292 — still above the ~200 target, but
+  the remainder is the live "Known gaps / gotchas" section.
 - This work is on a worktree branch, **not merged to `master`**.
-- Unchanged from the previous handoff: the Hyprland attention-notification live smoke is still
-  outstanding, and `/usr/bin/atlas` is still stable 0.16.1.
+- Unchanged from the previous handoff: the Hyprland attention-notification live smoke is
+  still outstanding, and `/usr/bin/atlas` is still stable 0.16.1.

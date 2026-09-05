@@ -16,6 +16,94 @@
 
 ## Done
 
+- **GUI settings surface for upgrade holds (2026-08-16).** Follow-up to the upgrade-pipeline
+  safety work (its declared "UI follow-up later"): the Settings page now has an **Upgrade
+  holds** section (Arch gem only) — held packages render as removable chips, an add box takes a
+  package name (client-side validation, Enter works), and everything persists through the
+  existing Save button into `arch_config['ignored_packages']` via
+  `get_app_settings()`/`save_app_settings()` (api.py: settings arch block). Hold semantics
+  unchanged: held packages still appear as upgradable in scans and are skipped at summarize
+  ("Held (ignored upgrade)"), and pacman gets `--ignore=<pkg>`. Legacy per-package pin file
+  (`UPDATES_IGNORED_FILE`) untouched — separate coexisting surface. Plan:
+  [2026-08-16-gui-upgrade-holds.md](plans/2026-08-16-gui-upgrade-holds.md). Suite now
+  **780 Python + 61 JS**. Not yet GUI-verified live (manual pass: add bazaar in Settings →
+  Update all skips it → remove hold → proposed again).
+- **Upgrade-pipeline safety — walk the user through bazaar-class problems (2026-08-16).**
+  The 2026-08-16 incident (Atlas's scripted upgrade `-R -dd`'d `qemu-full` + `qemu-block-gluster`,
+  then died on the upstream bazaar 0.9.4-1 file conflict, leaving the system un-upgraded) is fixed
+  at the design level, per [plan 2026-08-16-upgrade-pipeline-safety.md](plans/2026-08-16-upgrade-pipeline-safety.md):
+  1. **No more unconditional `-R -dd`.** `_remove_transaction_packages` validates removal targets
+     against live reverse deps (`map_required_by`) minus the transaction's own removals and the
+     packages the `-S` step replaces; unprotected dependents abort the upgrade with a clear message
+     (fail-closed). Removals now run plain `-R`.
+  2. **Mutual-conflict skip (no reorder).** `_handle_mutual_conflicts` skips pairs where one side
+     is already scheduled for removal — the survivor stays upgradable (the removal resolves the
+     conflict — that was the `qemu-desktop`→`qemu-full` case). Mutual handling still runs before
+     the conflicts→`to_remove` loop within a pass, so the skip covers pairs whose removal side was
+     scheduled earlier (to-update pass → to-install pass). **Known gap:** a mutual pair first
+     detected in the same pass with neither side pre-scheduled strands both in `cannot_upgrade`
+     (honest and visible; auto-removing both was judged too aggressive). Locked by
+     `test__should_strand_both_sides_when_mutual_conflict_unresolved`.
+  3. **Hold/`--ignore` support (the bazaar walk-through).** New `ignored_packages: []` config
+     default; `upgrade_several`/`upgrade_system` append `--ignore=<pkg>`; `summarize` moves held
+     packages into `cannot_upgrade` with reason "Held (ignored upgrade)"; the conflicting-files
+     dialog now parses `exists in filesystem (owned by X)`, and when the owner is a *different*
+     installed package (vendored files, the bazaar/libdex signature) it offers **"Hold packages and
+     continue"** — persist the holds, re-run the upgrade without them, never `--overwrite=*`.
+     Non-vendored conflicts keep the existing proceed/stop dialog.
+  4. Also: `ArchConfigManager` default, `map_owners()` helper for `pacman -Qo` on the conflicted
+     paths, i18n keys in all 10 locales, 2 new planner tests. Suite now **777 Python + 60 JS**. Not
+     yet GUI-verified (needs a real conflict to exercise the dialog — unit-tested only).
+
+- **Doc + repo debt cut (2026-08-01).** Re-entry after a 2-week gap cost more than the work would
+  have: STATUS.md had reached **2,379 lines / 94 KB** and no longer fit in an agent's read budget.
+  Split into this baton + [HISTORY.md](HISTORY.md) (the Done log, retired gotchas, and the
+  Rust/Qt-era decision log). Also deleted two fully-merged dead branches
+  (`feat/webview-polish-sprint-1`, `-2`; 0 commits ahead of master) and ~122 MB of regenerable
+  `makepkg` artifacts under `linux_dist/arch/`. **Fixed a real doc bug found while measuring:** the
+  large-files gotcha named `view/core/controller.py` at "~192 KB" — it is actually **32 KB**; the
+  220 KB file is `gems/arch/controller.py`, and the two genuinely largest files (`main.js` 340 KB,
+  `api.py` 184 KB) were not listed at all. Corrected here and in AGENTS.md §8. No app-code change;
+  suite unaffected (774 + 60).
+- **Screenshots + release plumbing (2026-08-01).** Re-shot all five `docs/screenshots/*.png` from the
+  real WebKitGTK window via the new `tools/capture-screenshots.sh` (DEVELOPMENT.md §8), uniform
+  1280×800. Known nits tracked, not blocking: the hero greets by a real first name and shows a
+  failed transaction; `details.png` showcases the source-comparison panel with an icon-less package
+  and an empty Flatpak version.
+
+  Also **fixed the misleading `atlas-pm-git` badge**: shields.io reads the `pkgver` frozen in the
+  AUR's `.SRCINFO`, and the `-git` publish workflow only fires on `linux_dist/arch/PKGBUILD` changes
+  (last touched 2026-06-21), so the README claimed the bleeding-edge package was three releases
+  *behind* stable. `pkgver()` recomputes at build time, so installers always got HEAD — only the
+  label was stale. Badge now carries no version, and the install section explains `paru -Sua --devel`.
+  **Deliberately not fixed by auto-republishing `.SRCINFO`** — that fights the Arch VCS convention,
+  spams the AUR with metadata-only commits, and adds a standing scheduled job holding an SSH key,
+  to replicate what `--devel` already does.
+
+  And added **`.github/workflows/github-release.yml`**: five tags existed with **zero GitHub
+  Releases**. A `v*` tag push now cuts a Release from that version's CHANGELOG section, via the `gh`
+  CLI + built-in `GITHUB_TOKEN` (no third-party action, no new secret). Falls back to master's
+  CHANGELOG when the tag predates its entry. Does not touch the AUR pipeline. **All 7 tags
+  (v0.11.0–v0.16.1) were backfilled** and every release has real notes (12–62 lines); `v0.15.0`
+  exercised the master-fallback for real — it shipped without a CHANGELOG entry and the entry was
+  backfilled later.
+
+  Also **dropped the inherited Python 3.9 claim.** It was never measured — the fork point declared
+  `>=3.5`, it was bumped to 3.9 without evidence, and CI has only ever tested 3.10–3.14. All 159
+  modules check clean against 3.9 *grammar* and use no 3.10+ stdlib APIs, so 3.9 probably does
+  work — but it's untested, EOL since 2025-10, and Arch ships 3.13/3.14. `setup.py`,
+  `pyproject.toml` and the README badge now claim **3.10+**, and both classifier lists gained 3.14.
+- **Public-face cleanup (2026-08-01).** Added a **bug-report issue template** (`.github/ISSUE_TEMPLATE/`)
+  — issues were enabled with no template, so reports arrived without the two things that make an
+  Atlas bug diagnosable: `~/.cache/atlaspm/logs/atlas.log` and `atlas --self-check` output. The form
+  front-loads both, plus install source, distribution (derivatives change mirrorlist/update
+  behaviour), and package source; `config.yml` points feature ideas at BACKLOG's non-goals and
+  redirects "this AUR package is malicious" to the AUR while keeping audit false positives/negatives
+  on-topic. Also **fixed the GitHub repo description**, which led with "AppImage, Arch/AUR, Flatpak,
+  Snap, Web" — burying Arch and advertising three sources that are off by default — and **deleted
+  three fully-merged remote branches** (`feat/webview-polish-sprint-2`, two `claude/*`; all 0 commits
+  ahead of master). Screenshots are the remaining half of this step — see Next #2.
+
 - **Read the PKGBUILD inside the pre-build review modal (2026-07-18).** Vatteck reported (screenshot)
   that the mid-Update-All "Review PKGBUILD" advisory dialog asks the user to read the PKGBUILD but
   provides no way to — Cancel aborts that package's build (recovering means hunting the package down in
