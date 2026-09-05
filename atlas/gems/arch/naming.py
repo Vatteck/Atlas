@@ -1,5 +1,5 @@
 import re
-from typing import Set
+from typing import Iterable, Set
 
 # Lowercase + strip these and two names compare on equal terms: the AUR index writes
 # 'google-chrome' as 'googlechrome', a Flatpak calls the same app 'Google Chrome', and a
@@ -47,3 +47,18 @@ def match_index_names(query: str, index: dict, limit: int = 25) -> Set[str]:
                 break
 
     return matched
+
+
+def match_installed_names(query: str, installed: Iterable[str]) -> Set[str]:
+    """Installed package names whose normalized name contains the normalized query.
+
+    Normalizing both sides is what lets multi-word queries work: the caller used to skip
+    this match entirely when the query held a space, because a raw multi-word substring
+    can never occur in a package name.
+    """
+    norm_query = normalize_pkg_name(query)
+
+    if not norm_query or not installed:
+        return set()
+
+    return {name for name in installed if norm_query in normalize_pkg_name(name)}

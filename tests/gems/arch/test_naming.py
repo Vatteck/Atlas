@@ -75,3 +75,33 @@ class MatchIndexNamesTest(TestCase):
     def test_default_limit_is_25(self):
         index = {f'pkg{i}': f'pkg-{i}' for i in range(50)}
         self.assertEqual(25, len(naming.match_index_names('pkg', index)))
+
+
+class MatchInstalledNamesTest(TestCase):
+
+    INSTALLED = {'google-chrome', 'curl-impersonate', 'vlc', 'firefox'}
+
+    def test_multi_word_query_matches(self):
+        # The reported bug: controller.py skipped installed matching entirely when the
+        # query contained a space, so an installed google-chrome was never considered.
+        self.assertEqual({'google-chrome'},
+                         naming.match_installed_names('google chrome', self.INSTALLED))
+
+    def test_single_word_query_still_matches(self):
+        self.assertEqual({'google-chrome'},
+                         naming.match_installed_names('chrome', self.INSTALLED))
+
+    def test_case_insensitive(self):
+        self.assertEqual({'firefox'}, naming.match_installed_names('FireFox', self.INSTALLED))
+
+    def test_no_match_returns_empty(self):
+        self.assertEqual(set(), naming.match_installed_names('nonexistent', self.INSTALLED))
+
+    def test_empty_query_matches_nothing(self):
+        self.assertEqual(set(), naming.match_installed_names('', self.INSTALLED))
+
+    def test_empty_installed_matches_nothing(self):
+        self.assertEqual(set(), naming.match_installed_names('chrome', set()))
+
+    def test_none_installed_matches_nothing(self):
+        self.assertEqual(set(), naming.match_installed_names('chrome', None))
