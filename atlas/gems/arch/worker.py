@@ -19,7 +19,7 @@ from atlas.commons.boot import CreateConfigFile
 from atlas.commons.html import bold
 from atlas.commons.system import new_root_subprocess, ProcessHandler
 from atlas.gems.arch import pacman, disk, CUSTOM_MAKEPKG_FILE, ARCH_CONFIG_DIR, AUR_INDEX_FILE, get_icon_path, database, \
-    mirrors, ARCH_CACHE_DIR, AUR_INDEX_TS_FILE, aur
+    mirrors, ARCH_CACHE_DIR, AUR_INDEX_TS_FILE, aur, naming
 from atlas.gems.arch.aur import URL_INDEX, decode_index_response
 from atlas.view.util.translation import I18n
 
@@ -36,7 +36,6 @@ RE_COMPRESS_XZ = re.compile(r'#?\s*COMPRESSXZ\s*=\s*.+')
 RE_COMPRESS_ZST = re.compile(r'#?\s*COMPRESSZST\s*=\s*.+')
 RE_BUILD_ENV = re.compile(r'\s+BUILDENV\s*=.+')
 RE_CCACHE = re.compile(r'!?ccache')
-RE_CLEAR_REPLACE = re.compile(r'[\-_.]')
 
 
 def compute_makepkg_optimizations(global_makepkg: str, ncpus: Optional[int],
@@ -189,7 +188,7 @@ class AURIndexUpdater(Thread):
                                                          self.i18n['arch.task.aur.index.substatus.gen_index'])
 
                         if n and not n.startswith('#'):
-                            f.write('{}={}\n'.format(RE_CLEAR_REPLACE.sub('', n), n))
+                            f.write('{}={}\n'.format(naming.normalize_pkg_name(n), n))
                             indexed += 1
 
                         perc_count += 1

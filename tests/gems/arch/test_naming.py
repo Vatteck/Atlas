@@ -131,3 +131,14 @@ class MatchInstalledNamesTest(TestCase):
         # Mixed separator styles in query must normalize to match installed hyphenated name.
         self.assertEqual({'google-chrome'},
                          naming.match_installed_names('google_chrome', self.INSTALLED))
+
+
+class WorkerIndexKeyTest(TestCase):
+
+    def test_worker_writes_keys_with_the_shared_normalizer(self):
+        # One rule, one implementation. A second copy of it in worker.py is how the
+        # query/key asymmetry got introduced in the first place.
+        from atlas.gems.arch import worker
+
+        self.assertFalse(hasattr(worker, 'RE_CLEAR_REPLACE'),
+                         'worker must use naming.normalize_pkg_name, not its own regex')
