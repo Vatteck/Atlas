@@ -242,7 +242,7 @@ def list_required_runtime_updates(installation: str) -> Optional[List[Tuple[str,
     Return a list of tuples composed by the reference and the origin.
     e.g: ('runtime/org.gnome.Desktop/42/x86_64', 'flathub')
     """
-    _, updates = system.execute(f'flatpak update --{installation}', shell=True,
+    _, updates = system.execute(['flatpak', 'update', f'--{installation}'],
                                 custom_env=system.gen_env())
 
     if updates:

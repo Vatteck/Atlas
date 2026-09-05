@@ -4,7 +4,6 @@ import re
 import shutil
 import threading
 import traceback
-from io import StringIO
 from threading import Thread
 from typing import List, Set, Tuple, Dict, Iterable, Optional, Any, Pattern, Collection
 
@@ -151,8 +150,8 @@ def map_packages(names: Optional[Iterable[str]] = None, remote: bool = False, si
     env = system.gen_env()
     env['LC_TIME'] = ''
 
-    code, allinfo = system.execute(f"pacman -{'S' if remote else 'Q'}i {' '.join(names) if names else ''}",
-                                   shell=True, custom_env=env)
+    code, allinfo = system.execute(['pacman', f"-{'S' if remote else 'Q'}i", *(names if names else ())],
+                                   custom_env=env)
 
     pkgs = {'signed': {}, 'not_signed': {}}
 
@@ -1230,13 +1229,12 @@ def is_snapd_installed() -> bool:
 
 def list_hard_requirements(name: str, logger: Optional[logging.Logger] = None,
                            assume_installed: Optional[Set[str]] = None) -> Optional[Set[str]]:
-    cmd = StringIO()
-    cmd.write(f'pacman -Rc {name} --print-format=%n ')
+    cmd = ['pacman', '-Rc', name, '--print-format=%n']
 
     if assume_installed:
-        cmd.write(' '.join(f'--assume-installed={provider}' for provider in assume_installed))
+        cmd.extend(f'--assume-installed={provider}' for provider in assume_installed)
 
-    code, output = system.execute(cmd.getvalue(), shell=True)
+    code, output = system.execute(cmd)
 
     if code != 0:
         if 'HoldPkg' in output:
