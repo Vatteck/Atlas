@@ -1,4 +1,5 @@
 import re
+from typing import Set
 
 # Lowercase + strip these and two names compare on equal terms: the AUR index writes
 # 'google-chrome' as 'googlechrome', a Flatpak calls the same app 'Google Chrome', and a
@@ -21,3 +22,28 @@ def normalize_pkg_name(name: str) -> str:
         return ''
 
     return RE_NAME_SEPARATORS.sub('', str(name).lower())
+
+
+def match_index_names(query: str, index: dict, limit: int = 25) -> Set[str]:
+    """Real AUR package names whose normalized index key contains the normalized query.
+
+    'index' maps normalized-key -> real name (AURClient.read_local_index()). The key is
+    normalized again on read: worker.py writes it separator-stripped but not lowercased,
+    and normalizing both sides here means a future index-format change cannot silently
+    reintroduce the asymmetry this function exists to fix.
+    """
+    norm_query = normalize_pkg_name(query)
+
+    if not norm_query or not index:
+        return set()
+
+    matched = set()
+
+    for norm_name, real_name in index.items():
+        if norm_query in normalize_pkg_name(norm_name):
+            matched.add(real_name)
+
+            if len(matched) == limit:
+                break
+
+    return matched

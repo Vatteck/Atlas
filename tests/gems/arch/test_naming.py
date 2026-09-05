@@ -33,3 +33,45 @@ class NormalizePkgNameTest(TestCase):
         self.assertEqual('bravebin', naming.normalize_pkg_name('brave-bin'))
         self.assertNotEqual(naming.normalize_pkg_name('brave'),
                             naming.normalize_pkg_name('brave-bin'))
+
+
+class MatchIndexNamesTest(TestCase):
+
+    # Keys as read_local_index() returns them: worker.py strips [-_.] when writing.
+    INDEX = {
+        'googlechrome': 'google-chrome',
+        'googlechromebeta': 'google-chrome-beta',
+        'curlimpersonate': 'curl-impersonate',
+        'vlc': 'vlc',
+    }
+
+    def test_multi_word_query_matches_hyphenated_name(self):
+        # The reported bug: 'google chrome' found nothing because the raw query was
+        # tested against an already-normalized key.
+        self.assertIn('google-chrome', naming.match_index_names('google chrome', self.INDEX))
+
+    def test_single_word_query_still_matches(self):
+        # Regression guard: this worked before and must keep working.
+        matched = naming.match_index_names('chrome', self.INDEX)
+        self.assertIn('google-chrome', matched)
+        self.assertIn('google-chrome-beta', matched)
+
+    def test_case_and_separator_insensitive(self):
+        self.assertIn('google-chrome', naming.match_index_names('Google_Chrome', self.INDEX))
+
+    def test_empty_query_matches_nothing(self):
+        self.assertEqual(set(), naming.match_index_names('', self.INDEX))
+
+    def test_empty_index_matches_nothing(self):
+        self.assertEqual(set(), naming.match_index_names('chrome', {}))
+
+    def test_none_index_matches_nothing(self):
+        self.assertEqual(set(), naming.match_index_names('chrome', None))
+
+    def test_respects_limit(self):
+        index = {f'pkg{i}': f'pkg-{i}' for i in range(50)}
+        self.assertEqual(5, len(naming.match_index_names('pkg', index, limit=5)))
+
+    def test_default_limit_is_25(self):
+        index = {f'pkg{i}': f'pkg-{i}' for i in range(50)}
+        self.assertEqual(25, len(naming.match_index_names('pkg', index)))
