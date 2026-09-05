@@ -3309,6 +3309,10 @@ class ArchManager(SoftwareManager, SettingsController):
 
     def launch(self, pkg: ArchPackage):
         if pkg.command:
+            # pkg.command is the .desktop `Exec=` line, which is a shell command line by
+            # specification (it can carry redirections, `&&`, quoting). It is the user's own
+            # installed application being launched deliberately, so it keeps its shell —
+            # unlike every command Atlas constructs itself.
             final_cmd = pkg.command.replace('%U', '')
             subprocess.Popen(final_cmd, shell=True)
 

@@ -497,7 +497,7 @@ def list_remotes() -> Dict[str, Set[str]]:
 
 
 def run(app_id: str):
-    subprocess.Popen((f'flatpak run {app_id}',), shell=True, env={**os.environ})
+    subprocess.Popen(['flatpak', 'run', app_id], env={**os.environ})
 
 
 def map_installed_sizes() -> Dict[str, float]:

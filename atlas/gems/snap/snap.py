@@ -48,7 +48,7 @@ def refresh_and_stream(app_name: str, root_password: Optional[str], channel: Opt
 
 
 def run(cmd: str):
-    subprocess.Popen((f'snap run {cmd}',), shell=True, env={**os.environ})
+    subprocess.Popen(['snap', 'run', cmd], env={**os.environ})
 
 
 def is_api_available() -> Tuple[bool, str]:
