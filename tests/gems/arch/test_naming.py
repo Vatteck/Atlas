@@ -105,3 +105,29 @@ class MatchInstalledNamesTest(TestCase):
 
     def test_none_installed_matches_nothing(self):
         self.assertEqual(set(), naming.match_installed_names('chrome', None))
+
+    def test_query_underscore_matches_installed_hyphen(self):
+        # Separator normalization: underscore in query must match hyphen in installed name.
+        # This pins the fix against naive space-only normalization.
+        self.assertEqual({'curl-impersonate'},
+                         naming.match_installed_names('curl_impersonate', self.INSTALLED))
+
+    def test_query_underscore_space_matches_installed_hyphen(self):
+        # Mixed separators in query (underscore and space) must match hyphenated installed name.
+        self.assertEqual({'curl-impersonate'},
+                         naming.match_installed_names('curl_impersonat', self.INSTALLED))
+
+    def test_query_space_matches_installed_hyphen(self):
+        # Space in query must match hyphen in installed name.
+        self.assertEqual({'curl-impersonate'},
+                         naming.match_installed_names('curl impersonate', self.INSTALLED))
+
+    def test_query_dots_match_installed_hyphen(self):
+        # Dots in query must match hyphen in installed name.
+        self.assertEqual({'google-chrome'},
+                         naming.match_installed_names('google.chrome', self.INSTALLED))
+
+    def test_query_mixed_separators_match_installed_hyphen(self):
+        # Mixed separator styles in query must normalize to match installed hyphenated name.
+        self.assertEqual({'google-chrome'},
+                         naming.match_installed_names('google_chrome', self.INSTALLED))
