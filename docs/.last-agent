@@ -2,7 +2,7 @@
 
 **Agent:** Claude Opus 5 — 2026-09-08 (cross-source search normalization, Task 7/7: handoff)
 **Branch:** feat/cross-source-search-normalization
-**Last commit:** (this docs commit, see `git log --oneline -1`)
+**Last commit:** 4e15ef5 ("docs: hand off cross-source search normalization")
 
 ## Summary
 
