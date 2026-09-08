@@ -1536,12 +1536,20 @@ function stripBuildSuffix(name) {
     return n;
 }
 
+// The separator/case half of grouping, on its own because Python needs the same rule:
+// atlas/gems/arch/naming.py's normalize_pkg_name must agree with it, and the shared cases
+// in tests/fixtures/pkg_name_normalization.json are asserted from both suites. Build-suffix
+// stripping is deliberately NOT part of it — search must still find "brave-bin" by name.
+function normalizeName(name) {
+    return String(name == null ? '' : name).toLowerCase().replace(/[\s._-]+/g, '');
+}
+
 // Group key for cross-source collapsing: drop the build-method suffix, lowercase, and strip
 // separators so a Flatpak's display name and an AUR/repo package name for the same app line up —
 // "Google Chrome" ≙ "google-chrome", "Brave" ≙ "brave-bin" ≙ "brave-git". Conservative: it bridges
 // punctuation/casing/build-method without token-matching that could merge genuinely distinct apps.
 function groupKey(name) {
-    return stripBuildSuffix(name).toLowerCase().replace(/[\s._-]+/g, '');
+    return normalizeName(stripBuildSuffix(name));
 }
 
 // A source's "option" identity inside a group: the source type, plus the AUR build variant so
@@ -6906,6 +6914,7 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildUpdateAllPreviewData,
         updateAllOutcome,
         buildSourceCompareHTML,
+        normalizeName,
         groupKey,
         stripBuildSuffix,
         collapseByName,

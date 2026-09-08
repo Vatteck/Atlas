@@ -1088,6 +1088,28 @@ async function testBuildSourceCompareHTML() {
   assert.ok(!oneAur.includes('srccmp-guideline'), 'no AUR-build guideline with a single AUR option');
 }
 
+async function testNameNormalizationMatchesPython() {
+  const { hooks } = loadMainJs({});
+  const { normalizeName, groupKey, stripBuildSuffix } = hooks;
+
+  // The shared rule, asserted from the same fixture the Python suite reads. If these two
+  // drift apart, search stops finding what grouping merges.
+  const fixture = JSON.parse(
+    fs.readFileSync(path.join(process.cwd(), 'tests/fixtures/pkg_name_normalization.json'), 'utf8'));
+  assert.ok(fixture.cases.length > 0, 'fixture must not be empty');
+
+  for (const { input, expected } of fixture.cases) {
+    assert.strictEqual(normalizeName(input), expected,
+      `normalizeName(${JSON.stringify(input)}) must match Python's normalize_pkg_name`);
+  }
+
+  // normalizeName is only the separator/case half — build suffixes survive it.
+  assert.strictEqual(normalizeName('brave-bin'), 'bravebin');
+  assert.strictEqual(groupKey('brave-bin'), 'brave', 'groupKey still strips build suffixes');
+  assert.strictEqual(groupKey('Google Chrome'), normalizeName(stripBuildSuffix('Google Chrome')),
+    'groupKey is normalizeName composed with stripBuildSuffix');
+}
+
 async function testCollapseByNameAcrossSources() {
   const { hooks } = loadMainJs({});
   const { groupKey, stripBuildSuffix, collapseByName, sourcePillLabel, sourceCompareNote } = hooks;
@@ -1947,6 +1969,7 @@ function testPermsListEnsuresIconObserver() {
     testUpdateAllOutcomeDistinguishesCancellationFromFailure,
     testBuildSourceCompareHTML,
     testCollapseByNameAcrossSources,
+    testNameNormalizationMatchesPython,
     testWhySourceHint,
     testBuildDependencySummaryHTML,
     testPackageActivitySectionClearsForNonInstalledPackages,
