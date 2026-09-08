@@ -26,8 +26,8 @@
   ("Held (ignored upgrade)"), and pacman gets `--ignore=<pkg>`. Legacy per-package pin file
   (`UPDATES_IGNORED_FILE`) untouched — separate coexisting surface. Plan:
   [2026-08-16-gui-upgrade-holds.md](plans/2026-08-16-gui-upgrade-holds.md). Suite now
-  **780 Python + 61 JS**. Not yet GUI-verified live (manual pass: add bazaar in Settings →
-  Update all skips it → remove hold → proposed again).
+  **780 Python + 61 JS**. Not yet GUI-verified live as of archiving (manual pass: add bazaar in
+  Settings → Update all skips it → remove hold → proposed again).
 - **Upgrade-pipeline safety — walk the user through bazaar-class problems (2026-08-16).**
   The 2026-08-16 incident (Atlas's scripted upgrade `-R -dd`'d `qemu-full` + `qemu-block-gluster`,
   then died on the upstream bazaar 0.9.4-1 file conflict, leaving the system un-upgraded) is fixed
@@ -54,16 +54,15 @@
   4. Also: `ArchConfigManager` default, `map_owners()` helper for `pacman -Qo` on the conflicted
      paths, i18n keys in all 10 locales, 2 new planner tests. Suite now **777 Python + 60 JS**. Not
      yet GUI-verified (needs a real conflict to exercise the dialog — unit-tested only).
-
 - **Doc + repo debt cut (2026-08-01).** Re-entry after a 2-week gap cost more than the work would
   have: STATUS.md had reached **2,379 lines / 94 KB** and no longer fit in an agent's read budget.
-  Split into this baton + [HISTORY.md](HISTORY.md) (the Done log, retired gotchas, and the
+  Split into the baton + this HISTORY.md (the Done log, retired gotchas, and the
   Rust/Qt-era decision log). Also deleted two fully-merged dead branches
   (`feat/webview-polish-sprint-1`, `-2`; 0 commits ahead of master) and ~122 MB of regenerable
   `makepkg` artifacts under `linux_dist/arch/`. **Fixed a real doc bug found while measuring:** the
   large-files gotcha named `view/core/controller.py` at "~192 KB" — it is actually **32 KB**; the
   220 KB file is `gems/arch/controller.py`, and the two genuinely largest files (`main.js` 340 KB,
-  `api.py` 184 KB) were not listed at all. Corrected here and in AGENTS.md §8. No app-code change;
+  `api.py` 184 KB) were not listed at all. Corrected in STATUS.md and AGENTS.md §8. No app-code change;
   suite unaffected (774 + 60).
 - **Screenshots + release plumbing (2026-08-01).** Re-shot all five `docs/screenshots/*.png` from the
   real WebKitGTK window via the new `tools/capture-screenshots.sh` (DEVELOPMENT.md §8), uniform
@@ -102,7 +101,7 @@
   on-topic. Also **fixed the GitHub repo description**, which led with "AppImage, Arch/AUR, Flatpak,
   Snap, Web" — burying Arch and advertising three sources that are off by default — and **deleted
   three fully-merged remote branches** (`feat/webview-polish-sprint-2`, two `claude/*`; all 0 commits
-  ahead of master). Screenshots are the remaining half of this step — see Next #2.
+  ahead of master). Screenshots were the remaining half of this step (see the entry above).
 
 - **Read the PKGBUILD inside the pre-build review modal (2026-07-18).** Vatteck reported (screenshot)
   that the mid-Update-All "Review PKGBUILD" advisory dialog asks the user to read the PKGBUILD but
@@ -1995,6 +1994,36 @@
 - ~~**`map_srcinfo` had no Python fallback.**~~ Obsolete — Rust removed. (Historically fixed by
   `atlas/gems/arch/srcinfo.py` wrapping native with the original Python parser.)
 - ~~**Rust build/debug gotchas.**~~ Obsolete — Atlas builds with a plain `pip install -e .`, no cargo.
+
+---
+
+## Archived decision log (2026-06 entries, moved from STATUS.md on 2026-09-08)
+
+The live decision log is in [STATUS.md](STATUS.md); these older entries are archived here.
+
+- **2026-06-17** — **Deferred remote signed audit rules-packs indefinitely (designed, not built).**
+  The signing scheme is fully designed (plans/2026-06-17-audit-rules-pack-signing.md) but
+  deliberately unimplemented: a remote rule feed is a permanent supply-chain surface to own (crypto
+  dep, key rotation/revocation, signing tooling + CI) and the value is marginal for an *advisory*
+  scanner, since Atlas ships as a fast-updating `-git` AUR package — new bundled rules already reach
+  users on a normal update. The shipped local fail-closed loader covers the real need. Revisit only
+  if Atlas moves to a slow-release channel; if so, PyNaCl behind a `verify_pack()` seam. Reflects the
+  maintainer's priority (solo dev, side project) to avoid standing maintenance burden.
+- **2026-06-17** — **Dropped PKGBUILD-audit structural rule #3 (source-host ≠ url-host) on measured
+  evidence.** On a random live AUR sample, 45% of packages declaring both a `url=` and a remote
+  `source=()` had no source host matching the url host (31% even at registrable-domain level), and
+  every example was legitimate (homepage vs source repo, `*.github.io`→`github.com`, npm registry,
+  vendor CDN, moved hosts). ~1-in-3 fire rate with ~all false positives = the alert-fatigue failure
+  mode the maintenance plan warns against ("more rules ≠ safer"). No code shipped; recorded so it
+  isn't rebuilt. First real payoff of `atlas-cli audit-scan`: **measure before adding a rule.**
+- **2026-06-01** — **Fixed severe scroll lag in the package grid.** Three root causes: (1) the sticky
+  `.topbar` with `backdrop-filter: blur(16px)` overlapping the scrolling grid forced expensive
+  repaints (fixed by promoting to a compositor layer via `transform: translateZ(0); will-change:
+  transform, backdrop-filter`); (2) an invalid 4-value `contain-intrinsic-size` on `.package-card`
+  made older WebKitGTK drop the rule and collapse `content-visibility` elements to 0px height,
+  thrashing the scrollbar (fixed with the safer `contain-intrinsic-size: 180px; contain-intrinsic-height:
+  180px`); (3) a global `fadeInUp` animation on every `.package-card` forced WebKit to maintain
+  active animation state for thousands of nodes (removed).
 
 ---
 
