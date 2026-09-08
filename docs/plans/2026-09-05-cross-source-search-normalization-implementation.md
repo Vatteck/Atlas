@@ -684,7 +684,11 @@ node --test tests/view/webview/main_js_contracts.test.js
 ```
 
 Before Step 1's edit this fails with `normalizeName is not a function`. After Steps 1–2 it
-passes. If you did the steps in order, run it now and expect PASS (63 tests).
+passes. If you did the steps in order, run it now and expect PASS.
+
+Note: `node --test` reports `tests 1` — the file is one test wrapping an array of check
+functions, each printing its own `✓` line. Confirm `fail 0` and a new
+`✓ testNameNormalizationMatchesPython` line; do not look for a test count of 63.
 
 - [ ] **Step 5: Run both suites**
 
@@ -692,7 +696,7 @@ passes. If you did the steps in order, run it now and expect PASS (63 tests).
 python -m pytest && node --test tests/view/webview/main_js_contracts.test.js
 ```
 
-Expected: 806 Python, 63 JS, all green.
+Expected: 806 Python passed; JS `fail 0` with the new ✓ line present.
 
 - [ ] **Step 6: Commit**
 
