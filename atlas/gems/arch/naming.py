@@ -49,6 +49,21 @@ def match_index_names(query: str, index: dict, limit: int = 25) -> Set[str]:
     return matched
 
 
+def any_name_matches(query: str, names: Iterable[str]) -> bool:
+    """True if any of 'names' normalized-contains the normalized query.
+
+    Used to decide whether an AUR RPC result set actually answers the query by name
+    (vs. only by a description hit): the RPC's 'by=name-desc' search can return an
+    unrelated package whose description merely contains the raw query string.
+    """
+    norm_query = normalize_pkg_name(query)
+
+    if not norm_query or not names:
+        return False
+
+    return any(norm_query in normalize_pkg_name(name) for name in names)
+
+
 def match_installed_names(query: str, installed: Iterable[str]) -> Set[str]:
     """Installed package names whose normalized name contains the normalized query.
 

@@ -1110,6 +1110,25 @@ async function testNameNormalizationMatchesPython() {
     'groupKey is normalizeName composed with stripBuildSuffix');
 }
 
+async function testRelevanceScoreNormalizesMultiWordQuery() {
+  const { hooks } = loadMainJs({});
+  const { relevanceScore } = hooks;
+
+  // 'google chrome' vs 'google-chrome' must score as a name match (exact, once both
+  // sides are normalized), not fall through to the description-only tier (1).
+  assert.strictEqual(relevanceScore('google-chrome', 'google chrome'), 4,
+    'normalized multi-word query must exact-match a hyphenated name');
+
+  // prefix/contains tiers still work post-normalization
+  assert.strictEqual(relevanceScore('google-chrome-beta', 'google chrome'), 3,
+    'normalized multi-word query prefix-matches a longer hyphenated name');
+  assert.strictEqual(relevanceScore('my-google-chrome-wrapper', 'google chrome'), 2,
+    'normalized multi-word query contains-matches a hyphenated name mid-string');
+
+  // separator-insensitive for single-word queries too
+  assert.strictEqual(relevanceScore('google_chrome', 'googlechrome'), 4);
+}
+
 async function testCollapseByNameAcrossSources() {
   const { hooks } = loadMainJs({});
   const { groupKey, stripBuildSuffix, collapseByName, sourcePillLabel, sourceCompareNote } = hooks;
@@ -1970,6 +1989,7 @@ function testPermsListEnsuresIconObserver() {
     testBuildSourceCompareHTML,
     testCollapseByNameAcrossSources,
     testNameNormalizationMatchesPython,
+    testRelevanceScoreNormalizesMultiWordQuery,
     testWhySourceHint,
     testBuildDependencySummaryHTML,
     testPackageActivitySectionClearsForNonInstalledPackages,

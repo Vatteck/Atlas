@@ -327,10 +327,13 @@ class ArchManager(SoftwareManager, SettingsController):
         ti = time.time()
         api_res = self.aur_client.search(query)
 
-        pkgs_found = None
-        if api_res and api_res.get('results'):
-            pkgs_found = api_res['results']
-        else:
+        pkgs_found = api_res['results'] if api_res and api_res.get('results') else None
+
+        # The RPC ('by=name-desc') can return results that only match the query in their
+        # description, not their name. When that happens (or the RPC found nothing at all),
+        # also consult the name-normalized local index so an uninstalled multi-word-query
+        # match isn't missed just because some unrelated package's description matched.
+        if not pkgs_found or not naming.any_name_matches(query, (p['Name'] for p in pkgs_found)):
             tii = time.time()
             if self.index_aur:
                 self.index_aur.join()
@@ -339,7 +342,14 @@ class ArchManager(SoftwareManager, SettingsController):
             if aur_index:
                 self.logger.info("Querying through the local AUR index")
                 to_query = naming.match_index_names(query, aur_index)
-                pkgs_found = self.aur_client.get_info(to_query)
+
+                already_found = {p['Name'] for p in pkgs_found} if pkgs_found else set()
+                to_query = {name for name in to_query if name not in already_found}
+
+                if to_query:
+                    indexed_pkgs = self.aur_client.get_info(to_query)
+                    if indexed_pkgs:
+                        pkgs_found = (pkgs_found or []) + list(indexed_pkgs)
 
             tif = time.time()
             self.logger.info("Query through local AUR index took {0:.2f} seconds".format(tif - tii))

@@ -399,12 +399,15 @@ function bestIconUrl(group) {
 }
 
 // Name-relevance for search ranking: exact > prefix > name-contains > description-only.
+// Compared on normalizeName() output (not raw strings) so a multi-word query like
+// 'google chrome' still recognizes 'google-chrome' as a name match, not just a description hit.
 function relevanceScore(name, q) {
-    const n = (name || '').toLowerCase();
     if (!q) return 0;
-    if (n === q) return 4;
-    if (n.startsWith(q)) return 3;
-    if (n.includes(q)) return 2;
+    const n = normalizeName(name), qq = normalizeName(q);
+    if (!qq) return 0;
+    if (n === qq) return 4;
+    if (n.startsWith(qq)) return 3;
+    if (n.includes(qq)) return 2;
     return 1; // only matched on description/other fields
 }
 
@@ -6917,6 +6920,8 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         normalizeName,
         groupKey,
         stripBuildSuffix,
+        relevanceScore,
+        sortByRelevance,
         collapseByName,
         sourcePillLabel,
         sourcePillHTML,

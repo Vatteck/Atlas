@@ -113,9 +113,9 @@ class MatchInstalledNamesTest(TestCase):
                          naming.match_installed_names('curl_impersonate', self.INSTALLED))
 
     def test_query_underscore_space_matches_installed_hyphen(self):
-        # Mixed separators in query (underscore and space) must match hyphenated installed name.
+        # Space-separated query must match hyphenated installed name.
         self.assertEqual({'curl-impersonate'},
-                         naming.match_installed_names('curl_impersonat', self.INSTALLED))
+                         naming.match_installed_names('curl impersonat', self.INSTALLED))
 
     def test_query_space_matches_installed_hyphen(self):
         # Space in query must match hyphen in installed name.
@@ -131,6 +131,26 @@ class MatchInstalledNamesTest(TestCase):
         # Mixed separator styles in query must normalize to match installed hyphenated name.
         self.assertEqual({'google-chrome'},
                          naming.match_installed_names('google_chrome', self.INSTALLED))
+
+
+class AnyNameMatchesTest(TestCase):
+    """Pins the decision _fill_aur_search_results uses to tell whether an AUR RPC result
+    set actually answers the query by name, vs. only matching some result's description."""
+
+    def test_no_result_matches_multiword_query_by_name(self):
+        # RPC returned an unrelated package whose description happens to contain the
+        # query text; none of its names normalized-match. Must report False so the
+        # caller still consults the local AUR index.
+        self.assertFalse(naming.any_name_matches('google chrome', ['unrelated-pkg']))
+
+    def test_result_matches_multiword_query_by_name(self):
+        self.assertTrue(naming.any_name_matches('google chrome', ['google-chrome']))
+
+    def test_empty_names_is_false(self):
+        self.assertFalse(naming.any_name_matches('google chrome', []))
+
+    def test_empty_query_is_false(self):
+        self.assertFalse(naming.any_name_matches('', ['google-chrome']))
 
 
 class WorkerIndexKeyTest(TestCase):
