@@ -18,7 +18,7 @@ cancellation clarity / attention notifications are all implemented but not yet r
 [cancellation-clarity](plans/2026-08-29-update-cancellation-clarity.md),
 [attention-notifications](plans/2026-08-29-operation-attention-notifications.md)).
 **Branch:** `master` (= `origin/master`). Always run `git branch` rather than trusting this line.
-**Health:** on branch `feat/cross-source-search-normalization` (not yet merged): 811 Python + JS
+**Health:** on branch `feat/cross-source-search-normalization` (not yet merged): 815 Python + JS
 contract suite green (`fail 0`). `master` itself: 787 Python + 62 JS, CI green on 3.10–3.14.
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)**. Everything already shipped is in
@@ -103,7 +103,12 @@ Full record in [HISTORY.md](HISTORY.md). Only the last few entries live here.
   and JS suites so the two normalizers can't drift apart. Design + task plan:
   [2026-09-05-cross-source-search-normalization.md](plans/2026-09-05-cross-source-search-normalization.md),
   [-implementation.md](plans/2026-09-05-cross-source-search-normalization-implementation.md).
-  Suite now **811 Python + JS contract suite green (`fail 0`)**.
+  A final whole-branch review then closed two gaps the per-task reviews could not see: the AUR
+  local-index fallback only engaged when the RPC returned *zero* results, so an uninstalled
+  multi-source app could still be missed when the RPC returned an unrelated description-match
+  (now supplemented via `naming.any_name_matches`, RPC query still raw); and `relevanceScore`
+  still compared the raw query, collapsing every multi-word search to the description-only tier.
+  Suite now **815 Python + JS contract suite green (`fail 0`)**.
 
   **Not GUI-verified — Vatteck's manual pass before calling this done:** search `google chrome` →
   one card with `AUR ● Flatpak ●` pills matching what `chrome` returns; open it → "Available from
