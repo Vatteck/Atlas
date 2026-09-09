@@ -49,6 +49,18 @@ class ResolveProtectedTest(TestCase):
         self.assertNotIn('linux-wallpaperengine-git', result)
         self.assertNotIn('linux-firmware', result)
 
+    def test_protects_the_bootloader_by_exact_name(self):
+        # /boot is not readable by a normal user, so bootloader packages cannot be derived
+        # from file ownership the way the kernel can. A short exact-name list covers them.
+        # Exact matching only -- no prefixes -- so it cannot over-block.
+        result = protected.resolve_protected(kernel_release='7.1.8-1-cachyos',
+                                             owner_of_path=lambda path: None,
+                                             providers_of=lambda name: set())
+
+        self.assertIn('limine', result)
+        self.assertIn('grub', result)
+        self.assertIn('systemd-boot', result)
+
 
 class SystemProtectedTest(TestCase):
     """The thin wiring from the live system into resolve_protected()."""
@@ -65,7 +77,7 @@ class SystemProtectedTest(TestCase):
                    return_value={'initramfs': {'mkinitcpio'}}):
             result = protected.system_protected()
 
-        self.assertEqual({'my-kernel', 'mkinitcpio'}, result)
+        self.assertEqual({'my-kernel', 'mkinitcpio'} | protected.BOOTLOADERS, result)
 
     def test_survives_a_system_with_no_owning_package(self):
         # A custom-compiled kernel, or a container, owns nothing. Must not raise: the
@@ -74,4 +86,5 @@ class SystemProtectedTest(TestCase):
              patch('atlas.gems.arch.pacman.map_provided', return_value=None):
             result = protected.system_protected()
 
-        self.assertEqual(set(), result)
+        # Only the exact-name backstop survives: nothing was derivable from this system.
+        self.assertEqual(protected.BOOTLOADERS, result)
