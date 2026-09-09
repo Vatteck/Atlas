@@ -1248,6 +1248,18 @@ class ArchManager(SoftwareManager, SettingsController):
                                          type_=MessageType.ERROR)
             return False
 
+        # An upgrade that deletes packages must say which ones and get an explicit yes. Plain
+        # and factual: the list itself is the safety mechanism, not alarming prose.
+        removing = ', '.join(sorted(to_remove))
+
+        if not handler.watcher.request_confirmation(title=self.i18n['warning'].capitalize(),
+                                                    body=self.i18n['arch.upgrade.remove_confirm'].format(removing),
+                                                    confirmation_label=self.i18n['proceed'].capitalize(),
+                                                    deny_label=self.i18n['cancel'].capitalize()):
+            self.logger.info(f"Upgrade cancelled: the removal of {removing} was declined")
+            handler.watcher.print("Aborted")
+            return False
+
         output_handler = TransactionStatusHandler(watcher=handler.watcher,
                                                   i18n=self.i18n,
                                                   names=set(),

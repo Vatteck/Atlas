@@ -11,8 +11,12 @@ def _stub_manager():
     stub.logger = MagicMock()
     stub.i18n = {
         'error': 'error',
+        'warning': 'warning',
+        'proceed': 'proceed',
+        'cancel': 'cancel',
         'arch.upgrade.error.remove_refused': '{} / {}',
         'arch.upgrade.error.remove_protected': '{}',
+        'arch.upgrade.remove_confirm': 'This upgrade will remove: {}',
     }
     return stub
 
@@ -46,6 +50,63 @@ class UpgradeRemovalGuardTest(TestCase):
 
         with patch('atlas.gems.arch.pacman.map_required_by', return_value={}), \
              patch('atlas.gems.arch.protected.system_protected', return_value={'linux-cachyos'}), \
+             patch('atlas.gems.arch.pacman.clear_caches'), \
+             patch('atlas.gems.arch.pacman.remove_several') as remove_several:
+            result = ArchManager._remove_transaction_packages(_stub_manager(),
+                                                              to_remove={'some-old-font'},
+                                                              handler=handler,
+                                                              root_password=None)
+
+        self.assertTrue(result)
+        remove_several.assert_called_once()
+
+
+class UpgradeRemovalConfirmationTest(TestCase):
+    """An upgrade that deletes packages must say so and get consent first.
+
+    Update All removed eleven packages on 2026-09-09 with no prompt at all. Even with the
+    conflict logic corrected, removals during an upgrade deserve an explicit yes.
+    """
+
+    def test_aborts_when_the_user_declines(self):
+        handler = MagicMock()
+        handler.watcher.request_confirmation.return_value = False
+
+        with patch('atlas.gems.arch.pacman.map_required_by', return_value={}), \
+             patch('atlas.gems.arch.protected.system_protected', return_value=set()), \
+             patch('atlas.gems.arch.pacman.remove_several') as remove_several:
+            result = ArchManager._remove_transaction_packages(_stub_manager(),
+                                                              to_remove={'some-old-font'},
+                                                              handler=handler,
+                                                              root_password=None)
+
+        self.assertFalse(result)
+        remove_several.assert_not_called()
+
+    def test_names_every_package_in_the_prompt(self):
+        # A prompt that does not say what will be deleted is not consent.
+        handler = MagicMock()
+        handler.watcher.request_confirmation.return_value = False
+
+        with patch('atlas.gems.arch.pacman.map_required_by', return_value={}), \
+             patch('atlas.gems.arch.protected.system_protected', return_value=set()), \
+             patch('atlas.gems.arch.pacman.remove_several'):
+            ArchManager._remove_transaction_packages(_stub_manager(),
+                                                     to_remove={'some-old-font', 'stale-lib'},
+                                                     handler=handler,
+                                                     root_password=None)
+
+        body = handler.watcher.request_confirmation.call_args.kwargs['body']
+        self.assertIn('some-old-font', body)
+        self.assertIn('stale-lib', body)
+
+    def test_proceeds_when_the_user_accepts(self):
+        handler = MagicMock()
+        handler.watcher.request_confirmation.return_value = True
+        handler.handle_simple.return_value = (True, '')
+
+        with patch('atlas.gems.arch.pacman.map_required_by', return_value={}), \
+             patch('atlas.gems.arch.protected.system_protected', return_value=set()), \
              patch('atlas.gems.arch.pacman.clear_caches'), \
              patch('atlas.gems.arch.pacman.remove_several') as remove_several:
             result = ArchManager._remove_transaction_packages(_stub_manager(),
