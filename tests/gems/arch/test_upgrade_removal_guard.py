@@ -43,6 +43,26 @@ class UpgradeRemovalGuardTest(TestCase):
         self.assertFalse(result, 'the removal must not be reported as successful')
         remove_several.assert_not_called()
 
+    def test_refuses_the_actual_2026_09_09_removal_set(self):
+        # The exact set pacman was asked to remove, from /var/log/pacman.log. Whatever the
+        # conflict logic decides, this transaction must never reach the disk again.
+        incident = {'cachyos-gaming-meta', 'linux-cachyos-headers', 'winetricks', 'mkinitcpio',
+                    'linux-cachyos-nvidia-open', 'cachyos-gaming-applications', 'wine',
+                    'ntsync-autoload', 'protontricks', 'linux-cachyos', 'limine-mkinitcpio-hook'}
+        handler = MagicMock()
+
+        with patch('atlas.gems.arch.pacman.map_required_by', return_value={}), \
+             patch('atlas.gems.arch.protected.system_protected',
+                   return_value={'linux-cachyos', 'mkinitcpio'}), \
+             patch('atlas.gems.arch.pacman.remove_several') as remove_several:
+            result = ArchManager._remove_transaction_packages(_stub_manager(),
+                                                              to_remove=incident,
+                                                              handler=handler,
+                                                              root_password=None)
+
+        self.assertFalse(result)
+        remove_several.assert_not_called()
+
     def test_allows_an_ordinary_leaf_package_through(self):
         # The guard must not block legitimate removals — over-blocking would break upgrades.
         handler = MagicMock()
