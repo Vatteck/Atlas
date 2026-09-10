@@ -91,14 +91,47 @@ packages and Atlas reported success while nothing was upgraded.
 
 **That bug did not remove the kernel.** It gets its own plan — see Follow-ups.
 
-## Still to pin down
+## The chain (traced 2026-09-09, after Phase 1)
 
-The expansion mechanism is confirmed from the code and the package metadata. **The specific
-declaring package whose conflict expanded to `linux-cachyos` is not yet identified.**
-`linux-cachyos` itself declares `Conflicts With: None`, so some other package in the
-transaction declared a conflict on a name that `linux-cachyos` provides.
+**`adios-dkms` is the declaring package.** From the `cachyos` repo:
 
-Phase 2 must not begin until that exact chain is reproduced. Phase 1 does not depend on it.
+```
+Name            : adios-dkms
+Provides        : ADIOS-MODULE
+Conflicts With  : ADIOS-MODULE
+```
+
+`linux-cachyos` provides `ADIOS-MODULE`. `_map_conflicts` reads `adios-dkms`'s declared
+conflict, looks up every provider of `ADIOS-MODULE`, excludes only `adios-dkms` itself, and
+leaves the running kernel in `to_remove` with reason *"Conflicts with 'adios-dkms'"*.
+Thirteen packages provide `ADIOS-MODULE`; twelve of them are kernels.
+
+**The cascade was NOT involved.** `_add_to_remove` logs a warning for every name it cannot
+resolve, and `~/.cache/atlaspm/logs/atlas.log` contains **zero** of them across every run that
+day — so each removal came from conflict expansion directly, not transitively.
+
+### Unresolved: how `adios-dkms` entered the transaction
+
+It is not installed. The timeline points at the providers dialog — requested 10:19:36,
+answered 10:21:19, removal at 10:22:03 — where Atlas offers a choice between packages
+providing the same virtual name, and `adios-dkms` and the kernels are exactly such a set.
+
+**This cannot be confirmed, because Atlas does not log what the providers dialog offered or
+what the user selected.** `watcher.request_confirmation` records only the title and body. For
+a choice that can cascade into deleting the running kernel, that is a serious observability
+gap, and closing it is a prerequisite for Phase 2 — otherwise the next occurrence is equally
+unreconstructable.
+
+## Blast radius (measured 2026-09-09)
+
+- **1,529** repo packages declare a conflict of any kind.
+- **906** use the self-provides + self-conflicts idiom.
+- Virtual names with many providers, any of which a conflict declaration would sweep up:
+  `tessdata` (128), `vulkan-driver` (30), **`NVIDIA-MODULE` (19)**, **`WIREGUARD-MODULE` (17)**,
+  **`VIRTUALBOX-GUEST-MODULES` (17)**, **`KSMBD-MODULE` (17)**.
+
+A package conflicting on `vulkan-driver` would schedule the user's GPU driver for deletion by
+the same mechanism. This is not a kernel-specific bug.
 
 ## Design
 
@@ -132,15 +165,47 @@ correct, removals during an upgrade deserve consent.
 
 Stop treating "declares a conflict on a virtual name" as "remove every provider."
 
-Rules to encode:
-- A package that both **provides** and **conflicts with** the same name is declaring
-  mutual exclusion for a *role*. The correct resolution is replacement — which pacman performs
-  itself — not removal by Atlas.
-- Expanding a conflict to all providers is only defensible when the conflict names a **real**
-  package, not a virtual one. `_map_virtual_providers` already distinguishes these; the
-  `len(name_op_exp) == 1` branch ignores that distinction.
-- When in doubt, prefer letting pacman resolve the transaction and reporting the failure, over
-  Atlas pre-emptively deleting packages. Atlas is a front-end; pacman is the resolver.
+**⚠️ This section's original rule was wrong — corrected 2026-09-09 after measuring.**
+
+The first draft said "a package that both provides and conflicts with the same name is
+declaring mutual exclusion for a role; the correct resolution is replacement, not removal."
+That is false as a blanket rule. **906 packages use that idiom and most are benign**:
+
+```
+7zip     provides p7zip,     conflicts p7zip      -> removing p7zip is CORRECT
+aws-cli-v2 provides aws-cli, conflicts aws-cli    -> removing aws-cli is CORRECT
+```
+
+`p7zip` is a real package with one provider; removing it is exactly what the declaration
+means. Forbidding expansion outright would break every legitimate supersedes-relationship.
+
+**The actual discriminator is how many packages provide the conflicted name.**
+
+- **One provider** (typically the real package being superseded) — expansion is correct and
+  must be preserved. This is the `7zip`/`p7zip` case.
+- **Many providers** (a virtual role name like `ADIOS-MODULE`, `NVIDIA-MODULE`,
+  `vulkan-driver`) — expansion is wrong. The declaration means "only one may fill this role,"
+  not "delete the twelve others." Atlas must not choose a winner by deleting the rest; pacman
+  resolves this during the transaction, and where it genuinely cannot, the right outcome is to
+  report the conflict rather than pre-emptively remove.
+
+`_map_virtual_providers` already distinguishes virtual from real; the `len(name_op_exp) == 1`
+branch (no version expression) ignores that distinction and is where the fix belongs.
+
+**Do not let the fix regress the one-provider case** — a test for `7zip`/`p7zip` alongside the
+`adios-dkms`/kernel test is the minimum.
+
+### Dormant bug found in the same code — fix while here
+
+[`updates.py` `_add_to_remove`](../../atlas/gems/arch/updates.py):
+
+```python
+all_deps.update(pname)      # pname is a str: adds its CHARACTERS, not the name
+```
+
+`set.update()` iterates its argument, so a package name becomes a set of single letters. Should
+be `all_deps.add(pname)`. Currently dormant — the cascade did not run in any observed session —
+which is why it has never been noticed. It needs its own test.
 
 ## Testing
 
@@ -156,10 +221,13 @@ TDD, per AGENTS.md. Minimum cases:
 - The confirmation lists every package and reason, and cancelling aborts the upgrade.
 
 **Phase 2**
-- A package declaring `Conflicts: X` where it also `Provides: X` does **not** schedule other
-  providers of X for removal. Use the real `limine-mkinitcpio-hook` shape.
-- A package declaring `Conflicts: <real package>` still schedules that package (no regression).
-- Twelve kernels providing `KSMBD-MODULE` produce no removals when one is upgraded.
+- The real `adios-dkms` shape — `Provides: ADIOS-MODULE`, `Conflicts: ADIOS-MODULE`, thirteen
+  providers — schedules **no** removals. This is the incident.
+- The real `7zip` shape — `Provides: p7zip`, `Conflicts: p7zip`, one provider — **still**
+  schedules `p7zip`. Guards against over-correcting.
+- A package declaring `Conflicts: <real package>` still schedules that package.
+- Seventeen kernels providing `KSMBD-MODULE` produce no removals when one is upgraded.
+- `_add_to_remove` records whole package names, not characters.
 
 **Regression fixture:** build the real removal set from this incident — the eleven package
 names, with CachyOS's actual provides/conflicts metadata — and assert it comes back empty.
