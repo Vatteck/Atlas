@@ -1,36 +1,31 @@
 # .last-agent — integrity checkpoint for the next AI coding agent
 
-**Agent:** LongCat — 2026-10-07 (project audit + doc refresh)
+**Agent:** LongCat — 2026-10-07 (audit + merge security fix + search normalization)
 **Branch:** master
-**Last commit (base):** 6d316e0 ("docs: add implementation plan for search normalization")
+**Last commit (base):** 4b6edb6 ("docs: refresh baton after 6-week audit")
 
 ## Summary
 
-Project audit after ~6 weeks of no doc updates on master. The `.last-agent` and `STATUS.md`
-on master were stale (last updated 2026-08-29), but significant work happened on three
-feature branches during that time:
+Project audit after ~6 weeks of no doc updates on master. Found three feature branches with
+submerged work, all parked on GUI verification. Actions taken:
 
-- **`claude/amazing-yalow-a5930c`** (7 commits, +969/−1063) — Security fix: removes all
-  `shell=True` execution, converts to argv lists. Fixes a real command injection
-  vulnerability where searching `firefox; touch <path>` in the GUI created the file.
-  822 Python tests pass. NOT merged, NOT GUI-verified. PR being created 2026-10-07.
-- **`feat/cross-source-search-normalization`** (10 commits, +612/−281) — Fixes cross-source
-  search name normalization ("google chrome" returned only Flatpak, not AUR+Flatpak).
-  PR #7 open, CI green. 811 Python tests pass. NOT merged, NOT GUI-verified.
-- **`fix/upgrade-removal-safety`** (8 commits, +651/−1010) — Bootloader/kernel protection
-  during upgrades (Atlas removed the running kernel on CachyOS). Phase 1 done, Phase 2
-  NOT done. 799 Python tests pass. NOT merged, NOT GUI-verified.
+- **PR #8 merged** (`claude/amazing-yalow-a5930c`) — Security fix: removes all `shell=True`
+  execution, converts to argv. Fixes real command injection vuln (searching `firefox; touch
+  <path>` created the file). 822 Python tests.
+- **PR #7 merged** (`feat/cross-source-search-normalization`) — Search name normalization
+  ("google chrome" returned only Flatpak, not AUR+Flatpak). 815 Python tests. GUI-verified
+  by Vatteck.
+- **Deleted** `claude/zealous-keller-c598db` (stale branch, no unique work).
+- **Updated** STATUS.md + .last-agent to reflect actual state.
 
-Master itself has 2 unpushed docs commits (search normalization planning).
-
-**Verification:** 787 Python tests + 62 JS contract tests green on master. CI green.
+**Verification:** 822 Python tests + 62 JS contract tests green on master. CI green.
 
 ## Known gaps / next steps
 
-- **Security fix PR** being created from `claude/amazing-yalow-a5930c` — needs review + merge.
-- **Merge order:** security fix → search normalization → upgrade-removal-safety (last one
-  collides with the security fix in `gems/arch/controller.py` + `gems/arch/pacman.py`).
-- **None of the three branches are GUI-verified** — all need a real WebKitGTK desktop run.
-- **Master is 2 commits ahead of origin** — push after doc updates.
-- **`claude/zealous-keller-c598db`** is a stale branch at master's old HEAD — safe to delete.
+- **`fix/upgrade-removal-safety`** (8 commits, +651/−1010) — Bootloader/kernel protection
+  during upgrades. Phase 1 done (guard + confirmation), Phase 2 NOT done (conflict-logic fix
+  in `gems/arch/updates.py`). NOT merged, NOT GUI-verified. Needs disposable Arch/CachyOS
+  container for verification. Will collide with the now-merged security fix in
+  `gems/arch/controller.py` + `gems/arch/pacman.py` — rebase needed before merge.
 - **0.16.2 still needs release preparation** (README/CHANGELOG + smoke pass).
+- **Master is 1 commit ahead of origin** — push after doc updates.

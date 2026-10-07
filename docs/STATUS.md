@@ -17,8 +17,8 @@ GUI holds surface follow-up also implemented — [2026-08-16-gui-upgrade-holds.m
 update cancellation clarity + cross-workspace attention notifications implemented —
 [2026-08-29-update-cancellation-clarity.md](plans/2026-08-29-update-cancellation-clarity.md),
 [2026-08-29-operation-attention-notifications.md](plans/2026-08-29-operation-attention-notifications.md)).
-**Branch:** `master` (2 commits ahead of `origin/master` — unpushed docs commits). Always run `git branch` rather than trusting this line.
-**Health:** 787 Python tests + 62 JS contract tests green; CI green across Python 3.10–3.14.
+**Branch:** `master` (1 commit ahead of `origin/master` — unpushed doc refresh). Always run `git branch` rather than trusting this line.
+**Health:** 822 Python tests + 62 JS contract tests green; CI green across Python 3.10–3.14.
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)**. Everything already shipped is in
 > **[HISTORY.md](HISTORY.md)** and **[CHANGELOG.md](../CHANGELOG.md)** — don't re-read those to
@@ -26,21 +26,17 @@ update cancellation clarity + cross-workspace attention notifications implemente
 
 ---
 
-## In flight — feature branches (none merged to master)
-
-Three branches have substantial unmerged work. All are well-documented in their own `.last-agent`
-files. **None are GUI-verified.** Merge order matters — see below.
+## In flight — feature branches
 
 | Branch | Commits | Lines | Status | PR | GUI-verified |
 |--------|:-------:|:------:|--------|:--:|:------------:|
-| `claude/amazing-yalow-a5930c` | 7 | +969/−1063 | **Security fix** — removes all `shell=True` execution, converts to argv. Fixes real command injection vuln. | — | No |
-| `feat/cross-source-search-normalization` | 10 | +612/−281 | Search name normalization ("google chrome" bug). | #7 (open, CI green) | No |
 | `fix/upgrade-removal-safety` | 8 | +651/−1010 | Bootloader/kernel protection during upgrades. Phase 2 NOT done. | — | No |
 
-**Merge order recommendation:** security fix first (real vuln, most tests), then search normalization (PR open, small collision), then upgrade-removal-safety (collides with security fix, Phase 2 incomplete, needs disposable container for verification).
+**Merged 2026-10-07:**
+- **PR #8** (`claude/amazing-yalow-a5930c`) — Security fix: removes all `shell=True` execution, converts to argv. Fixes real command injection vuln. 822 Python tests.
+- **PR #7** (`feat/cross-source-search-normalization`) — Search name normalization ("google chrome" bug). 815 Python tests. GUI-verified by Vatteck.
 
-**Collision warning:** `fix/upgrade-removal-safety` and `claude/amazing-yalow-a5930c` both modify
-`gems/arch/controller.py` and `gems/arch/pacman.py`. Decide merge order before either lands.
+**Deleted 2026-10-07:** `claude/zealous-keller-c598db` (stale branch, no unique work).
 
 ---
 
