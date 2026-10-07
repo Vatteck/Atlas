@@ -322,3 +322,5 @@ arch.update_summary.held=Held (ignored upgrade)
 arch.upgrade.error.conflicting_files.vendored=Some packages ship files that belong to other installed packages: {}. This usually means the package bundles files it should depend on instead. Hold the listed packages and continue the upgrade without them?
 arch.upgrade.conflicting_files.hold=Hold packages and continue
 arch.upgrade.error.remove_refused=The upgrade was cancelled: {} cannot be removed because they are still required by installed packages: {}.
+arch.upgrade.error.remove_protected=The upgrade was cancelled: {} cannot be removed because your system needs them to start up.
+arch.upgrade.remove_confirm=This upgrade needs to remove the following packages: {}. Continue?

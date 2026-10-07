@@ -1535,3 +1535,164 @@ class UpdatesSummarizerGetUpgradeRequirementsTest(TestCase):
 
         pkg_d = ArchPackage(name="D", repository="community", version="0.7.0-1", latest_version="0.7.0-1")
         self.assertIn(UpgradeRequirement(pkg=pkg_d, extra_size=1, reason=" 'B=1.0.0'"), res.to_remove)
+
+    @patch(f"{__app_name__}.gems.arch.updates.pacman")
+    def test__no_removal_when_conflict_on_virtual_name_with_many_providers(self, pacman: Mock):
+        """
+        The adios-dkms incident shape: a package declares Provides + Conflicts on the same
+        virtual name with many providers. Expansion must NOT schedule any removals.
+        """
+        pkg_adios = ArchPackage(name="adios-dkms", version="1.0-1", latest_version="1.0-1", repository="community")
+
+        kernels = [f"linux-cachyos-variant-{i}" for i in range(13)]
+        providers = {"adios-dkms": {"adios-dkms"}, "ADIOS-MODULE": set(kernels) | {"adios-dkms"}}
+        for k in kernels:
+            providers[k] = {k}
+
+        pacman.map_provided.side_effect = [providers, providers]
+        pacman.map_repositories.return_value = {**{k: "community" for k in kernels}, "adios-dkms": "community"}
+        pacman.map_updates_data.return_value = {
+            "adios-dkms": {'ds': 1, 's': 1, 'v': "1.0-1", 'c': {"ADIOS-MODULE"},
+                           'p': {"adios-dkms": {"adios-dkms"}, "ADIOS-MODULE": set(kernels) | {"adios-dkms"}},
+                           'd': set(), 'r': "community", 'des': "adios-dkms"},
+            **{k: {'ds': 1, 's': 1, 'v': "1.0-1", 'c': set(),
+                   'p': {k: {k}, "ADIOS-MODULE": {k}}, 'd': set(), 'r': "community", 'des': k}
+               for k in kernels}
+        }
+        pacman.map_installed.return_value = {**{k: "1.0-1" for k in kernels}, "adios-dkms": "1.0-1"}
+        pacman.get_installed_size.return_value = {**{k: 1 for k in kernels}, "adios-dkms": 1}
+        pacman.map_required_by.return_value = {**{k: set() for k in kernels}, "adios-dkms": set()}
+
+        self.deps_analyser.map_missing_deps.return_value = list()
+        self.deps_analyser.map_all_required_by.return_value = set()
+
+        res = self.summarizer.summarize(pkgs=[pkg_adios], root_password=None, arch_config=self.config_)
+
+        self.assertFalse(res.to_remove)
+
+    @patch(f"{__app_name__}.gems.arch.updates.pacman")
+    def test__still_removes_when_conflict_on_virtual_name_with_one_provider(self, pacman: Mock):
+        """
+        A package declaring Conflicts on a virtual name with exactly one provider (a real
+        package being superseded) must still schedule that provider for removal.
+        """
+        pkg_a = ArchPackage(name="A", version="1.0-1", latest_version="1.1-1", repository="community")
+        pkg_b = ArchPackage(name="B", version="1.0-1", latest_version="1.0-1", repository="community")
+
+        providers = {"A": {"A"}, "B": {"B"}, "C": {"B"}}
+
+        pacman.map_provided.side_effect = [providers, providers, providers]
+        pacman.map_repositories.return_value = {"A": "community", "B": "community"}
+        pacman.map_updates_data.return_value = {
+            "A": {'ds': 1, 's': 1, 'v': "1.1-1", 'c': {"C"},
+                   'p': {"A": {"A"}}, 'd': set(), 'r': "community", 'des': "A"},
+            "B": {'ds': 1, 's': 1, 'v': "1.0-1", 'c': set(),
+                   'p': {"B": {"B"}, "C": {"B"}}, 'd': set(), 'r': 'community', 'des': "B"}
+        }
+        pacman.map_installed.return_value = {"A": "1.0-1", "B": "1.0-1"}
+        pacman.get_installed_size.return_value = {"A": 1, "B": 1}
+        pacman.map_required_by.return_value = {"A": set(), "B": set()}
+
+        self.deps_analyser.map_missing_deps.return_value = list()
+        self.deps_analyser.map_all_required_by.return_value = set()
+
+        res = self.summarizer.summarize(pkgs=[pkg_a], root_password=None, arch_config=self.config_)
+
+        self.assertTrue(any(r.pkg.name == "B" for r in res.to_remove))
+
+    @patch(f"{__app_name__}.gems.arch.updates.pacman")
+    def test__still_removes_real_package_conflict(self, pacman: Mock):
+        """
+        A package declaring Conflicts on a real package name (not a virtual name) must
+        still schedule that package for removal.
+        """
+        pkg_a = ArchPackage(name="A", version="1.0-1", latest_version="1.1-1", repository="community")
+        pkg_b = ArchPackage(name="B", version="1.0-1", latest_version="1.0-1", repository="community")
+
+        providers = {"A": {"A"}, "B": {"B"}}
+
+        pacman.map_provided.side_effect = [providers, providers, providers]
+        pacman.map_repositories.return_value = {"A": "community", "B": "community"}
+        pacman.map_updates_data.return_value = {
+            "A": {'ds': 1, 's': 1, 'v': "1.1-1", 'c': {"B"},
+                   'p': {"A": {"A"}}, 'd': set(), 'r': "community", 'des': "A"},
+            "B": {'ds': 1, 's': 1, 'v': "1.0-1", 'c': set(),
+                   'p': {"B": {"B"}}, 'd': set(), 'r': 'community', 'des': "B"}
+        }
+        pacman.map_installed.return_value = {"A": "1.0-1", "B": "1.0-1"}
+        pacman.get_installed_size.return_value = {"A": 1, "B": 1}
+        pacman.map_required_by.return_value = {"A": set(), "B": set()}
+
+        self.deps_analyser.map_missing_deps.return_value = list()
+        self.deps_analyser.map_all_required_by.return_value = set()
+
+        res = self.summarizer.summarize(pkgs=[pkg_a], root_password=None, arch_config=self.config_)
+
+        self.assertTrue(any(r.pkg.name == "B" for r in res.to_remove))
+
+    @patch(f"{__app_name__}.gems.arch.updates.pacman")
+    def test__no_removal_when_many_kernels_provide_same_virtual_name(self, pacman: Mock):
+        """
+        Seventeen kernels providing KSMBD-MODULE: upgrading one must not schedule
+        removals of the others.
+        """
+        kernels = [f"linux-kernel-variant-{i}" for i in range(17)]
+        pkg_one = ArchPackage(name=kernels[0], version="1.0-1", latest_version="1.1-1", repository="community")
+
+        providers = {k: {k} for k in kernels}
+        for k in kernels:
+            providers[k] = {k}
+        all_kernels = set(kernels)
+        for k in kernels:
+            providers[f"{k}=1.0"] = {k}
+
+        pacman.map_provided.side_effect = [providers, providers]
+        pacman.map_repositories.return_value = {k: "community" for k in kernels}
+        pacman.map_updates_data.return_value = {
+            **{k: {'ds': 1, 's': 1, 'v': "1.1-1" if k == kernels[0] else "1.0-1",
+                   'c': {"KSMBD-MODULE"} if k == kernels[0] else set(),
+                   'p': {k: {k}, f"{k}=1.0": {k}, "KSMBD-MODULE": all_kernels},
+                   'd': set(), 'r': "community", 'des': k}
+               for k in kernels}
+        }
+        pacman.map_installed.return_value = {k: "1.0-1" for k in kernels}
+        pacman.get_installed_size.return_value = {k: 1 for k in kernels}
+        pacman.map_required_by.return_value = {k: set() for k in kernels}
+
+        self.deps_analyser.map_missing_deps.return_value = list()
+        self.deps_analyser.map_all_required_by.return_value = set()
+
+        res = self.summarizer.summarize(pkgs=[pkg_one], root_password=None, arch_config=self.config_)
+
+        self.assertFalse(res.to_remove)
+
+    def test__add_to_remove_records_whole_package_names(self):
+        """
+        _add_to_remove must use set.add() not set.update() — update() on a string
+        adds its characters, not the name.
+        """
+        pkg_a = ArchPackage(name="A", version="1.0-1", latest_version="1.1-1", repository="community")
+        pkg_b = ArchPackage(name="B", version="1.0-1", latest_version="1.0-1", repository="community")
+
+        context = UpdateRequirementsContext(to_update={"A": pkg_a},
+                                            repo_to_update={"A": pkg_a},
+                                            aur_to_update={},
+                                            repo_to_install={},
+                                            aur_to_install={},
+                                            to_install={},
+                                            pkgs_data={"A": {'d': set(), 'c': set(), 'p': {}},
+                                                       "B": {'d': {"A"}, 'c': set(), 'p': {}}},
+                                            cannot_upgrade={},
+                                            to_remove={},
+                                            installed={"A": "1.0-1", "B": "1.0-1"},
+                                            provided_map={"A": {"A"}, "B": {"B"}},
+                                            aur_index=set(),
+                                            arch_config=self.config_,
+                                            remote_provided_map={},
+                                            remote_repo_map={},
+                                            root_password=None,
+                                            aur_supported=True)
+
+        self.summarizer._add_to_remove(pkgs_to_sync={"A"}, names={"B": set()}, context=context)
+
+        self.assertIn("B", context.to_remove)

@@ -39,7 +39,7 @@ from atlas.gems.arch import aur, pacman, message, confirmation, disk, git, \
     gpg, URL_CATEGORIES_FILE, CATEGORIES_FILE_PATH, CUSTOM_MAKEPKG_FILE, \
     get_icon_path, database, mirrors, sorting, cpu_manager, UPDATES_IGNORED_FILE, \
     ARCH_CONFIG_DIR, EDITABLE_PKGBUILDS_FILE, URL_GPG_SERVERS, rebuild_detector, makepkg, sshell, get_repo_icon_path, \
-    pkgbuild_audit, chroot, naming
+    pkgbuild_audit, chroot, naming, protected
 from atlas.gems.arch.aur import AURClient
 from atlas.gems.arch.config import get_build_dir, ArchConfigManager
 from atlas.gems.arch.confirmation import confirm_missing_deps
@@ -1220,6 +1220,20 @@ class ArchManager(SoftwareManager, SettingsController):
                                      covered: Optional[Set[str]] = None) -> bool:
         covered = covered if covered else set()
 
+        # Fail closed: never remove a package the system needs in order to boot. The
+        # reverse-dependency check below structurally cannot catch these — a kernel is a leaf,
+        # so nothing "requires" it — which is how an upgrade removed linux-cachyos and
+        # mkinitcpio on 2026-09-09. See docs/plans/2026-09-09-upgrade-removal-safety.md.
+        blocked = {p for p in to_remove if p in protected.system_protected()}
+
+        if blocked:
+            names = ', '.join(sorted(blocked))
+            self.logger.error(f"Refusing to remove boot-critical package(s): {names}")
+            handler.watcher.show_message(title=self.i18n['error'].capitalize(),
+                                         body=self.i18n['arch.upgrade.error.remove_protected'].format(names),
+                                         type_=MessageType.ERROR)
+            return False
+
         # Fail closed: never remove a package that installed packages still require, unless the
         # dependent is itself being removed or replaced by this transaction (covered).
         required_by = pacman.map_required_by(to_remove)
@@ -1232,6 +1246,18 @@ class ArchManager(SoftwareManager, SettingsController):
                                          body=self.i18n['arch.upgrade.error.remove_refused'].format(
                                              ', '.join(sorted(to_remove)), ', '.join(sorted(unprotected))),
                                          type_=MessageType.ERROR)
+            return False
+
+        # An upgrade that deletes packages must say which ones and get an explicit yes. Plain
+        # and factual: the list itself is the safety mechanism, not alarming prose.
+        removing = ', '.join(sorted(to_remove))
+
+        if not handler.watcher.request_confirmation(title=self.i18n['warning'].capitalize(),
+                                                    body=self.i18n['arch.upgrade.remove_confirm'].format(removing),
+                                                    confirmation_label=self.i18n['proceed'].capitalize(),
+                                                    deny_label=self.i18n['cancel'].capitalize()):
+            self.logger.info(f"Upgrade cancelled: the removal of {removing} was declined")
+            handler.watcher.print("Aborted")
             return False
 
         output_handler = TransactionStatusHandler(watcher=handler.watcher,
