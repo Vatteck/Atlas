@@ -8,22 +8,39 @@
 > move it to [HISTORY.md](HISTORY.md) (the full shipped record) or delete it. If this file
 > passes ~200 lines, it has stopped doing its job — archive again.
 
-**Last updated:** 2026-09-08
+**Last updated:** 2026-10-07
 **Version:** 0.16.1 (released 2026-07-18, tag `v0.16.1`, release commit `c8b9c37`; CI
 auto-published to the AUR). Both AUR packages live: stable **`atlas-pm`** + bleeding-edge
-**`atlas-pm-git`**. Next: **0.16.2** — upgrade-pipeline safety, the holds settings UI, and update
-cancellation clarity / attention notifications are all implemented but not yet released (plans:
-[upgrade-pipeline-safety](plans/2026-08-16-upgrade-pipeline-safety.md),
-[gui-upgrade-holds](plans/2026-08-16-gui-upgrade-holds.md),
-[cancellation-clarity](plans/2026-08-29-update-cancellation-clarity.md),
-[attention-notifications](plans/2026-08-29-operation-attention-notifications.md)).
-**Branch:** `master` (= `origin/master`). Always run `git branch` rather than trusting this line.
-**Health:** on branch `feat/cross-source-search-normalization` (not yet merged): 815 Python + JS
-contract suite green (`fail 0`). `master` itself: 787 Python + 62 JS, CI green on 3.10–3.14.
+**`atlas-pm-git`**. Next: **0.16.2** (upgrade-pipeline safety, plan
+[2026-08-16-upgrade-pipeline-safety.md](plans/2026-08-16-upgrade-pipeline-safety.md), implemented, not yet released;
+GUI holds surface follow-up also implemented — [2026-08-16-gui-upgrade-holds.md](plans/2026-08-16-gui-upgrade-holds.md);
+update cancellation clarity + cross-workspace attention notifications implemented —
+[2026-08-29-update-cancellation-clarity.md](plans/2026-08-29-update-cancellation-clarity.md),
+[2026-08-29-operation-attention-notifications.md](plans/2026-08-29-operation-attention-notifications.md)).
+**Branch:** `master` (2 commits ahead of `origin/master` — unpushed docs commits). Always run `git branch` rather than trusting this line.
+**Health:** 787 Python tests + 62 JS contract tests green; CI green across Python 3.10–3.14.
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)**. Everything already shipped is in
 > **[HISTORY.md](HISTORY.md)** and **[CHANGELOG.md](../CHANGELOG.md)** — don't re-read those to
 > start work, just search them.
+
+---
+
+## In flight — feature branches (none merged to master)
+
+Three branches have substantial unmerged work. All are well-documented in their own `.last-agent`
+files. **None are GUI-verified.** Merge order matters — see below.
+
+| Branch | Commits | Lines | Status | PR | GUI-verified |
+|--------|:-------:|:------:|--------|:--:|:------------:|
+| `claude/amazing-yalow-a5930c` | 7 | +969/−1063 | **Security fix** — removes all `shell=True` execution, converts to argv. Fixes real command injection vuln. | — | No |
+| `feat/cross-source-search-normalization` | 10 | +612/−281 | Search name normalization ("google chrome" bug). | #7 (open, CI green) | No |
+| `fix/upgrade-removal-safety` | 8 | +651/−1010 | Bootloader/kernel protection during upgrades. Phase 2 NOT done. | — | No |
+
+**Merge order recommendation:** security fix first (real vuln, most tests), then search normalization (PR open, small collision), then upgrade-removal-safety (collides with security fix, Phase 2 incomplete, needs disposable container for verification).
+
+**Collision warning:** `fix/upgrade-removal-safety` and `claude/amazing-yalow-a5930c` both modify
+`gems/arch/controller.py` and `gems/arch/pacman.py`. Decide merge order before either lands.
 
 ---
 
@@ -47,92 +64,161 @@ Step 1 (doc/repo debt) is done — see Done below. Steps 2–3 are in Next.
 
 ## Next
 
-1. **GUI-verify cross-source search normalization** (see Done entry above) — Vatteck's manual pass:
-   search `google chrome` and `chrome`, confirm matching grouped results with source pills and an
-   "Available from 2 sources" panel.
-2. **Relevance inversion (deliberately out of scope in the search-normalization fix).**
-   `sortByRelevance` in `main.js` has no source/type term, and its `votes` tiebreaker scores any
-   package lacking the field (Arch repo, Flatpak, AppImage) as `-1` — below an AUR package with
-   zero votes. At equal name relevance an unvoted AUR package outranks the official signed one.
-   `aurVariant()` is also applied to non-AUR names, penalising any package ending in `-git`.
-3. **`groupKey` breadth (also deliberately out of scope).** Measured 11/19 on realistic
-   Arch-name/display-name pairs. Misses vendor prefixes (`Mozilla Thunderbird`), descriptive
-   suffixes (`VLC media player`), Arch packaging suffixes (`libreoffice-fresh`), abbreviations
-   (`code` ≙ `Visual Studio Code`). Worth re-measuring now that search no longer hides sources.
-4. ~~**GUI eyeball — the one outstanding item.**~~ ✅ **CLEARED 2026-08-01 by Vatteck.** 0.16.1's
+1. ~~**GUI eyeball — the one outstanding item.**~~ ✅ **CLEARED 2026-08-01 by Vatteck.** 0.16.1's
    PKGBUILD inline reader in the pre-build review modal (which shipped and released without ever
    being looked at), plus the boot splash and theme-preset/accent contrast, were all walked on the
    real desktop and confirmed good. **Nothing is currently awaiting a GUI eyeball.**
-5. **Refresh the screenshots.** All five `docs/screenshots/*.png` predate themes/accents, the
-   floating terminal + log highlighting, the dependency tree, the calmed `.pacnew` center, and the
-   PKGBUILD reader — `terminal.png` still shows the flat-green sidepane, which no longer exists.
-   **Tooling is ready:** `tools/capture-screenshots.sh` (DEVELOPMENT.md §8) floats/sizes the
-   window to 1280×800 and crops to it; needs a GUI session, so it's Vatteck's to run.
-   *Deliberately not automated with a headless browser* — Chromium isn't WebKitGTK and README
-   images from an engine no user runs would be a subtle lie; fixture-driven headless rendering
-   belongs in Next #6, where the value is regression testing, not marketing images.
-6. **Then pick a real engineering thread** with fresh eyes. Leading candidate: a **render-level test
+2. **Refresh the screenshots.** All five `docs/screenshots/*.png` are from 2026-06-02 and predate
+   themes/accents, the floating terminal + log highlighting, the dependency tree, the calmed
+   `.pacnew` center, and the PKGBUILD reader. `terminal.png` especially — it still shows the
+   flat-green sidepane, which no longer exists.
+
+   **Tooling is ready:** `tools/capture-screenshots.sh` (DEVELOPMENT.md §8). Start Atlas, run it,
+   navigate to each view and press Enter — it floats/sizes the window to a consistent 1280×800,
+   raises it so nothing overlaps, squares off Hyprland's rounded corners, crops to the window rect
+   and writes to `docs/screenshots/`. Needs a GUI session, so it's Vatteck's to run.
+
+   *Deliberately not automated with a headless browser:* the UI would run (there's a clean
+   `pyApiCall` seam with a `mockApi` fallback), but Chromium is not WebKitGTK and Atlas's bug
+   history is full of WebKit-specific rendering failures — README images from an engine no user
+   runs would be a subtle lie. Fixture-driven headless rendering belongs in Next #3, where its
+   value is regression testing, not marketing images. *(The repo description and issue template
+   halves of this step are done — see Done.)*
+3. **Then pick a real engineering thread** with fresh eyes. Leading candidate: a **render-level test
    harness** for the `main.js` view renderers, since that is exactly where every recent defect lived
    and where the current tests are blind. Alternative: the paused cold-start work below.
 
 ### Paused thread — startup memory
 
-Measured and partly fixed (cold peak 528.7 → 451.7 MB via streamed `map_desktop_files`, plus a
-cheap read-coalescing guard); the ~200 MB pywebview floor caps the remaining ceiling, and the rest
-is a structural arch-gem redesign that needs its own plan. **Do not restart the measurement
-work** — full detail, including dead ends already tried, is in
+Measured and partly fixed; **do not restart the measurement work**, it is all in
 [plans/2026-07-17-memory-baseline.md](plans/2026-07-17-memory-baseline.md).
+
+- Whole app is ~400–460 MB PSS. An *empty* pywebview window already costs ~200 MB — that is the
+  architecture floor, not an Atlas bug.
+- **Fixed:** `pacman.map_desktop_files` buffered `pacman -Ql <every package>` as one string during
+  first-run cache warm-up. Now streamed — **cold peak 528.7 → 451.7 MB measured.**
+- **Shipped as a cheap guard, no measured delta:** in-flight coalescing of concurrent full
+  `read_installed` calls (leader/follower; `ATLAS_NO_READ_COALESCING=1` kills it).
+  [plans/2026-07-17-coalesce-read-installed.md](plans/2026-07-17-coalesce-read-installed.md).
+- **Remaining is structural:** the GUI's arch read waits on the pre-cacher's disk-cache task while
+  the pre-cacher runs its own read as that cache's data source. Merging them is an arch-gem redesign
+  with circular-wait risk — **needs its own plan before any code.** Modest ceiling given the ~200 MB
+  floor.
+- **Measured dead ends, don't re-try:** tracemalloc inflates RSS ~3×, `MALLOC_ARENA_MAX=2` made it
+  *worse*, `malloc_trim` reclaims ~1 MB.
 
 ## Done (recent)
 
 Full record in [HISTORY.md](HISTORY.md). Only the last few entries live here.
 
-- **Cross-source search normalization (2026-09-08) — NOT GUI-VERIFIED.** Bug: searching
-  `google chrome` returned only the Flatpak package, while `chrome` returned a correctly grouped
-  AUR+Flatpak card with source pills. Multi-source grouping itself was never broken — it was
-  starved of input by a search layer matching only one naming dialect at a time. Two root causes
-  in `atlas/gems/arch/controller.py`: `_fill_aur_search_results` tested the raw query with `in`
-  against an already-normalized AUR index key (`"google chrome" in "googlechrome"` was `False`);
-  `__fill_search_installed_and_matched` had a guard `if installed and ' ' not in query:` that
-  skipped installed-package matching for any query containing a space. Fixed by extracting the
-  matching logic into new `atlas/gems/arch/naming.py` (`normalize_pkg_name`, `match_index_names`,
-  `match_installed_names`), delegating both call sites to it, and lowercasing the AUR index build
-  in `worker.py` (regenerable cache, so an older index degrades rather than breaks — its private
-  `RE_CLEAR_REPLACE` regex is gone). `main.js` gained a standalone `normalizeName()` extracted out
-  of `groupKey()`; `tests/fixtures/pkg_name_normalization.json` is asserted from both the Python
-  and JS suites so the two normalizers can't drift apart. Design + task plan:
-  [2026-09-05-cross-source-search-normalization.md](plans/2026-09-05-cross-source-search-normalization.md),
-  [-implementation.md](plans/2026-09-05-cross-source-search-normalization-implementation.md).
-  A final whole-branch review then closed two gaps the per-task reviews could not see: the AUR
-  local-index fallback only engaged when the RPC returned *zero* results, so an uninstalled
-  multi-source app could still be missed when the RPC returned an unrelated description-match
-  (now supplemented via `naming.any_name_matches`, RPC query still raw); and `relevanceScore`
-  still compared the raw query, collapsing every multi-word search to the description-only tier.
-  Suite now **815 Python + JS contract suite green (`fail 0`)**.
-
-  **Not GUI-verified — Vatteck's manual pass before calling this done:** search `google chrome` →
-  one card with `AUR ● Flatpak ●` pills matching what `chrome` returns; open it → "Available from
-  2 sources" panel present; search `chrome` → unchanged from today.
-
-  **Known gap:** the test asserting `not hasattr(worker, 'RE_CLEAR_REPLACE')` guards against the
-  duplicate rule returning but asserts an implementation detail — a differently-named duplicate
-  regex would pass it.
 - **Long updates now announce and wait for required input (2026-08-29).** Live-log diagnosis found
-  the latest Update All never reached pacman: its root-password prompt got no response for five
-  minutes, then the front-end mislabeled `cancelled` as "Bulk upgrade failed." Explicit cancellation
-  is now reported separately from failure, and the deadline itself is gone: password, confirmation,
-  and blocking-message prompts wait for an explicit answer, post a persistent critical desktop
-  notification naming the action, and mark the terminal "Waiting for your input." Notifications
-  respect System notifications, carry the `atlas-pm` desktop-entry hint, and no longer pass
-  arguments through a shell; Atlas does not steal focus or move workspaces. Package commands and
-  fail-closed decisions unchanged. Plans:
-  [cancellation clarity](plans/2026-08-29-update-cancellation-clarity.md),
+  that the latest Update All never reached pacman: its root-password prompt received no response
+  for five minutes, then the front-end mislabeled `cancelled` as "Bulk upgrade failed." The prior
+  run likewise stopped on a timed-out Google Chrome PKGBUILD review. Explicit cancellation is now
+  reported separately from failure, and the deadline itself is gone: password, confirmation, and
+  blocking-message prompts wait for an explicit answer, post a persistent critical desktop
+  notification naming the action, and mark the terminal "Waiting for your input." Answering closes
+  the notification and resumes the status. Notifications respect System notifications and carry
+  the `atlas-pm` desktop-entry hint; Atlas does not steal focus or move workspaces. Notification
+  arguments no longer pass through a shell. Package commands and fail-closed decisions are
+  unchanged. Plans: [cancellation clarity](plans/2026-08-29-update-cancellation-clarity.md),
   [attention notifications](plans/2026-08-29-operation-attention-notifications.md). Suite now
   **787 Python + 62 JS**; live Hyprland notification/return flow still needs a manual smoke pass.
-- *(2026-08-16 and earlier — GUI settings surface for upgrade holds, upgrade-pipeline safety,
-  doc/repo debt cut, screenshots + release plumbing, public-face cleanup, the PKGBUILD inline
-  review modal, the Updates-banner gutters, the dependency-tree rebuild, the terminal dialog + log
-  highlighting, the calmed `.pacnew` center — all archived in [HISTORY.md](HISTORY.md).)*
+- **GUI settings surface for upgrade holds (2026-08-16).** Follow-up to the upgrade-pipeline
+  safety work (its declared "UI follow-up later"): the Settings page now has an **Upgrade
+  holds** section (Arch gem only) — held packages render as removable chips, an add box takes a
+  package name (client-side validation, Enter works), and everything persists through the
+  existing Save button into `arch_config['ignored_packages']` via
+  `get_app_settings()`/`save_app_settings()` (api.py: settings arch block). Hold semantics
+  unchanged: held packages still appear as upgradable in scans and are skipped at summarize
+  ("Held (ignored upgrade)"), and pacman gets `--ignore=<pkg>`. Legacy per-package pin file
+  (`UPDATES_IGNORED_FILE`) untouched — separate coexisting surface. Plan:
+  [2026-08-16-gui-upgrade-holds.md](plans/2026-08-16-gui-upgrade-holds.md). Suite now
+  **780 Python + 61 JS**. Not yet GUI-verified live (manual pass: add bazaar in Settings →
+  Update all skips it → remove hold → proposed again).
+- **Upgrade-pipeline safety — walk the user through bazaar-class problems (2026-08-16).**
+  The 2026-08-16 incident (Atlas's scripted upgrade `-R -dd`'d `qemu-full` + `qemu-block-gluster`,
+  then died on the upstream bazaar 0.9.4-1 file conflict, leaving the system un-upgraded) is fixed
+  at the design level, per [plan 2026-08-16-upgrade-pipeline-safety.md](plans/2026-08-16-upgrade-pipeline-safety.md):
+  1. **No more unconditional `-R -dd`.** `_remove_transaction_packages` validates removal targets
+     against live reverse deps (`map_required_by`) minus the transaction's own removals and the
+     packages the `-S` step replaces; unprotected dependents abort the upgrade with a clear message
+     (fail-closed). Removals now run plain `-R`.
+  2. **Mutual-conflict skip (no reorder).** `_handle_mutual_conflicts` skips pairs where one side
+     is already scheduled for removal — the survivor stays upgradable (the removal resolves the
+     conflict — that was the `qemu-desktop`→`qemu-full` case). Mutual handling still runs before
+     the conflicts→`to_remove` loop within a pass, so the skip covers pairs whose removal side was
+     scheduled earlier (to-update pass → to-install pass). **Known gap:** a mutual pair first
+     detected in the same pass with neither side pre-scheduled strands both in `cannot_upgrade`
+     (honest and visible; auto-removing both was judged too aggressive). Locked by
+     `test__should_strand_both_sides_when_mutual_conflict_unresolved`.
+  3. **Hold/`--ignore` support (the bazaar walk-through).** New `ignored_packages: []` config
+     default; `upgrade_several`/`upgrade_system` append `--ignore=<pkg>`; `summarize` moves held
+     packages into `cannot_upgrade` with reason "Held (ignored upgrade)"; the conflicting-files
+     dialog now parses `exists in filesystem (owned by X)`, and when the owner is a *different*
+     installed package (vendored files, the bazaar/libdex signature) it offers **"Hold packages and
+     continue"** — persist the holds, re-run the upgrade without them, never `--overwrite=*`.
+     Non-vendored conflicts keep the existing proceed/stop dialog.
+  4. Also: `ArchConfigManager` default, `map_owners()` helper for `pacman -Qo` on the conflicted
+     paths, i18n keys in all 10 locales, 2 new planner tests. Suite now **777 Python + 60 JS**. Not
+     yet GUI-verified (needs a real conflict to exercise the dialog — unit-tested only).
+
+- **Doc + repo debt cut (2026-08-01).** Re-entry after a 2-week gap cost more than the work would
+  have: STATUS.md had reached **2,379 lines / 94 KB** and no longer fit in an agent's read budget.
+  Split into this baton + [HISTORY.md](HISTORY.md) (the Done log, retired gotchas, and the
+  Rust/Qt-era decision log). Also deleted two fully-merged dead branches
+  (`feat/webview-polish-sprint-1`, `-2`; 0 commits ahead of master) and ~122 MB of regenerable
+  `makepkg` artifacts under `linux_dist/arch/`. **Fixed a real doc bug found while measuring:** the
+  large-files gotcha named `view/core/controller.py` at "~192 KB" — it is actually **32 KB**; the
+  220 KB file is `gems/arch/controller.py`, and the two genuinely largest files (`main.js` 340 KB,
+  `api.py` 184 KB) were not listed at all. Corrected here and in AGENTS.md §8. No app-code change;
+  suite unaffected (774 + 60).
+- **Screenshots + release plumbing (2026-08-01).** Re-shot all five `docs/screenshots/*.png` from the
+  real WebKitGTK window via the new `tools/capture-screenshots.sh` (DEVELOPMENT.md §8), uniform
+  1280×800. Known nits tracked, not blocking: the hero greets by a real first name and shows a
+  failed transaction; `details.png` showcases the source-comparison panel with an icon-less package
+  and an empty Flatpak version.
+
+  Also **fixed the misleading `atlas-pm-git` badge**: shields.io reads the `pkgver` frozen in the
+  AUR's `.SRCINFO`, and the `-git` publish workflow only fires on `linux_dist/arch/PKGBUILD` changes
+  (last touched 2026-06-21), so the README claimed the bleeding-edge package was three releases
+  *behind* stable. `pkgver()` recomputes at build time, so installers always got HEAD — only the
+  label was stale. Badge now carries no version, and the install section explains `paru -Sua --devel`.
+  **Deliberately not fixed by auto-republishing `.SRCINFO`** — that fights the Arch VCS convention,
+  spams the AUR with metadata-only commits, and adds a standing scheduled job holding an SSH key,
+  to replicate what `--devel` already does.
+
+  And added **`.github/workflows/github-release.yml`**: five tags existed with **zero GitHub
+  Releases**. A `v*` tag push now cuts a Release from that version's CHANGELOG section, via the `gh`
+  CLI + built-in `GITHUB_TOKEN` (no third-party action, no new secret). Falls back to master's
+  CHANGELOG when the tag predates its entry. Does not touch the AUR pipeline. **All 7 tags
+  (v0.11.0–v0.16.1) were backfilled** and every release has real notes (12–62 lines); `v0.15.0`
+  exercised the master-fallback for real — it shipped without a CHANGELOG entry and the entry was
+  backfilled later.
+
+  Also **dropped the inherited Python 3.9 claim.** It was never measured — the fork point declared
+  `>=3.5`, it was bumped to 3.9 without evidence, and CI has only ever tested 3.10–3.14. All 159
+  modules check clean against 3.9 *grammar* and use no 3.10+ stdlib APIs, so 3.9 probably does
+  work — but it's untested, EOL since 2025-10, and Arch ships 3.13/3.14. `setup.py`,
+  `pyproject.toml` and the README badge now claim **3.10+**, and both classifier lists gained 3.14.
+- **Public-face cleanup (2026-08-01).** Added a **bug-report issue template** (`.github/ISSUE_TEMPLATE/`)
+  — issues were enabled with no template, so reports arrived without the two things that make an
+  Atlas bug diagnosable: `~/.cache/atlaspm/logs/atlas.log` and `atlas --self-check` output. The form
+  front-loads both, plus install source, distribution (derivatives change mirrorlist/update
+  behaviour), and package source; `config.yml` points feature ideas at BACKLOG's non-goals and
+  redirects "this AUR package is malicious" to the AUR while keeping audit false positives/negatives
+  on-topic. Also **fixed the GitHub repo description**, which led with "AppImage, Arch/AUR, Flatpak,
+  Snap, Web" — burying Arch and advertising three sources that are off by default — and **deleted
+  three fully-merged remote branches** (`feat/webview-polish-sprint-2`, two `claude/*`; all 0 commits
+  ahead of master). Screenshots are the remaining half of this step — see Next #2.
+- **Read the PKGBUILD inside the pre-build review modal (2026-07-18).** The mid-Update-All "Review
+  PKGBUILD" advisory dialog told the user to read the PKGBUILD while offering no way to. The
+  `review` payload now carries the PKGBUILD + `.install` texts as `files: [{name, text, findings}]`
+  and `renderPkgbuildReview` renders each as a collapsed, line-numbered, syntax-highlighted
+  `<details>` reader. Suite 774 + JS 60. **GUI-verified by Vatteck 2026-08-01.**
+- *(2026-07-17 and earlier — Updates-banner gutters, the dependency-tree rebuild, the terminal
+  dialog + log highlighting, the calmed `.pacnew` center — all GUI-verified and archived in
+  [HISTORY.md](HISTORY.md).)*
 
 ---
 
@@ -155,40 +241,56 @@ Live traps only. Retired ones are in [HISTORY.md](HISTORY.md#retired-gotchas-res
   it from a worker thread. This bit the tray twice; the tray now pushes to JS only from its poller
   thread and runs menu-triggered navigation on a short daemon thread.
 - **Root password requires the GUI to drive it; can't verify headless.** The broker shows a modal
-  and blocks a pywebview worker thread on a `threading.Event`, resolved via `js_api` callbacks.
-  Install/cancel/wrong-password behaviour must be confirmed in the running GUI.
+  and blocks a pywebview worker thread on a `threading.Event`, relying on pywebview dispatching each
+  `js_api` call on its own thread (true for the GTK backend). Install/cancel/wrong-password
+  behaviour must be confirmed in the running GUI.
 - **`request_confirmation` renders input components.** The confirm modal renders
-  `MultipleSelectComponent`, `SingleSelectComponent`, `FormComponent`, `TextComponent`; the watcher
-  serializes the component tree and applies returned selections back onto the original objects, so
-  arch's `request_optional_deps`/`confirm_missing_deps`/`request_providers` read choices as before.
-  Covered by `tests/view/webview/test_watcher.py`. Not rendered: option icons, other component types.
-- **System tray is AppIndicator/SNI** (`atlas/view/tray.py`) — native on KDE Plasma, **GNOME needs
-  the AppIndicator extension** (desktop-side, not our bug). `gi`/AppIndicator are not in the
-  project venv, so the GUI and tray run under system Python; tray *logic* is unit-tested, the
-  indicator itself is GUI-eyeball-only. Close-to-tray is opt-in (`ui.tray.minimize_to_tray`,
-  default off). **KDE custom icons need an absolute file path**, not a theme name —
-  `set_icon_theme_path`+`set_icon_full('name')` doesn't resolve on KDE's SNI host (letter-avatar
-  fallback); pass an absolute path to `set_icon_full` so the lib sends pixmap data.
-- **`refresh_mirrors` is an inert Manjaro leftover — intentionally left.** Uses Manjaro's
-  `pacman-mirrors -g`; never runs on Arch/CachyOS (not surfaced in the webview, startup worker
-  double-gated off). Superseded by the Arch-correct `regenerate_mirrorlist` (Settings → Mirrors).
-  **Decision 2026-06-03: leave it** — removing it means refactoring the startup DB-sync flow for
-  zero runtime gain. Not a bug; don't "fix" it.
+  `MultipleSelectComponent`, `SingleSelectComponent`, `FormComponent` and `TextComponent` and
+  returns the user's selections; the watcher serializes the component tree
+  (`_serialize_components`) and applies returned option-index selections back onto the original
+  objects (`_apply_selections`) so arch's `request_optional_deps` / `confirm_missing_deps` /
+  `request_providers` read choices as before. Covered by `tests/view/webview/test_watcher.py`. Not
+  rendered: option icons (decorative) and component types outside those four (unused in confirmation
+  flows today).
+- **System tray is AppIndicator/SNI** (`atlas/view/tray.py`) — native on KDE Plasma, but **GNOME
+  needs the AppIndicator extension** (desktop-side, not our bug; don't work around it). `gi`/
+  AppIndicator are **not in the project venv**, so the GUI and tray run under **system Python** and
+  `TRAY_AVAILABLE` is False inside the venv — tray *logic* is unit-tested, the indicator itself is
+  GUI-eyeball-only. libayatana prints a harmless `…use libayatana-appindicator-glib` deprecation
+  warning at startup; ignore it. Close-to-tray is opt-in via `ui.tray.minimize_to_tray` (default
+  off), so closing still quits by default.
+- **AppIndicator custom icons on KDE need an absolute path, not a theme name.**
+  `set_icon_theme_path(dir)` + `set_icon_full('name')` does **not** resolve on KDE's SNI host (you
+  get the "A" letter-avatar). Pass an **absolute file path** to `set_icon_full` so the lib sends
+  pixmap data. The tray's dynamic count badge relies on this; the un-badged state uses the installed
+  themed name (`atlas-pm`, in hicolor), which does work.
+- **`refresh_mirrors` is an inert Manjaro leftover — intentionally left.** `ArchManager.refresh_mirrors`
+  / `pacman.refresh_mirrors` / `RefreshMirrors` use Manjaro's `pacman-mirrors -g`. On Arch/CachyOS this
+  **never runs**: the custom action isn't surfaced in the webview at all, and the startup worker is
+  double-gated off (`refresh_mirrors_startup` defaults off **and** `is_mirrors_available()` =
+  `which pacman-mirrors`, absent on Arch). Superseded by the Arch-correct `regenerate_mirrorlist`
+  (reflector/rate-mirrors, in Settings → Mirrors). **Decision 2026-06-03: leave it.** Removing it
+  would refactor the startup DB-sync flow (`RefreshMirrors` feeds
+  `SyncDatabases.should_sync(mirrors_refreshed, …)`) + the custom-action registry + i18n, for **zero
+  runtime gain**. Not a bug; don't "fix" it.
 - **Don't re-attempt a native dependency resolver, and only port CPU-bound ops with small results.**
-  `map_missing_deps` is I/O-bound and UI-coupled — a native port needs Rust→Python callbacks and
-  isn't faster. Measured: the native pacman info parser hit only ~1.2× (marshalling dominates for
-  many dicts) and was reverted; only `map_srcinfo` (~2×, one compact dict) had the right shape.
-  Weigh CPU-vs-I/O **and result size** before any native path. (AGENTS.md §3.2 + ROADMAP.)
-- **`atlas-pm-git`'s AUR version string is *supposed* to look stale.** shields.io/AUR read the
-  `pkgver` frozen in `.SRCINFO`, but `pkgver()` recomputes at build time so installers always get
-  HEAD — only the label freezes between PKGBUILD edits. **Don't "fix" with a scheduled `.SRCINFO`
-  re-publish** (fights Arch VCS convention, adds a standing SSH-key job). `paru -Sua --devel` is
-  the supported answer.
-- **GitHub Actions `concurrency` + `workflow_dispatch`:** `github.ref` is the same for every
-  dispatch, so keying a concurrency group on it puts unrelated dispatches in one group and
-  `cancel-in-progress: false` cancels the queued run, not the running one — back-to-back dispatches
-  silently displace each other (cost 4 of 7 backfill runs). Key on the meaningful input instead
-  (`inputs.tag || github.ref`).
+  The Python `map_missing_deps` is I/O-bound (pacman/AUR), recursive, and UI-coupled (watcher
+  provider choices) — a native port needs Rust→Python callbacks and isn't faster. Measured evidence:
+  the native pacman info parser hit only ~1.2× (PyO3 result-marshalling dominates when returning many
+  dicts) and was reverted; only `map_srcinfo` (~2×, one compact dict) had the right shape. Weigh
+  CPU-vs-I/O **and result size** before any native path. (AGENTS.md §3.2 + ROADMAP.)
+- **`atlas-pm-git`'s AUR version string is *supposed* to look stale.** shields.io and the AUR page
+  read the `pkgver` frozen in `.SRCINFO`; `pkgver()` recomputes at build time, so installers always
+  get HEAD. The `-git` publish workflow only fires on `linux_dist/arch/PKGBUILD` changes, so the
+  published label freezes between PKGBUILD edits. **Don't "fix" this with a scheduled `.SRCINFO`
+  re-publish** — it fights the Arch VCS convention, spams the AUR with metadata-only commits, and
+  adds a standing job holding an SSH key. `paru -Sua --devel` is the supported answer, and the
+  README now says so.
+- **GitHub Actions `concurrency` + `workflow_dispatch`:** `github.ref` is `refs/heads/<branch>` for
+  *every* dispatch, so keying a concurrency group on it puts unrelated dispatches in one group.
+  Only one run may sit pending per group, and `cancel-in-progress: false` cancels the **queued**
+  run, not the running one — so back-to-back dispatches silently displace each other. Cost us 4 of
+  7 backfill runs. Key on the meaningful input instead (`inputs.tag || github.ref`).
 - **To see new `atlas-files` suggestions immediately:** `rm ~/.cache/atlaspm/*/suggestions.*`. The
   app reads the **`main`** branch of [Vatteck/atlas-files](https://github.com/Vatteck/atlas-files).
 - **Debugging the GUI:** Atlas writes a persistent rotating log to `~/.cache/atlaspm/logs/atlas.log`
@@ -206,17 +308,37 @@ Live traps only. Retired ones are in [HISTORY.md](HISTORY.md#retired-gotchas-res
 
 ## Decision log (append-only; newest first)
 
-Older entries (2026-06 and the pre-2026-06 Rust/Qt era) are archived in
-[HISTORY.md](HISTORY.md#archived-decision-log-2026-06-entries-moved-from-statusmd-on-2026-09-08).
+Pre-2026-06 entries (the Rust/Qt era) are archived in
+[HISTORY.md](HISTORY.md#historical-decision-log-2026-05-28--2026-05-30--the-rustqt-era).
 
-- **2026-09-08** — **Archived older Done entries + two 2026-06 decisions to keep STATUS.md near
-  its ~200-line ceiling** (it had drifted to 335 lines). No content lost — see
-  [HISTORY.md](HISTORY.md).
 - **2026-08-01** — **Split STATUS.md; next phase is verification, not features.** The baton had
   grown to 2,379 lines and become the main cost of re-entering the project. Archived to HISTORY.md.
   Chose "verify and show" (GUI eyeball → screenshots/positioning → render-level test harness) over
   resuming the startup-memory thread, because every recent GUI eyeball found a real defect the test
   suite could not, while the memory work has a ~200 MB pywebview floor capping its payoff.
+- **2026-06-17** — **Deferred remote signed audit rules-packs indefinitely (designed, not built).**
+  The signing scheme is fully designed (plans/2026-06-17-audit-rules-pack-signing.md) but
+  deliberately unimplemented: a remote rule feed is a permanent supply-chain surface to own (crypto
+  dep, key rotation/revocation, signing tooling + CI) and the value is marginal for an *advisory*
+  scanner, since Atlas ships as a fast-updating `-git` AUR package — new bundled rules already reach
+  users on a normal update. The shipped local fail-closed loader covers the real need. Revisit only
+  if Atlas moves to a slow-release channel; if so, PyNaCl behind a `verify_pack()` seam. Reflects the
+  maintainer's priority (solo dev, side project) to avoid standing maintenance burden.
+- **2026-06-17** — **Dropped PKGBUILD-audit structural rule #3 (source-host ≠ url-host) on measured
+  evidence.** On a random live AUR sample, 45% of packages declaring both a `url=` and a remote
+  `source=()` had no source host matching the url host (31% even at registrable-domain level), and
+  every example was legitimate (homepage vs source repo, `*.github.io`→`github.com`, npm registry,
+  vendor CDN, moved hosts). ~1-in-3 fire rate with ~all false positives = the alert-fatigue failure
+  mode the maintenance plan warns against ("more rules ≠ safer"). No code shipped; recorded so it
+  isn't rebuilt. First real payoff of `atlas-cli audit-scan`: **measure before adding a rule.**
+- **2026-06-01** — **Fixed severe scroll lag in the package grid.** Three root causes: (1) the sticky
+  `.topbar` with `backdrop-filter: blur(16px)` overlapping the scrolling grid forced expensive
+  repaints (fixed by promoting to a compositor layer via `transform: translateZ(0); will-change:
+  transform, backdrop-filter`); (2) an invalid 4-value `contain-intrinsic-size` on `.package-card`
+  made older WebKitGTK drop the rule and collapse `content-visibility` elements to 0px height,
+  thrashing the scrollbar (fixed with the safer `contain-intrinsic-size: 180px; contain-intrinsic-height:
+  180px`); (3) a global `fadeInUp` animation on every `.package-card` forced WebKit to maintain
+  active animation state for thousands of nodes (removed).
 
 ---
 

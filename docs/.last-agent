@@ -1,40 +1,36 @@
 # .last-agent — integrity checkpoint for the next AI coding agent
 
-**Agent:** Claude Opus 5 — 2026-09-08 (cross-source search normalization, Task 7/7: handoff)
-**Branch:** feat/cross-source-search-normalization
-**Last commit:** 4e15ef5 ("docs: hand off cross-source search normalization")
+**Agent:** LongCat — 2026-10-07 (project audit + doc refresh)
+**Branch:** master
+**Last commit (base):** 6d316e0 ("docs: add implementation plan for search normalization")
 
 ## Summary
 
-Finished the 7-task plan fixing the bug where searching "google chrome" in the GUI returned only
-the Flatpak package while searching "chrome" returned a correctly grouped AUR+Flatpak card with
-source pills. Root cause was two matching-layer bugs in `atlas/gems/arch/controller.py`
-(un-normalized `in` test against a normalized AUR index key; a `' ' not in query` guard that
-skipped installed-package matching for multi-word queries) — multi-source grouping itself was
-never broken. Fix: new `atlas/gems/arch/naming.py` shared normalizer, delegated from both
-controller.py call sites and from `worker.py`'s AUR index build; `main.js` gained a standalone
-`normalizeName()` extracted out of `groupKey()`; a shared fixture
-(`tests/fixtures/pkg_name_normalization.json`) is asserted from both the Python and JS suites.
+Project audit after ~6 weeks of no doc updates on master. The `.last-agent` and `STATUS.md`
+on master were stale (last updated 2026-08-29), but significant work happened on three
+feature branches during that time:
 
-This session (Task 7) was **docs-only**: updated `docs/STATUS.md` with the Done entry, the two
-agreed out-of-scope follow-ups under Next (relevance inversion in `sortByRelevance`, `groupKey`
-breadth), and archived older Done entries + two 2026-06 decision-log entries to HISTORY.md to
-bring STATUS.md back down from 335 lines toward its ~200-line ceiling (now 226).
+- **`claude/amazing-yalow-a5930c`** (7 commits, +969/−1063) — Security fix: removes all
+  `shell=True` execution, converts to argv lists. Fixes a real command injection
+  vulnerability where searching `firefox; touch <path>` in the GUI created the file.
+  822 Python tests pass. NOT merged, NOT GUI-verified. PR being created 2026-10-07.
+- **`feat/cross-source-search-normalization`** (10 commits, +612/−281) — Fixes cross-source
+  search name normalization ("google chrome" returned only Flatpak, not AUR+Flatpak).
+  PR #7 open, CI green. 811 Python tests pass. NOT merged, NOT GUI-verified.
+- **`fix/upgrade-removal-safety`** (8 commits, +651/−1010) — Bootloader/kernel protection
+  during upgrades (Atlas removed the running kernel on CachyOS). Phase 1 done, Phase 2
+  NOT done. 799 Python tests pass. NOT merged, NOT GUI-verified.
 
-**Verification:** `python -m pytest` → 811 passed. `node --test
-tests/view/webview/main_js_contracts.test.js` → `fail 0` (reports `tests 1`; it's one node test
-wrapping an array of check functions — don't quote a JS test count).
+Master itself has 2 unpushed docs commits (search normalization planning).
+
+**Verification:** 787 Python tests + 62 JS contract tests green on master. CI green.
 
 ## Known gaps / next steps
 
-- **This fix is NOT GUI-verified.** Atlas's WebKitGTK GUI can't be driven headlessly. Vatteck's
-  manual pass before calling this done: search `google chrome` → one card with `AUR ● Flatpak ●`
-  pills matching what `chrome` returns; open it → "Available from 2 sources" panel present; search
-  `chrome` → unchanged from today.
-- Branch `feat/cross-source-search-normalization` is not yet merged to `master`.
-- Two deliberately out-of-scope follow-ups recorded in STATUS.md Next: the `sortByRelevance`
-  votes-tiebreaker inversion (unvoted AUR outranks official signed packages), and `groupKey`
-  breadth (measured 11/19 on realistic Arch-name/display-name pairs).
-- Known gap in the fix itself: the test asserting `not hasattr(worker, 'RE_CLEAR_REPLACE')` guards
-  against the duplicate normalization rule returning but asserts an implementation detail, not
-  behaviour.
+- **Security fix PR** being created from `claude/amazing-yalow-a5930c` — needs review + merge.
+- **Merge order:** security fix → search normalization → upgrade-removal-safety (last one
+  collides with the security fix in `gems/arch/controller.py` + `gems/arch/pacman.py`).
+- **None of the three branches are GUI-verified** — all need a real WebKitGTK desktop run.
+- **Master is 2 commits ahead of origin** — push after doc updates.
+- **`claude/zealous-keller-c598db`** is a stale branch at master's old HEAD — safe to delete.
+- **0.16.2 still needs release preparation** (README/CHANGELOG + smoke pass).
