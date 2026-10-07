@@ -76,9 +76,23 @@ def get_version() -> Optional[Tuple[str, ...]]:
     return map_str_version(res.split(' ')[1].strip()) if res else None
 
 
+def _info_cmd(app_id: str, branch: str, installation: str) -> List[str]:
+    """`flatpak info` argv. Blank branch/installation are dropped rather than passed as empty
+    arguments — the shell-interpolated form used to collapse them into whitespace."""
+    cmd = ['flatpak', 'info', app_id]
+
+    if branch:
+        cmd.append(branch)
+
+    if installation:
+        cmd.append(f'--{installation}')
+
+    return cmd
+
+
 def get_app_info(app_id: str, branch: str, installation: str) -> Optional[str]:
     try:
-        return run_cmd(f'flatpak info {app_id} {branch} --{installation}')
+        return run_cmd(_info_cmd(app_id, branch, installation))
     except Exception:
         traceback.print_exc()
         return ''
@@ -86,11 +100,11 @@ def get_app_info(app_id: str, branch: str, installation: str) -> Optional[str]:
 
 def show_permissions(app_id: str, branch: str, installation: str) -> Optional[str]:
     """`flatpak info --show-permissions` — the app's effective [Context] (incl. existing overrides)."""
-    cmd = f'flatpak info --show-permissions {app_id}'
+    cmd = ['flatpak', 'info', '--show-permissions', app_id]
     if branch:
-        cmd += f' {branch}'
+        cmd.append(branch)
     if installation:  # None/'' when the webview didn't resolve it — bare '--None' is an invalid flag
-        cmd += f' --{installation}'
+        cmd.append(f'--{installation}')
     return run_cmd(cmd, ignore_return_code=True, print_error=False)
 
 
@@ -110,7 +124,7 @@ def reset_overrides(app_id: str) -> bool:
 
 
 def get_commit(app_id: str, branch: str, installation: str) -> Optional[str]:
-    info = run_cmd(f'flatpak info {app_id} {branch} --{installation}')
+    info = run_cmd(_info_cmd(app_id, branch, installation))
 
     if info:
         commits = RE_COMMIT.findall(info)
@@ -195,20 +209,19 @@ def update(app_ref: str, installation: str, version: Tuple[str, ...], related: b
     if not deps:
         cmd.append('--no-deps')
 
-    return SimpleProcess(cmd=cmd, extra_paths={EXPORTS_PATH}, shell=True,
+    return SimpleProcess(cmd=cmd, extra_paths={EXPORTS_PATH},
                          lang=DEFAULT_LANG if version < VERSION_1_12 else None)
 
 
 def full_update(version: VERSION_1_12) -> SimpleProcess:
-    return SimpleProcess(cmd=('flatpak', 'update', '-y'), extra_paths={EXPORTS_PATH}, shell=True,
+    return SimpleProcess(cmd=('flatpak', 'update', '-y'), extra_paths={EXPORTS_PATH},
                          lang=DEFAULT_LANG if version < VERSION_1_12 else None)
 
 
 def uninstall(app_ref: str, installation: str, version: Tuple[str, ...]) -> SimpleProcess:
     return SimpleProcess(cmd=('flatpak', 'uninstall', app_ref, '-y', f'--{installation}'),
                          extra_paths={EXPORTS_PATH},
-                         lang=DEFAULT_LANG if version < VERSION_1_12 else None,
-                         shell=True)
+                         lang=DEFAULT_LANG if version < VERSION_1_12 else None)
 
 
 def _new_updates() -> Dict[str, Set[str]]:
@@ -243,7 +256,7 @@ def list_required_runtime_updates(installation: str) -> Optional[List[Tuple[str,
     Return a list of tuples composed by the reference and the origin.
     e.g: ('runtime/org.gnome.Desktop/42/x86_64', 'flathub')
     """
-    _, updates = system.execute(f'flatpak update --{installation}', shell=True,
+    _, updates = system.execute(['flatpak', 'update', f'--{installation}'],
                                 custom_env=system.gen_env())
 
     if updates:
@@ -253,7 +266,8 @@ def list_required_runtime_updates(installation: str) -> Optional[List[Tuple[str,
 def fill_updates(version: Tuple[str, ...], installation: str, res: Dict[str, Set[str]]):
     if version < VERSION_1_2:
         try:
-            output = run_cmd(f'flatpak update --no-related --no-deps --{installation}', ignore_return_code=True)
+            output = run_cmd(['flatpak', 'update', '--no-related', '--no-deps', f'--{installation}'],
+                             ignore_return_code=True)
 
             if f'Updating in {installation}' in output:
                 for line in output.split(f'Updating in {installation}:\n')[1].split('\n'):
@@ -330,7 +344,7 @@ def parse_commit_date(raw: str) -> datetime:
 
 
 def get_app_commits_data(app_ref: str, origin: str, installation: str, full_str: bool = True) -> List[dict]:
-    log = run_cmd(f'flatpak remote-info --log {origin} {app_ref} --{installation}')
+    log = run_cmd(['flatpak', 'remote-info', '--log', origin, app_ref, f'--{installation}'])
 
     if not log:
         raise NoInternetException()
@@ -363,7 +377,10 @@ def get_app_commits_data(app_ref: str, origin: str, installation: str, full_str:
 
 def search(version: Tuple[str, ...], word: str, installation: str, app_id: bool = False) -> Optional[List[dict]]:
 
-    res = run_cmd(f'flatpak search {word} --{installation}', lang=None)
+    # the query comes from the user's search box, so it is passed as argv elements rather than a
+    # shell command line. Splitting on whitespace keeps today's behaviour: the shell already split
+    # the query, and flatpak searches on the first term and ignores the rest.
+    res = run_cmd(['flatpak', 'search', *word.split(), f'--{installation}'], lang=None)
 
     if not res:
         return
@@ -447,8 +464,7 @@ def install(app_id: str, origin: str, installation: str, version: Tuple[str, ...
     return SimpleProcess(cmd=('flatpak', 'install', origin, app_id, '-y', f'--{installation}'),
                          extra_paths={EXPORTS_PATH},
                          lang=DEFAULT_LANG if version < VERSION_1_12 else None,
-                         wrong_error_phrases={'Warning'} if version < VERSION_1_12 else None,
-                         shell=True)
+                         wrong_error_phrases={'Warning'} if version < VERSION_1_12 else None)
 
 
 def set_default_remotes(installation: str, root_password: Optional[str] = None) -> SimpleProcess:
@@ -481,7 +497,7 @@ def list_remotes() -> Dict[str, Set[str]]:
 
 
 def run(app_id: str):
-    subprocess.Popen((f'flatpak run {app_id}',), shell=True, env={**os.environ})
+    subprocess.Popen(['flatpak', 'run', app_id], env={**os.environ})
 
 
 def map_installed_sizes() -> Dict[str, float]:

@@ -5,7 +5,7 @@ import sys
 import time
 from io import StringIO
 from subprocess import PIPE
-from typing import List, Tuple, Set, Dict, Optional, Iterable, Union, IO, Any
+from typing import List, Tuple, Set, Dict, Optional, Iterable, Sequence, Union, IO, Any
 
 # default environment variables for subprocesses.
 from atlas.api.abstract.handler import ProcessWatcher
@@ -70,11 +70,14 @@ class SimpleProcess:
     def __init__(self, cmd: Iterable[str], cwd: str = '.', expected_code: int = 0,
                  global_interpreter: bool = USE_GLOBAL_INTERPRETER, lang: Optional[str] = DEFAULT_LANG, root_password: Optional[str] = None,
                  extra_paths: Set[str] = None, error_phrases: Set[str] = None, wrong_error_phrases: Set[str] = None,
-                 shell: bool = False, success_phrases: Set[str] = None, extra_env: Optional[Dict[str, str]] = None,
+                 success_phrases: Set[str] = None, extra_env: Optional[Dict[str, str]] = None,
                  custom_user: Optional[str] = None, preserve_env: Optional[Set] = None):
+        """`cmd` is always an argument list and is always executed without a shell, so an
+        element that happens to contain shell syntax (a package name or dependency string
+        out of an AUR PKGBUILD, an app ref) reaches the process verbatim. There is
+        deliberately no `shell` option: this class used to accept one and re-joined `cmd`
+        with spaces, which handed every argument back to /bin/sh."""
         pwdin, final_cmd = None, []
-
-        self.shell = shell
 
         if custom_user:
             final_cmd.extend(['runuser', '-u', custom_user, '--'])
@@ -112,10 +115,10 @@ class SimpleProcess:
             "bufsize": -1,
             "cwd": cwd,
             "env": env,
-            "shell": self.shell
+            "shell": False
         }
 
-        return subprocess.Popen(args=[' '.join(cmd)] if self.shell else cmd, **args)
+        return subprocess.Popen(args=cmd, **args)
 
 
 class ProcessHandler:
@@ -248,15 +251,22 @@ class ProcessHandler:
         return success, string_output
 
 
-def run_cmd(cmd: str, expected_code: int = 0, ignore_return_code: bool = False, print_error: bool = True,
-            cwd: str = '.', global_interpreter: bool = USE_GLOBAL_INTERPRETER, extra_paths: Set[str] = None,
-            custom_user: Optional[str] = None, lang: Optional[str] = DEFAULT_LANG) -> Optional[str]:
+def run_cmd(cmd: Union[str, Sequence[str]], expected_code: int = 0, ignore_return_code: bool = False,
+            print_error: bool = True, cwd: str = '.', global_interpreter: bool = USE_GLOBAL_INTERPRETER,
+            extra_paths: Set[str] = None, custom_user: Optional[str] = None,
+            lang: Optional[str] = DEFAULT_LANG) -> Optional[str]:
     """
     runs a given command and returns its default output
+
+    :param cmd: either a command line (run through a shell) or an argument list (run without a
+    shell). Prefer the argument list whenever any part of the command comes from user input:
+    its elements reach the process verbatim and can never be parsed as shell syntax.
     :return:
     """
+    shell = isinstance(cmd, str)
+
     args = {
-        "shell": True,
+        "shell": shell,
         "stdout": PIPE,
         "env": gen_env(global_interpreter=global_interpreter, lang=lang, extra_paths=extra_paths),
         'cwd': cwd
@@ -265,7 +275,11 @@ def run_cmd(cmd: str, expected_code: int = 0, ignore_return_code: bool = False, 
     if not print_error:
         args["stderr"] = subprocess.DEVNULL
 
-    final_cmd = f"runuser -u {custom_user} -- {cmd}" if custom_user else cmd
+    if custom_user:
+        final_cmd = f"runuser -u {custom_user} -- {cmd}" if shell else ['runuser', '-u', custom_user, '--', *cmd]
+    else:
+        final_cmd = cmd
+
     res = subprocess.run(final_cmd, **args)
 
     if ignore_return_code or res.returncode == expected_code:
@@ -293,7 +307,7 @@ def new_subprocess(cmd: Iterable[str], cwd: str = '.', shell: bool = False, stdi
 
 def new_root_subprocess(cmd: Iterable[str], root_password: Optional[str], cwd: str = '.',
                         global_interpreter: bool = USE_GLOBAL_INTERPRETER, lang: str = DEFAULT_LANG,
-                        extra_paths: Set[str] = None, shell: bool = False) -> subprocess.Popen:
+                        extra_paths: Set[str] = None) -> subprocess.Popen:
     pwdin, final_cmd = subprocess.DEVNULL, []
 
     if isinstance(root_password, str):
@@ -302,11 +316,8 @@ def new_root_subprocess(cmd: Iterable[str], root_password: Optional[str], cwd: s
 
     final_cmd.extend(cmd)
 
-    if shell:
-        final_cmd = ' '.join(final_cmd)
-
     return subprocess.Popen(final_cmd, stdin=pwdin, stdout=PIPE, stderr=PIPE, cwd=cwd,
-                            env=gen_env(global_interpreter, lang, extra_paths), shell=shell)
+                            env=gen_env(global_interpreter, lang, extra_paths), shell=False)
 
 
 def validate_root_password(password: str, timeout: int = 15) -> bool:
@@ -329,10 +340,6 @@ def validate_root_password(password: str, timeout: int = 15) -> bool:
         return proc.returncode == 0
     except Exception:
         return False
-
-
-def notify_user(msg: str, app_name: str, icon_path: str):
-    os.system("notify-send -a {} {} '{}'".format(app_name, "-i {}".format(icon_path) if icon_path else '', msg))
 
 
 def get_dir_size(start_path='.'):
@@ -360,7 +367,7 @@ def run(cmd: List[str], success_code: int = 0, custom_user: Optional[str] = None
 
 
 def check_active_services(*names: str) -> Dict[str, bool]:
-    output = run_cmd('systemctl is-active {}'.format(' '.join(names)), print_error=False)
+    output = run_cmd(['systemctl', 'is-active', *names], print_error=False)
 
     if not output:
         return {n: False for n in names}
@@ -370,7 +377,7 @@ def check_active_services(*names: str) -> Dict[str, bool]:
 
 
 def check_enabled_services(*names: str) -> Dict[str, bool]:
-    output = run_cmd('systemctl is-enabled {}'.format(' '.join(names)), print_error=False)
+    output = run_cmd(['systemctl', 'is-enabled', *names], print_error=False)
 
     if not output:
         return {n: False for n in names}
@@ -379,13 +386,25 @@ def check_enabled_services(*names: str) -> Dict[str, bool]:
         return {s: status[i].strip().lower() == 'enabled' for i, s in enumerate(names) if s}
 
 
-def execute(cmd: str, shell: bool = False, cwd: Optional[str] = None, output: bool = True, custom_env: Optional[dict] = None,
-            stdin: bool = True, custom_user: Optional[str] = None) -> Tuple[int, Optional[str]]:
+def execute(cmd: Union[str, Sequence[str]], shell: bool = False, cwd: Optional[str] = None, output: bool = True,
+            custom_env: Optional[dict] = None, stdin: bool = True,
+            custom_user: Optional[str] = None) -> Tuple[int, Optional[str]]:
+    """Runs a command and returns (return code, output).
 
-    final_cmd = f"runuser -u {custom_user} -- {cmd}" if custom_user else cmd
+    :param cmd: either a command line or an argument list. Prefer the argument list whenever
+    any part of the command is dynamic: it is executed without a shell (`shell` is ignored),
+    so its elements can never be parsed as shell syntax, and it skips the naive `split(' ')`
+    the string form falls back to.
+    """
+    if not isinstance(cmd, str):
+        args = ['runuser', '-u', custom_user, '--', *cmd] if custom_user else [*cmd]
+        shell = False
+    else:
+        final_cmd = f"runuser -u {custom_user} -- {cmd}" if custom_user else cmd
+        args = [final_cmd] if shell else final_cmd.split(' ')
 
     params = {
-        'args': final_cmd.split(' ') if not shell else [final_cmd],
+        'args': args,
         'stdout': subprocess.PIPE if output else subprocess.DEVNULL,
         'stderr': subprocess.STDOUT if output else subprocess.DEVNULL,
         'shell': shell

@@ -1375,8 +1375,7 @@ class ArchManager(SoftwareManager, SettingsController):
         all_uninstalled, _ = handler.handle_simple(SimpleProcess(cmd=cmd,
                                                                  root_password=root_password,
                                                                  error_phrases={'error: failed to prepare transaction',
-                                                                                'error: failed to commit transaction'},
-                                                                 shell=True),
+                                                                                'error: failed to commit transaction'}),
                                                    output_handler=status_handler.handle)
         status_handler.stop_working()
         status_handler.join()
@@ -1861,7 +1860,7 @@ class ArchManager(SoftwareManager, SettingsController):
         try:
             Path(temp_dir).mkdir(parents=True)
             base_name = pkg.get_base_name()
-            run_cmd('git clone ' + URL_GIT.format(base_name), print_error=False, cwd=temp_dir)
+            run_cmd(['git', 'clone', URL_GIT.format(base_name)], print_error=False, cwd=temp_dir)
 
             clone_dir = f'{temp_dir}/{base_name}'
 
@@ -1897,7 +1896,7 @@ class ArchManager(SoftwareManager, SettingsController):
                                     '3_date': datetime.fromtimestamp(timestamp)})  # the number prefix is to ensure the rendering order
 
                     if idx + 1 < len(logs):
-                        if not run_cmd('git reset --hard ' + logs[idx + 1][0], cwd=clone_dir):
+                        if not run_cmd(['git', 'reset', '--hard', logs[idx + 1][0]], cwd=clone_dir):
                             break
 
                 return PackageHistory(pkg=pkg, history=history, pkg_status_idx=status_idx)
@@ -1961,7 +1960,8 @@ class ArchManager(SoftwareManager, SettingsController):
 
                     try:
                         filext = version_file.split('.')[-1]
-                        run_cmd('tar -C {} -I {} -xvf {} .PKGINFO'.format(extracted_dir, 'zstd' if filext == 'zst' else filext, version_file))
+                        run_cmd(['tar', '-C', extracted_dir, '-I', 'zstd' if filext == 'zst' else filext,
+                                 '-xvf', version_file, '.PKGINFO'])
                     except tarfile.ReadError:
                         if v == pkg.version:
                             cur_data['3_date'] = pacman.get_build_date(pkg.name)
@@ -3309,6 +3309,10 @@ class ArchManager(SoftwareManager, SettingsController):
 
     def launch(self, pkg: ArchPackage):
         if pkg.command:
+            # pkg.command is the .desktop `Exec=` line, which is a shell command line by
+            # specification (it can carry redirections, `&&`, quoting). It is the user's own
+            # installed application being launched deliberately, so it keeps its shell —
+            # unlike every command Atlas constructs itself.
             final_cmd = pkg.command.replace('%U', '')
             subprocess.Popen(final_cmd, shell=True)
 
@@ -4154,7 +4158,7 @@ class ArchManager(SoftwareManager, SettingsController):
             except KeyError:
                 self.logger.warning(f"Package builder user '{self.pkgbuilder_user}' does not exist")
                 self.logger.info(f"Adding the package builder user '{self.pkgbuilder_user}'")
-                added, output = handler.handle_simple(SimpleProcess(cmd=['useradd', self.pkgbuilder_user], shell=True))
+                added, output = handler.handle_simple(SimpleProcess(cmd=['useradd', self.pkgbuilder_user]))
 
                 if not added:
                     output_log = "Command output: {}".format(output.replace('\n', ' ') if output else '(no output)')

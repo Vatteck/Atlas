@@ -1,46 +1,67 @@
 # .last-agent — integrity checkpoint for the next AI coding agent
 
-**Agent:** Codex — 2026-08-29 (cross-workspace operation attention)
-**Branch:** master
-**Last commit (base):** 59b8ceb ("fix(updates): notify when operations need input")
+**Agent:** Claude Opus 5 — 2026-09-05 (shell-free command execution)
+**Branch:** claude/amazing-yalow-a5930c (worktree; branched from `master` at 0672603)
+**Last commit (base):** see `git log -1` — the sweep ends at the "docs: record shell-free
+execution handoff" commit, on top of 649d641.
 
 ## Summary
 
-Followed up the live-log diagnosis in `ca6e156`: a long AUR Update All can pause for a later
-PKGBUILD review while Atlas is on another Hyprland workspace/monitor, and the old five-minute
-deadline turned a missed prompt into a fake failure. User explicitly called out the long gaps and
-the lack of any cross-workspace attention signal.
+Two plans, one thread. Started as "convert `pacman.search` to argv"
+(`docs/plans/2026-09-05-search-argv-execution.md`); Vatteck then green-lit widening it
+("Atlas is all about security"), which became
+`docs/plans/2026-09-05-shell-free-execution.md`.
 
-Commit `59b8ceb` implements
-`docs/plans/2026-08-29-operation-attention-notifications.md`:
+**Atlas no longer runs any command it constructs through a shell.**
 
-- Password, confirmation/PKGBUILD-review, and blocking-message prompts now wait for an explicit
-  Authenticate/Cancel/Yes/No/OK answer instead of auto-cancelling after five minutes. They remain
-  fail-closed and the app's existing controls are the cancellation path.
-- Every blocking prompt sends a critical persistent desktop notification: "Atlas needs your
-  attention," the prompt name, and "Atlas is paused until you answer." The notification carries
-  the `atlas-pm` desktop-entry hint, respects the existing System notifications toggle, returns a
-  notification ID, and is closed when the user answers.
-- The operation terminal shows `Waiting for your input: <prompt>` and switches to
-  `Response received — continuing…` after the answer.
-- Atlas deliberately does not steal focus or move itself across workspaces.
-- `notify_user` now constructs a `subprocess.run` argument list instead of interpolating package or
-  prompt text into `os.system`, and notification-command contracts cover quoting/IDs/closure.
-- Settings now says System notifications cover operations that finish **or need attention**.
+Verified on the tree before fixing, not assumed:
 
-The earlier cancellation-vs-failure behavior remains: explicit auth cancellation says no updates
-started and is not rendered as a package failure. The old plan records that its deadline/dismiss
-portion was superseded by the attention-notification plan.
+- `pacman.search` concatenated the GUI query into a `shell=True` command line.
+  `sanitize_command_input` is a denylist and does not cover `;` or backticks — searching
+  `firefox; touch <path>` **created the file**.
+- Worse, and systemic: **`SimpleProcess` accepted `shell=True` and implemented it as
+  `' '.join(cmd)`**. Callers passed correct argv lists and the helper flattened them back
+  into shell lines. That path covers install/remove/upgrade under `sudo -S`, interpolating
+  package names, `--ignore=<pkg>` and `--assume-installed=<provider>` — and provider/dep
+  strings come from AUR PKGBUILD/`.SRCINFO` fields, which are attacker-controlled.
+  `new_root_subprocess` had the same join.
 
-**Verification:** 787 Python tests + 62 JS contract tests green. The existing PyGObject deprecation
-warning and four intentional missing-mock console errors in the JS contract run remain non-failing.
+What changed:
+
+- `shell` **removed** from `SimpleProcess` and `new_root_subprocess` (not just defaulted
+  off — every call site already passed a proper argv list, so the footgun is gone).
+- `run_cmd` and `execute` accept `Union[str, Sequence[str]]`; a sequence runs without a
+  shell. All interpolating callers converted across pacman, flatpak, makepkg, git, sshell,
+  arch/controller, api.py, commons.
+- `flatpak.search` fixed — the same GUI query, default-on source.
+- `flatpak.run`, `snap.run`, `appimage.launch`, `rebuild_detector` converted to argv.
+- Dead `commons.system.notify_user` (an `os.system` `notify-send` line, zero callers)
+  deleted; the live notifier is `view.util.util.notify_user`, argv-based since 2026-08-29.
+- **`tests/test_no_shell_execution.py`** fails the build on any new `shell=True`/`os.system`
+  outside a documented allowlist. The guard was verified by introducing a violation and
+  watching it fail.
+
+**Verification:** 822 Python tests (787 + 35 new) + 62 JS contract tests green. Converted
+commands smoke-tested against the real pacman, flatpak, git, find, diff, vercmp, systemctl
+and mkdir on this box — search result counts unchanged, injection canaries never fire. The
+PyGObject deprecation warning remains, non-failing.
 
 ## Known gaps / next steps
 
-- Live-smoke the critical notification on Hyprland: start the `master` build, trigger a blocking
-  prompt, switch workspaces, verify the alert appears/click associates with Atlas, answer the modal,
-  and verify the persistent notification disappears. Unit tests mock the notification daemon.
-- `/usr/bin/atlas` remains stable `atlas-pm 0.16.1-1`; none of the 2026-08-29 fixes are present there
-  until 0.16.2 is released or `atlas-pm-git` is installed.
-- 0.16.2 still needs normal release preparation (README/CHANGELOG entry + smoke pass); do not cut or
-  publish it without the maintainer choosing to release.
+- **Deliberately still shell-based, with reasons in `ALLOWED`** (`tests/test_no_shell_execution.py`)
+  and in STATUS.md: `arch`/`web`/`debian` `launch()` run a `.desktop` `Exec=` line, which is a
+  shell command line by specification. The **Debian gem's `aptitude.py` builds command strings**
+  rather than argv; it is off by default, Atlas is Arch-focused, and apt cannot be exercised here,
+  so it was reported rather than rewritten blind. **Convert it on a Debian box with a real apt.**
+- `sanitize_command_input` was deliberately kept. It is now load-bearing for a *different*
+  reason than before: it strips leading `-flags`, which argv execution would otherwise hand
+  to pacman as real options.
+- Nothing here needs a GUI eyeball — search results and package commands are unchanged by
+  construction and were smoke-tested — but it touches install/remove/upgrade, so it deserves
+  **one real Update All on a live system before 0.16.2 ships**.
+- STATUS.md was 384 lines after this entry; the 2026-08-16 and 2026-08-01 Done entries were
+  archived to HISTORY.md per AGENTS.md §1. It is now 292 — still above the ~200 target, but
+  the remainder is the live "Known gaps / gotchas" section.
+- This work is on a worktree branch, **not merged to `master`**.
+- Unchanged from the previous handoff: the Hyprland attention-notification live smoke is
+  still outstanding, and `/usr/bin/atlas` is still stable 0.16.1.

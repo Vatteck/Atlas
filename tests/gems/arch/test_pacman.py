@@ -1,4 +1,5 @@
 import os
+import tempfile
 import warnings
 from unittest import TestCase
 from unittest.mock import patch, Mock
@@ -39,7 +40,7 @@ Required By     : None
             """)
     def test_map_optional_deps__no_remote_and_not_installed__only_one_installed_with_description(self, run_cmd: Mock):
         res = pacman.map_optional_deps(('package-test',), remote=False, not_installed=True)
-        run_cmd.assert_called_once_with('pacman -Qi package-test')
+        run_cmd.assert_called_once_with(['pacman', '-Qi', 'package-test'])
         self.assertEqual({'package-test': {}}, res)
 
     @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value="""
@@ -52,7 +53,7 @@ Required By     : None
         """)
     def test_map_optional_deps__no_remote_and_not_installed__only_one_not_installed_with_description(self, run_cmd: Mock):
         res = pacman.map_optional_deps(('package-test',), remote=False, not_installed=True)
-        run_cmd.assert_called_once_with('pacman -Qi package-test')
+        run_cmd.assert_called_once_with(['pacman', '-Qi', 'package-test'])
         self.assertEqual({'package-test': {'lib32-vulkan-icd-loader': 'Vulkan support'}}, res)
 
     @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value="""
@@ -65,7 +66,7 @@ Required By     : None
             """)
     def test_map_optional_deps__no_remote_and_not_installed__only_one_not_installed_no_description(self, run_cmd: Mock):
         res = pacman.map_optional_deps(('package-test',), remote=False, not_installed=True)
-        run_cmd.assert_called_once_with('pacman -Qi package-test')
+        run_cmd.assert_called_once_with(['pacman', '-Qi', 'package-test'])
         self.assertEqual({'package-test': {'pipewire-alsa': ''}}, res)
 
     @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value="""
@@ -78,7 +79,7 @@ Required By     : None
                 """)
     def test_map_optional_deps__no_remote_and_not_installed__only_one_installed_no_description(self, run_cmd: Mock):
         res = pacman.map_optional_deps(('package-test',), remote=False, not_installed=True)
-        run_cmd.assert_called_once_with('pacman -Qi package-test')
+        run_cmd.assert_called_once_with(['pacman', '-Qi', 'package-test'])
         self.assertEqual({'package-test': {}}, res)
 
     @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value="""
@@ -94,7 +95,7 @@ Required By     : None
     """)
     def test_map_optional_deps__no_remote_and_not_installed__several(self, run_cmd: Mock):
         res = pacman.map_optional_deps(('package-test',), remote=False, not_installed=True)
-        run_cmd.assert_called_once_with('pacman -Qi package-test')
+        run_cmd.assert_called_once_with(['pacman', '-Qi', 'package-test'])
         self.assertEqual({'package-test': {'pipewire-alsa': '', 'pipewire': ''}}, res)
 
     # `pacman -Si <names>` prints one block per matching package. A package present in
@@ -293,7 +294,7 @@ class PacmanCacheTest(TestCase):
         # First call, should call run_cmd
         res1 = pacman.list_installed_names()
         self.assertEqual({"pkg1", "pkg2"}, res1)
-        run_cmd.assert_called_once_with('pacman -Qq', print_error=False)
+        run_cmd.assert_called_once_with(['pacman', '-Qq'], print_error=False)
 
         # Second call, should return cached value and not call run_cmd again
         run_cmd.reset_mock()
@@ -306,7 +307,7 @@ class PacmanCacheTest(TestCase):
         run_cmd.reset_mock()
         res3 = pacman.list_installed_names()
         self.assertEqual({"pkg1", "pkg2"}, res3)
-        run_cmd.assert_called_once_with('pacman -Qq', print_error=False)
+        run_cmd.assert_called_once_with(['pacman', '-Qq'], print_error=False)
 
     @patch(f'{__app_name__}.gems.arch.pacman.run_cmd')
     def test_list_explicit_names_caching(self, run_cmd: Mock):
@@ -314,7 +315,7 @@ class PacmanCacheTest(TestCase):
 
         res1 = pacman.list_explicit_names()
         self.assertEqual({"pkg1"}, res1)
-        run_cmd.assert_called_once_with('pacman -Qeq', print_error=False)
+        run_cmd.assert_called_once_with(['pacman', '-Qeq'], print_error=False)
 
         run_cmd.reset_mock()
         res2 = pacman.list_explicit_names()
@@ -331,7 +332,7 @@ Provides        : prov1  prov2
         # Full query, should query and cache (local)
         res1 = pacman.map_provided(remote=False, pkgs=None)
         self.assertIn("pkg1", res1)
-        run_cmd.assert_called_once_with('pacman -Qi')
+        run_cmd.assert_called_once_with(['pacman', '-Qi'])
 
         # Second full query, should hit cache
         run_cmd.reset_mock()
@@ -346,7 +347,7 @@ Version         : 2.0
 Provides        : None
 """
         res_specific = pacman.map_provided(remote=False, pkgs=["pkg2"])
-        run_cmd.assert_called_once_with('pacman -Qi pkg2')
+        run_cmd.assert_called_once_with(['pacman', '-Qi', 'pkg2'])
         self.assertIn("pkg2", res_specific)
 
         # Next full query should still hit cache and return original
@@ -410,3 +411,45 @@ class MapDesktopFilesTest(TestCase):
             b'ok /usr/share/applications/ok.desktop\n',
         ])
         self.assertEqual({'ok': ['/usr/share/applications/ok.desktop']}, pacman.map_desktop_files('ok', 'bad'))
+
+
+class PacmanSearchTest(TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        warnings.filterwarnings('ignore', category=DeprecationWarning)
+
+    @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value='')
+    def test_search__query_is_passed_as_an_argument_list(self, run_cmd: Mock):
+        pacman.search('firefox')
+
+        run_cmd.assert_called_once_with(['pacman', '-Ss', 'firefox'], print_error=False)
+
+    @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value='')
+    def test_search__multi_word_query_becomes_one_argument_per_term(self, run_cmd: Mock):
+        pacman.search('firefox esr')
+
+        run_cmd.assert_called_once_with(['pacman', '-Ss', 'firefox', 'esr'], print_error=False)
+
+    @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value='')
+    def test_search__shell_metacharacters_stay_inside_a_single_argument(self, run_cmd: Mock):
+        pacman.search('firefox;touch /tmp/pwned')
+
+        run_cmd.assert_called_once_with(['pacman', '-Ss', 'firefox;touch', '/tmp/pwned'],
+                                        print_error=False)
+
+    def test_search__injected_command_in_the_query_is_never_executed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            canary = os.path.join(tmp, 'pwned')
+            pacman.search(f'atlas-no-such-package; touch {canary}')
+
+            self.assertFalse(os.path.exists(canary))
+
+    @patch(f'{__app_name__}.gems.arch.pacman.run_cmd', return_value="""core/firefox 1.0-1
+    A web browser
+""")
+    def test_search__parses_repository_name_and_version(self, run_cmd: Mock):
+        found = pacman.search('firefox')
+
+        self.assertEqual({'firefox': {'repository': 'core', 'version': '1.0-1',
+                                      'description': 'A web browser'}}, found)

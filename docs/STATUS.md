@@ -8,7 +8,7 @@
 > move it to [HISTORY.md](HISTORY.md) (the full shipped record) or delete it. If this file
 > passes ~200 lines, it has stopped doing its job — archive again.
 
-**Last updated:** 2026-08-29
+**Last updated:** 2026-09-05
 **Version:** 0.16.1 (released 2026-07-18, tag `v0.16.1`, release commit `c8b9c37`; CI
 auto-published to the AUR). Both AUR packages live: stable **`atlas-pm`** + bleeding-edge
 **`atlas-pm-git`**. Next: **0.16.2** (upgrade-pipeline safety, plan
@@ -18,7 +18,7 @@ update cancellation clarity + cross-workspace attention notifications implemente
 [2026-08-29-update-cancellation-clarity.md](plans/2026-08-29-update-cancellation-clarity.md),
 [2026-08-29-operation-attention-notifications.md](plans/2026-08-29-operation-attention-notifications.md)).
 **Branch:** `master` (= `origin/master`). Always run `git branch` rather than trusting this line.
-**Health:** 787 Python tests + 62 JS contract tests green; CI green across Python 3.10–3.14.
+**Health:** 822 Python tests + 62 JS contract tests green; CI green across Python 3.10–3.14.
 
 > Feature wishlist lives in **[BACKLOG.md](BACKLOG.md)**. Everything already shipped is in
 > **[HISTORY.md](HISTORY.md)** and **[CHANGELOG.md](../CHANGELOG.md)** — don't re-read those to
@@ -93,6 +93,44 @@ Measured and partly fixed; **do not restart the measurement work**, it is all in
 
 Full record in [HISTORY.md](HISTORY.md). Only the last few entries live here.
 
+- **Atlas no longer runs any command it builds through a shell (2026-09-05).** Widened from the
+  search-box fix below after Vatteck green-lit it ("Atlas is all about security"). The audit found
+  the same shape in the shared helpers, and one was worse than the search box:
+  **`SimpleProcess` accepted `shell=True` and implemented it as `' '.join(cmd)`** — callers passed
+  a correct argv list (`['pacman', '-S', pkgname, '--noconfirm']`) and the helper flattened it back
+  into a shell line. That covered install/remove/upgrade under `sudo -S`, with package names,
+  `--ignore=<pkg>` and `--assume-installed=<provider>` interpolated — and providers/deps are parsed
+  out of **AUR PKGBUILD/`.SRCINFO` fields**, i.e. attacker-controlled text. `new_root_subprocess`
+  had the same join. Every `shell=True` call site in the tree passed a proper argv list, so the
+  parameter was **removed from both helpers** rather than defaulted off. It was also corrupting
+  arguments: `upgrade_several`'s `--overwrite=*` was reaching the shell as a glob.
+  Also: `execute()` now takes an argument list (its `pacman -Rc <name>`, `pacman -Qi <names>`,
+  `mkdir "<path>"` — double quotes don't stop `$(...)` — `git log` and `flatpak update` callers are
+  converted); **`flatpak.search` is fixed** (same GUI query, same severity, default-on source); all
+  remaining `run_cmd` interpolation in pacman/flatpak/makepkg/api/controller is argv; `flatpak.run`,
+  `snap.run`, `appimage.launch` and `rebuild_detector` are argv; and the dead
+  `commons.system.notify_user` (an `os.system` `notify-send` line, no callers) is deleted.
+  **`tests/test_no_shell_execution.py` fails the build on any new `shell=True`/`os.system`** outside
+  a small allowlist — verified by introducing a violation. Plan:
+  [2026-09-05-shell-free-execution.md](plans/2026-09-05-shell-free-execution.md). Suite now
+  **822 Python + 62 JS**, and the converted commands were smoke-tested against the real pacman,
+  flatpak, git, find, diff, vercmp and systemctl.
+- **The search box no longer reaches a shell (2026-09-05).** `pacman.search()` built a command
+  line by concatenation (`'pacman -Ss ' + words`) and `run_cmd` ran it with `shell=True`, so the
+  GUI search query was parsed by `/bin/sh`. The upstream `sanitize_command_input` is a **denylist**
+  and does not cover `;` or backticks — verified on the tree: searching
+  `firefox; touch /tmp/pwned` **created the file**. Real command execution as the desktop user,
+  reachable from the Search field, on a gem that is on by default.
+  `run_cmd` now accepts an argument list as well as a string (`Union[str, Sequence[str]]`; a
+  sequence sets `shell=False`, and `custom_user` builds `['runuser', '-u', u, '--', *cmd]`), and
+  `search()` passes `['pacman', '-Ss', *words.split()]`. Splitting is semantics-preserving —
+  verified against real pacman, `-Ss firefox esr` ANDs the two regexes exactly as the shell's
+  word-splitting used to. `sanitize_command_input` **stays** as defence in depth (it still strips
+  `-flags`, which argv execution would otherwise pass to pacman as options). 9 new tests, incl. a
+  canary that fails if an injected command ever runs again. Plan:
+  [2026-09-05-search-argv-execution.md](plans/2026-09-05-search-argv-execution.md). Suite now
+  **796 Python + 62 JS**. No GUI eyeball needed — search results are unchanged by construction.
+
 - **Long updates now announce and wait for required input (2026-08-29).** Live-log diagnosis found
   that the latest Update All never reached pacman: its root-password prompt received no response
   for five minutes, then the front-end mislabeled `cancelled` as "Bulk upgrade failed." The prior
@@ -106,101 +144,9 @@ Full record in [HISTORY.md](HISTORY.md). Only the last few entries live here.
   unchanged. Plans: [cancellation clarity](plans/2026-08-29-update-cancellation-clarity.md),
   [attention notifications](plans/2026-08-29-operation-attention-notifications.md). Suite now
   **787 Python + 62 JS**; live Hyprland notification/return flow still needs a manual smoke pass.
-- **GUI settings surface for upgrade holds (2026-08-16).** Follow-up to the upgrade-pipeline
-  safety work (its declared "UI follow-up later"): the Settings page now has an **Upgrade
-  holds** section (Arch gem only) — held packages render as removable chips, an add box takes a
-  package name (client-side validation, Enter works), and everything persists through the
-  existing Save button into `arch_config['ignored_packages']` via
-  `get_app_settings()`/`save_app_settings()` (api.py: settings arch block). Hold semantics
-  unchanged: held packages still appear as upgradable in scans and are skipped at summarize
-  ("Held (ignored upgrade)"), and pacman gets `--ignore=<pkg>`. Legacy per-package pin file
-  (`UPDATES_IGNORED_FILE`) untouched — separate coexisting surface. Plan:
-  [2026-08-16-gui-upgrade-holds.md](plans/2026-08-16-gui-upgrade-holds.md). Suite now
-  **780 Python + 61 JS**. Not yet GUI-verified live (manual pass: add bazaar in Settings →
-  Update all skips it → remove hold → proposed again).
-- **Upgrade-pipeline safety — walk the user through bazaar-class problems (2026-08-16).**
-  The 2026-08-16 incident (Atlas's scripted upgrade `-R -dd`'d `qemu-full` + `qemu-block-gluster`,
-  then died on the upstream bazaar 0.9.4-1 file conflict, leaving the system un-upgraded) is fixed
-  at the design level, per [plan 2026-08-16-upgrade-pipeline-safety.md](plans/2026-08-16-upgrade-pipeline-safety.md):
-  1. **No more unconditional `-R -dd`.** `_remove_transaction_packages` validates removal targets
-     against live reverse deps (`map_required_by`) minus the transaction's own removals and the
-     packages the `-S` step replaces; unprotected dependents abort the upgrade with a clear message
-     (fail-closed). Removals now run plain `-R`.
-  2. **Mutual-conflict skip (no reorder).** `_handle_mutual_conflicts` skips pairs where one side
-     is already scheduled for removal — the survivor stays upgradable (the removal resolves the
-     conflict — that was the `qemu-desktop`→`qemu-full` case). Mutual handling still runs before
-     the conflicts→`to_remove` loop within a pass, so the skip covers pairs whose removal side was
-     scheduled earlier (to-update pass → to-install pass). **Known gap:** a mutual pair first
-     detected in the same pass with neither side pre-scheduled strands both in `cannot_upgrade`
-     (honest and visible; auto-removing both was judged too aggressive). Locked by
-     `test__should_strand_both_sides_when_mutual_conflict_unresolved`.
-  3. **Hold/`--ignore` support (the bazaar walk-through).** New `ignored_packages: []` config
-     default; `upgrade_several`/`upgrade_system` append `--ignore=<pkg>`; `summarize` moves held
-     packages into `cannot_upgrade` with reason "Held (ignored upgrade)"; the conflicting-files
-     dialog now parses `exists in filesystem (owned by X)`, and when the owner is a *different*
-     installed package (vendored files, the bazaar/libdex signature) it offers **"Hold packages and
-     continue"** — persist the holds, re-run the upgrade without them, never `--overwrite=*`.
-     Non-vendored conflicts keep the existing proceed/stop dialog.
-  4. Also: `ArchConfigManager` default, `map_owners()` helper for `pacman -Qo` on the conflicted
-     paths, i18n keys in all 10 locales, 2 new planner tests. Suite now **777 Python + 60 JS**. Not
-     yet GUI-verified (needs a real conflict to exercise the dialog — unit-tested only).
-
-- **Doc + repo debt cut (2026-08-01).** Re-entry after a 2-week gap cost more than the work would
-  have: STATUS.md had reached **2,379 lines / 94 KB** and no longer fit in an agent's read budget.
-  Split into this baton + [HISTORY.md](HISTORY.md) (the Done log, retired gotchas, and the
-  Rust/Qt-era decision log). Also deleted two fully-merged dead branches
-  (`feat/webview-polish-sprint-1`, `-2`; 0 commits ahead of master) and ~122 MB of regenerable
-  `makepkg` artifacts under `linux_dist/arch/`. **Fixed a real doc bug found while measuring:** the
-  large-files gotcha named `view/core/controller.py` at "~192 KB" — it is actually **32 KB**; the
-  220 KB file is `gems/arch/controller.py`, and the two genuinely largest files (`main.js` 340 KB,
-  `api.py` 184 KB) were not listed at all. Corrected here and in AGENTS.md §8. No app-code change;
-  suite unaffected (774 + 60).
-- **Screenshots + release plumbing (2026-08-01).** Re-shot all five `docs/screenshots/*.png` from the
-  real WebKitGTK window via the new `tools/capture-screenshots.sh` (DEVELOPMENT.md §8), uniform
-  1280×800. Known nits tracked, not blocking: the hero greets by a real first name and shows a
-  failed transaction; `details.png` showcases the source-comparison panel with an icon-less package
-  and an empty Flatpak version.
-
-  Also **fixed the misleading `atlas-pm-git` badge**: shields.io reads the `pkgver` frozen in the
-  AUR's `.SRCINFO`, and the `-git` publish workflow only fires on `linux_dist/arch/PKGBUILD` changes
-  (last touched 2026-06-21), so the README claimed the bleeding-edge package was three releases
-  *behind* stable. `pkgver()` recomputes at build time, so installers always got HEAD — only the
-  label was stale. Badge now carries no version, and the install section explains `paru -Sua --devel`.
-  **Deliberately not fixed by auto-republishing `.SRCINFO`** — that fights the Arch VCS convention,
-  spams the AUR with metadata-only commits, and adds a standing scheduled job holding an SSH key,
-  to replicate what `--devel` already does.
-
-  And added **`.github/workflows/github-release.yml`**: five tags existed with **zero GitHub
-  Releases**. A `v*` tag push now cuts a Release from that version's CHANGELOG section, via the `gh`
-  CLI + built-in `GITHUB_TOKEN` (no third-party action, no new secret). Falls back to master's
-  CHANGELOG when the tag predates its entry. Does not touch the AUR pipeline. **All 7 tags
-  (v0.11.0–v0.16.1) were backfilled** and every release has real notes (12–62 lines); `v0.15.0`
-  exercised the master-fallback for real — it shipped without a CHANGELOG entry and the entry was
-  backfilled later.
-
-  Also **dropped the inherited Python 3.9 claim.** It was never measured — the fork point declared
-  `>=3.5`, it was bumped to 3.9 without evidence, and CI has only ever tested 3.10–3.14. All 159
-  modules check clean against 3.9 *grammar* and use no 3.10+ stdlib APIs, so 3.9 probably does
-  work — but it's untested, EOL since 2025-10, and Arch ships 3.13/3.14. `setup.py`,
-  `pyproject.toml` and the README badge now claim **3.10+**, and both classifier lists gained 3.14.
-- **Public-face cleanup (2026-08-01).** Added a **bug-report issue template** (`.github/ISSUE_TEMPLATE/`)
-  — issues were enabled with no template, so reports arrived without the two things that make an
-  Atlas bug diagnosable: `~/.cache/atlaspm/logs/atlas.log` and `atlas --self-check` output. The form
-  front-loads both, plus install source, distribution (derivatives change mirrorlist/update
-  behaviour), and package source; `config.yml` points feature ideas at BACKLOG's non-goals and
-  redirects "this AUR package is malicious" to the AUR while keeping audit false positives/negatives
-  on-topic. Also **fixed the GitHub repo description**, which led with "AppImage, Arch/AUR, Flatpak,
-  Snap, Web" — burying Arch and advertising three sources that are off by default — and **deleted
-  three fully-merged remote branches** (`feat/webview-polish-sprint-2`, two `claude/*`; all 0 commits
-  ahead of master). Screenshots are the remaining half of this step — see Next #2.
-- **Read the PKGBUILD inside the pre-build review modal (2026-07-18).** The mid-Update-All "Review
-  PKGBUILD" advisory dialog told the user to read the PKGBUILD while offering no way to. The
-  `review` payload now carries the PKGBUILD + `.install` texts as `files: [{name, text, findings}]`
-  and `renderPkgbuildReview` renders each as a collapsed, line-numbered, syntax-highlighted
-  `<details>` reader. Suite 774 + JS 60. **GUI-verified by Vatteck 2026-08-01.**
-- *(2026-07-17 and earlier — Updates-banner gutters, the dependency-tree rebuild, the terminal
-  dialog + log highlighting, the calmed `.pacnew` center — all GUI-verified and archived in
-  [HISTORY.md](HISTORY.md).)*
+- *(2026-08-16 and earlier — the upgrade-pipeline safety work and its holds UI, the 2026-08-01
+  doc/repo debt cut, screenshots + release plumbing, public-face cleanup, and the PKGBUILD
+  inline reader — all archived in [HISTORY.md](HISTORY.md).)*
 
 ---
 
@@ -208,6 +154,17 @@ Full record in [HISTORY.md](HISTORY.md). Only the last few entries live here.
 
 Live traps only. Retired ones are in [HISTORY.md](HISTORY.md#retired-gotchas-resolved-or-obsolete--kept-so-they-arent-re-derived).
 
+- **Shell use that is deliberately kept — reviewed 2026-09-05, don't "fix" it.** Three launchers
+  run a command line that is *already* a shell command line by specification: `arch`'s and `web`'s
+  `launch()` (the package's `.desktop` `Exec=` entry, which may carry quoting/`&&`/redirection) and
+  the Debian gem's launch/apt handoff. The **Debian gem's `aptitude.py`** also builds command
+  *strings* rather than argv lists; it is off by default, Atlas is Arch-focused (AGENTS.md §3.1),
+  and apt cannot be exercised on this box, so restructuring it blind is exactly the risky rewrite
+  §3.3 warns about. All of these are in `ALLOWED` in `tests/test_no_shell_execution.py` with their
+  reason. **If you convert the Debian gem, do it on a Debian box with a real apt.**
+- **`api.py`'s remaining `shlex.quote` calls are correct — leave them.** `get_command` builds a
+  command string for the *user* to copy into their own terminal; Atlas never executes it. The three
+  `shlex.quote` calls that fed `run_cmd` are gone (argv instead).
 - **The dev box still runs stable Atlas 0.16.1.** The 0.16.2 upgrade-safety, holds UI, and update
   cancellation/attention fixes are on `master` but not in `/usr/bin/atlas` until 0.16.2 is released
   (or the `atlas-pm-git` package is installed). Do not mistake a retry in 0.16.1 for verification of

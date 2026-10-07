@@ -839,7 +839,7 @@ class AppImageManager(SoftwareManager, SettingsController):
             appimag_path = util.find_appimage_file(installation_dir)
 
             if appimag_path:
-                subprocess.Popen(args=[appimag_path], shell=True, env={**os.environ},
+                subprocess.Popen(args=[appimag_path], env={**os.environ},
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
             else:
                 self.logger.error(f"Could not find the AppImage file of '{pkg.name}' in '{installation_dir}'")

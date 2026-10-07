@@ -18,7 +18,7 @@ def delete_all_snapshots(root_password: Optional[str]) -> SimpleProcess:
 
 def delete(snapshot_name: str, root_password: Optional[str]) -> SimpleProcess:
     return SimpleProcess(('timeshift', '--delete', '--snapshot', snapshot_name),
-                         shell=True, root_password=root_password)
+                         root_password=root_password)
 
 
 def create_snapshot(root_password: Optional[str], mode: str) -> SimpleProcess:
@@ -27,7 +27,7 @@ def create_snapshot(root_password: Optional[str], mode: str) -> SimpleProcess:
 
 
 def read_created_snapshots(root_password: Optional[str]) -> Generator[str, None, None]:
-    proc = new_root_subprocess(cmd=('timeshift', '--list'), root_password=root_password, shell=True)
+    proc = new_root_subprocess(cmd=('timeshift', '--list'), root_password=root_password)
     proc.wait()
 
     if proc.returncode == 0:

@@ -12,12 +12,16 @@ RE_DEPS_PATTERN = re.compile(r'\n?\s+->\s(.+)\n')
 
 
 def gen_srcinfo(build_dir: str, custom_pkgbuild_path: Optional[str] = None, custom_user: Optional[str] = None) -> str:
-    cmd = f"makepkg --printsrcinfo{' -p {}'.format(custom_pkgbuild_path) if custom_pkgbuild_path else ''}"
+    cmd = ['makepkg', '--printsrcinfo']
+
+    if custom_pkgbuild_path:
+        cmd.extend(('-p', custom_pkgbuild_path))
+
     return system.run_cmd(cmd, cwd=build_dir, custom_user=custom_user)
 
 
 def update_srcinfo(project_dir: str, custom_user: Optional[str] = None) -> bool:
-    updated_src = system.run_cmd('makepkg --printsrcinfo', cwd=project_dir, custom_user=custom_user)
+    updated_src = system.run_cmd(['makepkg', '--printsrcinfo'], cwd=project_dir, custom_user=custom_user)
 
     if updated_src:
         return write_as_user(content=updated_src, file_path=f"{project_dir}/.SRCINFO", user=custom_user)
@@ -27,7 +31,11 @@ def update_srcinfo(project_dir: str, custom_user: Optional[str] = None) -> bool:
 
 def list_output_files(project_dir: str, custom_pkgbuild_path: Optional[str] = None,
                       custom_user: Optional[str] = None) -> Set[str]:
-    cmd = f"makepkg --packagelist{' -p {}'.format(custom_pkgbuild_path) if custom_pkgbuild_path else ''}"
+    cmd = ['makepkg', '--packagelist']
+
+    if custom_pkgbuild_path:
+        cmd.extend(('-p', custom_pkgbuild_path))
+
     output = system.run_cmd(cmd=cmd, print_error=False, cwd=project_dir, custom_user=custom_user)
 
     if output:
@@ -51,7 +59,7 @@ def build(pkgdir: str, optimize: bool, handler: ProcessHandler, custom_pkgbuild:
         else:
             handler.watcher.print(f'Custom optimized makepkg.conf ({CUSTOM_MAKEPKG_FILE}) not found')
 
-    return handler.handle_simple(SimpleProcess(cmd, cwd=pkgdir, shell=True, custom_user=custom_user))
+    return handler.handle_simple(SimpleProcess(cmd, cwd=pkgdir, custom_user=custom_user))
 
 
 def check(project_dir: str, optimize: bool, missing_deps: bool, handler: ProcessHandler,
@@ -74,7 +82,7 @@ def check(project_dir: str, optimize: bool, missing_deps: bool, handler: Process
         else:
             handler.watcher.print(f'Custom optimized makepkg.conf ({CUSTOM_MAKEPKG_FILE}) not found')
 
-    success, output = handler.handle_simple(SimpleProcess(cmd, cwd=project_dir, shell=True, custom_user=custom_user))
+    success, output = handler.handle_simple(SimpleProcess(cmd, cwd=project_dir, custom_user=custom_user))
 
     if missing_deps and 'Missing dependencies' in output:
         res['missing_deps'] = RE_DEPS_PATTERN.findall(output)
