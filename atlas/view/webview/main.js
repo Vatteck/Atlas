@@ -399,12 +399,15 @@ function bestIconUrl(group) {
 }
 
 // Name-relevance for search ranking: exact > prefix > name-contains > description-only.
+// Compared on normalizeName() output (not raw strings) so a multi-word query like
+// 'google chrome' still recognizes 'google-chrome' as a name match, not just a description hit.
 function relevanceScore(name, q) {
-    const n = (name || '').toLowerCase();
     if (!q) return 0;
-    if (n === q) return 4;
-    if (n.startsWith(q)) return 3;
-    if (n.includes(q)) return 2;
+    const n = normalizeName(name), qq = normalizeName(q);
+    if (!qq) return 0;
+    if (n === qq) return 4;
+    if (n.startsWith(qq)) return 3;
+    if (n.includes(qq)) return 2;
     return 1; // only matched on description/other fields
 }
 
@@ -1536,12 +1539,20 @@ function stripBuildSuffix(name) {
     return n;
 }
 
+// The separator/case half of grouping, on its own because Python needs the same rule:
+// atlas/gems/arch/naming.py's normalize_pkg_name must agree with it, and the shared cases
+// in tests/fixtures/pkg_name_normalization.json are asserted from both suites. Build-suffix
+// stripping is deliberately NOT part of it — search must still find "brave-bin" by name.
+function normalizeName(name) {
+    return String(name == null ? '' : name).toLowerCase().replace(/[\s._-]+/g, '');
+}
+
 // Group key for cross-source collapsing: drop the build-method suffix, lowercase, and strip
 // separators so a Flatpak's display name and an AUR/repo package name for the same app line up —
 // "Google Chrome" ≙ "google-chrome", "Brave" ≙ "brave-bin" ≙ "brave-git". Conservative: it bridges
 // punctuation/casing/build-method without token-matching that could merge genuinely distinct apps.
 function groupKey(name) {
-    return stripBuildSuffix(name).toLowerCase().replace(/[\s._-]+/g, '');
+    return normalizeName(stripBuildSuffix(name));
 }
 
 // A source's "option" identity inside a group: the source type, plus the AUR build variant so
@@ -6906,8 +6917,11 @@ if (typeof window !== 'undefined' && window.__ATLAS_TEST__) {
         buildUpdateAllPreviewData,
         updateAllOutcome,
         buildSourceCompareHTML,
+        normalizeName,
         groupKey,
         stripBuildSuffix,
+        relevanceScore,
+        sortByRelevance,
         collapseByName,
         sourcePillLabel,
         sourcePillHTML,

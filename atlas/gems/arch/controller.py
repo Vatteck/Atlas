@@ -39,7 +39,7 @@ from atlas.gems.arch import aur, pacman, message, confirmation, disk, git, \
     gpg, URL_CATEGORIES_FILE, CATEGORIES_FILE_PATH, CUSTOM_MAKEPKG_FILE, \
     get_icon_path, database, mirrors, sorting, cpu_manager, UPDATES_IGNORED_FILE, \
     ARCH_CONFIG_DIR, EDITABLE_PKGBUILDS_FILE, URL_GPG_SERVERS, rebuild_detector, makepkg, sshell, get_repo_icon_path, \
-    pkgbuild_audit, chroot
+    pkgbuild_audit, chroot, naming
 from atlas.gems.arch.aur import AURClient
 from atlas.gems.arch.config import get_build_dir, ArchConfigManager
 from atlas.gems.arch.confirmation import confirm_missing_deps
@@ -327,10 +327,13 @@ class ArchManager(SoftwareManager, SettingsController):
         ti = time.time()
         api_res = self.aur_client.search(query)
 
-        pkgs_found = None
-        if api_res and api_res.get('results'):
-            pkgs_found = api_res['results']
-        else:
+        pkgs_found = api_res['results'] if api_res and api_res.get('results') else None
+
+        # The RPC ('by=name-desc') can return results that only match the query in their
+        # description, not their name. When that happens (or the RPC found nothing at all),
+        # also consult the name-normalized local index so an uninstalled multi-word-query
+        # match isn't missed just because some unrelated package's description matched.
+        if not pkgs_found or not naming.any_name_matches(query, (p['Name'] for p in pkgs_found)):
             tii = time.time()
             if self.index_aur:
                 self.index_aur.join()
@@ -338,15 +341,15 @@ class ArchManager(SoftwareManager, SettingsController):
             aur_index = self.aur_client.read_local_index()
             if aur_index:
                 self.logger.info("Querying through the local AUR index")
-                to_query = set()
-                for norm_name, real_name in aur_index.items():
-                    if query in norm_name:
-                        to_query.add(real_name)
+                to_query = naming.match_index_names(query, aur_index)
 
-                    if len(to_query) == 25:
-                        break
+                already_found = {p['Name'] for p in pkgs_found} if pkgs_found else set()
+                to_query = {name for name in to_query if name not in already_found}
 
-                pkgs_found = self.aur_client.get_info(to_query)
+                if to_query:
+                    indexed_pkgs = self.aur_client.get_info(to_query)
+                    if indexed_pkgs:
+                        pkgs_found = (pkgs_found or []) + list(indexed_pkgs)
 
             tif = time.time()
             self.logger.info("Query through local AUR index took {0:.2f} seconds".format(tif - tii))
@@ -364,8 +367,10 @@ class ArchManager(SoftwareManager, SettingsController):
         res['installed'] = installed
         res['installed_matches'] = matches
 
-        if installed and ' ' not in query:  # already filling some matches only based on the query
-            matches.update((name for name in installed if query in name))
+        # Both sides normalized, so a multi-word query ('google chrome') matches a
+        # hyphenated package name ('google-chrome'). The old raw-substring match could
+        # not, which is why this used to be skipped whenever the query held a space.
+        matches.update(naming.match_installed_names(query, installed))
 
     def search(self, words: str, disk_loader: DiskCacheLoader, limit: int = -1, is_url: bool = False) -> SearchResult:
         if is_url:

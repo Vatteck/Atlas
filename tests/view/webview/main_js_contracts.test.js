@@ -1088,6 +1088,47 @@ async function testBuildSourceCompareHTML() {
   assert.ok(!oneAur.includes('srccmp-guideline'), 'no AUR-build guideline with a single AUR option');
 }
 
+async function testNameNormalizationMatchesPython() {
+  const { hooks } = loadMainJs({});
+  const { normalizeName, groupKey, stripBuildSuffix } = hooks;
+
+  // The shared rule, asserted from the same fixture the Python suite reads. If these two
+  // drift apart, search stops finding what grouping merges.
+  const fixture = JSON.parse(
+    fs.readFileSync(path.join(process.cwd(), 'tests/fixtures/pkg_name_normalization.json'), 'utf8'));
+  assert.ok(fixture.cases.length > 0, 'fixture must not be empty');
+
+  for (const { input, expected } of fixture.cases) {
+    assert.strictEqual(normalizeName(input), expected,
+      `normalizeName(${JSON.stringify(input)}) must match Python's normalize_pkg_name`);
+  }
+
+  // normalizeName is only the separator/case half — build suffixes survive it.
+  assert.strictEqual(normalizeName('brave-bin'), 'bravebin');
+  assert.strictEqual(groupKey('brave-bin'), 'brave', 'groupKey still strips build suffixes');
+  assert.strictEqual(groupKey('Google Chrome'), normalizeName(stripBuildSuffix('Google Chrome')),
+    'groupKey is normalizeName composed with stripBuildSuffix');
+}
+
+async function testRelevanceScoreNormalizesMultiWordQuery() {
+  const { hooks } = loadMainJs({});
+  const { relevanceScore } = hooks;
+
+  // 'google chrome' vs 'google-chrome' must score as a name match (exact, once both
+  // sides are normalized), not fall through to the description-only tier (1).
+  assert.strictEqual(relevanceScore('google-chrome', 'google chrome'), 4,
+    'normalized multi-word query must exact-match a hyphenated name');
+
+  // prefix/contains tiers still work post-normalization
+  assert.strictEqual(relevanceScore('google-chrome-beta', 'google chrome'), 3,
+    'normalized multi-word query prefix-matches a longer hyphenated name');
+  assert.strictEqual(relevanceScore('my-google-chrome-wrapper', 'google chrome'), 2,
+    'normalized multi-word query contains-matches a hyphenated name mid-string');
+
+  // separator-insensitive for single-word queries too
+  assert.strictEqual(relevanceScore('google_chrome', 'googlechrome'), 4);
+}
+
 async function testCollapseByNameAcrossSources() {
   const { hooks } = loadMainJs({});
   const { groupKey, stripBuildSuffix, collapseByName, sourcePillLabel, sourceCompareNote } = hooks;
@@ -1947,6 +1988,8 @@ function testPermsListEnsuresIconObserver() {
     testUpdateAllOutcomeDistinguishesCancellationFromFailure,
     testBuildSourceCompareHTML,
     testCollapseByNameAcrossSources,
+    testNameNormalizationMatchesPython,
+    testRelevanceScoreNormalizesMultiWordQuery,
     testWhySourceHint,
     testBuildDependencySummaryHTML,
     testPackageActivitySectionClearsForNonInstalledPackages,
