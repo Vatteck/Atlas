@@ -214,8 +214,16 @@ class UpdatesSummarizer:
                             if conflict_providers:  # it means the conflict name matches a provided package
                                 checked_conflicts = set()
 
-                                if len(name_op_exp) == 1:  # if no expression is provided, add all providers
-                                    checked_conflicts.update((p for p in conflict_providers if p != pkg_name))
+                                if len(name_op_exp) == 1:  # if no expression is provided
+                                    if len(conflict_providers) == 1:
+                                        # One provider (typically the real package being superseded) —
+                                        # expansion is correct and must be preserved.
+                                        checked_conflicts.update((p for p in conflict_providers if p != pkg_name))
+                                    # Many providers (a virtual role name like ADIOS-MODULE,
+                                    # NVIDIA-MODULE, vulkan-driver) — expansion is wrong. The
+                                    # declaration means "only one may fill this role," not "delete
+                                    # the twelve others." Skip; pacman resolves this during the
+                                    # transaction.
                                 else:
                                     virtual_versions = virtual_providers.get(conflict_name)
 
@@ -766,7 +774,7 @@ class UpdatesSummarizer:
                         for n in names:
                             if n in deps:
                                 all_deps = dependents.get(n, set())
-                                all_deps.update(pname)
+                                all_deps.add(pname)
                                 dependents[n] = all_deps
 
                 else:

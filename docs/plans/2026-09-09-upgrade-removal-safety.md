@@ -1,7 +1,7 @@
 # Upgrade removal safety — Atlas removed the running kernel
 
 **Date:** 2026-09-09
-**Status:** design; root cause investigated, not yet implemented
+**Status:** Phase 1 + Phase 2 implemented (2026-10-07); not yet GUI-verified
 **Severity:** highest. A routine Update All left the machine with no kernel package and no
 `mkinitcpio`, then the CachyOS hook advised a reboot.
 **Branch:** `fix/upgrade-removal-safety` (off `origin/master` @ `6a84ab1`)
